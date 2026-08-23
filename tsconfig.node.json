@@ -1,0 +1,28 @@
+{
+  "compilerOptions": {
+    "composite": true,
+    "skipLibCheck": true,
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "types": ["node"],
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noEmit": true,
+    /* Scripts are run by Node's own type stripping, which resolves the extension it is written
+       with. Nothing is emitted here, so the specifier the script actually uses is the one to check. */
+    "allowImportingTsExtensions": true
+  },
+  /* The four modules the feed probe reads the provider through. Listed rather than globbed: this
+     is the whole dependency closure of `KvvEfaClient`, and it is closed on purpose — a script that
+     talks to the provider must not pull the app's DOM-bound code into a Node project. If this list
+     has to grow, the module being added is the thing to look at. */
+  "include": [
+    "vite.config.ts",
+    "scripts",
+    "src/data/kvv-efa-client.ts",
+    "src/data/kvv-efa-parsers.ts",
+    "src/data/operational-exceptions.ts",
+    "src/data/transit-types.ts"
+  ]
+}

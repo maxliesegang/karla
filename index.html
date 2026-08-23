@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <!-- viewport-fit=cover so the safe-area insets the shell already reserves are real on a notched
+         phone and in a standalone window; without it env(safe-area-inset-*) is always zero. -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#c9161c" />
+    <meta name="description" content="KARLA – Karlsruhes Linien &amp; Abfahrten. Wie steht es gerade im Karlsruher Nahverkehrsnetz?" />
+    <meta property="og:title" content="KARLA" />
+    <meta property="og:description" content="Karlsruhes Linien &amp; Abfahrten" />
+    <meta property="og:image" content="./og.png" />
+    <!-- Installed, the app is the bar's own colour up to the status bar, and its name is the mark. -->
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="KARLA" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <link rel="icon" href="./favicon.svg" />
+    <link rel="apple-touch-icon" href="./apple-touch-icon.png" />
+    <title>KARLA – Karlsruhes Linien &amp; Abfahrten</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

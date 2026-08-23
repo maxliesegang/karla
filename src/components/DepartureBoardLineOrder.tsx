@@ -1,0 +1,450 @@
+import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import type { Departure, PlatformKind } from "../data/transit-types";
+import { classNames } from "../lib/class-names";
+import {
+  findVehicleAccessLabel,
+  getDepartureAccessibilityLabel,
+  getCountdownReading,
+  isDepartureSelected,
+} from "../lib/departure-presentation";
+import {
+  findSharedPlatformKind,
+  findSharedPlatformName,
+  formatPlatformName,
+  formatSpokenPlatformName,
+} from "../lib/platform-naming";
+import type { StopServiceCorridor, StopServiceCorridorLineGroup } from "../lib/stop-corridors";
+import {
+  getCorridorTermini,
+  getShownCorridorPlaces,
+  type StopServiceCorridorPlace,
+} from "../lib/stop-corridor-way";
+import { getDepartureOpenPath, navigateTo, routePaths } from "../routing";
+import { DepartureCountdown } from "./DepartureCountdown";
+import { LineBadge } from "./LineBadge";
+
+/**
+ * How many of a direction's trips stand on the board at once.
+ *
+ * A rider reading this order is asking "when does the 2 go my way, and how does that compare to the
+ * 5" — a question the next departure answers and the two behind it qualify: how long the wait is if
+ * this one is missed, and how often the direction runs. A fourth countdown adds nothing to that
+ * comparison and takes its width from the direction's own name, which is the part a rider who does
+ * not know the network has to read. Three is therefore what a direction shows; the time order keeps
+ * the rest of them.
+ */
+const CORRIDOR_CHIP_LIMIT = 3;
+
+/**
+ * What a trip has to state for itself, under a heading that has already stated the rest.
+ *
+ * Every trip names its own terminus — a rider deciding between two countdowns of one direction is
+ * still deciding where each of them ends, and the heading names the shared way out, not each trip's
+ * end. Also the exceptions: a platform where the trips leave from different ones, and the two facts
+ * about a single trip that no heading could ever carry — that it is running a diversion, and that
+ * its vehicle is not step-free. Where the platform holds for every trip, a chip repeating it
+ * nineteen times would be the noise this reading exists to remove.
+ *
+ * Each warning prints on a line of its own, under the rest. A warning is the one part of a chip a
+ * rider may be scanning *for*, and it is the whole of what says a trip is diverted or has steps —
+ * so it is the one thing here that must never be the half of a note that a narrow column drops:
+ * "Knielinger Allee · Um…" is a chip that has quietly stopped warning anybody. Joined to each other
+ * they were as lossy as they had been joined to the destination — a column this narrow gives a
+ * warning two lines, and two warnings sharing them cost the second one its word.
+ */
+type CorridorDepartureNote = { text?: string; warnings: string[] };
+
+function getCorridorDepartureNote(
+  departure: Departure,
+  sharedPlatformName: string | undefined,
+): CorridorDepartureNote {
+  const parts: string[] = [departure.destination];
+  if (!sharedPlatformName && departure.platformName) {
+    parts.push(formatPlatformName(departure.platformName, departure.platformKind));
+  }
+  // The countdown already says "entfällt" in the largest type on the chip; nothing repeats it.
+  const warnings =
+    departure.status === "cancelled"
+      ? []
+      : [
+          departure.status === "diverted" ? "Umleitung" : undefined,
+          findVehicleAccessLabel(departure),
+        ].filter((warning): warning is string => Boolean(warning));
+  return { text: parts.length > 0 ? parts.join(" · ") : undefined, warnings };
+}
+
+/**
+ * One trip of a corridor, as its countdown alone.
+ *
+ * The line reading is a comparison, and a comparison is only readable while the things compared are
+ * on screen together. A full row per trip put four departures where four *lines* had to fit, so the
+ * reading that exists to give an overview was the one that had to be scrolled. The direction is
+ * stated once, above; what a trip has left to add is the minute it leaves in, and that is all this
+ * prints. Every chip of the board sits in the same three columns, so the next departure of one line
+ * is directly above the next departure of the next — which is the comparison itself, drawn.
+ * Nothing is dropped from the button's label, so a screen reader still hears the whole row.
+ */
+function CorridorDepartureChip({
+  departure,
+  note,
+  stopId,
+  isLead,
+  isSelected,
+  isPinned,
+  feedNow,
+}: {
+  departure: Departure;
+  /** What the heading above cannot say for this trip: where it ends short, where it leaves from. */
+  note: CorridorDepartureNote;
+  stopId: string;
+  /** The next trip this way — the one a rider reading this direction is actually catching. */
+  isLead: boolean;
+  isSelected: boolean;
+  isPinned: boolean;
+  feedNow: number;
+}) {
+  return (
+    <button
+      type="button"
+      className={classNames(
+        "corridor-departure",
+        isLead && "lead",
+        isSelected && "selected",
+        isPinned && "pinned",
+        departure.status === "cancelled" && "cancelled",
+      )}
+      aria-current={isSelected ? "true" : undefined}
+      onClick={() => navigateTo(getDepartureOpenPath(departure, stopId, isPinned))}
+      aria-label={`${getDepartureAccessibilityLabel(departure, feedNow)}, ${
+        isPinned ? "Auswahl aufheben" : "Fahrtverlauf öffnen"
+      }`}
+    >
+      <span className="corridor-departure-countdown">
+        <DepartureCountdown reading={getCountdownReading(departure, feedNow)} />
+      </span>
+      {note.text && <small className="corridor-departure-note">{note.text}</small>}
+      {note.warnings.map((warning) => (
+        <small key={warning} className="corridor-departure-note corridor-departure-warning">
+          {warning}
+        </small>
+      ))}
+    </button>
+  );
+}
+
+/** The corridor's direction as it is heard: the line, the ends a rider picks between, the platform. */
+function getCorridorSpokenLabel(
+  corridor: StopServiceCorridor,
+  lineId: string,
+  sharedPlatformName: string | undefined,
+  sharedPlatformKind: PlatformKind | undefined,
+): string {
+  // The way's own places are for the eye; what is heard is the direction and the ends past it.
+  const termini = getCorridorTermini(corridor.places);
+  const directionIndex = termini.findIndex(({ label }) => label === corridor.directionLabel);
+  const onwardPlaces = (directionIndex >= 0 ? termini.slice(directionIndex + 1) : [])
+    .map((place) => `, weiter bis ${place.label}`)
+    .join("");
+  const platform = sharedPlatformName
+    ? `, ab ${formatSpokenPlatformName(sharedPlatformName, sharedPlatformKind)}`
+    : "";
+  return `Linie ${lineId} Richtung ${corridor.directionLabel}${onwardPlaces}${platform}`;
+}
+
+/** The direction is one line: the way's own places fit beside its ends or stand down. */
+const DIRECTION_LINE_BUDGET = 1;
+
+/**
+ * How many of the way's own places the row has stood down to fit the one line the direction gets.
+ *
+ * Measured against a hidden copy of the chain as it currently reads, laid out at the width the
+ * heading really gets: while it outgrows its line, one more place stands down — the least prominent
+ * still shown, since `getShownCorridorPlaces` drops them in rank order — until what is left fits,
+ * so a row keeps every place it has the room for rather than dropping the way whole.
+ * A fresh corridor offers the whole way again, so a row that gains the room takes its places back.
+ * The ends are never stood down: where they alone outgrow the line they wrap rather than vanish,
+ * and nothing on the row is ever cut off mid-word.
+ */
+function useWayPlacesFit(
+  corridor: StopServiceCorridor,
+  wayPlaceCount: number,
+): {
+  headingRef: React.RefObject<HTMLHeadingElement | null>;
+  measureRef: React.RefObject<HTMLSpanElement | null>;
+  standDownCount: number;
+} {
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  const measureRef = useRef<HTMLSpanElement>(null);
+  const corridorRef = useRef(corridor);
+  const [standDownCount, setStandDownCount] = useState(0);
+
+  useLayoutEffect(() => {
+    // A stand-down re-runs this effect to measure what is left; a fresh corridor is the one thing
+    // that offers the whole way again.
+    const isFreshCorridor = corridorRef.current !== corridor;
+    corridorRef.current = corridor;
+    if (isFreshCorridor && standDownCount > 0) {
+      setStandDownCount(0);
+      return;
+    }
+
+    const measure = () => {
+      const measureElement = measureRef.current;
+      if (!measureElement || standDownCount >= wayPlaceCount) return;
+      const lineHeight = Number.parseFloat(getComputedStyle(measureElement).lineHeight);
+      if (!Number.isFinite(lineHeight)) return;
+      if (measureElement.getBoundingClientRect().height <= lineHeight * DIRECTION_LINE_BUDGET + 0.5)
+        return;
+      setStandDownCount(standDownCount + 1);
+    };
+    measure();
+    if (typeof ResizeObserver === "undefined" || !headingRef.current) return;
+    const observer = new ResizeObserver(measure);
+    observer.observe(headingRef.current);
+    return () => observer.disconnect();
+  }, [corridor, standDownCount, wayPlaceCount]);
+
+  return { headingRef, measureRef, standDownCount };
+}
+
+/**
+ * The way as the row draws it: every place with the arrow that walks to it, the end the corridor
+ * heads into carrying the strong arrow. The ends are the chain's spine and are always drawn; the
+ * places between them only where the one line has room for them.
+ */
+function DirectionChain({
+  places,
+  directionLabel,
+  standDownCount,
+}: {
+  places: readonly StopServiceCorridorPlace[];
+  directionLabel: string;
+  standDownCount: number;
+}) {
+  const shown = getShownCorridorPlaces(places, standDownCount);
+  if (shown.length === 0) {
+    // No way was observed: the direction is the one name the row has.
+    return (
+      <span>
+        <b className="departure-board-corridor-arrow" aria-hidden="true">
+          →
+        </b>
+        {directionLabel}
+      </span>
+    );
+  }
+  const directionIndex = shown.findIndex(
+    ({ isTerminus, label }) => isTerminus && label === directionLabel,
+  );
+  return (
+    <>
+      {shown.map((place, index) =>
+        index === directionIndex ? (
+          <span key={index}>
+            <b className="departure-board-corridor-arrow" aria-hidden="true">
+              →
+            </b>
+            {place.label}
+          </span>
+        ) : (
+          <span className="departure-board-corridor-onward" key={index}>
+            <b aria-hidden="true">→</b>
+            {place.label}
+          </span>
+        ),
+      )}
+    </>
+  );
+}
+
+/**
+ * One direction of one line: where it goes, and when the next ones leave.
+ *
+ * The corridor's own name carries the direction — the place these trips head into, not the headsign
+ * of whichever one happens to be first — and it is given the width it needs to be read: the
+ * countdowns beside it stand in fixed columns, so a longer direction never squeezes them and they
+ * never squeeze it. The next three leave visible; the time order keeps the rest of the direction.
+ */
+function CorridorGroup({
+  corridor,
+  lineId,
+  renderChip,
+}: {
+  corridor: StopServiceCorridor;
+  lineId: string;
+  renderChip: (departure: Departure, note: CorridorDepartureNote, isLead: boolean) => ReactNode;
+}) {
+  // The platform is a fact about where to stand, so it is stated where it holds: on the heading when
+  // every trip of the direction leaves from it, on the trip when they part. The shared route is
+  // claimed only where it was observed in full — a first link says the trips leave together, not
+  // that they stay together.
+  const termini = getCorridorTermini(corridor.places);
+  const wayPlaceCount = corridor.places.length - termini.length;
+  const { headingRef, measureRef, standDownCount } = useWayPlacesFit(corridor, wayPlaceCount);
+  const sharedPlatformName = findSharedPlatformName(corridor.departures);
+  const sharedPlatformKind = findSharedPlatformKind(corridor.departures);
+  const sharedPlatformLabel = sharedPlatformName
+    ? formatPlatformName(sharedPlatformName, sharedPlatformKind)
+    : undefined;
+  const sharesLinienweg =
+    corridor.hasObservedSharedRoute && termini.length <= 1 && corridor.destinations.length > 1;
+  const shownDepartures = corridor.departures.slice(0, CORRIDOR_CHIP_LIMIT);
+
+  return (
+    <section
+      className="departure-board-corridor"
+      aria-label={getCorridorSpokenLabel(corridor, lineId, sharedPlatformName, sharedPlatformKind)}
+    >
+      <h3 ref={headingRef}>
+        {/* The way out of this stop, on the one line the direction fills: the places these trips
+            pass through and the ends they turn back at, walked in route order. The ends always
+            show; the way's own places stand down, least prominent first, while the chain outgrows
+            the line. Nothing here clips — a direction cut off mid-word is the one thing on this
+            reading a rider who does not know the network cannot recover from the rest of the row. */}
+        <span className="departure-board-corridor-direction">
+          <DirectionChain
+            places={corridor.places}
+            directionLabel={corridor.directionLabel}
+            standDownCount={standDownCount}
+          />
+        </span>
+        {wayPlaceCount > 0 && (
+          <span
+            ref={measureRef}
+            className="departure-board-corridor-direction departure-board-corridor-direction-measure"
+            aria-hidden="true"
+          >
+            <DirectionChain
+              places={corridor.places}
+              directionLabel={corridor.directionLabel}
+              standDownCount={standDownCount}
+            />
+          </span>
+        )}
+        {(sharedPlatformLabel || sharesLinienweg) && (
+          <span className="departure-board-corridor-captions">
+            {/* Only trips that part need saying so: a chain of places already reads as one route
+                that some trips stay on longer than others. */}
+            {sharesLinienweg && <small>gemeinsamer Linienweg</small>}
+            {sharedPlatformLabel && (
+              <small className="departure-board-corridor-platform" aria-hidden="true">
+                {sharedPlatformLabel}
+              </small>
+            )}
+          </span>
+        )}
+      </h3>
+      <div className="departure-board-corridor-strip">
+        {shownDepartures.map((departure, index) =>
+          renderChip(
+            departure,
+            getCorridorDepartureNote(departure, sharedPlatformName),
+            index === 0,
+          ),
+        )}
+      </div>
+    </section>
+  );
+}
+
+/**
+ * One line's departures from this stop, gathered under the directions they take out of it.
+ *
+ * The heading is the way to the whole line: it is the one thing this reading offers that the board
+ * itself cannot, since a row addresses a single trip and a rider asking "where does the 2 go" is
+ * asking about the line. It is a band the eye can find while scrolling, and it sticks — the same
+ * signpost the platform reading gives a platform, given here to the line, because in this order the
+ * line is what a rider is scrolling to find.
+ */
+function LineGroup({
+  group,
+  stopId,
+  renderChip,
+}: {
+  group: StopServiceCorridorLineGroup;
+  stopId: string;
+  renderChip: (departure: Departure, note: CorridorDepartureNote, isLead: boolean) => ReactNode;
+}) {
+  return (
+    <section className="departure-board-line-group" aria-label={`Linie ${group.id}`}>
+      <h2>
+        <button
+          type="button"
+          className="stop-line-group-heading"
+          onClick={() => navigateTo(routePaths.line(group.line.id, stopId))}
+          aria-label={`Linie ${group.line.id}, Linienverlauf öffnen`}
+          // The band carries its own line's sign colour so the pointer can answer in that colour
+          // rather than in a flat white. CSS mixes it toward the ink before painting with it.
+          style={{ "--line-color": group.line.color } as CSSProperties}
+        >
+          <LineBadge line={group.line} />
+          <span>Linienverlauf</span>
+          <b aria-hidden="true">›</b>
+        </button>
+      </h2>
+      {group.corridors.map((corridor) => (
+        <CorridorGroup
+          key={corridor.id}
+          corridor={corridor}
+          lineId={group.id}
+          renderChip={renderChip}
+        />
+      ))}
+    </section>
+  );
+}
+
+/**
+ * The board's third order, its departures gathered by the line and direction they take out of the
+ * stop. The groups arrive prebuilt from `getStopServiceCorridorLineGroups`; this is only their
+ * reading, so the order stays a reading of the board the rider already has and never a second board.
+ */
+export function DepartureBoardLineOrder({
+  groups,
+  stopId,
+  selectedLineId,
+  selectedDepartureId,
+  feedNow,
+}: {
+  groups: readonly StopServiceCorridorLineGroup[];
+  stopId: string;
+  /** The line in view, whose every trip this stop lists reads as the selection. */
+  selectedLineId: string | undefined;
+  selectedDepartureId: string | undefined;
+  feedNow: number;
+}) {
+  // The line reading's own row: the same trip, addressed the same way as a row, printed as the
+  // countdown the comparison is actually made on.
+  const renderChip = (departure: Departure, note: CorridorDepartureNote, isLead: boolean) => (
+    <CorridorDepartureChip
+      key={departure.id}
+      departure={departure}
+      note={note}
+      stopId={stopId}
+      isLead={isLead}
+      isSelected={isDepartureSelected(departure, selectedDepartureId, selectedLineId)}
+      isPinned={selectedDepartureId === departure.id}
+      feedNow={feedNow}
+    />
+  );
+
+  // How many countdown columns the board lays out — the most any one direction has to show, up to
+  // the three it may. Reserving all three under a board whose directions run every twenty minutes
+  // left two empty columns beside every line; taking them from the board's own busiest direction
+  // keeps the columns aligned and lets the strip end where the departures do.
+  const corridorColumns = Math.min(
+    CORRIDOR_CHIP_LIMIT,
+    Math.max(
+      1,
+      ...groups.flatMap((group) => group.corridors.map((corridor) => corridor.departures.length)),
+    ),
+  );
+
+  return (
+    <div className="departure-board-line-order" data-corridor-columns={corridorColumns}>
+      {groups.map((group) => (
+        <LineGroup key={group.id} group={group} stopId={stopId} renderChip={renderChip} />
+      ))}
+    </div>
+  );
+}

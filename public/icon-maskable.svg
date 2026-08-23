@@ -1,0 +1,6 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <!-- Full bleed: a maskable icon is cropped to whatever shape the platform draws, so the red runs
+       to the edge and the K stays inside the 80% safe circle. -->
+  <rect width="512" height="512" fill="#c9161c"/>
+  <path d="M176 160h60v78l77-78h68l-92 92 95 100h-71l-77-84v84h-60V160Z" fill="#fff"/>
+</svg>

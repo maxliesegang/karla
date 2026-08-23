@@ -1,0 +1,3884 @@
+:root {
+  /* Ink and surfaces */
+  --ink: #10201f;
+  --ink-soft: #5d6d6a;
+  --paper: #e9ebe5;
+  --surface: #ffffff;
+  --surface-2: #f4f6f1;
+  --surface-3: #e8ece5;
+  /* Brand. KVV red is the primary; petrol green is reserved for operational status. */
+  --kvv-red: #c9161c;
+  --teal-2: #0b5b56;
+  /* Structure */
+  --line: #dfe4dd;
+  --line-strong: #c6cec6;
+  --good: #2e7d3c;
+  --warning: #b8760c;
+  --warning-bg: #fdf4e0;
+  /* The warning as *text*, the way --accent-ink is the accent as text: the fill colour is set to be
+     seen as a fill and carries 3.8:1 against paper, which a filled chip clears and a word at 11px
+     does not. Every warning a rider reads at arm's length is therefore printed in this, and
+     --warning still fills the marks. The station board keeps the fill colour for its own words —
+     those are set for a hall, at a size the contrast rule reads as large type. */
+  --warning-ink: #8a5600;
+  /* Rhythm */
+  --radius-l: 12px;
+  --radius-m: 9px;
+  --radius-s: 6px;
+  --pad: clamp(16px, 1.6vw, 24px);
+  --focus: #1076c9;
+  /* Shell accent: KVV red by default, the current line's sign colour while a line is in view.
+     App sets --shell-accent/--shell-ink on .app-shell; everything in the bar derives from them,
+     so a light sign colour (Linie 4) flips the bar to dark ink without a second rule. */
+  --shell-accent: var(--kvv-red);
+  --shell-ink: #ffffff;
+  /* The accent as *text* on a light surface. A sign colour may be pale — Linie 4 is a yellow — so
+     it is mixed toward the ink before it is ever used for a word or a rule, and the same token
+     therefore stays legible whichever line is in view. Solid fills use --shell-accent with
+     --shell-ink on top, which is the pairing the sign itself was designed as. */
+  --accent-ink: color-mix(in srgb, var(--shell-accent) 62%, var(--ink));
+}
+
+* {
+  box-sizing: border-box;
+}
+/* text-size-adjust: iOS Safari inflates body text when a phone is turned to landscape, which pushes
+   a departure row's countdown and its destination out of the size relationship they were set in. */
+html {
+  min-width: 320px;
+  background: var(--paper);
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-variant-numeric: tabular-nums;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+button {
+  font: inherit;
+  color: inherit;
+  /* Every pressable surface here answers a press itself, in this palette. The platform's grey
+     flash arrives late, squares off rounded corners and paints over the row's own selection
+     tint, so it says the wrong thing about what was just chosen. */
+  -webkit-tap-highlight-color: transparent;
+}
+button:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+h1,
+h2 {
+  margin: 0;
+  letter-spacing: -0.035em;
+  line-height: 1.05;
+}
+h1 {
+  font-size: clamp(26px, 2.2vw, 36px);
+}
+h2 {
+  font-size: clamp(24px, 2vw, 32px);
+}
+.loading {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  padding: 24px;
+  color: var(--ink-soft);
+}
+.loading > span:last-child {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.loading strong {
+  color: var(--ink);
+  font-size: 18px;
+  letter-spacing: -0.02em;
+}
+.loading small {
+  font-size: 13px;
+}
+.loading-mark {
+  min-width: 64px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--kvv-red);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 900;
+}
+
+/* ---------- Shell ---------- */
+/* The shell is exactly one viewport tall and never scrolls: bar, dashboard, footer are its three
+   rows, and everything longer than its row scrolls inside that row. `dvh` so a phone's collapsing
+   address bar does not leave the last departure under it. */
+.app-shell {
+  --accent-ink: color-mix(in srgb, var(--shell-accent) 62%, var(--ink));
+  /* One duration and one easing for everything the dashboard does when a view changes: the width
+     step between one panel and two, and the entrance of whichever half is new. A navigation that
+     does both reads as one movement only as long as these are the same number in both places. */
+  --panel-motion: 0.38s;
+  --panel-ease: cubic-bezier(0.22, 0.75, 0.2, 1);
+  width: min(1920px, 100%);
+  height: 100vh;
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr) auto;
+  margin: auto;
+  padding: 8px 12px 6px;
+  overflow: hidden;
+}
+
+.app-header {
+  height: 58px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 12px;
+  border-radius: var(--radius-l) var(--radius-l) 0 0;
+  background: var(--shell-accent);
+  color: var(--shell-ink);
+  transition:
+    background-color 0.32s ease,
+    color 0.32s ease;
+}
+.app-header-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font-size: 19px;
+  font-weight: 760;
+  letter-spacing: -0.03em;
+  cursor: pointer;
+}
+.brand-mark,
+.header-action {
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-s);
+  transition:
+    background-color 0.32s ease,
+    color 0.32s ease,
+    box-shadow 0.14s ease,
+    transform 0.14s ease;
+}
+.brand-mark {
+  min-width: 68px;
+  height: 36px;
+  padding-inline: 12px;
+  border: 1px solid color-mix(in srgb, var(--shell-accent) 12%, transparent);
+  background: var(--shell-ink);
+  color: var(--shell-accent);
+  box-shadow: 0 1px 2px #10201f24;
+  font-size: 13px;
+  font-weight: 900;
+}
+.app-header-quick-actions {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: clamp(8px, 2vw, 28px);
+}
+.header-action {
+  padding: 0;
+  border: 1px solid color-mix(in srgb, currentColor 34%, transparent);
+  background: color-mix(in srgb, currentColor 12%, transparent);
+  color: inherit;
+  cursor: pointer;
+}
+button.brand:hover .brand-mark,
+.header-action:not(:disabled):hover {
+  box-shadow: 0 3px 8px #10201f30;
+  transform: translateY(-1px);
+}
+.header-action:not(:disabled):hover {
+  background: color-mix(in srgb, currentColor 20%, transparent);
+}
+button.brand:active .brand-mark,
+.header-action:not(:disabled):active {
+  box-shadow: 0 1px 2px #10201f24;
+  transform: translateY(0);
+}
+.header-action svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-width: 1.8;
+}
+.nearby-stop-button {
+  gap: 6px;
+  padding: 0 13px 0 11px;
+  font-size: 13px;
+  font-weight: 700;
+}
+.nearby-stop-button:disabled {
+  opacity: 0.6;
+  cursor: wait;
+}
+.app-header-status {
+  display: flex;
+  align-items: center;
+  margin-left: auto;
+  gap: 14px;
+}
+.app-header-status time {
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  opacity: 0.82;
+}
+
+.dashboard {
+  min-height: 0;
+  display: grid;
+  /* The board takes half the dashboard, capped so very wide screens stop growing it; the diagram
+     takes whatever is left. Both tracks stay percentage-based so the single-panel step animates. */
+  grid-template-columns:
+    minmax(0, calc(100% - min(50%, 640px)))
+    minmax(0, min(50%, 640px));
+  overflow: hidden;
+  border-radius: 0 0 var(--radius-l) var(--radius-l);
+  background: var(--surface);
+  box-shadow: 0 6px 22px color-mix(in srgb, var(--shell-accent) 13%, transparent);
+  transition:
+    grid-template-columns var(--panel-motion) var(--panel-ease),
+    box-shadow 0.32s ease;
+}
+/* Every panel layout declares TWO tracks of the same units: grid-template-columns cannot
+   interpolate across differing track counts or unit kinds (% against fr), and falls back to a
+   one-frame swap — which read as an abrupt jump when a selection widened the diagram over the
+   board it was taken from. Single-panel states close the second track to nothing instead; it
+   holds whatever has been removed along with the step, so the widening half carries the motion. */
+.dashboard.single-panel {
+  grid-template-columns: minmax(0, 100%) minmax(0, min(0%, 0px));
+}
+/* Each half is a column of its own height. It never scrolls itself — the view inside it decides
+   which of its parts is the long one, so headings and search stay put while the list moves. */
+.primary-panel,
+.departure-board-panel {
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  padding: var(--pad);
+}
+/* The search results drop out of the panel's own box. The lists inside the home have their own
+   scrollports and the dashboard still clips, so letting this one overflow costs no containment. */
+.dashboard.home-view .primary-panel {
+  overflow: visible;
+}
+
+/* The two long views hold their scrollbar back until they are being scrolled.
+
+   A board and a diagram both fill their panel, so a bar drawn at rest is a permanent ruler down the
+   side of a view nobody asked a position question of — and on a desktop that draws its bars
+   permanently it sat over the rows' right edge for the whole session. The thumb is transparent
+   until `useTransientScrollbar` marks the element mid-scroll, which is the moment "where am I in
+   this" is actually asked; it fades back out shortly after the scroll stops. The track stays
+   transparent throughout, so nothing reserves a stripe the rows have to step around. No gutter is
+   held open for it: where a platform draws its bars in the layout it takes that width whatever the
+   thumb is painted in, and where it draws them as an overlay a reserved gutter would be a blank
+   column down every row for a bar that never needs one. */
+.departure-board-list,
+.line-diagram-stops {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 240ms ease;
+}
+.departure-board-list.is-scrolling,
+.line-diagram-stops.is-scrolling {
+  scrollbar-color: var(--line-strong) transparent;
+}
+/* Safari still reads only the pseudo-elements; same two states, said its way. */
+.departure-board-list::-webkit-scrollbar,
+.line-diagram-stops::-webkit-scrollbar {
+  width: 8px;
+  background: transparent;
+}
+.departure-board-list::-webkit-scrollbar-thumb,
+.line-diagram-stops::-webkit-scrollbar-thumb {
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background-clip: padding-box;
+  background-color: transparent;
+  transition: background-color 240ms ease;
+}
+.departure-board-list.is-scrolling::-webkit-scrollbar-thumb,
+.line-diagram-stops.is-scrolling::-webkit-scrollbar-thumb {
+  background-color: var(--line-strong);
+}
+
+/* ---------- Home entry ---------- */
+/* Search, then the stops already read, then the two reference roots: the order the questions are
+   asked. It never scrolls — the panel below it is the long part of the view. */
+.home-entry {
+  flex: 0 0 auto;
+  width: min(760px, 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin: 0 auto;
+}
+.recent-stops h2 {
+  margin: 0 0 6px;
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.nearby-stops-view {
+  width: min(760px, 100%);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  margin: 0 auto;
+}
+.nearby-stops-view .nearby-stops {
+  min-height: 0;
+  overflow-y: auto;
+}
+.nearby-locate-action {
+  min-height: 44px;
+  align-self: flex-start;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 22px;
+  background: var(--shell-accent);
+  color: var(--shell-ink);
+  font-weight: 750;
+  cursor: pointer;
+}
+.nearby-locate-action:disabled {
+  opacity: 0.65;
+  cursor: wait;
+}
+.nearby-stops-message {
+  margin: 0;
+  padding: 14px 16px;
+  border-radius: var(--radius-m);
+  background: var(--surface-3);
+  color: var(--ink-soft);
+}
+.nearby-stops ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.nearby-stops button {
+  width: 100%;
+  min-height: 52px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 2px 10px;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  text-align: left;
+  cursor: pointer;
+}
+.nearby-stops button:hover {
+  border-color: var(--line-strong);
+}
+.nearby-stops strong {
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.nearby-stops small {
+  grid-column: 1;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+.nearby-stops b {
+  grid-area: 1 / 2 / 3;
+  color: var(--ink-soft);
+  font-size: 18px;
+}
+.recent-stops ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.recent-stops button {
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 14px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.recent-stops button:hover {
+  border-color: var(--line-strong);
+}
+.recent-stops button b {
+  color: var(--ink-soft);
+  font-size: 17px;
+}
+.home-entry .home-tabs {
+  margin-bottom: 0;
+}
+
+/* ---------- Home tabs ---------- */
+/* Equal columns at every variant, because the lit surface below travels between them by
+   arithmetic rather than by measurement: one column width per step, the gap added. Unequal
+   columns would need the thumb measured after layout, and it would land wrong for one frame
+   every time a label changed. */
+.segmented-control {
+  --segment-pad: 3px;
+  --segment-gap: 3px;
+  --segment-radius: var(--radius-s);
+  position: relative;
+  flex: 0 0 auto;
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(0, 1fr);
+  gap: var(--segment-gap);
+  padding: var(--segment-pad);
+  background: var(--surface-3);
+}
+/* The choice, drawn as one surface that moves — the same object arriving where the finger went,
+   rather than one square going out as another comes on. Out of flow, so it takes no column. */
+.segmented-control-thumb {
+  position: absolute;
+  z-index: 0;
+  top: var(--segment-pad);
+  bottom: var(--segment-pad);
+  left: var(--segment-pad);
+  width: calc(
+    (100% - 2 * var(--segment-pad) - (var(--segment-count) - 1) * var(--segment-gap)) /
+    var(--segment-count)
+  );
+  border-radius: var(--segment-radius);
+  background: var(--surface);
+  box-shadow: 0 1px 3px #16302e1f;
+  transform: translateX(calc(var(--segment-index) * (100% + var(--segment-gap))));
+  transition: transform 0.34s cubic-bezier(0.22, 0.75, 0.2, 1);
+}
+.segmented-control button {
+  position: relative;
+  z-index: 1;
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
+  font-weight: 700;
+  cursor: pointer;
+  transition: color 0.18s ease;
+}
+.segmented-control button:hover {
+  color: var(--ink);
+}
+/* The travelling surface is the light; the chosen button only takes the ink that belongs on it. */
+.segmented-control button.selected {
+  color: var(--accent-ink);
+}
+/* A press acknowledges itself on the label, since the surface under it is already in motion. */
+.segmented-control button:active {
+  transform: scale(0.97);
+}
+.home-tabs {
+  --segment-radius: 17px;
+  align-self: center;
+  grid-auto-columns: minmax(96px, 1fr);
+  margin-bottom: clamp(14px, 1.6vw, 20px);
+  border: 0;
+  border-radius: 20px;
+}
+.home-tabs .segmented-control-thumb {
+  box-shadow: 0 1px 5px #10201f18;
+}
+.home-tabs button {
+  min-height: 36px;
+  padding: 0 18px;
+  border-radius: 20px;
+  font-weight: 750;
+}
+/* The diagram inside packs itself against the width it was actually given, which is a different
+   number in every layout the same viewport can produce: a line beside a board, a ride on its own,
+   a stacked phone. Asking the panel rather than the screen keeps that one question. */
+.primary-panel {
+  container: panel / inline-size;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-2);
+}
+
+/* ---------- Panel motion ---------- */
+/* The dashboard's two halves change one at a time, and the two navigations that do it are mirror
+   images: choosing a line on the board changes the panel beside it while the board stays put, and
+   walking to another stop changes the board while that panel stays. The shell mounts each half
+   under a key of what it is showing (`view-layout.ts`), so the half that did not change is not
+   re-mounted and the half that did enters by being mounted. That is the whole trigger — one rule
+   per panel covers both navigations, and neither the panels nor these rules have to know which of
+   the two it was. What changes *within* one half — a diagram gliding to another stop of its line or
+   another of its vehicles — is that half's own motion and deliberately not this.
+
+   Each half enters from the side it was chosen on, so the new panel reads as having been pulled out
+   of the gesture that asked for it: the diagram from the board's edge, the board from the diagram's.
+   `backwards` rather than `both` — a transform left standing after the animation would make the
+   panel the containing block its own sticky headings are measured against.
+
+   Keeping this in CSS avoids holding the document while React resolves a hash route, and
+   opacity/transform keep every frame on the compositor. The global reduced-motion rule below
+   removes it entirely. */
+.primary-panel,
+.departure-board-panel {
+  animation: panel-fade-enter var(--panel-motion) var(--panel-ease) backwards;
+}
+/* Both halves at once — arriving at a stop's line from somewhere else entirely — is the one case a
+   panel cannot read off its own mount: the board follows the panel beside it rather than starting
+   with it, so the change has an order to read rather than two things moving at once. */
+.dashboard[data-panel-change="both"] .departure-board-panel {
+  animation-delay: 70ms;
+}
+/* Walking to another stop of the line is the one change that is not an arrival: the rider tapped a
+   row of a diagram that stays exactly where it is, and the board is the answer to that tap. Nothing
+   on the board animates for it — panel, rows, chips and signposts all stand as they are — because
+   the note that moved in the diagram is the whole of the motion, and a board arriving beneath it
+   would only be competing with it. Like the ordering above, this stands until the next navigation:
+   a row the feed adds in the meantime arrives just as plainly, which is the same reading of the
+   same board. */
+.dashboard[data-panel-change="board"] .departure-board-panel,
+.dashboard[data-panel-change="board"] .departure,
+.dashboard[data-panel-change="board"] .corridor-departure,
+.dashboard[data-panel-change="board"] .departure-board-platform-group h2,
+.dashboard[data-panel-change="board"] .departure-board-line-group > h2 {
+  animation: none;
+}
+@keyframes panel-fade-enter {
+  from {
+    opacity: 0;
+  }
+}
+@keyframes panel-enter {
+  from {
+    opacity: 0;
+    transform: translateX(var(--panel-enter-x, 0px)) scale(0.992);
+  }
+}
+/* The ride's status card is mounted with the panel that carries it, and leads the diagram under it
+   by a beat because it is the surface the rider opened the ride for. Its ease is its own — it
+   arrives from above — but its duration is the dashboard's, so the three movements still land
+   together. */
+.app-shell.ride-mode .ride-status {
+  animation: ride-status-enter var(--panel-motion) 0.06s cubic-bezier(0.16, 1, 0.3, 1) backwards;
+}
+@keyframes ride-status-enter {
+  from {
+    opacity: 0;
+    transform: translateY(-12px) scale(0.985);
+  }
+}
+
+.departure-board-panel {
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--line);
+  background: var(--surface);
+  scroll-margin-top: 12px;
+}
+/* A stop is this board and nothing else, so on a wide screen it is a column in the middle of the
+   page rather than a list stretched across it — the same measure the home's own entry keeps. Beside
+   a line's diagram it is the narrow half again and fills it. */
+.dashboard.stop-view .departure-board-panel {
+  width: min(820px, 100%);
+  margin: 0 auto;
+  border-left: 0;
+}
+.departure-board-panel:focus {
+  outline: none;
+}
+
+/* Travel belongs to the side-by-side layout, where the two panels stand beside one another and a
+   half can be said to come from the other's edge. Stacked they are one column and there is no such
+   edge, so the entrance stays a fade: navigation and document scrolling already provide the spatial
+   change there, and a transform on a panel would be the containing block the sticky surfaces inside
+   it — the diagram header, the ride status, the board's own menu — are measured against. */
+@media (min-width: 861px) {
+  .primary-panel,
+  .departure-board-panel {
+    animation-name: panel-enter;
+  }
+  .primary-panel {
+    --panel-enter-x: 18px;
+  }
+  .departure-board-panel {
+    --panel-enter-x: -18px;
+  }
+}
+
+.panel-heading {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 44px;
+}
+.eyebrow {
+  margin: 0 0 6px;
+  color: var(--accent-ink);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex: 0 0 auto;
+  padding: 6px 11px;
+  border-radius: 18px;
+  background: var(--surface-3);
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.chip i {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--good);
+}
+.chip-watch {
+  background: var(--warning-bg);
+  color: #7a4e05;
+}
+.chip-watch i {
+  background: var(--warning);
+}
+.chip-muted i {
+  background: var(--ink-soft);
+}
+/* ---------- Line badges ---------- */
+.line-badge {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+.line-badge.lg {
+  width: 52px;
+  height: 34px;
+  border-radius: 17px;
+  font-size: 17px;
+}
+.line-badge.sm {
+  width: 42px;
+  height: 27px;
+  border-radius: 14px;
+  font-size: 14px;
+}
+.line-badge.xs {
+  width: 27px;
+  height: 18px;
+  border-radius: 9px;
+  font-size: 11px;
+}
+
+.line-diagram-legend {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 7px 0 0;
+  color: var(--ink-soft);
+  font-size: 11px;
+}
+.line-diagram-legend i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-ink);
+}
+.line-diagram-legend-compact {
+  position: relative;
+  display: block;
+  margin: 0;
+}
+.line-diagram-legend-compact summary {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 7px;
+  border-radius: 12px;
+  cursor: help;
+  transition:
+    background 0.14s ease,
+    color 0.14s ease;
+}
+.line-diagram-legend-compact summary::-webkit-details-marker {
+  display: none;
+}
+.line-diagram-legend-compact:hover summary,
+.line-diagram-legend-compact summary:focus-visible,
+.line-diagram-legend-compact[open] summary {
+  background: var(--surface-3);
+  color: var(--ink);
+}
+.line-diagram-legend-compact summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.line-diagram-legend-compact i {
+  width: 6px;
+  height: 6px;
+}
+.line-diagram-legend-tooltip {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 7px);
+  left: 0;
+  width: max-content;
+  max-width: min(240px, 80vw);
+  padding: 7px 9px;
+  border-radius: 7px;
+  background: var(--ink);
+  box-shadow: 0 7px 20px #10201f2e;
+  color: var(--surface);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.35;
+  pointer-events: none;
+  opacity: 0;
+  transform: translateY(-3px);
+  visibility: hidden;
+  transition:
+    opacity 0.14s ease,
+    transform 0.14s ease,
+    visibility 0.14s;
+}
+.line-diagram-legend-compact:hover .line-diagram-legend-tooltip,
+.line-diagram-legend-compact:focus-within .line-diagram-legend-tooltip,
+.line-diagram-legend-compact[open] .line-diagram-legend-tooltip {
+  opacity: 1;
+  transform: translateY(0);
+  visibility: visible;
+}
+
+/* ---------- Notices ----------
+   One row, two readings. The alert is a raised plate with a filled mark and a chevron; the all-clear
+   is a bare line with an outlined tick. Mark, weight and shape carry the difference, so neither
+   depends on its tint to be understood. */
+.notice {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin: 14px 0 0;
+  padding: 11px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  color: var(--ink);
+  text-align: left;
+}
+.notice-alert {
+  border-color: var(--warning);
+  border-left-width: 5px;
+  background: var(--warning-bg);
+  cursor: pointer;
+}
+.notice-alert:hover {
+  border-color: color-mix(in srgb, var(--warning) 62%, var(--ink));
+  box-shadow: 0 5px 16px #16302e0d;
+}
+.notice-alert > b {
+  margin-left: auto;
+  color: var(--accent-ink);
+  font-size: 20px;
+}
+.notice-watch {
+  border-color: color-mix(in srgb, var(--warning) 55%, var(--line));
+  background: var(--warning-bg);
+  color: #6d4707;
+  font-size: 13px;
+  font-weight: 700;
+}
+.notice-icon {
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--warning);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 900;
+  line-height: 1;
+}
+.notice-text {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+.notice-text strong {
+  flex: 0 0 auto;
+  font-size: 15px;
+  font-weight: 750;
+  letter-spacing: -0.015em;
+}
+.notice-text small {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Nothing to act on, so the all-clear keeps the row but drops the plate. */
+.notice-calm {
+  gap: 8px;
+  margin-top: 10px;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 650;
+}
+.notice-calm .notice-icon {
+  width: 17px;
+  height: 17px;
+  background: none;
+  box-shadow: inset 0 0 0 1.5px var(--line-strong);
+  color: var(--accent-ink);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+/* ---------- Published notices ----------
+   What the operator has announced, as opposed to what the boards are reporting. The two are
+   different facts, so they are different plates: a deviation measured in the next half hour keeps
+   the warning colour, and an announcement about the weeks around today takes a neutral one. A
+   notice that reads as an alarm would make every construction site look like a breakdown. */
+.service-notices {
+  display: flex;
+  flex-direction: column;
+}
+.notice-info {
+  border-left: 5px solid var(--line-strong);
+}
+/* A notice that carries the operator's full wording opens in place: the plate becomes the block,
+   and the row that was the whole of it becomes the summary that opens it. */
+.service-notice-detail {
+  display: block;
+  cursor: pointer;
+}
+.service-notice-detail > summary {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  list-style: none;
+}
+.service-notice-detail > summary::-webkit-details-marker {
+  display: none;
+}
+.service-notice-detail:hover {
+  border-color: var(--accent-ink);
+  box-shadow: 0 5px 16px #16302e0d;
+}
+.service-notice-detail > summary:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+.service-notice-detail > summary > .disclosure-chevron {
+  margin-left: auto;
+  color: var(--ink-soft);
+}
+.service-notice-detail[open] > summary > .disclosure-chevron {
+  transform: rotate(-180deg);
+}
+/* The operator's own text, at reading width and reading weight: it is prose, not a row. */
+.service-notice-detail-text {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.55;
+  cursor: text;
+}
+.service-notice-detail-text p {
+  margin: 0 0 7px;
+  overflow-wrap: anywhere;
+}
+.service-notice-detail-text p:last-child {
+  margin-bottom: 0;
+}
+.notice-info .notice-icon {
+  background: var(--surface-3);
+  color: var(--ink-soft);
+  font-weight: 800;
+}
+/* A notice title is a sentence, not a label: it wraps rather than truncating, and its period and
+   stops sit under it instead of competing for the same line. */
+.service-notices .notice-text {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.service-notices .notice-text strong {
+  flex: 0 1 auto;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+.service-notices .notice-text small {
+  max-width: 100%;
+}
+.service-notice-lines {
+  flex: 0 0 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 3px;
+  margin-left: auto;
+}
+.service-notice-lines small {
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 750;
+}
+/* ---------- Published notice view ---------- */
+.service-notices-view {
+  width: min(920px, 100%);
+  min-height: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  margin: 0 auto;
+}
+.service-notices-view .service-notices {
+  min-height: 0;
+  margin-top: 14px;
+  overflow-y: auto;
+}
+.service-notices-view .notice {
+  margin: 0;
+  padding: 14px 4px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+}
+.service-notices-view .notice-alert {
+  padding-left: 12px;
+  border-left: 4px solid var(--warning);
+  background: var(--warning-bg);
+}
+
+/* ---------- Zentrum ----------
+   One list, by name. That is what makes the panel hold still: it is no longer ranked by an
+   observation recounted every thirty seconds, so nothing moves under the finger reaching for it,
+   and a tunnel stop lands beside the street stop it shares a name with. A row, not a card — with
+   the names carrying the order, thirty borders and thirty chevrons were the only thing left
+   competing with the line badges. */
+/* The fade lives on the wrapper, not on the scroller: a mask applies to everything the scroll
+   container paints, its own scrollbar included, so masking `.core-stops` faded the bottom of the
+   bar away with the rows. An overlay in the same colour as the panel keeps the old property of
+   being invisible where there is nothing to fade — over a short list it is panel colour on panel
+   colour. */
+.core-stops-scroll {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+}
+.core-stops-scroll::after {
+  content: "";
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  height: 24px;
+  background: linear-gradient(to bottom, transparent, var(--surface-2));
+  pointer-events: none;
+}
+.core-stops {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  align-content: start;
+  gap: 2px 20px;
+  margin-top: 18px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.core-stops button {
+  display: grid;
+  gap: 3px;
+  align-content: center;
+  min-height: 46px;
+  padding: 5px 8px;
+  border: 0;
+  border-radius: var(--radius-s);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.core-stops button:hover {
+  background: var(--surface);
+  box-shadow: 0 2px 8px #16302e0f;
+}
+/* The name wraps rather than truncates: what an ellipsis eats first is the `(U)` that tells the
+   tunnel stop from the street stop of the same name. */
+.core-stop-name {
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+/* Lines stay complete but subordinate: a compact second row leaves the stop name the full row width. */
+.core-stop-lines {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  justify-content: flex-start;
+}
+
+/* ---------- Departures ---------- */
+/* The stop's name and the one control over its board. They share a line while both fit and the
+   control drops to a line of its own when they do not, so the name is never squeezed to an ellipsis
+   by a control that is the same three words at every width — including in the narrow half beside a
+   line's diagram, which is as tight as a phone. */
+.departure-board-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px 16px;
+  min-height: 48px;
+}
+.departure-board-heading > div:first-child {
+  flex: 1 1 13rem;
+  min-width: 0;
+}
+.departure-board-heading h1 {
+  overflow: hidden;
+  font-size: clamp(24px, 2.2vw, 34px);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.departure-board-stop-meta {
+  margin: 4px 0 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 650;
+}
+.departure-board-heading-actions {
+  min-width: 0;
+  flex: 0 1 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* Stays with the board's right edge on the line it wrapped onto. */
+  margin-left: auto;
+}
+/* The one control on the board, and it changes nothing about what the board says — only the order
+   it says it in. Two states, both named, so the unchosen reading is visible rather than implied. */
+.departure-board-order-control {
+  --segment-pad: 2px;
+  --segment-gap: 1px;
+  --segment-radius: 7px;
+  border-radius: 8px;
+  font-size: 12px;
+}
+.departure-board-order-control button {
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 7px;
+  font: inherit;
+}
+.departure-board-order-control button:hover,
+.departure-board-order-control button:focus-visible {
+  color: var(--accent-ink);
+}
+
+/* A platform heading is a signpost, not a title: a band the eye can find while walking, with the
+   code set as the glyph a rider matches against the sign in front of them and the operator's word
+   as its caption. It was a line of small grey capitals before, which read as a label on the row
+   under it rather than as the division of the board it actually is. */
+.departure-board-platform-group {
+  scroll-margin-top: 12px;
+}
+.departure-board-platform-group h2 {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 14px 0 0;
+  padding: 7px var(--row-inset);
+  background: var(--surface-3);
+  font-size: 11px;
+  letter-spacing: 0;
+  line-height: 1.1;
+}
+.departure-board-platform-group:first-child h2 {
+  margin-top: 2px;
+}
+/* A signpost fades in with the rows it stands over, so changing the order reads as one board being
+   re-read rather than as headings cutting in over a list that is still settling. Opacity only: a
+   transform here would make this the containing block its own sticky position is measured against,
+   and the signpost would stop sticking to the scrollport it is walked past in. */
+.departure-board-platform-group h2,
+.departure-board-line-group > h2 {
+  animation: board-heading-enter 0.26s ease-out both;
+}
+@keyframes board-heading-enter {
+  from {
+    opacity: 0;
+  }
+}
+.departure-board-platform-group h2 small {
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.departure-board-platform-group h2 b {
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 850;
+  letter-spacing: -0.02em;
+}
+/* The board read by line: each line's departures gathered under the directions they take out of
+   this stop. Same trips, same order within a group — what this reading adds is the direction, which
+   is the one thing a row cannot say, because a row addresses one trip and this names the line.
+
+   It is laid out as the comparison it is: the direction on the left with the room to be read, its
+   next departures on the right in columns that are the same width under every line of the board. So
+   the next tram of the 2 stands directly above the next tram of the 5 — the comparison itself,
+   drawn. Each strip used to begin wherever its own direction happened to end, which left three
+   countdowns to be compared across three different left edges. */
+/* One tier for the whole reading: the columns every strip on the board is laid out in, and how
+   many of them there are — the busiest direction on this board decides that, so a quiet board is
+   not laid out around columns none of its lines can fill. The columns are all one width, so the
+   chips are boxes of one size and any countdown stands where any other did. */
+.departure-board-line-order {
+  --corridor-chip: 88px;
+  --corridor-strip: repeat(3, var(--corridor-chip));
+}
+.departure-board-line-order[data-corridor-columns="1"] {
+  --corridor-strip: var(--corridor-chip);
+}
+.departure-board-line-order[data-corridor-columns="2"] {
+  --corridor-strip: repeat(2, var(--corridor-chip));
+}
+.departure-board-line-group {
+  margin-top: 20px;
+  scroll-margin-top: 12px;
+}
+.departure-board-line-group:first-child {
+  margin-top: 2px;
+}
+/* The line's own signpost, in the band the platform reading gives a platform: two grouped readings,
+   one heading language. In this order the line is what a rider scrolls to find, so — like the
+   platform heading, and unlike the direction captions under it — it stays on screen while they do.
+   It was a hairline rule before, which read as a divider between lines rather than as the head of
+   the group under it.
+
+   It is squared off and sits straight on the table it heads, because that is what it is the head of:
+   a rounded band with a sliver of paper under it read as a chip laid on the board, and cut the one
+   left edge the group is built on with a corner. Its corners and its width are the columns' own. */
+.departure-board-line-group > h2 {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  margin: 0;
+  background: var(--surface-3);
+  /* The band is the head of the table under it, so it closes on the same hairline every row of that
+     table closes on. It is drawn as a shadow rather than a border because this band is stuck: rows
+     travel under it, and the rule is what keeps the one currently passing behind from reading as
+     the first row of the group. A border would also add its pixel to a band whose height is meant
+     to be the badge's and nothing more. */
+  box-shadow: 0 1px 0 var(--line);
+  font-size: inherit;
+  letter-spacing: normal;
+}
+/* A direction and its departures share a line where there is room and stack where there is not, so
+   the same markup holds in a panel of its own and in the narrow half beside a line diagram. The
+   strip keeps its columns either way. */
+.departure-board-corridor {
+  display: flex;
+  flex-wrap: wrap;
+  /* The direction and its countdowns are one row of a table, so both halves stand to its full
+     height: the columns can then be columns — ruled, reaching the hairline the row closes on —
+     rather than tiles floating in a band with air above and below them. The direction and the
+     countdown it introduces both start at the top of that row, which is what lines them up.
+     They were aligned on the baseline while the chips were free-standing boxes. */
+  align-items: stretch;
+  gap: 0 12px;
+  /* The directions start where the line's badge starts in the band above them, and the strip ends
+     where the countdown of a row in the time order ends, so the group reads down the same two edges
+     the rest of the board does: the name of the line, then every way out of the stop under it. The
+     hairline that closes the row is not inset with them — it is the width of the panel, like every
+     other rule here, because padding sits inside a border. */
+  padding-inline: var(--row-inset);
+  border-bottom: 1px solid var(--line);
+  /* Whether the strip still fits beside the direction is a question about this row's own width, not
+     the screen's: the same board is a full panel, the narrow half beside a line diagram, and a
+     stacked phone. Asked here, the answer holds in all three. */
+  container: corridor / inline-size;
+}
+/* Stacked under its direction, the strip is the whole of its own line, so its columns take that
+   width rather than stopping two thirds of the way across it and leaving the row's hairline to run
+   on alone. Each condition below is the sum the flex line wraps at, written out rather than
+   totalled: the 7rem the direction is guaranteed, the gap, and the columns — one board lays out in
+   one number of columns, so one of these applies. Written as a sum because the direction's width is
+   in rem and this row wraps in rem: a rider reading at a larger text size moves both together,
+   where a px total would have gone on claiming the strip fits at exactly the width it no longer
+   does. The 88px is --corridor-chip, which a query cannot read; the two move together.
+   The first column drops its rule there: at the left edge of the row it would divide nothing. */
+@container corridor (max-width: calc(7rem + 12px + 3 * 88px - 1px)) {
+  [data-corridor-columns="3"] .departure-board-corridor-strip {
+    width: 100%;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  [data-corridor-columns="3"] .corridor-departure:first-child {
+    border-left: 0;
+  }
+}
+@container corridor (max-width: calc(7rem + 12px + 2 * 88px - 1px)) {
+  [data-corridor-columns="2"] .departure-board-corridor-strip {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  [data-corridor-columns="2"] .corridor-departure:first-child {
+    border-left: 0;
+  }
+}
+@container corridor (max-width: calc(7rem + 12px + 1 * 88px - 1px)) {
+  [data-corridor-columns="1"] .departure-board-corridor-strip {
+    width: 100%;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  [data-corridor-columns="1"] .corridor-departure:first-child {
+    border-left: 0;
+  }
+}
+/* A direction is a caption over the departures it gathers, not a signpost to walk towards, so it is
+   quieter than the line's heading and does not stick. It takes whatever the fixed columns leave and
+   states as much of the way as fits on its one line: a place name cut off mid-word is the one thing
+   on this reading that a rider who does not know the network cannot recover from the rest of the
+   row, so places stand down whole rather than the line wrapping under the countdowns. */
+.departure-board-corridor > h3 {
+  /* Anchors the hidden measuring copy the row fits the way's places against. */
+  position: relative;
+  /* Small enough that a phone keeps the direction and its countdowns on one line, and elastic, so
+     everything wider than a phone gives the name the whole of what the columns do not take. */
+  flex: 1 1 7rem;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin: 0;
+  padding: 9px 0 8px;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  line-height: 1.3;
+}
+.departure-board-corridor-direction {
+  /* The row stands places down until the way fits its one line, so the line the rider reads never
+     wraps: while a stand-down settles, and where even the bare ends outrun the column, it holds the
+     one line and trails off rather than pushing the countdowns down a row. */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The hidden copy of the way the row currently states — ends and whichever places between them are
+   still shown — measured against its one line. It never shows: it only answers whether what is left
+   fits, so the row stands one more place down until it does and keeps the rest. Standing a place
+   down, not cutting one short, is how the row gets to its one line. */
+.departure-board-corridor-direction-measure {
+  /* This copy is the one that may wrap: its second line is the signal that what is left still does
+     not fit, which is how the shown line above it comes to be a single line at all. */
+  white-space: normal;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 100%;
+  visibility: hidden;
+  pointer-events: none;
+}
+.departure-board-corridor-arrow {
+  padding-right: 6px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 700;
+}
+/* Where some trips carry on past the near end, the further place is the same sentence, one step
+   quieter — the arrow carries the meaning, so it is the lightest mark in the line. */
+.departure-board-corridor-onward {
+  color: var(--ink-soft);
+}
+.departure-board-corridor-onward b {
+  padding: 0 4px;
+  font-weight: 600;
+}
+/* What holds for every trip of the direction, under its name rather than beside it: on one line
+   these captions took the width the place name needed. */
+.departure-board-corridor-captions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 8px;
+  padding-top: 1px;
+}
+.departure-board-corridor > h3 small {
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+/* Where every trip of a direction leaves from one platform, the heading carries it once. Spoken in
+   the section's own label instead, so it is heard once rather than on every countdown.
+
+   Set as a filled tag, which is the one caption here a rider does something with: the others say
+   what this direction is, this one says where to stand for it. The fill is the band's own surface
+   and the corners are square, so the tag reads as part of the table rather than as a pill dropped
+   onto it. */
+.departure-board-corridor-platform {
+  padding: 1px 5px;
+  background: var(--surface-3);
+  color: var(--ink);
+  font-weight: 700;
+}
+.departure-board-corridor-strip {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: var(--corridor-strip);
+}
+/* A trip, printed as the one thing the heading above cannot say: the minute it leaves in. Every
+   chip of the board is the same box — one column width above, and the height of the tallest chip of
+   its row, so the pattern a board of lines makes is itself the comparison: any countdown stands
+   where any other did, on any line. The content is top-aligned, so the big minute of one line
+   stands at the same height as the big minute of the next and the comparison can be made down the
+   column as well as across the strip.
+
+   A column is drawn as a column: it fills its cell top to bottom, it is square, and it is divided
+   from its neighbour by the same hairline that divides one departure row from the next. Outlined,
+   rounded tiles put a second and heavier grid over a reading that already is a grid; free-floating
+   chips with air around them left the strip with no structure at all. A rule is what this app
+   builds structure out of, so it is what builds this one. The whole column takes the tint under the
+   pointer and the thumb, which is the same answer a row gives to the same press. */
+.corridor-departure {
+  min-height: 66px;
+  min-width: 0;
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  /* The notes are the chip's small print and sit as one block under the minute, a hair apart from
+     each other and a clear step below the countdown they qualify — the step is on the countdown
+     itself, since a single gap cannot say both. */
+  gap: 1px;
+  padding: 7px 5px 10px;
+  border: 0;
+  border-left: 1px solid var(--line);
+  border-radius: 0;
+  background: none;
+  cursor: pointer;
+  /* The same beat the rows of the other two orders take, so a rider switching between the readings
+     of one board meets one piece of behaviour rather than three. */
+  transition:
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
+  animation: corridor-chip-enter 0.26s cubic-bezier(0.22, 0.75, 0.2, 1) both;
+}
+/* A strip is read left to right — the trip being caught, then the ones after it — so it settles in
+   that order. Three columns at most, so the whole cascade is over in a fifth of a second. */
+.corridor-departure:nth-child(2) {
+  animation-delay: 45ms;
+}
+.corridor-departure:nth-child(3) {
+  animation-delay: 90ms;
+}
+@keyframes corridor-chip-enter {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.corridor-departure:hover,
+.corridor-departure:focus-visible {
+  background: var(--surface-2);
+}
+/* Inside the strip the outline would be drawn over the neighbouring column; drawn inward, it stays
+   in the column it belongs to and still surrounds the whole target. */
+.corridor-departure:focus-visible {
+  outline-offset: -3px;
+}
+.corridor-departure:active {
+  background: color-mix(in srgb, var(--ink) 7%, var(--surface));
+  transition-duration: 0s;
+}
+.corridor-departure-countdown {
+  display: flex;
+  align-items: baseline;
+  gap: 3px;
+  margin-bottom: 2px;
+}
+/* A strut taller than any minute set here, so the baseline of the countdown stands at one height in
+   every chip whether the minute is set at 27px, at 19px, or as the word a cancelled trip prints
+   instead. Without it the columns aligned by the tops of their boxes, which put the small minutes
+   of the two trips behind floating above the big one they are being compared with.
+   It takes back the gap it is given: a strut is not a column of the countdown, and left to stand as
+   one it pushed the centred minute half a gap off the centre the notes under it are set to. */
+.corridor-departure-countdown::before {
+  content: "";
+  align-self: baseline;
+  width: 0;
+  height: 23px;
+  margin-inline-end: -3px;
+}
+.corridor-departure-countdown strong {
+  font-size: 19px;
+  font-weight: 750;
+  line-height: 1.05;
+  letter-spacing: -0.04em;
+}
+.corridor-departure-countdown small {
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 650;
+}
+/* The next trip this way is the one the rider is catching; the ones after it are the answer to
+   "and if I miss it". It is the same cell as every other chip, so the columns stay one size and the
+   first column of every line still lines up with the first of the next; what marks it is the size
+   of the minute — the way the rest of the board marks a countdown — over a column quietly lit down
+   its whole height, which is the first thing the eye lands on when it drops onto a line. */
+.corridor-departure.lead {
+  background: var(--surface-2);
+}
+.corridor-departure.lead:hover,
+.corridor-departure.lead:focus-visible {
+  background: var(--surface-3);
+}
+.corridor-departure.lead:active {
+  background: color-mix(in srgb, var(--ink) 9%, var(--surface));
+  transition-duration: 0s;
+}
+/* Selection outranks the pointer, because it is the answer to what the rider has already chosen and
+   the pointer is only where they happen to be. Stated here rather than left to the plain tints
+   above: those are the pointer's colour on white, and on the one column the address has lit they
+   were wiping the accent off exactly as a rider reached for it. Each tier still answers a press and
+   still presses from where it already stood. */
+.corridor-departure.selected:hover,
+.corridor-departure.selected:focus-visible {
+  background: color-mix(in srgb, var(--shell-accent) 14%, var(--surface));
+}
+.corridor-departure.selected:active {
+  background: color-mix(in srgb, var(--shell-accent) 20%, var(--surface));
+  transition-duration: 0s;
+}
+.corridor-departure.pinned:hover,
+.corridor-departure.pinned:focus-visible {
+  background: color-mix(in srgb, var(--shell-accent) 22%, var(--surface));
+}
+.corridor-departure.pinned:active {
+  background: color-mix(in srgb, var(--shell-accent) 27%, var(--surface));
+  transition-duration: 0s;
+}
+.corridor-departure.lead .corridor-departure-countdown strong {
+  font-size: 27px;
+  letter-spacing: -0.05em;
+}
+.corridor-departure.lead .corridor-departure-countdown small {
+  font-size: 11px;
+}
+.corridor-departure-countdown strong.due {
+  color: var(--accent-ink);
+  font-size: 15px;
+}
+.corridor-departure.lead .corridor-departure-countdown strong.due {
+  font-size: 20px;
+}
+/* Only what the heading cannot state for this trip: where it ends short of the others, and which
+   platform it leaves from where its siblings disagree — and, each on a line of its own under that,
+   the exceptions the trip is carrying. */
+.corridor-departure-note {
+  display: -webkit-box;
+  max-width: 100%;
+  overflow: hidden;
+  -webkit-hyphens: auto;
+  hyphens: auto;
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+  /* A place name broken at any letter — "Reitschulsc / hlag" — costs more to read than the break
+     saves; German hyphenation breaks it where the language does. */
+  overflow-wrap: break-word;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+}
+/* A word, never a mark or a colour alone — the same exception the row prints, in the same wording,
+   and so in the same ink. */
+.corridor-departure-warning {
+  color: var(--warning-ink);
+  font-weight: 700;
+}
+.corridor-departure.cancelled .corridor-departure-countdown strong {
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 750;
+  text-decoration: line-through;
+}
+.corridor-departure.lead.cancelled .corridor-departure-countdown strong {
+  font-size: 15px;
+}
+/* Selection reads the same here as on a row: the line tints all of its trips, the pinned trip
+   carries the mark. */
+.corridor-departure.selected {
+  background: color-mix(in srgb, var(--shell-accent) 9%, var(--surface));
+}
+.corridor-departure.pinned {
+  background: color-mix(in srgb, var(--shell-accent) 17%, var(--surface));
+  box-shadow: inset 0 -3px var(--shell-accent);
+}
+
+/* The board's rows are a table filling this panel, not a list floating inside it: the list steps
+   back out of the panel's padding to both edges, and every row carries the inset itself. So what a
+   row *is* — its tint, the hairline it closes on, the ruled columns of the line reading — reaches
+   the divider the panel stands against and the edge opposite it, while what a row *says* still
+   starts on the board's own margin, directly under the stop's name. The padding used to sit on the
+   list, which stopped every rule and every selection tint a finger's width short of the panel and
+   left a board that is the whole of this view reading as a card dropped into it. */
+.departure-board-list {
+  /* How far a row's rule and its tint reach past the row's words, and so also where those words
+     begin: the list steps out by this much and every row puts it back, which is what lands the
+     words on the panel's own margin — directly under the stop's name — in every layout, whatever
+     the bleed is set to here. One number, because the two are one decision. */
+  --row-inset: var(--pad);
+  flex: 1;
+  min-height: 0;
+  margin-top: 12px;
+  margin-inline: calc(-1 * var(--row-inset));
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border-top: 1px solid var(--ink);
+}
+/* The notices the list can hold are cards, not rows, so they keep the margin the rows spend. The
+   button that ends the list keeps it too, in its own rule below — the one that sets its margin. */
+.departure-board-list > .panel-empty {
+  margin-inline: var(--row-inset);
+}
+.departure {
+  position: relative;
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px 16px;
+  padding: 12px var(--row-inset);
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+  /* Selection and its tiers are a change of state, not a redraw: the tint arrives over a few
+     frames so the eye follows the row it was already on, instead of looking for what moved. */
+  transition:
+    background-color 0.2s ease,
+    box-shadow 0.2s ease;
+  /* A row the feed has just added arrives rather than appears. React keeps the DOM node of a row
+     it already had, so this plays for genuinely new trips, for the rows an expansion reveals, and
+     for the whole board when the order is changed — and never on the minute tick. */
+  animation: departure-row-enter 0.26s cubic-bezier(0.22, 0.75, 0.2, 1) both;
+  animation-delay: calc(min(var(--departure-index, 0), 7) * 26ms);
+}
+@keyframes departure-row-enter {
+  from {
+    opacity: 0;
+    transform: translateY(7px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.departure > .line-badge {
+  grid-column: 1;
+  grid-row: 1 / 3;
+  align-self: center;
+}
+.departure:hover,
+.departure:focus-visible {
+  background: var(--surface-2);
+}
+/* A press is answered on the row itself, under the thumb, at the moment of contact — the address
+   it opens is a navigation away, and until that resolves this is the only acknowledgement there
+   is. Each tier presses from where it already stood, so the tint never reads as a different row. */
+.departure:active {
+  background: color-mix(in srgb, var(--ink) 7%, var(--surface));
+  transition-duration: 0s;
+}
+/* Selection is two-tiered because the address is: the line is the durable choice and tints every
+   one of its trips, while the one trip the address pins carries the bar. A departed trip therefore
+   dims back into its line instead of leaving the board unlit. */
+.departure.selected {
+  background: color-mix(in srgb, var(--shell-accent) 9%, var(--surface));
+}
+/* On a split screen the pinned departure reads as the tab that opened the trip panel. The list's
+   left padding is inside its scrollport, so this bridge reaches the panel divider without escaping
+   or covering another row. */
+.departure.pinned {
+  background: color-mix(in srgb, var(--shell-accent) 17%, var(--surface));
+}
+.departure.selected:active {
+  background: color-mix(in srgb, var(--shell-accent) 20%, var(--surface));
+}
+.departure.pinned:active {
+  background: color-mix(in srgb, var(--shell-accent) 27%, var(--surface));
+}
+/* The bridge is drawn on every row and grown only on the pinned one, so the mark reaches the panel
+   divider in the same beat the row takes its tint — rather than being cut in at full width one
+   frame after the address changed. It fills the row's own left margin now that the row reaches the
+   divider itself; it used to reach out of a list that stopped short of one. */
+.departure::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: -1px;
+  left: 0;
+  width: var(--row-inset);
+  background: color-mix(in srgb, var(--shell-accent) 17%, var(--surface));
+  box-shadow: inset 4px 0 var(--shell-accent);
+  opacity: 0;
+  transform: scaleX(0.2);
+  transform-origin: right center;
+  transition:
+    opacity 0.2s ease,
+    transform 0.24s cubic-bezier(0.22, 0.75, 0.2, 1);
+}
+.departure.pinned::before {
+  opacity: 1;
+  transform: none;
+}
+.departure .departure-destination {
+  grid-column: 2;
+  grid-row: 1;
+  overflow: hidden;
+  font-size: clamp(17px, 1.35vw, 20px);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.departure-meta {
+  grid-column: 2 / 4;
+  grid-row: 2;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 4px 6px;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+/* Printed only where the operator says the vehicle is not step-free, so it is always an exception
+   and never a column. A word rather than a mark: it has to be readable by someone who has never
+   seen this board, and it must survive greyscale. */
+.departure-access {
+  flex: 0 0 auto;
+  color: var(--warning-ink);
+  font-weight: 700;
+}
+.departure.cancelled .departure-destination,
+.departure.cancelled .departure-countdown {
+  text-decoration: line-through;
+  opacity: 0.62;
+}
+.departure.cancelled .departure-meta {
+  color: #8c2f27;
+  font-weight: 700;
+}
+.departure-countdown strong.cancelled {
+  font-size: clamp(20px, 1.7vw, 26px);
+  color: var(--ink-soft);
+  text-decoration: none;
+}
+.departure .departure-destination em {
+  display: block;
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-style: normal;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.departure-meta b {
+  margin-left: 4px;
+  color: var(--ink);
+  font-weight: 650;
+}
+.departure-next-service {
+  flex: 0 0 100%;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 750;
+}
+/* Two separately addressed portions remain two buttons because their destinations and routes are
+   different. The shared-service line is the visual bridge between them, and appears only after the
+   selected line's complete trip reads prove the relationship. */
+.departure-joined-service {
+  flex: 0 0 100%;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 750;
+}
+.departure-joined-service::before {
+  content: "2×";
+  margin-right: 6px;
+  color: var(--accent-ink);
+  font-size: 10px;
+  letter-spacing: -0.03em;
+}
+/* One published time, with the schedule it was moved off struck beside it — never a time and a
+   signed number the rider has to add together. */
+.departure-time {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+}
+.departure-expected-time {
+  color: var(--ink);
+  font-weight: 750;
+}
+.departure-expected-time.late {
+  color: var(--warning-ink);
+}
+.departure-scheduled-time {
+  color: var(--ink-soft);
+  font-weight: 600;
+  text-decoration-thickness: 1px;
+}
+.departure-countdown {
+  grid-row: 1;
+  grid-column: 3;
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.departure-countdown strong {
+  font-size: clamp(28px, 2.2vw, 34px);
+  line-height: 1;
+  letter-spacing: -0.05em;
+}
+.departure-countdown strong.due {
+  font-size: clamp(20px, 1.7vw, 26px);
+  color: var(--accent-ink);
+}
+.departure-countdown small {
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 650;
+}
+.panel-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 14px 0;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
+  color: var(--ink-soft);
+}
+.panel-empty strong {
+  color: var(--ink);
+  font-size: 17px;
+}
+/* The one control the list ends on, inset with the words it follows rather than bled to the panel
+   edge like the rows: it is a thing to press, not a row of the board. Its width is what the margins
+   leave — stated as 100% it would have been the full list *plus* them, and pushed a scrollbar under
+   a board that has no width to spare. */
+.departure-board-more {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 12px var(--row-inset) 2px;
+  padding: 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 21px;
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition:
+    border-color 0.18s ease,
+    color 0.18s ease,
+    background-color 0.18s ease;
+}
+.departure-board-more:hover {
+  border-color: var(--accent-ink);
+  color: var(--accent-ink);
+}
+.departure-board-more:active {
+  background: var(--surface-3);
+  transition-duration: 0s;
+}
+
+/* ---------- Line diagram ---------- */
+/* Where the line runs, and how far to either side of it a vehicle mark rides. Both the stop rows
+   and the vehicle layer above them read these, so one tier moves the whole lane at once and the
+   marks can never drift off the rail they belong to. */
+.line-diagram {
+  --line-diagram-track-x: 42px;
+  --line-diagram-vehicle-clearance: 28px;
+  flex: 1 1 auto;
+  width: min(620px, 100%);
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  margin: 0 auto;
+}
+/* A ride has room for a slightly wider stop column. Changes belong to the stop they can be made at,
+   beneath its name, so their count never decides the width of the whole diagram. */
+.line-diagram.ride {
+  width: min(720px, 100%);
+}
+/* In the ride the status card is the view's heading and its way out, so the diagram's header keeps
+   no name of its own — only the quiet meta, and the way back up to the board — and steps aside:
+   one right-aligned row, no plate, no rule the list has to answer to. */
+.line-diagram.ride .line-diagram-header {
+  grid-template-columns: 1fr;
+  justify-items: end;
+  min-height: 0;
+  padding: 0 2px 8px;
+  border-bottom: 0;
+}
+.line-diagram-header {
+  flex: 0 0 auto;
+}
+/* The top bar already carries the line's colour, so the header underneath stays a quiet tint:
+   one coloured plate for the number, dark text for the destinations. */
+.line-diagram-header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  min-height: 62px;
+  padding: 8px 10px;
+  border-bottom: 1px solid color-mix(in srgb, var(--line-color) 28%, var(--line));
+  border-radius: 0;
+  background: transparent;
+  color: var(--ink);
+}
+.line-diagram-sign {
+  display: grid;
+  border: 0;
+  place-items: center;
+  min-width: clamp(50px, 4.4vw, 62px);
+  padding: 5px 10px;
+  border-radius: var(--radius-s);
+  background: var(--line-color);
+  color: var(--line-text);
+  font-size: clamp(23px, 2.1vw, 30px);
+  font-weight: 820;
+  line-height: 1.1;
+  letter-spacing: -0.05em;
+}
+/* The sign doubles as the way back to the whole line while a trip is pinned; it only lifts when
+   there is something above this view to step up to. */
+button.line-diagram-sign {
+  cursor: pointer;
+  transition:
+    box-shadow 0.12s ease,
+    filter 0.12s ease;
+}
+button.line-diagram-sign:hover,
+button.line-diagram-sign:focus-visible {
+  filter: brightness(1.08);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--line-color) 35%, transparent);
+}
+.line-diagram-header h1 {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  overflow: hidden;
+  font-size: clamp(15px, 1.4vw, 20px);
+  font-weight: 650;
+  white-space: nowrap;
+}
+.line-diagram-header h1.trip-destination {
+  display: block;
+  text-overflow: ellipsis;
+}
+/* Each terminus is its own item so a narrow header shortens both ends rather than cutting the
+   second one off mid-letter: which two places the line runs between is the whole heading. */
+.line-diagram-header h1 > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.line-diagram-header h1 i {
+  flex: 0 0 auto;
+  font-size: 0.85em;
+  font-style: normal;
+  color: var(--ink-soft);
+}
+.line-diagram-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.line-diagram-header-actions .line-diagram-legend-tooltip {
+  right: 0;
+  left: auto;
+}
+
+/* A trip selection relocates this scrollport directly: trips can use different stop sequences, so
+   animating between their coordinate systems suggests continuity that is not there. The vehicle
+   marks themselves still move along the line. */
+/* Why the pinned trip has no mark on the line below. A quiet line under the heading: it qualifies
+   the diagram rather than competing with it, and it is gone the moment the mark can be placed. */
+.line-diagram-trip-hint {
+  flex: 0 0 auto;
+  margin: 8px 10px 0;
+  padding: 6px 10px;
+  border-radius: var(--radius-s);
+  background: var(--surface-2);
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.line-diagram.ride .line-diagram-trip-hint {
+  margin-inline: 2px;
+}
+.line-diagram-stops {
+  flex: 1;
+  min-height: 0;
+  margin-top: 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.line-diagram-stop-list {
+  position: relative;
+}
+.line-diagram-stop {
+  --line-diagram-ring: var(--surface-2);
+  --line-diagram-stop-padding: 3px;
+  position: relative;
+  width: 100%;
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  grid-template-rows: auto auto;
+  align-items: center;
+  column-gap: 14px;
+  min-height: 48px;
+  padding: var(--line-diagram-stop-padding) 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  text-align: left;
+  transition: background 0.14s ease;
+}
+.line-diagram-stop-action {
+  min-width: 0;
+  min-height: 48px;
+  display: grid;
+  grid-column: 2;
+  grid-row: 1;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 14px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.line-diagram-stop-action:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 1px;
+  border-radius: 6px;
+}
+.line-diagram-stop:hover,
+.line-diagram-stop.current {
+  --line-diagram-ring: var(--surface-3);
+  background: var(--surface-3);
+}
+.line-diagram-stop.terminus-start,
+.line-diagram-stop.terminus-end {
+  position: sticky;
+  z-index: 6;
+  background: var(--surface-2);
+}
+.line-diagram-stop.terminus-start {
+  top: 0;
+  border-radius: 0 0 10px 10px;
+  box-shadow: 0 1px var(--line);
+}
+.line-diagram-stop.terminus-end {
+  bottom: 0;
+  border-radius: 10px 10px 0 0;
+  box-shadow: 0 -1px var(--line);
+}
+.line-diagram-stop.terminus-start.has-covered-stops {
+  box-shadow:
+    0 1px var(--line),
+    0 10px 14px -16px var(--ink-soft);
+}
+.line-diagram-stop.terminus-end.has-covered-stops {
+  box-shadow:
+    0 -1px var(--line),
+    0 -10px 14px -16px var(--ink-soft);
+}
+/* Once the diagram scrolls, the pinned termini stand above the vehicle layer too: a mark whose
+   run carries it past the row travels underneath it, joining the covered stops there, instead of
+   crossing the terminus it has left behind. Without a scrollport nothing passes behind, so the
+   marks keep their seat above the rows — a train standing at a visible terminus stays seen. */
+.line-diagram-stop-list[data-covers-hidden-stops] .line-diagram-stop.terminus-start,
+.line-diagram-stop-list[data-covers-hidden-stops] .line-diagram-stop.terminus-end {
+  z-index: 8;
+}
+/* A pinned terminus reserves a strip on the side it covers, and the track simply carries on into
+   it. The strip is there for as long as the diagram scrolls — an empty one is just more line — so
+   stops passing behind the row fill and empty it without ever moving the rows below. */
+.line-diagram-stop.has-covered-stop-span {
+  grid-template-rows: auto auto auto;
+}
+.line-diagram-covered-stop-span {
+  position: relative;
+  grid-column: 1 / -1;
+  height: 22px;
+}
+.line-diagram-stop.terminus-start .line-diagram-covered-stop-span {
+  grid-row: 3;
+}
+.line-diagram-stop.terminus-end .line-diagram-covered-stop-span {
+  grid-row: 1;
+}
+/* The end terminus covers what lies below it, so its strip is the row's first line and the stop
+   itself moves down to make room. */
+.line-diagram-stop.terminus-end.has-covered-stop-span .line-diagram-stop-action {
+  grid-row: 2;
+}
+.line-diagram-stop.terminus-end.has-covered-stop-span .line-diagram-track {
+  grid-row: 2 / 4;
+}
+.line-diagram-stop.terminus-end.has-covered-stop-span .line-diagram-interchanges-full,
+.line-diagram-stop.terminus-end.has-covered-stop-span .line-diagram-interchanges-compact {
+  grid-row: 3;
+}
+.line-diagram-covered-stop-span-track {
+  position: absolute;
+  top: -8px;
+  bottom: -8px;
+  left: var(--line-diagram-track-x);
+  width: 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  transform: translateX(-50%);
+  background: var(--line-color);
+}
+/* Deliberately not a stop node: a compressed span carries small marks cut into the line, where a
+   stop the rider can reach carries a ringed circle beside its name. */
+.line-diagram-covered-stop-span-track i {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--line-text);
+  opacity: 0.8;
+}
+.line-diagram-stop.terminus-start:hover,
+.line-diagram-stop.terminus-start.current,
+.line-diagram-stop.terminus-end:hover,
+.line-diagram-stop.terminus-end.current {
+  background: var(--surface-3);
+}
+/* Changes are choices at a stop, not a second network diagram. A quiet local strip keeps them near
+   the stop name without competing with it or suggesting that its lines run parallel to this ride. */
+.line-diagram-interchanges-full {
+  min-width: 0;
+  display: flex;
+  grid-column: 2;
+  grid-row: 2;
+  align-items: center;
+  gap: 8px;
+  padding: 0 0 7px;
+}
+.line-diagram-interchanges-full > small,
+.line-diagram-interchanges-compact summary > small,
+.line-diagram-interchanges-compact-static > small {
+  flex: 0 0 auto;
+  color: var(--ink-soft);
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+.line-diagram-interchange-list {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.line-diagram-interchange {
+  display: inline-flex;
+  align-items: baseline;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+.line-diagram-interchange:not(:last-child)::after {
+  content: "·";
+  margin: 0 5px;
+  color: var(--line-strong);
+}
+.line-diagram-interchanges-compact {
+  display: none;
+}
+
+.line-diagram-ride-toggle {
+  flex: 0 0 auto;
+  padding: 6px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.line-diagram-ride-toggle:hover {
+  background: var(--surface-2);
+}
+
+.line-diagram-track {
+  position: relative;
+  height: 100%;
+  grid-column: 1;
+  grid-row: 1 / 3;
+  align-self: stretch;
+}
+.line-diagram-track::before {
+  content: "";
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  left: var(--line-diagram-track-x);
+  width: 6px;
+  transform: translateX(-50%);
+  background: var(--line-color);
+}
+/* The line ends where its last stop is, not where the row happens to end. Written against the
+   terminus classes rather than :first-child/:last-child: the vehicle layer is the list's last
+   child, so the end of the line would never have matched. */
+.line-diagram-stop.terminus-start .line-diagram-track::before {
+  top: 50%;
+}
+.line-diagram-stop.terminus-end .line-diagram-track::before {
+  bottom: 50%;
+}
+.line-diagram-track .line-diagram-node {
+  position: absolute;
+  z-index: 2;
+  left: var(--line-diagram-track-x);
+  top: 50%;
+  width: 12px;
+  height: 12px;
+  transform: translate(-50%, -50%);
+  border: 4px solid var(--ink);
+  border-radius: 50%;
+  background: #fff;
+}
+/* the two ends of the line read as ends */
+.line-diagram-stop.terminus-start .line-diagram-node,
+.line-diagram-stop.terminus-end .line-diagram-node {
+  width: 17px;
+  height: 17px;
+  border-width: 5px;
+}
+.line-diagram-stop.current .line-diagram-node {
+  width: 21px;
+  height: 21px;
+  border-width: 6px;
+}
+.line-diagram-vehicle-layer {
+  --line-diagram-ring: var(--surface-2);
+  position: absolute;
+  z-index: 7;
+  inset: 0;
+  overflow: visible;
+  pointer-events: none;
+}
+.line-diagram-vehicle-layer .line-diagram-vehicle {
+  position: absolute;
+  z-index: 3;
+  left: 0;
+  top: 0;
+  min-width: 30px;
+  height: 21px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: 0 5px;
+  border-radius: 7px;
+  background: var(--line-color);
+  box-shadow:
+    0 0 0 3px var(--line-diagram-ring),
+    0 1px 3px #12302e2e;
+  color: var(--line-text);
+  font-size: 13px;
+  font-weight: 900;
+  line-height: 1;
+  /* The whole position rides on one transform — the track offset, the lane, and how far down the
+     link the mark has got — so travel is composited rather than laid out, and one transition covers
+     both moving on and changing lane. A step of the vehicle clock long and linear: each tick is
+     walked to at the pace the timetable gives, never jumped to and never eased into a sprint. */
+  will-change: transform;
+  transition:
+    transform 1.1s linear,
+    box-shadow 0.2s ease;
+  /* Arriving into a diagram is an event of its own: a mark that was not there a moment ago fades up
+     in place instead of appearing mid-track fully formed. `scale` stays clear of `transform`, which
+     the position is already using. */
+  animation: line-diagram-vehicle-enter 0.24s ease-out both;
+}
+@keyframes line-diagram-vehicle-enter {
+  from {
+    opacity: 0;
+    scale: 0.7;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+/* Freshly measured geometry. Row offsets move for reasons that have nothing to do with a train —
+   a pinned terminus growing the strip it reserves as the rider scrolls moves every offset below it
+   — and a mark that slid each time would be reporting motion the feed never stated. */
+.line-diagram-vehicle-layer.remeasured .line-diagram-vehicle {
+  transition: none;
+}
+.line-diagram-vehicle-layer .line-diagram-vehicle span {
+  font-size: 10px;
+  letter-spacing: -0.02em;
+}
+.line-diagram-vehicle-layer .line-diagram-vehicle-portions {
+  min-width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--line-text);
+  color: var(--line-color);
+  font-size: 9px;
+  font-weight: 900;
+  line-height: 1;
+}
+/* A mark rides beside the rail, never on it: the clearance is measured from the rail itself, so it
+   clears the largest node — the current stop's — at every width instead of at one of them. */
+.line-diagram-vehicle-layer .line-diagram-vehicle.direction-down {
+  --line-diagram-vehicle-offset: calc(
+    var(--line-diagram-track-x) -
+    var(--line-diagram-vehicle-clearance)
+  );
+  justify-content: flex-end;
+}
+.line-diagram-vehicle-layer .line-diagram-vehicle.direction-up {
+  --line-diagram-vehicle-offset: calc(
+    var(--line-diagram-track-x) +
+    var(--line-diagram-vehicle-clearance)
+  );
+  justify-content: flex-start;
+}
+/* While a trip is followed, every other vehicle on the line steps back into a tint — same
+   direction or not — so the ride the rider is on is the one mark that reads at full strength. */
+.line-diagram-vehicle-layer .line-diagram-vehicle.other-trip {
+  background: color-mix(in srgb, var(--line-color) 42%, var(--surface));
+  color: var(--ink);
+}
+.line-diagram-vehicle-layer .line-diagram-vehicle.selected {
+  z-index: 5;
+  box-shadow:
+    0 0 0 3px var(--surface),
+    0 0 0 6px var(--ink),
+    0 3px 9px #12302e42;
+}
+
+/* A panel too narrow for a labelled pill beside every stop name. The line number already stands in
+   the header above, so the mark keeps only what the header cannot say — which way it is going —
+   and the rail moves in to leave the names the width that is left. */
+@container panel (max-width: 620px) {
+  .line-diagram {
+    --line-diagram-track-x: 36px;
+    --line-diagram-vehicle-clearance: 24px;
+  }
+  .line-diagram-stop {
+    grid-template-columns: 72px minmax(0, 1fr);
+    column-gap: 9px;
+    padding-inline: 6px;
+  }
+  .line-diagram-stop-action {
+    gap: 9px;
+  }
+  .line-diagram-vehicle-layer .line-diagram-vehicle {
+    min-width: 22px;
+    width: 22px;
+    height: 22px;
+    padding: 0;
+    border-radius: 50%;
+    font-size: 14px;
+  }
+  .line-diagram-vehicle-layer .line-diagram-vehicle span {
+    display: none;
+  }
+  .line-diagram-vehicle-layer .line-diagram-vehicle.direction-down,
+  .line-diagram-vehicle-layer .line-diagram-vehicle.direction-up {
+    justify-content: center;
+  }
+  /* With a trip beside the board the header carries a control as well as a name, and the name is
+     the thing that was chosen: it keeps the line to itself and the controls step down under it.
+     The ride's header has no name of its own — the status card above carries it — and stays one
+     right-aligned row at every width. */
+  .line-diagram.has-selected-trip:not(.ride) .line-diagram-header {
+    grid-template-columns: auto minmax(0, 1fr);
+    row-gap: 8px;
+  }
+  .line-diagram.has-selected-trip:not(.ride) .line-diagram-header-actions {
+    grid-column: 2;
+    grid-row: 2;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .line-diagram-vehicle-layer .line-diagram-vehicle {
+    transition: none;
+    animation: none;
+  }
+}
+.line-diagram-stop-name {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.line-diagram-stop-name strong {
+  overflow: hidden;
+  font-size: clamp(15px, 1.25vw, 19px);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.line-diagram.ride .line-diagram-stop-name strong,
+.line-diagram.ride .line-diagram-stop-name small.line-diagram-stop-place {
+  overflow: visible;
+  overflow-wrap: anywhere;
+  text-overflow: clip;
+  white-space: normal;
+}
+.line-diagram-stop.current .line-diagram-stop-name strong {
+  font-weight: 800;
+}
+.line-diagram-stop-name small {
+  color: var(--accent-ink);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+/* Walking along the line changes one thing on the screen and this is it: the note under a stop
+   name saying where the rider is. The diagram itself does not move — the rows they tapped are the
+   rows they are still reading (`useStopPlacement`) — and nothing on the board beside it animates
+   either (`data-panel-change="board"`), so this glide is the whole of what the navigation looks
+   like. One motion, whichever way along the line the rider stepped: the note slides up into its
+   new place, and it moves only — a fade would read as the note being replaced, not as it arriving.
+
+   `backwards` rather than `both`: the note is inside the row's own flow, and a transform left
+   standing would make it the containing block for anything measured against it. Nothing here is
+   ordered against the board beside it — the two changes are the same act read at two scales, and
+   staggering them would make it read as two. */
+.line-diagram-stop-list[data-current-stop-move] .line-diagram-current-note {
+  animation: current-note-slide-up 0.24s cubic-bezier(0.22, 0.75, 0.2, 1) backwards;
+}
+@keyframes current-note-slide-up {
+  from {
+    transform: translateY(9px);
+  }
+}
+/* The municipality above the name, for the stops whose name does not carry one: quiet enough to
+   stay the qualifier, always present when the name alone would name a stop in every second town. */
+.line-diagram-stop-name small.line-diagram-stop-place {
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* A selected trip's own times: the calls still ahead read first, the ones it has already made
+   stay legible but step back. Nothing is hidden — a passed stop is still part of the trip. */
+.line-diagram-call-time {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  line-height: 1.15;
+  font-variant-numeric: tabular-nums;
+}
+.line-diagram-call-time strong {
+  font-size: clamp(14px, 1.1vw, 17px);
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.line-diagram-call-time strong.late {
+  color: var(--warning-ink);
+}
+.line-diagram-call-time s {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  text-decoration-thickness: 1px;
+}
+.line-diagram-stop.past-call .line-diagram-call-time {
+  opacity: 0.55;
+}
+.line-diagram-stop.past-call .line-diagram-call-time strong {
+  font-weight: 550;
+}
+.line-diagram-stop.past-call .line-diagram-stop-name strong {
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+.line-diagram-stop.past-call .line-diagram-stop-name small.line-diagram-stop-place {
+  opacity: 0.7;
+}
+.line-diagram-stop.past-call.current .line-diagram-stop-name strong {
+  color: var(--ink);
+  font-weight: 800;
+}
+
+/* ---------- Stop view ---------- */
+.stop-title {
+  min-width: 0;
+}
+.stop-title h1 {
+  font-size: clamp(28px, 2.6vw, 38px);
+}
+
+/* The way to the whole line, which is what the line reading offers over the other two.
+   The band names the line on the left and offers the way to it on the right: the words and the mark
+   that open it travel together as one pressable phrase, rather than sitting a hand's width apart
+   with the band's whole width dead between them. */
+.stop-line-group-heading {
+  width: 100%;
+  min-height: 46px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0 7px;
+  padding: 6px var(--row-inset);
+  border: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  /* The group's own sign colour, mixed toward the ink before it is ever painted — exactly as
+     --accent-ink is. A pale sign (Linie 4 is a yellow) would otherwise wash out to nothing at the
+     strength a hover is set at, so this is what lands every line at the same weight. */
+  --heading-tint: color-mix(in srgb, var(--line-color, var(--ink)) 62%, var(--ink));
+  /* The lift arrives over a few frames rather than snapping on, so the band reads as answering the
+     pointer that is already on it — the timing every row of the board under it uses. */
+  transition: background-color 0.2s ease;
+}
+.stop-line-group-heading > span {
+  justify-self: end;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 700;
+}
+.stop-line-group-heading > b {
+  color: var(--accent-ink);
+  font-size: 17px;
+  line-height: 1;
+}
+/* The band is already surface-3, so the pointer lifts the heading off it rather than pressing it
+   down — but it lifts into the line's own colour, not into a flat white: this heading is the one
+   way to that line, and the tint is what says so. Barely there by design; at this strength it is
+   the paper the line is printed on, not a second badge competing with the one on the left. */
+.stop-line-group-heading:hover,
+.stop-line-group-heading:focus-visible {
+  background: color-mix(in srgb, var(--heading-tint) 8%, var(--surface));
+}
+/* A press is answered in the band itself, under the finger: the line's diagram is a navigation
+   away, and until that resolves this is the only acknowledgement there is. */
+.stop-line-group-heading:active {
+  background: color-mix(in srgb, var(--heading-tint) 15%, var(--surface));
+  transition-duration: 0s;
+}
+.card-action {
+  margin-left: auto;
+  color: var(--accent-ink);
+  font-size: 20px;
+}
+
+/* ---------- Network ---------- */
+.network-overview {
+  width: min(1440px, 100%);
+  height: 100%;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  margin: 0 auto;
+}
+.network-scope-control {
+  --segment-radius: 7px;
+  border-radius: 10px;
+}
+.network-scope-control button {
+  min-height: 34px;
+  padding: 0 16px;
+  border-radius: 7px;
+  font-size: 13px;
+}
+.network-lines {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  align-content: start;
+  gap: 0 18px;
+  margin-top: 20px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+.network-lines > button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 56px;
+  padding: 9px 5px;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+.network-lines > button:hover,
+.stop-lines button:hover {
+  background: var(--surface);
+  box-shadow: none;
+}
+.network-termini {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.network-termini strong {
+  overflow: hidden;
+  font-size: 14px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.network-termini i {
+  flex: 0 0 auto;
+  color: var(--ink-soft);
+  font-style: normal;
+}
+.network-lines > button > b {
+  color: var(--accent-ink);
+  font-size: 20px;
+}
+.data-provenance-footer {
+  flex: 0 0 auto;
+  display: flex;
+  gap: 16px;
+  padding: 6px 4px 0;
+  color: var(--ink-soft);
+  font-size: 11px;
+}
+
+/* ---------- Stop bottom menu ---------- */
+/* What KVV announced about this stop, at the foot of its board over one hairline. No tray and no
+   raised chip: one quiet control, flat on the panel and washed only while touched or held, silent
+   when there is nothing announced. It belongs to the board — the panel that scrolls — and stays put
+   beneath the list's scrollport at every width; on a phone it pins to the document's foot while that
+   board is in view, one thumb's reach away.
+   It had a second half once, a Linien control beside this one. Two full-width controls pinned to a
+   phone's foot read as a tab bar, and neither of them was one; the lines are an order of the board
+   itself now, and this half is what was actually a menu. */
+.stop-bottom-menu {
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  row-gap: 0;
+  margin-top: auto;
+  padding: 5px 0 7px;
+  border-top: 1px solid var(--line);
+}
+
+/* The menu's one control. */
+.stop-service-notices summary {
+  min-width: 0;
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: var(--radius-m);
+  background: transparent;
+  color: var(--ink-soft);
+  font-size: 14px;
+  font-weight: 750;
+  cursor: pointer;
+  transition:
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+.stop-service-notices summary:hover {
+  background: var(--surface-2);
+  color: var(--ink);
+}
+.stop-service-notices summary:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* A long stop name squeezes rather than raising the menu it sits in. */
+.stop-service-notices summary > span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Stroke marks size themselves off their label; they carry no colour of their own. */
+.disclosure-chevron {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.9;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.disclosure-chevron {
+  transition: transform 0.14s ease;
+}
+
+/* Open, the disclosure passes its children through to the menu's grid, so the summary keeps its row
+   and the operator's own wording spreads beneath it at full width. */
+.stop-bottom-menu > .stop-service-notices:not([open]) {
+  grid-row: 1;
+  grid-column: 1;
+}
+.stop-service-notices[open] {
+  display: contents;
+}
+.stop-service-notices[open] summary {
+  grid-row: 1;
+  grid-column: 1;
+}
+.stop-service-notices[open] .stop-service-notices-content {
+  grid-row: 2;
+  grid-column: 1 / -1;
+}
+
+.stop-service-notices {
+  min-width: 0;
+}
+.stop-service-notices summary {
+  list-style: none;
+}
+.stop-service-notices summary::-webkit-details-marker {
+  display: none;
+}
+.stop-service-notices[open] summary .disclosure-chevron {
+  transform: rotate(-180deg);
+}
+.stop-service-notices-content {
+  margin-top: 5px;
+  padding: 0 0 2px;
+  border-top: 1px solid var(--line);
+}
+.stop-service-notices .service-notices {
+  gap: 0;
+}
+.stop-service-notices .notice {
+  margin: 0;
+  padding: 10px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+}
+.stop-service-notices .notice:last-child {
+  border-bottom: 0;
+}
+.stop-service-notices .notice-icon {
+  display: none;
+}
+.stop-service-notices .notice-text {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+}
+.stop-service-notices .notice-text strong {
+  flex: 0 1 auto;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+/* The way to the full list, stated with the other facts about where the data came from. */
+.footer-notices-link {
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.footer-notices-link:hover {
+  color: var(--ink);
+}
+
+/* ---------- Invalid deep links ---------- */
+.not-found {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  overflow-y: auto;
+  place-content: center;
+  justify-items: start;
+  gap: 12px;
+  padding: var(--pad);
+  border-radius: 0 0 var(--radius-l) var(--radius-l);
+  background: var(--surface);
+}
+.not-found p {
+  max-width: 48ch;
+  margin: 0;
+  color: var(--ink-soft);
+  line-height: 1.5;
+}
+.not-found .eyebrow {
+  color: var(--accent-ink);
+}
+.not-found button {
+  min-height: 42px;
+  margin-top: 8px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 21px;
+  background: var(--shell-accent);
+  color: var(--shell-ink);
+  font-weight: 750;
+  cursor: pointer;
+}
+/* A failed read can be asked again; the step home stays one, quiet. */
+.not-found-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+.not-found button.not-found-secondary {
+  border: 1px solid var(--line-strong);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+/* ---------- Unattended stop displays ---------- */
+.app-shell.station-board-mode {
+  width: 100%;
+  max-width: none;
+  padding: 0;
+}
+.station-board-mode .app-header {
+  height: 88px;
+  padding-inline: 28px;
+  border-radius: 0;
+}
+.station-board-mode .departure-board-more {
+  display: none;
+}
+.station-board-mode .app-header-status {
+  gap: 22px;
+}
+.station-board-mode .dashboard {
+  border-radius: 0;
+  box-shadow: none;
+}
+.station-board-mode .dashboard.station-board-only {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+.station-board-mode .brand {
+  font-size: 26px;
+}
+.station-board-mode .brand-mark {
+  min-width: 80px;
+  height: 52px;
+  font-size: 16px;
+}
+.station-board-mode .app-header-status time {
+  font-size: 34px;
+}
+.station-board-mode h1 {
+  font-size: clamp(34px, 2.8vw, 52px);
+}
+.station-board-mode .data-provenance-footer {
+  padding: 10px 28px;
+  background: var(--shell-accent);
+  color: var(--shell-ink);
+  font-size: 15px;
+}
+
+/* ---------- Stop search ---------- */
+/* It stood on the coloured bar and was sized to fit beside three other controls. At the top of the
+   home it is the view's first question, so it takes the width and a target a thumb can hit. */
+.stop-search {
+  position: relative;
+  width: 100%;
+}
+.stop-search input {
+  width: 100%;
+  height: 48px;
+  padding: 0 18px;
+  border: 1px solid var(--line-strong);
+  border-radius: 24px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 16px;
+}
+.stop-search input::placeholder {
+  color: var(--ink-soft);
+}
+.stop-search input:focus-visible {
+  outline: 3px solid var(--focus);
+  outline-offset: 2px;
+}
+/* What the list is, when it is not results: the stops the rider has been reading, shown while there
+   is nothing typed to narrow by. One label, inside the affordance that already existed. */
+.stop-search-group {
+  padding: 9px 14px 5px;
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.stop-search-results {
+  position: absolute;
+  z-index: 40;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  max-height: 60vh;
+  margin: 0;
+  padding: 5px;
+  overflow-y: auto;
+  list-style: none;
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  box-shadow: 0 14px 36px #10201f2e;
+  color: var(--ink);
+}
+.stop-search-results li[role="option"] {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 9px 11px;
+  border: 0;
+  border-radius: var(--radius-s);
+  background: none;
+  text-align: left;
+  cursor: pointer;
+}
+.stop-search-results li[role="option"].active {
+  background: var(--surface-2);
+}
+.stop-search-results strong {
+  font-size: 14px;
+  font-weight: 650;
+}
+.stop-search-results small {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+/* What the list says when it is not results and not the remembered stops: still searching,
+   nothing found, or the provider unreadable. */
+.stop-search-note {
+  padding: 10px 11px;
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.stop-search-note strong {
+  display: block;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 650;
+}
+
+/* One level up the selection chain, which is not the same journey as the browser's own back. */
+/* Same inverse chip as the brand and locate control; icon-only, so it comes out a circle. */
+.step-up {
+  width: 36px;
+  height: 36px;
+}
+
+/* ---------- Board extras ---------- */
+/* A board that stopped refreshing still says something true, as long as it says how old it is. */
+.departure-board-stale {
+  flex: 0 0 auto;
+  margin: 8px 0 0;
+  padding: 7px 11px;
+  border-radius: var(--radius-s);
+  background: var(--warning-bg);
+  color: #7a4e05;
+  font-size: 12px;
+  font-weight: 650;
+}
+.departure.diverted .departure-meta {
+  color: #7a4e05;
+  font-weight: 700;
+}
+.departure-countdown strong.cancelled {
+  font-size: clamp(15px, 1.2vw, 19px);
+  font-weight: 750;
+}
+
+/* ---------- Network ---------- */
+.network-lines > button {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+/* ---------- The ride ----------
+   One card, always in view, answering the only question a rider on board has. It sits outside the
+   diagram's scrollport on purpose: it must never scroll away from the person reading it. */
+.ride-status {
+  flex: 0 0 auto;
+  /* Reads as the same column the diagram below it is, rather than as the panel it sits on. */
+  width: min(720px, 100%);
+  display: grid;
+  gap: 8px;
+  margin: 0 auto 10px;
+  padding: 14px 16px;
+  border-radius: var(--radius-m);
+  background: var(--shell-accent);
+  color: var(--shell-ink);
+}
+.ride-status-line {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+/* The ride's page heading: the line sign beside it carries the number, so the destination stays a
+   compact identity line under the much larger next stop. */
+.ride-status-destination {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ride-status-end {
+  margin-left: auto;
+  min-height: 34px;
+  padding: 0 12px;
+  border: 1px solid color-mix(in srgb, currentColor 36%, transparent);
+  border-radius: 17px;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.ride-status-end:hover {
+  background: color-mix(in srgb, currentColor 18%, transparent);
+}
+.ride-status-position {
+  flex: 0 0 auto;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid color-mix(in srgb, currentColor 36%, transparent);
+  border-radius: 18px;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+}
+/* Spoken in full where the countdown sits; this is the strike-and-sum the sighted row shows. */
+.ride-status-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.ride-status-position:hover,
+.ride-status-position:focus-visible {
+  background: color-mix(in srgb, currentColor 18%, transparent);
+}
+.ride-status-next small,
+.ride-status-alighting small {
+  color: color-mix(in srgb, currentColor 78%, transparent);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.ride-status-primary {
+  margin: 2px 0 0;
+  font-size: clamp(24px, 3.4vw, 34px);
+  font-weight: 750;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+.ride-status-timing {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  margin: 4px 0 0;
+  font-size: 17px;
+  font-weight: 700;
+}
+.ride-status-call-time {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  color: color-mix(in srgb, currentColor 74%, transparent);
+  font-size: 13px;
+  font-weight: 650;
+}
+.ride-status-call-time.late {
+  color: currentColor;
+  font-weight: 750;
+}
+.ride-status-call-time s {
+  color: color-mix(in srgb, currentColor 62%, transparent);
+  font-weight: 600;
+  text-decoration-thickness: 1px;
+}
+.ride-status-alighting {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 8px;
+  border-top: 1px solid color-mix(in srgb, currentColor 26%, transparent);
+}
+.ride-status-alighting > span {
+  min-width: 0;
+  display: grid;
+}
+.ride-status-alighting strong {
+  overflow: hidden;
+  font-size: 16px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ride-status-remaining {
+  margin-left: auto;
+  flex: 0 0 auto;
+  font-size: 13px;
+  font-weight: 700;
+}
+.ride-status-alighting button {
+  flex: 0 0 auto;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid color-mix(in srgb, currentColor 36%, transparent);
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  font-size: 17px;
+  cursor: pointer;
+}
+.ride-status-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+.ride-status-hint {
+  margin: 0 0 0 auto;
+  color: color-mix(in srgb, currentColor 70%, transparent);
+  font-size: 12px;
+  text-align: right;
+}
+/* Which witness the countdown above came from — the device, or the timetable. Quiet: it qualifies
+   the reading it sits under rather than competing with it. */
+.ride-status-source {
+  margin: 2px 0 0;
+  color: color-mix(in srgb, currentColor 74%, transparent);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.01em;
+}
+/* The card's foot: what the mode has to disclose about itself, set off from the reading above it.
+   The mode outlives the boards that found the trip and says so there; a location that could not be
+   read is said once in the same place, rather than asked for again. */
+.ride-status-note,
+.ride-status-retained {
+  margin: 0;
+  padding-top: 7px;
+  border-top: 1px solid color-mix(in srgb, currentColor 26%, transparent);
+  font-size: 12px;
+  font-weight: 700;
+}
+/* One stop out: shape and wording carry this, the tint only reinforces it. */
+.ride-status-alighting-next {
+  box-shadow: inset 0 0 0 3px var(--shell-ink);
+}
+.ride-status-alighting-next .ride-status-primary::after {
+  content: " — aussteigen";
+  font-size: 0.6em;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+}
+.ride-status-ended {
+  gap: 6px;
+}
+.ride-status-action {
+  justify-self: start;
+  min-height: 42px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 21px;
+  background: var(--shell-ink);
+  color: var(--shell-accent);
+  font-size: 14px;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+/* The stop a rider marked to get off at: a mark on the row, never the tint alone. */
+.line-diagram-stop.line-diagram-alighting {
+  background: color-mix(in srgb, var(--line-color) 14%, var(--surface-2));
+  box-shadow: inset 0 0 0 2px var(--line-color);
+}
+.line-diagram-stop-name small.line-diagram-alighting-note {
+  color: var(--accent-ink);
+  font-weight: 800;
+}
+
+/* ---------- Unattended station board ----------
+   Sized from one unit: the height left after the header and footer, divided by the rows asked for.
+   Every glyph is a fraction of that unit, so N rows fill exactly one screen in landscape, portrait
+   and ultrawide without a separate scale for each. The `min(…, vw)` term is the ultrawide guard —
+   at 3840x1080 the rows are tall and unguarded type would overrun its columns. */
+.station-board {
+  --board-heading: 11svh;
+  /* The bar and the provenance footer are the shell's, not the board's, and both are fixed height. */
+  --board-chrome: 132px;
+  --row-unit: calc(
+    (100svh - var(--board-chrome) - var(--board-heading)) /
+    var(--station-board-rows, 8)
+  );
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  padding: clamp(16px, 2vw, 40px);
+}
+.station-board-heading {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 20px;
+  height: var(--board-heading);
+}
+.station-board-heading h1 {
+  display: flex;
+  align-items: baseline;
+  gap: 18px;
+  font-size: min(calc(var(--row-unit) * 0.42), 6.5vw);
+  letter-spacing: -0.03em;
+}
+.station-board-heading-platform {
+  flex: 0 0 auto;
+  padding: 0.1em 0.45em;
+  border-radius: 0.2em;
+  background: var(--shell-accent);
+  color: var(--shell-ink);
+  font-size: 0.8em;
+}
+.station-board-page {
+  flex: 0 0 auto;
+  color: var(--ink-soft);
+  font-size: min(calc(var(--row-unit) * 0.2), 2.4vw);
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+.station-board-stale {
+  flex: 0 0 auto;
+  margin: 0 0 0.4em;
+  padding: 0.3em 0.6em;
+  border-radius: var(--radius-s);
+  background: var(--warning-bg);
+  color: #7a4e05;
+  font-size: min(calc(var(--row-unit) * 0.2), 2.2vw);
+  font-weight: 750;
+}
+/* Exactly the rows asked for, each an equal share of what is left. An unattended board must never
+   offer a scrollbar nobody is there to use, and must never leave two rows stretched over a screen. */
+.station-board-rows {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: repeat(var(--station-board-rows, 8), minmax(0, 1fr));
+  border-top: 2px solid var(--ink);
+}
+.station-board-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto minmax(1.6em, auto) minmax(2.4em, auto);
+  align-items: center;
+  gap: 0 min(calc(var(--row-unit) * 0.3), 3vw);
+  padding: 0 0.2em;
+  border-bottom: 1px solid var(--line);
+}
+.station-board-row .line-badge {
+  width: auto;
+  min-width: calc(var(--row-unit) * 0.92);
+  height: calc(var(--row-unit) * 0.52);
+  border-radius: calc(var(--row-unit) * 0.26);
+  padding: 0 0.3em;
+  font-size: min(calc(var(--row-unit) * 0.3), 5vw);
+}
+.station-board-destination {
+  min-width: 0;
+  display: grid;
+  gap: 0.1em;
+}
+.station-board-destination strong {
+  overflow: hidden;
+  font-size: min(calc(var(--row-unit) * 0.34), 5.5vw);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* A note is never truncated away: hiding a diversion is exactly what must not happen here. */
+.station-board-destination em {
+  color: var(--ink-soft);
+  font-size: min(calc(var(--row-unit) * 0.2), 2.2vw);
+  font-style: normal;
+  font-weight: 650;
+  line-height: 1.2;
+}
+.station-board-time {
+  color: var(--ink);
+  font-size: min(calc(var(--row-unit) * 0.26), 4.2vw);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+/* The one time the board publishes is the one it expects — the countdown beside it agrees. */
+.station-board-time.late,
+.station-board-time.early {
+  color: var(--warning);
+}
+/* On a whole-stop board the platform is the second thing a rider needs, so it is a column of its
+   own rather than the smallest text in a meta line. */
+.station-board-platform {
+  color: var(--ink);
+  font-size: min(calc(var(--row-unit) * 0.3), 5vw);
+  font-weight: 800;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+/* The feed's word for the platform, captioning the code rather than competing with it. */
+.station-board-platform small {
+  display: block;
+  color: var(--ink-soft);
+  font-size: 0.5em;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+.station-board-countdown {
+  display: flex;
+  align-items: baseline;
+  justify-content: flex-end;
+  gap: 0.2em;
+  font-variant-numeric: tabular-nums;
+}
+.station-board-countdown strong {
+  font-size: min(calc(var(--row-unit) * 0.46), 9vw);
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  line-height: 1;
+}
+.station-board-countdown small {
+  color: var(--ink-soft);
+  font-size: min(calc(var(--row-unit) * 0.18), 2vw);
+  font-weight: 700;
+}
+.station-board-countdown-due strong {
+  color: var(--shell-accent);
+}
+/* Read at ten metres, a struck-through dash reads as a broken screen. The column says the word. */
+.station-board-countdown-cancelled strong {
+  font-size: min(calc(var(--row-unit) * 0.26), 4.2vw);
+  color: #8c2f27;
+}
+.station-board-row.cancelled .station-board-destination strong {
+  text-decoration: line-through;
+  opacity: 0.7;
+}
+.station-board-row.diverted .station-board-destination em {
+  color: #7a4e05;
+  font-weight: 750;
+}
+.station-board-message {
+  flex: 0 0 auto;
+  display: grid;
+  gap: 0.3em;
+  margin: auto 0 0;
+  padding: 0.6em 0.2em 0;
+  font-size: min(calc(var(--row-unit) * 0.3), 3vw);
+  font-weight: 750;
+}
+.station-board-message small {
+  color: var(--ink-soft);
+  font-size: 0.6em;
+  font-weight: 650;
+}
+
+/* ---------- Responsive ---------- */
+@media (max-width: 1180px) {
+  .line-badge.lg {
+    width: 46px;
+    height: 31px;
+    border-radius: 16px;
+    font-size: 15px;
+  }
+}
+
+@media (max-width: 860px) {
+  /* Stacked on a phone, the two halves are one column, and two scroll areas above each other are
+     a trap: a thumb on the diagram would move the departures. The document scrolls again here, and
+     only the unattended display stays pinned to one screen. */
+  .app-shell:not(.station-board-mode) {
+    height: auto;
+    min-height: 100dvh;
+    display: block;
+    overflow: visible;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+  /* The dashboard clips on a wide screen because each half scrolls inside it. Stacked, the document
+     is the scrollport, and a clipping ancestor would make every sticky surface within it — the
+     diagram header, the ride status, the platform headings — stick to a box that never scrolls,
+     which reads as not sticking at all. */
+  .app-shell:not(.station-board-mode) .dashboard,
+  .app-shell:not(.station-board-mode) .primary-panel,
+  .app-shell:not(.station-board-mode) .departure-board-panel {
+    overflow: visible;
+  }
+  .app-shell:not(.station-board-mode) .departure-board-list,
+  .app-shell:not(.station-board-mode) .line-diagram-stops,
+  .app-shell:not(.station-board-mode) .core-stops,
+  .app-shell:not(.station-board-mode) .network-lines {
+    flex: none;
+    min-height: 0;
+    overflow: visible;
+  }
+  /* Stacked, the rules reach a short way past the words and stop inside the panel's own padding:
+     there is no second panel here to run a hairline to, and the edge they would run to is a rounded
+     card over the glass, not a divider. Only the reach changes — the words still land on the
+     panel's margin, under the stop's name, because the list steps out by exactly what the rows put
+     back. Short of the safe area at every phone rotation, too. */
+  .app-shell:not(.station-board-mode) .departure-board-list {
+    --row-inset: 10px;
+  }
+  /* No scrollport here, so no scroll edge to fade — the mask would dim the last row instead. */
+  .app-shell:not(.station-board-mode) .core-stops {
+    -webkit-mask-image: none;
+    mask-image: none;
+  }
+  /* The bridge reaches a panel divider that a stacked layout does not have. */
+  .app-shell:not(.station-board-mode) .departure::before {
+    display: none;
+  }
+  .app-shell:not(.station-board-mode) .departure.selected {
+    box-shadow: inset 4px 0 var(--shell-accent);
+  }
+  .app-shell:not(.station-board-mode) .line-diagram,
+  .app-shell:not(.station-board-mode) .network-overview {
+    height: auto;
+    display: block;
+  }
+  /* The line diagram joins the document scroll on narrow screens. Keeping its end rows sticky here
+     would let the lower terminus float over the departure panel that follows the diagram. */
+  .app-shell:not(.station-board-mode) .line-diagram-stop.terminus-start,
+  .app-shell:not(.station-board-mode) .line-diagram-stop.terminus-end {
+    position: relative;
+    border-radius: 10px;
+    box-shadow: none;
+  }
+  .app-shell:not(.station-board-mode) .not-found {
+    min-height: 70vh;
+  }
+
+  /* The bar's own height, safe area included: everything that pins itself under the bar measures
+     against this one value rather than repeating 60px. */
+  .app-shell {
+    --bar-height: calc(60px + env(safe-area-inset-top));
+    padding: 0 0 env(safe-area-inset-bottom);
+  }
+  /* The document scrolls here, so the bar is pinned rather than carried by the shell's grid: the
+     brand, the step-up and the clock are wanted at the top of every screen, and the clock in
+     particular is what the board below it is read against. It carries the top safe area itself, so
+     the accent runs under a notch instead of leaving a strip of paper above it. */
+  .app-shell:not(.station-board-mode) .app-header {
+    position: sticky;
+    top: 0;
+    z-index: 30;
+    box-shadow:
+      0 1px 0 #10201f14,
+      0 10px 20px -18px #10201f80;
+  }
+  /* The one surface of the ride that must never scroll away from the person reading it — pinned
+     under the bar, not over it. */
+  .app-shell.ride-mode .ride-status {
+    position: sticky;
+    top: var(--bar-height);
+    z-index: 20;
+    width: auto;
+    /* Out to the panel's edges, safe-area padding included, so it reads as a band and not a card. */
+    margin-inline: calc(-16px - env(safe-area-inset-left)) calc(-16px - env(safe-area-inset-right));
+    border-radius: 0;
+  }
+  /* Opening a departure centres its vehicle in the document. Keep the trip's destination and the
+     way to start following it available after that scroll; once following starts, ride-status is
+     the single sticky surface instead. */
+  .app-shell:not(.ride-mode) .line-diagram.has-selected-trip {
+    width: 100%;
+  }
+  .app-shell:not(.ride-mode) .line-diagram.has-selected-trip .line-diagram-stops {
+    width: min(620px, 100%);
+    margin-inline: auto;
+  }
+  .app-shell:not(.ride-mode) .line-diagram.has-selected-trip .line-diagram-header {
+    position: sticky;
+    top: var(--bar-height);
+    z-index: 20;
+    margin-inline: calc(-16px - env(safe-area-inset-left)) calc(-16px - env(safe-area-inset-right));
+    padding-inline: calc(16px + env(safe-area-inset-left)) calc(16px + env(safe-area-inset-right));
+    background: var(--surface-2);
+    box-shadow:
+      0 1px 0 #10201f14,
+      0 10px 20px -18px #10201f80;
+  }
+  /* A grouped reading's heading — a platform in one order, a line in the other — pins inside its own
+     scrollport on a wide screen; stacked, its scrollport is the document, so it stops under the bar
+     rather than sliding behind it. */
+  .app-shell:not(.station-board-mode) .departure-board-platform-group h2,
+  .app-shell:not(.station-board-mode) .departure-board-line-group > h2 {
+    top: var(--bar-height);
+    z-index: 6;
+  }
+  .app-shell:not(.station-board-mode) .departure-board-platform-group,
+  .app-shell:not(.station-board-mode) .departure-board-line-group,
+  .app-shell:not(.station-board-mode) .departure-board-panel {
+    scroll-margin-top: calc(var(--bar-height) + 12px);
+  }
+  .app-header {
+    height: var(--bar-height);
+    padding: env(safe-area-inset-top) calc(14px + env(safe-area-inset-right)) 0
+      calc(14px + env(safe-area-inset-left));
+    border-radius: 0;
+  }
+  .app-header-status {
+    gap: 10px;
+  }
+  .app-header-status time {
+    font-size: 19px;
+  }
+  /* Three readings of one board, so on a phone they are three equal thirds of one bar rather than
+     three small words crowded against the stop's name — the same target size as everything else a
+     thumb reaches for here. */
+  .app-shell:not(.station-board-mode) .departure-board-heading-actions {
+    flex: 1 1 100%;
+  }
+  .app-shell:not(.station-board-mode) .departure-board-order-control {
+    flex: 1 1 auto;
+  }
+  .app-shell:not(.station-board-mode) .departure-board-order-control button {
+    min-height: 34px;
+    font-size: 13px;
+  }
+  /* Stacked, a stop is one column: its board, read in whichever of the three orders the rider chose.
+     There used to be a second panel here listing the same departures again, which the board had to
+     be ordered above — a rider scrolled past the whole board and met its trips a second time. */
+  .dashboard {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    border-radius: 0;
+    box-shadow: none;
+  }
+  /* The document scrolls here, so the board's menu pins to its foot instead of riding the page:
+     both controls stay one thumb's reach away for as long as their board is on screen — beside a
+     selected line's diagram too, where the menu travels with the board below it. It bleeds to the
+     screen's edges so rows cannot slip past it at either side, and carries the bottom safe area
+     itself while stuck against the viewport's foot. */
+  .dashboard.stop-view .stop-bottom-menu,
+  .dashboard.line-view .stop-bottom-menu {
+    position: sticky;
+    bottom: 0;
+    z-index: 15;
+    margin-left: calc(-16px - env(safe-area-inset-left));
+    margin-right: calc(-16px - env(safe-area-inset-right));
+    padding-left: calc(16px + env(safe-area-inset-left));
+    padding-right: calc(16px + env(safe-area-inset-right));
+    padding-bottom: calc(7px + env(safe-area-inset-bottom));
+    background: var(--surface);
+    border-top-color: var(--line-strong);
+    box-shadow: 0 -8px 18px -14px #10201f59;
+  }
+  .dashboard .primary-panel {
+    order: 0;
+  }
+  /* A phone held sideways puts the notch beside the rows, not above them. */
+  .primary-panel,
+  .departure-board-panel {
+    padding: 20px calc(16px + env(safe-area-inset-right)) 20px
+      calc(16px + env(safe-area-inset-left));
+  }
+  .departure-board-panel {
+    border-top: 0;
+    border-bottom: 1px solid var(--line);
+    border-left: 0;
+  }
+  .dashboard.stop-view .departure-board-panel {
+    width: auto;
+  }
+  .network-lines,
+  .core-stops {
+    grid-template-columns: 1fr;
+  }
+  .home-tabs {
+    margin-bottom: 20px;
+  }
+
+  .app-shell.station-board-mode {
+    padding: 0;
+  }
+  .station-board-mode .app-header {
+    height: 74px;
+  }
+  .station-board-mode .dashboard {
+    min-height: calc(100svh - 74px);
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .station-board-mode .primary-panel {
+    padding: 18px;
+  }
+}
+
+@media (max-width: 540px) {
+  .app-header {
+    gap: 8px;
+  }
+  .app-header-brand {
+    gap: 5px;
+  }
+  .app-header-quick-actions {
+    gap: 5px;
+    margin-left: 0;
+  }
+  /* The bar carried four controls and had to shrink this one to a glyph; with the search and the
+     notices moved to where their answers are, it keeps its word and a 44px target. */
+  .brand-mark,
+  .header-action {
+    min-height: 44px;
+  }
+  .brand-mark {
+    height: 44px;
+  }
+  .step-up {
+    width: 44px;
+    height: 44px;
+  }
+  .home-tabs {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .home-tabs button {
+    padding-inline: 10px;
+  }
+  h1 {
+    font-size: 25px;
+  }
+  .stop-title h1 {
+    font-size: 30px;
+  }
+  .departure-board-heading {
+    gap: 8px;
+  }
+  .departure-board-heading-actions {
+    gap: 6px;
+  }
+  .departure-board-order-control button {
+    min-height: 44px;
+    padding-inline: 14px;
+  }
+  .departure {
+    gap: 5px 10px;
+    padding: 13px 2px;
+  }
+  .departure .departure-destination {
+    font-size: 17px;
+  }
+  .departure-countdown strong {
+    font-size: 29px;
+  }
+  .departure-meta {
+    font-size: 12px;
+  }
+  .data-provenance-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+    padding-inline: calc(16px + env(safe-area-inset-left)) calc(16px + env(safe-area-inset-right));
+  }
+  .footer-notices-link {
+    margin-left: 0;
+  }
+  /* The rail itself is not set here: a phone is simply the narrowest panel there is, and the
+     container tier above already answers for every panel too narrow for a labelled mark. */
+  .line-diagram-stop-action {
+    gap: 8px;
+  }
+  .line-diagram.ride {
+    width: 100%;
+  }
+  .line-diagram-interchanges-full {
+    display: none;
+  }
+  .line-diagram-interchanges-compact {
+    min-width: 0;
+    display: block;
+    grid-column: 2;
+    grid-row: 2;
+    padding-bottom: 4px;
+  }
+  .line-diagram-interchanges-compact-static {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding-block: 4px 8px;
+  }
+  .line-diagram-interchanges-compact summary {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    padding: 4px 0;
+    color: var(--ink-soft);
+    cursor: pointer;
+    list-style: none;
+  }
+  .line-diagram-interchanges-compact summary::-webkit-details-marker {
+    display: none;
+  }
+  .line-diagram-interchanges-compact summary:focus-visible {
+    outline: 3px solid var(--focus);
+    outline-offset: 1px;
+    border-radius: 6px;
+  }
+  .line-diagram-interchanges-compact summary > b {
+    font-size: 11px;
+    font-weight: 800;
+  }
+  .line-diagram-interchanges-compact summary > i {
+    margin-left: auto;
+    font-size: 16px;
+    font-style: normal;
+    transition: transform 0.14s ease;
+  }
+  .line-diagram-interchanges-compact[open] summary .line-diagram-interchange-list,
+  .line-diagram-interchanges-compact[open] summary > b {
+    display: none;
+  }
+  .line-diagram-interchanges-compact[open] summary > i {
+    transform: rotate(180deg);
+  }
+  .line-diagram-interchanges-compact > .line-diagram-interchange-list {
+    padding: 2px 0 8px;
+  }
+  .line-diagram-call-time strong {
+    font-size: 14px;
+  }
+  .line-badge.xs {
+    width: 24px;
+    height: 17px;
+    border-radius: 8px;
+    font-size: 10px;
+  }
+  .line-diagram-stop-name strong {
+    font-size: 15px;
+  }
+  .line-diagram-stop-name small.line-diagram-stop-place {
+    font-size: 10px;
+  }
+  .line-diagram-header {
+    gap: 10px;
+    padding: 12px 14px;
+  }
+  .line-diagram-header h1 {
+    font-size: 13px;
+  }
+  .notice-text {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 2px;
+  }
+  /* A published notice is a sentence before it is a list of lines. At phone width the badges step
+     under the title instead of taking a lane beside it, which left the operator's own wording
+     wrapping in a column two words wide. */
+  .service-notices .notice:not(.service-notice-detail),
+  .service-notices .service-notice-detail > summary {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: start;
+    row-gap: 8px;
+  }
+  .service-notices .notice-icon {
+    grid-area: 1 / 1;
+  }
+  .service-notices .notice-text {
+    grid-area: 1 / 2;
+  }
+  .service-notices .service-notice-detail > summary > .disclosure-chevron {
+    grid-area: 1 / 3;
+  }
+  .service-notices .service-notice-lines {
+    grid-area: 2 / 2 / auto / -1;
+    justify-content: flex-start;
+    margin-left: 0;
+  }
+  /* Under a board the mark is dropped, so the sentence starts at the edge. */
+  .stop-service-notices .notice:not(.service-notice-detail),
+  .stop-service-notices .service-notice-detail > summary {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .stop-service-notices .notice-text {
+    grid-area: 1 / 1;
+  }
+  .stop-service-notices .service-notice-detail > summary > .disclosure-chevron {
+    grid-area: 1 / 2;
+  }
+}
+
+/* A portrait board has height rather than width: it earns more rows, not larger glyphs, and the
+   row unit turns that into the right type size on its own. */
+@media (orientation: portrait) and (min-height: 900px) {
+  .station-board-mode .app-header {
+    height: 96px;
+  }
+  .station-board {
+    --board-chrome: 150px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    scroll-behavior: auto !important;
+    animation: none !important;
+    transition: none !important;
+  }
+}

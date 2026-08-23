@@ -1,0 +1,58 @@
+# KARLA
+
+A static React + TypeScript + Vite site showing live Karlsruhe public transport departures.
+See the [README](./README.md) for the data source and station-board parameters.
+
+## Commands
+
+```bash
+npm run dev
+npm run build          # tsc -b && vite build — run before handing off a change
+npm run lint
+npm run format         # biome format --write . — the formatter is the style authority
+npm test
+npm run refresh:stops  # regenerates src/data/generated from the operator's published data
+```
+
+`dist` is built and deployed by GitHub Actions on push to `main`; don't commit it.
+
+## Layout
+
+| Path | Role |
+| --- | --- |
+| [src/App.tsx](src/App.tsx) | the shell: picks a panel, hands views their data |
+| [src/routing.ts](src/routing.ts) | hash routes and path builders |
+| [src/selection.ts](src/selection.ts) | resolving the stop / line / trip chain against live data |
+| [src/view-layout.ts](src/view-layout.ts) | what an address means for the two panels: which is shown, which is wide, panel keys |
+| [src/hooks/](src/hooks/) | route, network, board, trip, and clock subscriptions |
+| [src/components/](src/components/) | one file per view, plus shared badge, chip, termini, footer |
+| [src/lib/](src/lib/) | domain logic: observed network, feed clock, trip progress, notices |
+| [src/data/](src/data/) | `TransitSource` boundary, EFA client and parsers, stop and line data |
+| [src/data/generated/](src/data/generated/) | written by [scripts/](scripts/) from published data; never edited by hand |
+| [src/index.css](src/index.css) | the whole visual system |
+| [public/](public/) | icons, manifest, and `sw.js` — the offline app shell |
+| [tests/](tests/) | `node --test` over the pure modules; no DOM, no network |
+
+## Constraints
+
+- **No backend, no secrets.** Must stay deployable to GitHub Pages as plain files.
+- **The network is observed, not kept.** Served stops and their lines come from live trips; a line
+  that stops running leaves the view by itself.
+- **Bandwidth is a design constraint.** Rows are the budget: a view that needs to see further asks
+  for one line, not for more rows. Hidden pages neither poll nor tick.
+- **Views never touch a provider.** Fetching, id resolution, and merging live behind `TransitSource`.
+- **Routing is hash-based and goes through `routePaths`.** Components get routing, data, and time as
+  props and never touch `window`.
+- **Each level of the chain drops back on its own.** Never drop a level on a feed failure, and never
+  pin a level the rider did not choose.
+
+## Data honesty
+
+- Never claim realtime for data that isn't; without a prediction a departure reads "nach Fahrplan".
+- Count minutes against the feed's clock (`lib/feed-clock.ts`), never the device's, and at the
+  minute it shows — the operator's own board does, and a rider is holding ours up against it.
+- A failed refresh is not evidence the last board was wrong: keep it and state its age.
+- One published time per row — the one the vehicle is expected at, read from the feed's prediction
+  where it made one (`findExpectedDepartureInstant`) rather than from the delay it states beside it.
+  The countdown, the printed time and the board's order all come from that one instant.
+- Quote service notices, never rewrite them.
