@@ -25,12 +25,13 @@ chain, each level refining the one above it:
 - `#/notices` — KVV's published notices relevant to the KARLA network
 - `#/stop/europaplatz` — a stop with its departure board
 - `#/stop/europaplatz/line/2` — a line calling there, beside the board
+- `#/stop/hochstetten/line/S1+S11` — two of them read together over the stretch they share
 - `#/stop/europaplatz/line/2/trip/:tripId` — one trip of that line, highlighted
 - `#/trip/:tripId` — that trip read on its own: the ride
 - `#/trip/:tripId/to/:stopId` — the same ride with the rider's alighting stop marked
 
 Legacy links (`#/line/2`, `#/stop/…/lines`, `#/departure/…`, `#/ride/…`) still resolve and are
-rewritten to the canonical chain.
+rewritten to the canonical chain; the old combined `line/S1-S11` is read as the bundle `S1+S11`.
 
 With no address the app opens the stop last read, and `#/center` for a reader with no history. It
 never opens on a location prompt: the busiest Zentrum platforms are underground, where a fix is
@@ -96,6 +97,34 @@ otherwise the route its line predominantly runs towards that headsign stands in,
 rather than readings so a re-read board cannot outvote the others. Where two routes are observed
 equally often they really are two branches, and neither speaks for the other: those trips, and the
 ones nothing is known about yet, group by headsign alone.
+
+### Reading two lines together
+
+From Hochstetten, an S11 is a way to Busenbach exactly as an S1 is, and reading them on separate
+boards makes each look half as frequent as the corridor really is. So a line's view can be asked to
+read a sibling alongside it: the chip in the diagram's header adds it, the address carries it
+(`line/S1+S11`), and the board highlights both lines' trips as the one selection.
+
+It is not a merged line. `lib/line-families.ts` is untouched — S1 and S11 keep their signs, notices,
+ends and addresses — and a bundle is a property of *a corridor at one stop*, never of the lines. The
+sibling is offered only where this visit has already observed both lines running the same route out
+of this stop for at least three calls, which costs no reading of its own: the routes are the ones
+`StopCorridorPatterns` accumulated for the board the rider is already looking at. A rider who deep
+links straight into a line sees no offer until they step up to the stop, because discovering one
+there would mean spending a request on a question nobody asked.
+
+The diagram forks. The trunk is drawn as far as every bundled line has been seen running, measured
+outwards from the rider's own stop; past the stop they part at, each line gets a leg of its own —
+its stops, its live vehicles, its sign — laid beside the others and running back into the junction
+the trunk names once. A leg is its own stop chain and so its own coordinate system, which is why
+`LineDiagramBranch` exists: a vehicle stands on the trunk while the lines run together and on
+exactly one leg past that, and `tests/line-bundle-fork.test.ts` is that handover. The junction is in
+each leg's chain — a mark is placed on the link between two calls, and a leg's first link has one
+end on the trunk — but it is drawn as a stub rather than a stop, because the trunk already names it.
+
+A line of the pair that simply terminates at the junction has no leg to draw and is stated in words
+instead (*S11 endet in Busenbach*). That is the short working the whole bundled reading exists to
+make visible.
 
 ### Naming a direction
 

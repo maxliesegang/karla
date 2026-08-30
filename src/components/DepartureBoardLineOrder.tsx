@@ -20,6 +20,7 @@ import {
   type StopServiceCorridorPlace,
 } from "../lib/stop-corridor-way";
 import { getDepartureOpenPath, navigateTo, routePaths } from "../routing";
+import type { LineSelection } from "../lib/line-bundles";
 import { DepartureCountdown } from "./DepartureCountdown";
 import { LineBadge } from "./LineBadge";
 
@@ -88,6 +89,7 @@ function CorridorDepartureChip({
   departure,
   note,
   stopId,
+  lineSelection,
   isLead,
   isSelected,
   isPinned,
@@ -97,6 +99,8 @@ function CorridorDepartureChip({
   /** What the heading above cannot say for this trip: where it ends short, where it leaves from. */
   note: CorridorDepartureNote;
   stopId: string;
+  /** The lines being read together, so a chip tapped inside a bundle stays inside it. */
+  lineSelection: LineSelection | undefined;
   /** The next trip this way — the one a rider reading this direction is actually catching. */
   isLead: boolean;
   isSelected: boolean;
@@ -114,7 +118,7 @@ function CorridorDepartureChip({
         departure.status === "cancelled" && "cancelled",
       )}
       aria-current={isSelected ? "true" : undefined}
-      onClick={() => navigateTo(getDepartureOpenPath(departure, stopId, isPinned))}
+      onClick={() => navigateTo(getDepartureOpenPath(departure, stopId, isPinned, lineSelection))}
       aria-label={`${getDepartureAccessibilityLabel(departure, feedNow)}, ${
         isPinned ? "Auswahl aufheben" : "Fahrtverlauf öffnen"
       }`}
@@ -402,14 +406,14 @@ function LineGroup({
 export function DepartureBoardLineOrder({
   groups,
   stopId,
-  selectedLineId,
+  lineSelection,
   selectedDepartureId,
   feedNow,
 }: {
   groups: readonly StopServiceCorridorLineGroup[];
   stopId: string;
-  /** The line in view, whose every trip this stop lists reads as the selection. */
-  selectedLineId: string | undefined;
+  /** The lines in view, whose every trip this stop lists reads as the selection. */
+  lineSelection: LineSelection | undefined;
   selectedDepartureId: string | undefined;
   feedNow: number;
 }) {
@@ -421,8 +425,9 @@ export function DepartureBoardLineOrder({
       departure={departure}
       note={note}
       stopId={stopId}
+      lineSelection={lineSelection}
       isLead={isLead}
-      isSelected={isDepartureSelected(departure, selectedDepartureId, selectedLineId)}
+      isSelected={isDepartureSelected(departure, selectedDepartureId, lineSelection)}
       isPinned={selectedDepartureId === departure.id}
       feedNow={feedNow}
     />

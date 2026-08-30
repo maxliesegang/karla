@@ -3,6 +3,7 @@ import test from "node:test";
 
 Object.defineProperty(globalThis, "window", { value: { location: { search: "" } } });
 const {
+  getDepartureOpenPath,
   getLandingPath,
   getParentSelectionPath,
   getSelectionPath,
@@ -46,8 +47,64 @@ test("keeps S1 and S11 as separate line addresses", () => {
   assert.equal(routePaths.line("S11", "europaplatz"), "/stop/europaplatz/line/S11");
   assert.equal(parseRoute("#/stop/europaplatz/line/S1").lineId, "S1");
   assert.equal(parseRoute("#/stop/europaplatz/line/S11").lineId, "S11");
-  // Existing shared links remain useful without preserving a shared identity in the application.
-  assert.equal(parseRoute("#/stop/europaplatz/line/S1-S11").lineId, "S1");
+  assert.deepEqual(parseRoute("#/stop/europaplatz/line/S1").bundledLineIds, []);
+  // The old combined link is read as the two lines being read together, which is what it meant.
+  const legacy = parseRoute("#/stop/europaplatz/line/S1-S11");
+  assert.equal(legacy.lineId, "S1");
+  assert.deepEqual(legacy.bundledLineIds, ["S11"]);
+});
+
+test("two lines read over the stretch they share are one address, and stay two lines", () => {
+  assert.equal(routePaths.line("S1", "hochstetten", ["S11"]), "/stop/hochstetten/line/S1+S11");
+  const bundled = parseRoute("#/stop/hochstetten/line/S1+S11");
+  assert.equal(bundled.lineId, "S1");
+  assert.deepEqual(bundled.bundledLineIds, ["S11"]);
+  assert.equal(
+    getSelectionPath({ stopId: "hochstetten", lineId: "S1", bundledLineIds: ["S11"] }),
+    "/stop/hochstetten/line/S1+S11",
+  );
+  // A trip pinned inside the bundle keeps it, and unpinning comes back to the same reading.
+  assert.equal(
+    getSelectionPath({
+      stopId: "hochstetten",
+      lineId: "S1",
+      bundledLineIds: ["S11"],
+      tripId: TRIP,
+    }),
+    `/stop/hochstetten/line/S1+S11/trip/${TRIP}`,
+  );
+  assert.equal(
+    getParentSelectionPath({
+      view: "stop",
+      stopId: "hochstetten",
+      lineId: "S1",
+      bundledLineIds: ["S11"],
+      tripId: TRIP,
+    }),
+    "/stop/hochstetten/line/S1+S11",
+  );
+});
+
+test("a row tapped inside a bundle stays inside it, and any other row leaves it", () => {
+  const row = (lineId: string) =>
+    ({ id: "row", tripId: TRIP, lineId }) as Parameters<typeof getDepartureOpenPath>[0];
+  const selection = { lineId: "S1", bundledLineIds: ["S11"] };
+
+  // The sibling's own row: the same two lines in the same order, and only the trip changes.
+  assert.equal(
+    getDepartureOpenPath(row("S11"), "hochstetten", false, selection),
+    `/stop/hochstetten/line/S1+S11/trip/${TRIP}`,
+  );
+  // Unpinning it comes back to the corridor the rider chose, not to one of its lines.
+  assert.equal(
+    getDepartureOpenPath(row("S11"), "hochstetten", true, selection),
+    "/stop/hochstetten/line/S1+S11",
+  );
+  // A line that is not in the bundle is a different choice, and leads to that line alone.
+  assert.equal(
+    getDepartureOpenPath(row("S2"), "hochstetten", true, selection),
+    "/stop/hochstetten/line/S2",
+  );
 });
 
 test("the stop's own address is the only one its lines need", () => {

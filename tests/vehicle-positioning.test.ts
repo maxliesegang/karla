@@ -45,6 +45,31 @@ test("stands at a call before using the full remaining interval to reach the nex
   assert.ok(running && running.progress > 0.74 && running.progress < 0.76);
 });
 
+test("does not traverse a duplicated first stop before leaving it", () => {
+  // EFA can combine the detailed sequence's first call with the board row that was read at the
+  // same stop. They are two observations of one physical stop, not a link with dwell time.
+  const trip = departure("position-duplicate-first-stop", [
+    {
+      ...call("a", 0),
+      scheduledDepartureTime: new Date(start + 36_000).toISOString(),
+    },
+    { ...call("a", 0), scheduledArrivalTime: undefined, isCurrentStop: true },
+    call("b", 1.2),
+    call("c", 2.4),
+  ]);
+
+  assert.deepEqual(getSmoothTripPlacement(trip, start + 15_000), {
+    fromStopId: "a",
+    toStopId: "b",
+    progress: 0,
+  });
+
+  const running = getSmoothTripPlacement(trip, start + 55_000);
+  assert.equal(running?.fromStopId, "a");
+  assert.equal(running?.toStopId, "b");
+  assert.ok(running && running.progress > 0);
+});
+
 test("walks through a large forward estimate correction instead of jumping over calls", () => {
   const original = departure("position-forward", [
     call("a", 0),

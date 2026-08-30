@@ -1,4 +1,6 @@
 import { memo, useLayoutEffect, useRef } from "react";
+import type { CSSProperties } from "react";
+import type { TransitLine } from "../../data/transit-types";
 import type { LineDiagramVehicle } from "../../lib/line-diagram";
 import { classNames } from "../../lib/class-names";
 import type { VehicleLayerGeometry } from "./layout";
@@ -15,9 +17,14 @@ import type { VehicleLayerGeometry } from "./layout";
 function LineDiagramVehicleLayerView({
   vehicles,
   geometry,
+  lineById,
+  branchTransferKeys,
 }: {
   vehicles: readonly LineDiagramVehicle[];
   geometry: VehicleLayerGeometry;
+  lineById: ReadonlyMap<string, TransitLine>;
+  /** Markers that were on the shared trunk immediately before entering this branch. */
+  branchTransferKeys?: ReadonlySet<string>;
 }) {
   const layerRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
@@ -72,6 +79,7 @@ function LineDiagramVehicleLayerView({
           } ${vehicleLaneOffset}px)`;
           // Centring stays part of the transform: a mark carries its whole position in one property.
           const transform = `translate3d(${vehicleLeftOffset}, ${vehicleTopOffset}px, 0) translate(-50%, -50%)`;
+          const markerLine = lineById.get(departure.lineId);
           return (
             <b
               key={markerKey}
@@ -80,9 +88,20 @@ function LineDiagramVehicleLayerView({
                 `direction-${directionArrow === "↓" ? "down" : "up"}`,
                 isOtherTrip && "other-trip",
                 isSelected && "selected",
+                branchTransferKeys?.has(markerKey) && "branch-transfer",
               )}
               data-selected-trip-marker={isSelected || undefined}
-              style={{ transform }}
+              style={
+                {
+                  transform,
+                  ...(markerLine
+                    ? {
+                        "--line-color": markerLine.color,
+                        "--line-text": markerLine.textColor,
+                      }
+                    : {}),
+                } as CSSProperties
+              }
             >
               <span>{departure.lineId}</span>
               {joinedDepartures.length > 1 && (

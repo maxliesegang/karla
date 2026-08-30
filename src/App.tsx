@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { ZentrumPanel } from "./components/ZentrumPanel";
 import { DataProvenanceFooter } from "./components/DataProvenanceFooter";
 import { DepartureBoardPanel } from "./components/DepartureBoardPanel";
@@ -36,10 +36,12 @@ import { findNoticesForStop } from "./lib/service-notices";
 import {
   stationBoardConfig,
   getDepartureRouteId,
+  getSelectionPath,
   isStationBoardMode,
   routePaths,
   navigateTo,
 } from "./routing";
+import { findLineBundleOffers } from "./lib/line-bundles";
 import {
   getDashboardClassNames,
   getViewLayout,
@@ -75,10 +77,31 @@ export default function App() {
   const stopTopologyBoard = useStopTopologyBoard(
     route.view === "stop" && !route.lineId && !isStationBoardView ? selectedStop?.id : undefined,
   );
+  // The line's own boards teach this stop's memory too: their trips carry complete sequences read
+  // at this very stop, and they arrive in the one view the topology board is deliberately not asked
+  // for. This costs no request — the boards are already in hand — and it is what lets a corridor
+  // stay grouped, and a bundled sibling stay offered, while a line is being read.
+  const stopTopologyBoards = useMemo(
+    () => [...selection.lineDepartureBoards, ...observationBoards],
+    [observationBoards, selection.lineDepartureBoards],
+  );
   const stopCorridorPatterns = useStopCorridorPatterns(
     route.view === "stop" ? selectedStop?.id : undefined,
     stopTopologyBoard,
-    observationBoards,
+    stopTopologyBoards,
+  );
+  // Which siblings this stop's corridor could be read with. Derived from what the visit has already
+  // observed, so the offer appears where the evidence for it does — a rider who came through the
+  // stop's own board has it in hand — and never costs a reading of its own.
+  const selectedLineId = selection.lineSelection.lineId;
+  const lineBundleOffers = useMemo(
+    () =>
+      findLineBundleOffers({
+        lineId: selectedLineId,
+        departures: selection.departures,
+        patterns: stopCorridorPatterns,
+      }),
+    [selectedLineId, selection.departures, stopCorridorPatterns],
   );
   const feedNow = useFeedNow(selection.departureBoard);
   const locatableStops = useLocatableStops(network, observationBoards);
@@ -334,6 +357,20 @@ export default function App() {
                       lineDepartureBoards={selection.lineDepartureBoards}
                       observationBoards={observationBoards}
                       isRide={selection.isRide}
+                      bundledLines={selection.bundledLines}
+                      bundleOffers={lineBundleOffers}
+                      /* The bundle is a level of the address, so choosing one is navigating to it:
+                         the reading a rider arrives at is the reading they can share. */
+                      onChangeBundle={(bundledLineIds) =>
+                        navigateTo(
+                          getSelectionPath({
+                            stopId: selection.stopId,
+                            lineId: selection.selectedLine?.id,
+                            bundledLineIds,
+                            tripId: route.tripId,
+                          }),
+                        )
+                      }
                       alightingStopId={selection.alightingStopId}
                       onToggleAlighting={isRideInView ? toggleAlighting : undefined}
                       isStacked={isNarrowViewport}
@@ -356,7 +393,7 @@ export default function App() {
                 departureBoard={selection.departureBoard}
                 network={network}
                 feedNow={feedNow}
-                selectedLine={selection.selectedLine}
+                lineSelection={selection.selectedLine ? selection.lineSelection : undefined}
                 selectedDepartureId={selection.selectedDeparture?.id}
                 corridorPatterns={stopCorridorPatterns}
                 isStacked={isNarrowViewport}

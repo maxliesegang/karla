@@ -2,7 +2,7 @@ import { labelByTransportMode } from "../data/line-signs";
 import type { Departure, DepartureBoard, TripCall } from "../data/transit-types";
 import { findExpectedDepartureInstant, getBoardAgeMs, getCountdownMinutes } from "./feed-clock";
 import { formatSpokenPlatformName } from "./platform-naming";
-import { isSameLineFamily } from "./line-families";
+import { isSelectedLine, type LineSelection } from "./line-bundles";
 import { getTripCallInstant } from "./trip-calls";
 
 /** Departure times are Karlsruhe clock times, so they are read off that clock wherever the viewer is. */
@@ -16,13 +16,6 @@ export function formatClockTime(value: string | Date): string {
   const parsed = value instanceof Date ? value : new Date(value);
   return Number.isNaN(parsed.getTime()) ? "–" : clockFormat.format(parsed);
 }
-
-/**
- * A deviation with its sign, for surfaces where the deviation itself is the subject, such as the
- * trip's status chip. Never beside a clock time — see `DepartureTimeReading`.
- */
-export const formatDelayMinutes = (delayMinutes: number): string =>
-  `${delayMinutes > 0 ? "+" : ""}${delayMinutes}`;
 
 /** How a deviation is spoken. `+3` is read out as two unrelated tokens, so it is never spoken. */
 function getDeviationPhrase(delayMinutes: number): string {
@@ -196,17 +189,18 @@ export function getCountdownReading(departure: Departure, feedNow: number): Coun
 
 /**
  * Whether a departure reads as the selection, the same in every order of the board: the pinned trip
- * is the whole selection, and its siblings on the same line stay quiet. Without one, the line itself
- * is the selection and every trip of it reads as chosen.
+ * is the whole selection, and its siblings on the same line stay quiet. Without one, the lines being
+ * read are the selection and every trip of them reads as chosen — which is the whole of what a
+ * bundle changes here: two lines read together highlight as the one corridor the rider chose.
  */
 export function isDepartureSelected(
   departure: Departure,
   selectedDepartureId: string | undefined,
-  selectedLineId: string | undefined,
+  lineSelection: LineSelection | undefined,
 ): boolean {
   return selectedDepartureId
     ? selectedDepartureId === departure.id
-    : Boolean(selectedLineId && isSameLineFamily(selectedLineId, departure.lineId));
+    : Boolean(lineSelection && isSelectedLine(lineSelection, departure.lineId));
 }
 
 /** The next few calls a trip makes after this stop: the `über …` a rider checks before boarding. */
@@ -233,20 +227,13 @@ export function findStaleBoardLabel(
   return `Stand ${formatClockTime(departureBoard.feedUpdatedAt)} · seit ${ageMinutes} Min ohne Aktualisierung`;
 }
 
-/** Compact status used by the line diagram for a selected trip or its board lifecycle. */
+/** Compact exception status used by the line diagram or its board lifecycle. */
 export function getLineDiagramStatusLabel(
   departure: Departure | undefined,
   departureBoard: DepartureBoard | null,
 ): string | undefined {
   if (departure?.status === "cancelled") return "entfällt";
   if (departure?.status === "diverted") return "Umleitung";
-  // Read from the published deviation, not the stated one: the chip sits beside rows whose times
-  // come from the prediction, and a chip saying "pünktlich" over a time the feed moved is the one
-  // disagreement a rider reads as the app being wrong.
-  const delayMinutes = departure && findPublishedDelayMinutes(departure);
-  if (delayMinutes) return `${formatDelayMinutes(delayMinutes)} min`;
-  if (delayMinutes === 0) return "pünktlich";
-  if (departure) return "nach Fahrplan";
   if (!departureBoard) return "lädt";
   return departureBoard.dataStatus === "live" ? undefined : "nicht verfügbar";
 }

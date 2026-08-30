@@ -5,6 +5,7 @@ import { findStopByName } from "./stop-services";
 import { getInterchangesAtStop, type InterchangeIndex } from "./interchanges";
 import type { JoinedTripPortionPair } from "./joined-trip-portions";
 import { isSameLineFamily } from "./line-families";
+import { isSelectedLine, type LineSelection } from "./line-bundles";
 import { getCallKey } from "./trip-calls";
 import { createSoonestPassageComparator, getSmoothTripPlacement } from "./vehicle-positioning";
 import { getDistinctVehicleTrips, getVehicleTripKey, isSameVehicleTrip } from "./trips";
@@ -123,11 +124,11 @@ export function buildLineDiagramStops(
  * list each second instead of repeatedly flattening and deduplicating every board.
  */
 export function getLineDiagramVehicleDepartures(
-  lineId: string,
+  selection: LineSelection,
   departures: readonly Departure[],
 ): Departure[] {
   return getDistinctVehicleTrips(
-    departures.filter((departure) => isSameLineFamily(departure.lineId, lineId)),
+    departures.filter((departure) => isSelectedLine(selection, departure.lineId)),
   );
 }
 
@@ -351,3 +352,45 @@ export function getCurrentStopIndex(
   if (addressed >= 0 || !boardingStopPointId) return addressed;
   return diagramStops.findIndex((diagramStop) => diagramStop.stopId === boardingStopPointId);
 }
+
+/**
+ * The identity of a stop chain, which is what a set of drawn marks means.
+ *
+ * A mark's coordinate is an index into these rows, so a different chain — another line, the other
+ * direction, a variant calling elsewhere — is a different coordinate system and the same number
+ * points somewhere else in it. The trunk and every leg key their measurements and their marker
+ * layer by this, so a chain that changes is placed afresh rather than slid across.
+ */
+export const getLineDiagramCoordinateKey = (
+  lineId: string,
+  diagramStops: readonly LineDiagramStop[],
+): string => `${lineId}:${diagramStops.map(({ stopId }) => stopId).join(">")}`;
+
+/**
+ * What each row says about the vehicles standing behind it, one sentence per row.
+ *
+ * Spoken per row rather than handed over as marks: a sentence compares as a value, so a row whose
+ * marks have not changed is not re-rendered by a tick that only moved one somewhere else.
+ */
+export function getVehicleLabelsByRowIndex(
+  vehicles: readonly LineDiagramVehicle[],
+): ReadonlyMap<number, string> {
+  const labelByRowIndex = new Map<number, string>();
+  for (const { rowIndex, departure, joinedDepartures } of vehicles) {
+    const destinations = [...new Set(joinedDepartures.map((portion) => portion.destination))];
+    const label = `geschätzte Position von ${departure.lineId} Richtung ${destinations.join(" und ")}`;
+    const existing = labelByRowIndex.get(rowIndex);
+    labelByRowIndex.set(rowIndex, existing ? `${existing}, ${label}` : label);
+  }
+  return labelByRowIndex;
+}
+
+/** Every line portion a set of diagrams currently carries a mark for. */
+export const countLineDiagramVehicles = (
+  vehicleLists: readonly (readonly LineDiagramVehicle[])[],
+): number =>
+  vehicleLists.reduce(
+    (total, vehicles) =>
+      total + vehicles.reduce((count, { joinedDepartures }) => count + joinedDepartures.length, 0),
+    0,
+  );

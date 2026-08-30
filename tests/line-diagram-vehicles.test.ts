@@ -8,8 +8,11 @@ import type {
 } from "../src/data/transit-types.ts";
 import {
   buildLineDiagramStops,
+  countLineDiagramVehicles,
+  getLineDiagramCoordinateKey,
   getLineDiagramVehicles,
   getTripPositionAnchorIndex,
+  getVehicleLabelsByRowIndex,
 } from "../src/lib/line-diagram.ts";
 import { getJoinedTripPortionPairs } from "../src/lib/joined-trip-portions.ts";
 
@@ -222,4 +225,43 @@ test("draws a terminus stated on both of its platforms as one row", () => {
     start + 3 * 60_000,
   );
   assert.ok(vehicle.diagramPosition > 1 && vehicle.diagramPosition < 2);
+});
+
+test("a chain names its own coordinates, and a row speaks for every mark behind it", () => {
+  const diagramStops = buildLineDiagramStops(network, line, [call("a", 0), call("b", 1)], null);
+  assert.equal(getLineDiagramCoordinateKey("2", diagramStops), "2:a>b");
+
+  const departure: Departure = {
+    id: "trip",
+    tripId: "trip",
+    lineId: "2",
+    transportMode: "tram",
+    destination: "C",
+    minutesUntilDeparture: 0,
+    platformName: "1",
+    boardingStopId: "a",
+    status: "realtime",
+    scheduledDepartureTime: new Date(start).toISOString(),
+    tripCalls: [call("a", 0), call("b", 1)],
+  };
+  const joined: Departure = { ...departure, id: "portion", destination: "D" };
+  const [vehicle] = getLineDiagramVehicles(
+    diagramStops,
+    [departure],
+    [],
+    departure,
+    start + 30_000,
+  );
+  const both = { ...vehicle, joinedDepartures: [departure, joined] };
+
+  assert.equal(
+    getVehicleLabelsByRowIndex([both]).get(both.rowIndex),
+    "geschätzte Position von 2 Richtung C und D",
+  );
+  assert.equal(
+    getVehicleLabelsByRowIndex([vehicle, { ...vehicle, departure: joined }]).get(vehicle.rowIndex),
+    "geschätzte Position von 2 Richtung C, geschätzte Position von 2 Richtung C",
+  );
+  // One count per line portion the mark stands for, matching the number shown on the mark itself.
+  assert.equal(countLineDiagramVehicles([[both], [vehicle]]), 3);
 });

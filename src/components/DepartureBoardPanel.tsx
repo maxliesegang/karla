@@ -24,6 +24,7 @@ import {
   getPlatformHeadingParts,
 } from "../lib/platform-naming";
 import { getDepartureOpenPath, navigateTo } from "../routing";
+import type { LineSelection } from "../lib/line-bundles";
 import { DepartureCountdown } from "./DepartureCountdown";
 import { LineBadge } from "./LineBadge";
 import { DepartureBoardStatusChip } from "./DepartureBoardStatusChip";
@@ -62,7 +63,11 @@ type DepartureBoardPanelProps = {
   network: TransitNetwork;
   /** The feed's clock, which is what every countdown on this board is counted from. */
   feedNow: number;
-  selectedLine?: TransitLine;
+  /**
+   * The lines being read together, where the rider has bundled the corridor. Every trip of them
+   * reads as the selection, and a row tapped inside the bundle opens inside it.
+   */
+  lineSelection?: LineSelection;
   selectedDepartureId?: string;
   /**
    * What this stop has been observed to do, which is how the line reading relates its trips to each
@@ -101,6 +106,7 @@ function DepartureRow({
   nextCompatibleDeparture,
   line,
   stopId,
+  lineSelection,
   index,
   isSelected,
   isPinned,
@@ -113,6 +119,8 @@ function DepartureRow({
   nextCompatibleDeparture?: Departure;
   line: TransitLine;
   stopId: string;
+  /** The lines being read together, so a row tapped inside a bundle stays inside it. */
+  lineSelection: LineSelection | undefined;
   /** Its platform, printed on the row only where no heading above it already states one. */
   showsPlatform: boolean;
   /** A high-confidence shared consist inferred from two complete route readings. */
@@ -161,7 +169,7 @@ function DepartureRow({
       )}
       style={{ "--departure-index": index } as CSSProperties}
       aria-current={isSelected ? "true" : undefined}
-      onClick={() => navigateTo(getDepartureOpenPath(departure, stopId, isPinned))}
+      onClick={() => navigateTo(getDepartureOpenPath(departure, stopId, isPinned, lineSelection))}
       aria-label={`${getDepartureAccessibilityLabel(departure, feedNow)}${
         joinedLabel ? `, ${joinedLabel}` : ""
       }${
@@ -281,7 +289,7 @@ export function DepartureBoardPanel({
   departureBoard,
   network,
   feedNow,
-  selectedLine,
+  lineSelection,
   selectedDepartureId,
   corridorPatterns,
   isStacked = false,
@@ -335,7 +343,8 @@ export function DepartureBoardPanel({
       }
       line={getLineSign(network.lines, departure.lineId, departure.transportMode)}
       stopId={stop.id}
-      isSelected={isDepartureSelected(departure, selectedDepartureId, selectedLine?.id)}
+      lineSelection={lineSelection}
+      isSelected={isDepartureSelected(departure, selectedDepartureId, lineSelection)}
       isPinned={selectedDepartureId === departure.id}
       feedNow={feedNow}
       // In grouped order the heading above the row already names its platform.
@@ -383,7 +392,7 @@ export function DepartureBoardPanel({
           <DepartureBoardLineOrder
             groups={lineGroups}
             stopId={stop.id}
-            selectedLineId={selectedLine?.id}
+            lineSelection={lineSelection}
             selectedDepartureId={selectedDepartureId}
             feedNow={feedNow}
           />

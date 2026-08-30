@@ -28,11 +28,27 @@ export function getCallsAfterStop(departure: Departure, stopId: string): readonl
   const calls = departure.tripCalls ?? [];
   const markedCurrentIndex =
     departure.boardingStopId === stopId ? calls.findIndex((call) => call.isCurrentStop) : -1;
-  const currentIndex =
+  return getCallsPastIndex(
+    calls,
     markedCurrentIndex >= 0
       ? markedCurrentIndex
-      : calls.findIndex((call) => call.localStopId === stopId);
-  if (currentIndex < 0) return [];
+      : calls.findIndex((call) => call.localStopId === stopId),
+  );
+}
+
+/**
+ * The onward calls past one call of a sequence, with the repeats a stop complex reports removed.
+ *
+ * Split out from the departure-shaped reading above because a sequence is not always held by a
+ * departure: a corridor pattern and a drawn diagram both ask what a trip does past a stop, and the
+ * two answers are only comparable if the same repeats were dropped from each.
+ */
+export function getCallsPastIndex(
+  calls: readonly TripCall[],
+  currentIndex: number,
+): readonly TripCall[] {
+  if (currentIndex < 0 || currentIndex >= calls.length) return [];
+  const stopId = calls[currentIndex].localStopId;
 
   // A stop complex can occur as several consecutive provider stop points in one sequence. They all
   // resolve to the same local stop, so none is an outgoing link: Hauptfriedhof currently reports

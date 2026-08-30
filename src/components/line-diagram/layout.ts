@@ -240,8 +240,12 @@ export function useCoveredStopState({
     if (!scrollContainer || isStacked) return;
 
     const updateCoveredStops = () => {
+      // The trunk's own rows. A forked diagram has legs of its own with their own coordinates, and
+      // counting their rows here would have a pinned terminus stand in for stops on another chain.
       const rows = [
-        ...scrollContainer.querySelectorAll<HTMLElement>("[data-line-diagram-stop-index]"),
+        ...scrollContainer.querySelectorAll<HTMLElement>(
+          ".line-diagram-stop-list > [data-line-diagram-stop-index]",
+        ),
       ];
       // The reserved strips are part of what scrolls, so they would otherwise keep answering yes to
       // the question that put them there. Ask the height the diagram would have without them.

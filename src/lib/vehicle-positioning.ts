@@ -224,7 +224,16 @@ function getTimedCalls(departure: Departure, feedNow: number): TimedCall[] {
     const arrival = Math.max(earliest, call.scheduledArrival + shifts[index].arrival);
     const callDeparture = Math.max(arrival, call.scheduledDeparture + shifts[index].departure);
     earliest = callDeparture;
-    timed.push({ stopId: call.stopId, arrival, departure: callDeparture });
+    const previous = timed[timed.length - 1];
+    if (previous?.stopId === call.stopId) {
+      // A detailed sequence and the board row can describe the same physical stop twice. Keep
+      // the first arrival and last departure so a turning terminus still retains its dwell, but
+      // never make the duplicate platform observation into a link the diagram could traverse.
+      previous.arrival = Math.min(previous.arrival, arrival);
+      previous.departure = Math.max(previous.departure, callDeparture);
+    } else {
+      timed.push({ stopId: call.stopId, arrival, departure: callDeparture });
+    }
   }
   return timed;
 }

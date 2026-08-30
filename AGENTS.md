@@ -43,6 +43,9 @@ npm run refresh:stops  # regenerates src/data/generated from the operator's publ
 - **Views never touch a provider.** Fetching, id resolution, and merging live behind `TransitSource`.
 - **Routing is hash-based and goes through `routePaths`.** Components get routing, data, and time as
   props and never touch `window`.
+- **A bundle is a view, not an identity.** Two lines may be *read* together over the stretch they
+  have been observed sharing at one stop, addressed `line/S1+S11` and chosen by the rider.
+  `lib/line-families.ts` stays the statement of line identity and never merges them.
 - **Each level of the chain drops back on its own.** Never drop a level on a feed failure, and never
   pin a level the rider did not choose.
 

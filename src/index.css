@@ -259,11 +259,14 @@ button.brand:active .brand-mark,
 .dashboard {
   min-height: 0;
   display: grid;
-  /* The board takes half the dashboard, capped so very wide screens stop growing it; the diagram
-     takes whatever is left. Both tracks stay percentage-based so the single-panel step animates. */
+  /* The board takes half the dashboard, capped at the measure a departure row is written to — a
+     badge, a destination, a platform and a countdown, none of which grow with the screen. Past that
+     cap the room goes to the diagram beside it, which does have something to do with it: a bundle
+     draws its lines as legs standing side by side, and every leg is a column of stop names of its
+     own. Both tracks stay percentage-based so the single-panel step animates. */
   grid-template-columns:
-    minmax(0, calc(100% - min(50%, 640px)))
-    minmax(0, min(50%, 640px));
+    minmax(0, calc(100% - min(50%, 560px)))
+    minmax(0, min(50%, 560px));
   overflow: hidden;
   border-radius: 0 0 var(--radius-l) var(--radius-l);
   background: var(--surface);
@@ -1895,8 +1898,20 @@ button.brand:active .brand-mark,
 .line-diagram {
   --line-diagram-track-x: 42px;
   --line-diagram-vehicle-clearance: 28px;
+  /* The rail's own column, shared by the stop rows and by the stub a fork's leg meets the trunk by:
+     one offset for every rail in the diagram, at whichever tier the panel is being read at. */
+  --line-diagram-name-x: 84px;
+  --line-diagram-column-gap: 14px;
+  /* Where the rail actually stands in a row: the row's own inset plus the track offset within it.
+     The fork's horizontals are drawn to this, and they cross rows to reach it. */
+  --line-diagram-row-inset: 10px;
+  --line-diagram-rail-x: calc(var(--line-diagram-track-x) + var(--line-diagram-row-inset));
+  /* The column the diagram is read in. Every tier that wants a different one — the ride, a fork,
+     a stacked phone — sets this rather than the width, so the widest claim wins by being the one
+     that was declared, not by where its rule happens to stand. */
+  --line-diagram-measure: 620px;
   flex: 1 1 auto;
-  width: min(620px, 100%);
+  width: min(var(--line-diagram-measure), 100%);
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -1905,7 +1920,7 @@ button.brand:active .brand-mark,
 /* A ride has room for a slightly wider stop column. Changes belong to the stop they can be made at,
    beneath its name, so their count never decides the width of the whole diagram. */
 .line-diagram.ride {
-  width: min(720px, 100%);
+  --line-diagram-measure: 720px;
 }
 /* In the ride the status card is the view's heading and its way out, so the diagram's header keeps
    no name of its own — only the quiet meta, and the way back up to the board — and steps aside:
@@ -1988,8 +2003,11 @@ button.line-diagram-sign:focus-visible {
   color: var(--ink-soft);
 }
 .line-diagram-header-actions {
+  position: relative;
+  min-width: 0;
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 6px;
 }
 .line-diagram-header-actions .line-diagram-legend-tooltip {
@@ -2031,12 +2049,12 @@ button.line-diagram-sign:focus-visible {
   position: relative;
   width: 100%;
   display: grid;
-  grid-template-columns: 84px minmax(0, 1fr);
+  grid-template-columns: var(--line-diagram-name-x) minmax(0, 1fr);
   grid-template-rows: auto auto;
   align-items: center;
-  column-gap: 14px;
+  column-gap: var(--line-diagram-column-gap);
   min-height: 48px;
-  padding: var(--line-diagram-stop-padding) 10px;
+  padding: var(--line-diagram-stop-padding) var(--line-diagram-row-inset);
   border: 0;
   border-radius: 10px;
   background: transparent;
@@ -2206,19 +2224,442 @@ button.line-diagram-sign:focus-visible {
   display: none;
 }
 
+/* The way into the ride: the one control in this header that starts something rather than saying
+   something about what is already drawn. The meta beside it — the vehicle count, how the trip is
+   running — is quiet by design, so a second quiet outline pill here left the rider's next step
+   looking like one more remark. Filled in ink instead: the darkest thing in a header whose colour
+   already belongs to the sign, so it takes the eye without taking the line's colour from it. The
+   hover leans that fill toward the line being boarded. */
 .line-diagram-ride-toggle {
+  display: inline-flex;
   flex: 0 0 auto;
-  padding: 6px 12px;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 17px;
+  background: var(--ink);
+  color: var(--surface);
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+  transition:
+    background 0.14s ease,
+    box-shadow 0.14s ease;
+}
+/* Forward, the way the ride runs. Drawn rather than set, so it keeps its edge at any zoom. */
+.line-diagram-ride-toggle i {
+  width: 0;
+  height: 0;
+  border: 5px solid transparent;
+  border-right-width: 0;
+  border-left-color: currentColor;
+}
+.line-diagram-ride-toggle:hover,
+.line-diagram-ride-toggle:focus-visible {
+  background: color-mix(in srgb, var(--line-color) 24%, var(--ink));
+  box-shadow: 0 2px 10px #10201f2e;
+}
+
+/* Reading a sibling line along the stretch it shares with this one.
+ *
+ * A toggle rather than a link: it changes what this diagram is, not which view is open, and it says
+ * so by staying pressed. The whole choice folds out of the line header as one small overlay: every
+ * line in the corridor stays visible together, while the sticky header keeps its height and the
+ * diagram beneath it does not jump when the rider opens the choice. */
+.line-diagram-bundle {
+  position: relative;
+  min-width: 0;
+}
+/* The sign itself, in the line's own colours: what the control adds to the reading is that line,
+   and not a setting. It is the same plate the diagram will draw at the junction if the offer is
+   taken, which is how the rider recognises what their press did. */
+.line-diagram-bundle-sign {
+  display: inline-grid;
+  place-items: center;
+  min-width: 26px;
+  padding: 4px 5px;
+  border-radius: 5px;
+  background: var(--line-color);
+  color: var(--line-text);
+  font-size: 11px;
+  font-weight: 820;
+  letter-spacing: -0.02em;
+}
+/* How far the offer reaches. The evidence that makes it worth taking, said before it is taken. */
+.line-diagram-bundle-offers {
+  position: relative;
+}
+.line-diagram-bundle-offers summary {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  padding: 0;
   border: 1px solid var(--line-strong);
-  border-radius: 999px;
+  border-radius: 50%;
+  color: var(--ink-soft);
+  list-style: none;
+  cursor: pointer;
+  transition:
+    background 0.14s ease,
+    border-color 0.14s ease,
+    box-shadow 0.14s ease;
+}
+.line-diagram-bundle-offers summary::-webkit-details-marker {
+  display: none;
+}
+.line-diagram-bundle-icon {
+  position: relative;
+  width: 16px;
+  height: 16px;
+  font-style: normal;
+}
+.line-diagram-bundle-icon::after {
+  position: absolute;
+  bottom: 1px;
+  left: 7px;
+  width: 2px;
+  height: 7px;
+  border-radius: 2px;
+  background: currentColor;
+  content: "";
+}
+.line-diagram-bundle-icon span {
+  position: absolute;
+  top: 1px;
+  width: 2px;
+  height: 9px;
+  border-radius: 2px;
+  background: currentColor;
+  transform-origin: bottom center;
+}
+.line-diagram-bundle-icon span:first-child {
+  left: 4px;
+  transform: rotate(-32deg);
+}
+.line-diagram-bundle-icon span:last-child {
+  right: 4px;
+  transform: rotate(32deg);
+}
+.line-diagram-bundle-offers summary:hover,
+.line-diagram-bundle-offers summary:focus-visible,
+.line-diagram-bundle-offers[open] summary {
+  border-color: color-mix(in srgb, var(--line-color) 48%, var(--line-strong));
+  background: var(--surface-2);
+  color: var(--accent-ink);
+  box-shadow: 0 2px 8px #10201f12;
+}
+.line-diagram-bundle-offers summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+.line-diagram-bundle-overlay {
+  position: absolute;
+  z-index: 45;
+  top: calc(100% + 9px);
+  right: 0;
+  width: min(350px, calc(100vw - 32px));
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-l);
   background: var(--surface);
+  box-shadow:
+    0 18px 46px #10201f24,
+    0 3px 10px #10201f12;
+  animation: line-diagram-bundle-open 0.16s ease-out;
+}
+.line-diagram-bundle-overlay::before {
+  position: absolute;
+  top: -5px;
+  right: 23px;
+  width: 9px;
+  height: 9px;
+  border-top: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+  background: var(--surface);
+  content: "";
+  transform: rotate(45deg);
+}
+@keyframes line-diagram-bundle-open {
+  from {
+    opacity: 0;
+    transform: translateY(-5px) scale(0.985);
+  }
+}
+.line-diagram-bundle-overlay-heading {
+  display: grid;
+  gap: 3px;
+  padding: 8px 10px 10px;
+}
+.line-diagram-bundle-overlay-heading strong {
+  font-size: 14px;
+  letter-spacing: -0.015em;
+}
+.line-diagram-bundle-overlay-heading small {
+  color: var(--ink-soft);
+  font-size: 11px;
+  line-height: 1.35;
+}
+.line-diagram-bundle-options {
+  display: grid;
+  gap: 3px;
+}
+.line-diagram-bundle-option {
+  width: 100%;
+  min-width: 0;
+  min-height: 54px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 11px;
+  padding: 7px 9px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-m);
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+}
+button.line-diagram-bundle-option {
+  cursor: pointer;
+  transition:
+    border-color 0.12s ease,
+    background 0.12s ease;
+}
+button.line-diagram-bundle-option:hover,
+button.line-diagram-bundle-option:focus-visible {
+  border-color: color-mix(in srgb, var(--line-color) 34%, var(--line));
+  background: color-mix(in srgb, var(--line-color) 7%, var(--surface-2));
+}
+.line-diagram-bundle-option.active {
+  background: var(--surface-2);
+}
+.line-diagram-bundle-option.primary {
+  cursor: default;
+}
+.line-diagram-bundle-option-copy {
+  min-width: 0;
+  display: grid;
+  gap: 3px;
+}
+.line-diagram-bundle-option-copy strong,
+.line-diagram-bundle-option-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.line-diagram-bundle-option-copy strong {
+  font-size: 13px;
+  font-weight: 750;
+}
+.line-diagram-bundle-option-copy small {
+  color: var(--ink-soft);
+  font-size: 11px;
+}
+.line-diagram-bundle-option-state,
+.line-diagram-bundle-option-check {
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 18px;
+  font-style: normal;
+  font-weight: 550;
+  line-height: 1;
+}
+.line-diagram-bundle-option-state {
+  border: 1px solid var(--line-strong);
+  color: var(--ink-soft);
+}
+.line-diagram-bundle-option.active .line-diagram-bundle-option-state,
+.line-diagram-bundle-option-check {
+  border: 0;
+  background: var(--ink);
+  color: var(--surface);
+  font-size: 12px;
+}
+
+/* A fork asks for the room a single chain never needed: where a line drew one column of stop
+   names, a bundle draws one per leg, and each of them still has to hold a name like
+   "Karlsruhe Marktplatz (Kaiserstr.)" beside its own time column. So the diagram is read in a
+   wider measure for as long as it is forked — the panel beside a board now has that room — and
+   falls back to the line's own measure the moment the fork is gone. Declared here rather than
+   beside the other measures so a ride that forks is still given the fork's. */
+.line-diagram.has-fork {
+  --line-diagram-measure: 900px;
+}
+
+/* The fork: where the bundled lines part, each leg drawn on its own chain. Legs are aligned at the
+   junction they meet the trunk at — the bottom for the way ahead, the top for the way they came —
+   so however unequal their lengths, the place they part is one line across the diagram. */
+.line-diagram-fork {
+  --line-diagram-fork-gap: 4px;
+  display: flex;
+  gap: var(--line-diagram-fork-gap);
+  align-items: flex-end;
+}
+.line-diagram-fork.behind {
+  align-items: flex-start;
+}
+/* A leg keeps the trunk's own rail geometry rather than a tighter one of its own, and the fork is
+   flush with the list below it. So the first leg's rail is the trunk's rail continued exactly —
+   the way a branch is drawn on the operator's own network map, with the further legs peeling off
+   beside it — instead of three rails at three different offsets that never meet. */
+/* Equal widths exactly, never a basis the legs could round apart from: the horizontal that joins a
+   leg to the junction is drawn a whole number of leg widths long, and it can only land on the trunk
+   rail if every leg is the same width as every other. */
+.line-diagram-branch {
+  flex: 1 1 0;
+  min-width: 0;
+}
+.line-diagram-branch-list {
+  position: relative;
+}
+/* A mark on a leg keeps its compact form at every width: the leg is half a panel, and a labelled
+   pill beside a name that already has to fit there is the one thing that would not. */
+.line-diagram-branch .line-diagram-vehicle-layer .line-diagram-vehicle {
+  min-width: 22px;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border-radius: 50%;
+  font-size: 14px;
+}
+.line-diagram-branch .line-diagram-vehicle-layer .line-diagram-vehicle span {
+  display: none;
+}
+.line-diagram-branch .line-diagram-vehicle-layer .line-diagram-vehicle.direction-down,
+.line-diagram-branch .line-diagram-vehicle-layer .line-diagram-vehicle.direction-up {
+  justify-content: center;
+}
+
+/* The junction: track running into the trunk, and the sign saying whose leg it is. Not a stop
+   row — the trunk names that stop once, a row away — so it carries no name and no tap. Its node
+   is present but unseen: it is what the marks between here and the first stop of the leg are
+   measured against, and it sits at the end the rails actually meet at, which is the bottom for a
+   leg standing above the trunk and the top for one standing below it. */
+.line-diagram-branch-junction {
+  position: relative;
+  display: grid;
+  grid-template-columns: var(--line-diagram-name-x) minmax(0, 1fr);
+  column-gap: var(--line-diagram-column-gap);
+  align-items: center;
+  min-height: 34px;
+  padding: 0 var(--line-diagram-row-inset);
+}
+.line-diagram-branch-junction .line-diagram-node {
+  visibility: hidden;
+}
+.line-diagram-branch.ahead .line-diagram-branch-junction .line-diagram-node {
+  top: 100%;
+}
+.line-diagram-branch.behind .line-diagram-branch-junction .line-diagram-node {
+  top: 0;
+}
+/* The horizontal that makes the fork a fork.
+ *
+ * The first leg needs none — its rail is the trunk's rail continued, because the fork and the stop
+ * list below it are the same box and the rail sits at the same offset in both. Every leg beside it
+ * is joined by a horizontal running from its own rail back across the legs between it and the trunk
+ * to where the trunk's rail stands. That distance is not measurable in CSS, and it does not have to
+ * be: the legs are equal-width flex children, so it is exactly `--line-diagram-branch-offset` leg
+ * widths plus the same number of gaps, and the leg states its own offset.
+ *
+ * The leg's vertical stops at the horizontal rather than hanging past it: below the bar there is
+ * nothing of this leg left to draw, and 6px of rail pointing at the trunk row's blank margin reads
+ * as a rail that was cut off. */
+.line-diagram-branch.connected .line-diagram-branch-junction::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  height: 6px;
+  /* Both ends are the rail's centre line — the row's own inset plus the track offset — carried out
+     to the rail's far edge, so the horizontal meets each vertical rather than stopping on its axis.
+     The left end is that same centre, one leg width and gap further left for every leg standing
+     between this one and the trunk. */
+  right: calc(100% - var(--line-diagram-rail-x) - 3px);
+  left: calc(
+    var(--line-diagram-rail-x) -
+    3px -
+    (100% + var(--line-diagram-fork-gap)) *
+    var(--line-diagram-branch-offset)
+  );
+  border-radius: 8px;
+  background: var(--line-color);
+}
+.line-diagram-branch.connected.ahead .line-diagram-branch-junction::after {
+  bottom: -3px;
+}
+.line-diagram-branch.connected.behind .line-diagram-branch-junction::after {
+  top: -3px;
+}
+.line-diagram-branch.connected.ahead .line-diagram-branch-junction .line-diagram-track::before {
+  bottom: 0;
+}
+.line-diagram-branch.connected.behind .line-diagram-branch-junction .line-diagram-track::before {
+  top: 0;
+}
+
+/* Too narrow for legs side by side: a leg would be half of not much, and the names it exists to
+   show would be the half that went. They stack instead, and stacked they need no horizontal at all —
+   each leg is full width, so every rail already stands at the trunk's own offset. What keeps them
+   from reading as one line is the same thing that ends any line here: a leg's terminus cuts its own
+   rail, so the break between two legs is a real break. */
+@container panel (max-width: 460px) {
+  .line-diagram-fork {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .line-diagram-branch.connected .line-diagram-branch-junction::after {
+    display: none;
+  }
+  .line-diagram-branch.connected.ahead .line-diagram-branch-junction .line-diagram-track::before {
+    bottom: -6px;
+  }
+  .line-diagram-branch.connected.behind .line-diagram-branch-junction .line-diagram-track::before {
+    top: -6px;
+  }
+}
+
+/* A leg is a line, and a line is named on its own rail rather than out in the column its stops are
+   written in: the badge stands on the track at the junction, the way a route is signed on a network
+   map. Placed on the rail's own centre rather than left to the grid, so it reads the same at either
+   end of the diagram — a leg below the trunk is the same statement as a leg above it, and the grid's
+   name column would have put the badge beside the track in both. It is drawn in the line's own
+   colour, so what it covers of the rail reads as the rail widening to carry the name. */
+.line-diagram-branch-sign {
+  position: absolute;
+  z-index: 2;
+  top: 50%;
+  left: var(--line-diagram-rail-x);
+  transform: translate(-50%, -50%);
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: var(--line-color);
+  color: var(--line-text);
+  font-size: 12px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+/* The half of the parting that has no leg to draw: a line of the pair that terminates at the
+   junction. It stands at the end it happens at, beside the fork rather than inside it. */
+.line-diagram-split {
+  margin: 6px 10px;
+  padding: 6px 10px;
+  border-radius: var(--radius-s);
+  background: var(--surface-2);
   color: var(--ink-soft);
   font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
+  line-height: 1.35;
 }
-.line-diagram-ride-toggle:hover {
-  background: var(--surface-2);
+.line-diagram-split.ahead {
+  margin-bottom: 2px;
+}
+.line-diagram-split.behind {
+  margin-top: 2px;
 }
 
 .line-diagram-track {
@@ -2323,6 +2764,20 @@ button.line-diagram-sign:focus-visible {
     scale: 1;
   }
 }
+/* A vehicle that just left the shared stretch enters its branch from the trunk rail. The percentage
+   in `left` is measured against the branch layer, so the offset spans exactly the leg columns and
+   gaps represented by the connector. */
+@keyframes line-diagram-vehicle-branch-enter {
+  from {
+    left: calc(-1 * (100% + var(--line-diagram-fork-gap)) * var(--line-diagram-branch-offset));
+  }
+  to {
+    left: 0;
+  }
+}
+.line-diagram-branch .line-diagram-vehicle-layer .line-diagram-vehicle.branch-transfer {
+  animation: line-diagram-vehicle-branch-enter 0.65s ease-out both;
+}
 /* Freshly measured geometry. Row offsets move for reasons that have nothing to do with a train —
    a pinned terminus growing the strip it reserves as the rider scrolls moves every offset below it
    — and a mark that slid each time would be reporting motion the feed never stated. */
@@ -2383,11 +2838,9 @@ button.line-diagram-sign:focus-visible {
   .line-diagram {
     --line-diagram-track-x: 36px;
     --line-diagram-vehicle-clearance: 24px;
-  }
-  .line-diagram-stop {
-    grid-template-columns: 72px minmax(0, 1fr);
-    column-gap: 9px;
-    padding-inline: 6px;
+    --line-diagram-name-x: 72px;
+    --line-diagram-column-gap: 9px;
+    --line-diagram-row-inset: 6px;
   }
   .line-diagram-stop-action {
     gap: 9px;
@@ -2407,14 +2860,19 @@ button.line-diagram-sign:focus-visible {
   .line-diagram-vehicle-layer .line-diagram-vehicle.direction-up {
     justify-content: center;
   }
-  /* With a trip beside the board the header carries a control as well as a name, and the name is
-     the thing that was chosen: it keeps the line to itself and the controls step down under it.
+  /* In a narrow panel the bundle control takes a second line instead of shortening both termini.
+     A selected trip needs the same arrangement for its ride control, because its destination is
+     the thing that was chosen: it keeps the first line and the controls step down under it.
      The ride's header has no name of its own — the status card above carries it — and stays one
      right-aligned row at every width. */
+  .line-diagram:not(.ride) .line-diagram-header:has(.line-diagram-bundle),
   .line-diagram.has-selected-trip:not(.ride) .line-diagram-header {
     grid-template-columns: auto minmax(0, 1fr);
     row-gap: 8px;
   }
+  .line-diagram:not(.ride)
+    .line-diagram-header:has(.line-diagram-bundle)
+    .line-diagram-header-actions,
   .line-diagram.has-selected-trip:not(.ride) .line-diagram-header-actions {
     grid-column: 2;
     grid-row: 2;
@@ -2422,7 +2880,11 @@ button.line-diagram-sign:focus-visible {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .line-diagram-vehicle-layer .line-diagram-vehicle {
+  .line-diagram-bundle-overlay {
+    animation: none;
+  }
+  .line-diagram-vehicle-layer .line-diagram-vehicle,
+  .line-diagram-branch .line-diagram-vehicle-layer .line-diagram-vehicle.branch-transfer {
     transition: none;
     animation: none;
   }
@@ -3540,17 +4002,10 @@ button.line-diagram-sign:focus-visible {
     margin-inline: calc(-16px - env(safe-area-inset-left)) calc(-16px - env(safe-area-inset-right));
     border-radius: 0;
   }
-  /* Opening a departure centres its vehicle in the document. Keep the trip's destination and the
-     way to start following it available after that scroll; once following starts, ride-status is
-     the single sticky surface instead. */
-  .app-shell:not(.ride-mode) .line-diagram.has-selected-trip {
-    width: 100%;
-  }
-  .app-shell:not(.ride-mode) .line-diagram.has-selected-trip .line-diagram-stops {
-    width: min(620px, 100%);
-    margin-inline: auto;
-  }
-  .app-shell:not(.ride-mode) .line-diagram.has-selected-trip .line-diagram-header {
+  /* The line header names the reading and carries the way to bundle it, so it stays available while
+     that line scrolls. A selected trip uses the same surface for its destination and the way to
+     start following it; once following starts, ride-status is the sticky surface instead. */
+  .app-shell:not(.ride-mode) .line-diagram:not(.ride) .line-diagram-header {
     position: sticky;
     top: var(--bar-height);
     z-index: 20;
@@ -3642,8 +4097,23 @@ button.line-diagram-sign:focus-visible {
     border-bottom: 1px solid var(--line);
     border-left: 0;
   }
+  /* Stacked, the screen *is* the column. Every view here keeps a measure meant for a panel beside
+     another panel — a home 760 wide, a diagram 620, a board 820 — and on a phone held upright those
+     caps never bind, so they went unnoticed. Turned sideways the same phone is 850 points wide and
+     each of them starts to bind: the view shrinks back to its desktop measure and sits in the
+     middle of the screen with paper down both sides, at the one rotation where a stop name has the
+     least room to be read in. There is no second panel to hold a measure against here, so there is
+     no measure — the view runs to the panel's own padding, safe area included, at every rotation. */
+  .app-shell:not(.station-board-mode) .home-entry,
+  .app-shell:not(.station-board-mode) .nearby-stops-view,
+  .app-shell:not(.station-board-mode) .service-notices-view,
+  .app-shell:not(.station-board-mode) .network-overview,
+  .app-shell:not(.station-board-mode) .ride-status,
   .dashboard.stop-view .departure-board-panel {
     width: auto;
+  }
+  .app-shell:not(.station-board-mode) .line-diagram {
+    --line-diagram-measure: 100%;
   }
   .network-lines,
   .core-stops {

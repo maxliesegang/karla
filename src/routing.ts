@@ -9,6 +9,12 @@
  * without the line it belongs to: a trip lives minutes, a line at a stop is the durable choice.
  */
 import { getLineFamilyId } from "./lib/line-families";
+import {
+  formatLineSelection,
+  isSelectedLine,
+  parseLineSelection,
+  type LineSelection,
+} from "./lib/line-bundles";
 import type { Departure } from "./data/transit-types";
 
 export type RouteView = "core" | "stop" | "network" | "nearby" | "notices";
@@ -30,11 +36,25 @@ export function isHomeView(view: ActiveView): view is HomeView {
 export const DEFAULT_STOP_ID = "europaplatz";
 const DEFAULT_LINE_ID = "2";
 
-/** The former combined S1/S11 URL remains readable and resolves to the primary S1 route. */
-const normalizeRouteLineId = (lineId: string) =>
-  getLineFamilyId(lineId === "S1-S11" ? "S1" : lineId);
+/**
+ * The line segment of an address, which names one line or the lines being read together:
+ * `line/2`, `line/S1+S11`. Identity is per line throughout — a bundle is a view of two lines over
+ * the stretch they share, never a third line — so the segment is a list and never a name of its
+ * own. The former combined `S1-S11` URL is read as exactly that bundle, which is what it always
+ * meant and could not yet say.
+ */
+const parseLineSegment = (segment: string) =>
+  parseLineSelection(segment === "S1-S11" ? "S1+S11" : segment);
 
-const getLinePathSegment = (lineId: string) => getLineFamilyId(lineId);
+function getLinePathSegment(lineId: string, bundledLineIds: readonly string[] = []): string {
+  const primary = getLineFamilyId(lineId);
+  return formatLineSelection({
+    lineId: primary,
+    // A caller may hand over the whole selection alongside one of its own lines; a line does not
+    // appear twice in the address it names.
+    bundledLineIds: bundledLineIds.filter((id) => getLineFamilyId(id) !== primary),
+  });
+}
 
 /**
  * Kept flat rather than a per-view union: the shell needs a stop, board, and network scope in every
@@ -48,6 +68,12 @@ export type AppRoute = {
   stopId: string;
   /** Line selected at the stop; empty when the stop alone is in view. */
   lineId: string;
+  /**
+   * Sibling lines read together with it over the stretch they share — `line/S1+S11`. Chosen by the
+   * rider and carried in the address like every other level, so a shared link opens the same
+   * reading and a sibling that stops running drops out of it on its own.
+   */
+  bundledLineIds: readonly string[];
   /** EFA trip identity of the selected trip of that line; older dated identifiers still resolve. */
   tripId?: string;
   /**
@@ -78,6 +104,7 @@ const defaultRoute: AppRoute = {
   view: "core",
   stopId: DEFAULT_STOP_ID,
   lineId: "",
+  bundledLineIds: [],
   isRide: false,
   networkScope: "city",
 };
@@ -94,7 +121,7 @@ export function findLineIdInTripId(tripId: string): string {
   // `00S02_` is line S2: zeros pad both around the letter and in front of the number.
   const lineSegment = (tripId.split(":")[2] ?? "").replace(/_+$/, "");
   const padded = /^0*([A-Z]*?)0*(\d{1,3})$/.exec(lineSegment);
-  return padded ? normalizeRouteLineId(`${padded[1]}${padded[2]}`) : "";
+  return padded ? getLineFamilyId(`${padded[1]}${padded[2]}`) : "";
 }
 
 const getRouteSegments = (hash: string): string[] =>
@@ -126,7 +153,7 @@ function parseStopRoute(segments: readonly string[]): AppRoute {
     ...defaultRoute,
     view: "stop",
     stopId,
-    lineId: normalizeRouteLineId(rest[0] || DEFAULT_LINE_ID),
+    ...parseLineSegment(rest[0] || DEFAULT_LINE_ID),
     tripId: rest[1] === "trip" ? decodePathSegment(rest[2]) : undefined,
   };
 }
@@ -157,7 +184,7 @@ export function parseRoute(hash: string): AppRoute {
         ...defaultRoute,
         view: "stop",
         stopId: "",
-        lineId: normalizeRouteLineId(rest[0] || DEFAULT_LINE_ID),
+        ...parseLineSegment(rest[0] || DEFAULT_LINE_ID),
       };
     case "trip": {
       // The trip read alone. It names no stop of its own, because a rider on board is not standing
@@ -189,7 +216,7 @@ export function parseRoute(hash: string): AppRoute {
         ...defaultRoute,
         view: "stop",
         tripId: decodePathSegment(rest[0]),
-        lineId: namesLine ? normalizeRouteLineId(rest[1] || "") : "",
+        lineId: namesLine ? getLineFamilyId(rest[1] || "") : "",
         stopId: (namesLine ? rest[2] : rest[1]) || DEFAULT_STOP_ID,
       };
     }
@@ -220,13 +247,13 @@ export const routePaths = {
   nearby: () => "/nearby",
   notices: () => "/notices",
   stop: (stopId: string) => `/stop/${stopId}`,
-  line: (lineId: string, stopId?: string) => {
-    const id = getLinePathSegment(lineId);
+  line: (lineId: string, stopId?: string, bundledLineIds: readonly string[] = []) => {
+    const id = getLinePathSegment(lineId, bundledLineIds);
     // Without a stop there is no board to read the line against; the shell supplies one.
     return stopId ? `/stop/${stopId}/line/${id}` : `/line/${id}`;
   },
-  trip: (tripId: string, lineId: string, stopId: string) =>
-    `/stop/${stopId}/line/${getLinePathSegment(lineId)}/trip/${encodePathSegment(tripId)}`,
+  trip: (tripId: string, lineId: string, stopId: string, bundledLineIds: readonly string[] = []) =>
+    `/stop/${stopId}/line/${getLinePathSegment(lineId, bundledLineIds)}/trip/${encodePathSegment(tripId)}`,
   /**
    * The ride: no stop of the chain beside the trip, and the line read out of the trip's own
    * identity. The two stops it may carry are the rider's own — where they got on, where they mean
@@ -271,6 +298,8 @@ export function getLandingPath(recentStopId?: string): string {
 export type SelectionAddress = {
   stopId: string;
   lineId?: string;
+  /** The siblings read together with that line, which travel with it through every path builder. */
+  bundledLineIds?: readonly string[];
   tripId?: string;
   isRide?: boolean;
   /** The marked Ausstieg, which only a trip read on its own can carry. */
@@ -283,6 +312,7 @@ export type SelectionAddress = {
 export function getSelectionPath({
   stopId,
   lineId,
+  bundledLineIds,
   tripId,
   isRide = false,
   alightingStopId,
@@ -292,7 +322,9 @@ export function getSelectionPath({
   // trip does, and a trip that has departed leaves the line in view beside its board like any other.
   if (tripId && isRide) return routePaths.ride(tripId, originStopId, alightingStopId);
   if (!lineId) return routePaths.stop(stopId);
-  return tripId ? routePaths.trip(tripId, lineId, stopId) : routePaths.line(lineId, stopId);
+  return tripId
+    ? routePaths.trip(tripId, lineId, stopId, bundledLineIds)
+    : routePaths.line(lineId, stopId, bundledLineIds);
 }
 
 /**
@@ -313,6 +345,7 @@ export function getParentSelectionPath({
   view,
   stopId,
   lineId,
+  bundledLineIds,
   tripId,
   isRide = false,
   originStopId,
@@ -324,10 +357,12 @@ export function getParentSelectionPath({
   if (isRide) {
     if (!originStopId) return routePaths.home();
     return tripId && lineId
-      ? routePaths.trip(tripId, lineId, originStopId)
+      ? routePaths.trip(tripId, lineId, originStopId, bundledLineIds)
       : routePaths.stop(originStopId);
   }
-  if (tripId && lineId) return routePaths.line(lineId, stopId);
+  // The bundle is part of the line level, so unpinning a trip comes back to the same reading the
+  // rider chose rather than quietly dropping the sibling out from under them.
+  if (tripId && lineId) return routePaths.line(lineId, stopId, bundledLineIds);
   if (lineId) return routePaths.stop(stopId);
   return routePaths.home();
 }
@@ -351,10 +386,22 @@ export function getDepartureOpenPath(
   departure: Departure,
   stopId: string,
   isPinned: boolean,
+  /**
+   * The reading the row was tapped in, where the board is being read as a bundle. A trip of one of
+   * its lines is pinned *within* that reading — the corridor is what the rider chose, and the row's
+   * own badge already says which line the trip belongs to — so the address keeps the same lines in
+   * the same order and only the trip changes. A row of any other line is a different choice, and
+   * leads to that line alone.
+   */
+  selection?: LineSelection,
 ): string {
+  const { lineId, bundledLineIds } =
+    selection && isSelectedLine(selection, departure.lineId)
+      ? selection
+      : { lineId: departure.lineId, bundledLineIds: [] };
   return isPinned
-    ? routePaths.line(departure.lineId, stopId)
-    : routePaths.trip(getDepartureRouteId(departure), departure.lineId, stopId);
+    ? routePaths.line(lineId, stopId, bundledLineIds)
+    : routePaths.trip(getDepartureRouteId(departure), lineId, stopId, bundledLineIds);
 }
 
 /** Resolves current and legacy departure URLs against a freshly loaded board. */

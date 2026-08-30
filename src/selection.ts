@@ -18,6 +18,12 @@ import { mergeTripSequence } from "./lib/trip-calls";
 import { findBestTripReading } from "./lib/trips";
 import { getLineSign } from "./data/line-signs";
 import { findLineForRoute, isSameLineFamily } from "./lib/line-families";
+import {
+  createLineSelection,
+  getLineSelectionIds,
+  isSelectedLine,
+  type LineSelection,
+} from "./lib/line-bundles";
 import type {
   Departure,
   DepartureBoard,
@@ -37,7 +43,7 @@ import {
 } from "./routing";
 
 const EMPTY_DEPARTURES: readonly Departure[] = [];
-const EMPTY_LINE_IDS: readonly string[] = [];
+const EMPTY_LINES: readonly TransitLine[] = [];
 /**
  * How many of a line's departures at this stop are loaded as whole trips. Enough to mark the
  * vehicles a rider can still reach; past that a board lists trips nobody in front of it is waiting
@@ -79,6 +85,14 @@ export type ResolvedSelectionChain = {
   departureBoard: DepartureBoard | null;
   departures: readonly Departure[];
   selectedLine: TransitLine | undefined;
+  /**
+   * The sibling lines being read together with it, as they resolved. A bundle is a level of the
+   * chain like any other: a sibling the stop's board no longer lists leaves the reading by itself,
+   * and the line the rider addressed stays where it was.
+   */
+  bundledLines: readonly TransitLine[];
+  /** The lines in view as one value, which is what every filter and highlight below is asked with. */
+  lineSelection: LineSelection;
   selectedDeparture: Departure | undefined;
   /**
    * Where the rider was last heading on this line. A trip states its own direction; once it has
@@ -166,21 +180,36 @@ export function useSelectionChain(
   // freshly built neutral sign on every render, and hanging memories off that identity would rebuild
   // the trips behind the diagram — and the observations read from them — on every render.
   const selectedLineId = selectedLine?.id;
-  const lineDirectionIds = useMemo(
+  // The siblings the address asks for, kept only while this stop's own board still lists them.
+  // Nothing else may add one: a bundle is the rider's choice, and inferring it from a shared
+  // corridor would pin a level they never chose.
+  const bundledLines = useBundledLines(route.bundledLineIds, selectedLine, network, departures);
+  const lineSelection = useMemo(
     () =>
-      selectedLineId
-        ? getLineDirectionIds(selectedLineId, [
-            ...departures,
-            ...observationBoards.flatMap((board) => board.departures),
-          ])
-        : EMPTY_LINE_IDS,
-    [observationBoards, departures, selectedLineId],
+      createLineSelection(
+        selectedLineId ?? "",
+        bundledLines.map(({ id }) => id),
+      ),
+    [bundledLines, selectedLineId],
   );
+  const lineDirectionIds = useMemo(() => {
+    const boardDepartures = [
+      ...departures,
+      ...observationBoards.flatMap((board) => board.departures),
+    ];
+    // Each line is asked for its own two directions and the answers pooled: one filtered board
+    // then carries the whole corridor, so reading two lines together still costs one request.
+    return toDistinct(
+      getLineSelectionIds(lineSelection).flatMap((lineId) =>
+        getLineDirectionIds(lineId, boardDepartures),
+      ),
+    );
+  }, [observationBoards, departures, lineSelection]);
   // The board the rider reads is the whole stop and reaches minutes; this one is the same stop asked
   // for this line alone and reaches most of an hour. The line's own vehicles are found in it.
   const lineStopBoard = useLineStopBoard(selectedLineId ? stopId : undefined, lineDirectionIds);
   const lineDeparturesAtStop = useLineDeparturesAtStop(
-    selectedLineId,
+    lineSelection,
     lineStopBoard,
     departures,
     stopDeparture,
@@ -246,6 +275,7 @@ export function useSelectionChain(
   const selectionPath = getSelectionPath({
     stopId,
     lineId: selectedLine?.id,
+    bundledLineIds: lineSelection.bundledLineIds,
     tripId: selectedDeparture && getDepartureRouteId(selectedDeparture),
     isRide,
     alightingStopId,
@@ -266,6 +296,8 @@ export function useSelectionChain(
     departureBoard,
     departures,
     selectedLine,
+    bundledLines,
+    lineSelection,
     selectedDeparture,
     preferredDestination,
     lineDepartureBoards,
@@ -377,7 +409,7 @@ function useLineDepartureBoards(
  * The trip the rider actually chose is always among them, however far down the board it sits.
  */
 function useLineDeparturesAtStop(
-  lineId: string | undefined,
+  selection: LineSelection,
   lineStopBoard: DepartureBoard | null,
   departures: readonly Departure[],
   stopDeparture: Departure | undefined,
@@ -385,14 +417,43 @@ function useLineDeparturesAtStop(
   // Until the filtered board answers, the rows the rider's own board already saw are what there is.
   const rows = lineStopBoard?.departures ?? departures;
   return useMemo(() => {
-    if (!lineId) return EMPTY_DEPARTURES;
-    const ofLine = rows.filter((departure) => isSameLineFamily(departure.lineId, lineId));
-    const loaded = ofLine.slice(0, LINE_TRIP_LOAD_LIMIT);
+    if (!selection.lineId) return EMPTY_DEPARTURES;
+    // The cap is the reading's, not each line's: it stands for the trips a rider can still catch,
+    // and a corridor read as one has one such set of trips however many lines run it.
+    const ofSelection = rows.filter((departure) => isSelectedLine(selection, departure.lineId));
+    const loaded = ofSelection.slice(0, LINE_TRIP_LOAD_LIMIT);
     return stopDeparture && !loaded.some(({ id }) => id === stopDeparture.id)
       ? [stopDeparture, ...loaded]
       : loaded;
-  }, [lineId, rows, stopDeparture]);
+  }, [selection, rows, stopDeparture]);
 }
+
+/**
+ * The siblings of the addressed line that are actually running here.
+ *
+ * Resolved against this stop's own board rather than the observed network: the bundle is a reading
+ * of this stop's corridor, so the evidence that belongs to it is what leaves from here. A sibling
+ * the board does not list drops out of the address and the line is read alone — the same way a
+ * departed trip drops back to its line.
+ */
+function useBundledLines(
+  bundledLineIds: readonly string[],
+  selectedLine: TransitLine | undefined,
+  network: TransitNetwork | null,
+  departures: readonly Departure[],
+): readonly TransitLine[] {
+  return useMemo(() => {
+    if (!selectedLine || !network || bundledLineIds.length === 0) return EMPTY_LINES;
+    return bundledLineIds.flatMap((lineId) => {
+      if (isSameLineFamily(lineId, selectedLine.id)) return [];
+      const running = departures.find((departure) => isSameLineFamily(departure.lineId, lineId));
+      return running ? [getLineSign(network.lines, running.lineId, running.transportMode)] : [];
+    });
+  }, [bundledLineIds, departures, network, selectedLine]);
+}
+
+/** Order-preserving, which is what keeps a filtered board's parameters stable between refreshes. */
+const toDistinct = (ids: readonly string[]): string[] => [...new Set(ids)];
 
 /**
  * The destination the rider was last heading for on this line, remembered against the selection it
