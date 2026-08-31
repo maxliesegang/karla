@@ -12,7 +12,7 @@ import {
 import { classNames } from "../../lib/class-names";
 import { LineDiagramStopRow } from "./LineDiagramStopRow";
 import { LineDiagramVehicleLayer } from "./LineDiagramVehicleLayer";
-import { EMPTY_VEHICLE_LAYER_GEOMETRY, useVehicleLayerGeometry } from "./layout";
+import { useVehicleLayerGeometry } from "./layout";
 
 /**
  * One leg of a forked line diagram: what a single bundled line does past the stretch the bundle is
@@ -77,6 +77,7 @@ export function LineDiagramBranch({
   );
   const junctionIndex = branch.direction === "ahead" ? diagramStops.length - 1 : 0;
   const coordinateKey = getLineDiagramCoordinateKey(line.id, diagramStops);
+  const stopNames = useMemo(() => diagramStops.map(({ stopName }) => stopName), [diagramStops]);
   const vehicleLabelByRowIndex = useMemo(() => getVehicleLabelsByRowIndex(vehicles), [vehicles]);
   const geometry = useVehicleLayerGeometry({ stopListRef, coordinateKey });
   // The leg never states a next call of its own: the trip's own next call is read on the trunk, and
@@ -146,10 +147,9 @@ export function LineDiagramBranch({
           key={coordinateKey}
           vehicles={vehicles}
           lineById={lineById}
+          stopNames={stopNames}
           branchTransferKeys={branchTransferKeys}
-          geometry={
-            geometry.coordinateKey === coordinateKey ? geometry : EMPTY_VEHICLE_LAYER_GEOMETRY
-          }
+          geometry={geometry}
         />
       </div>
     </div>

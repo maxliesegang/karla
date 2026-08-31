@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { Departure, TripCall } from "../src/data/transit-types.ts";
 import {
+  getFarthestLineRun,
   findNextCompatibleDeparture,
   findStopByName,
   hasCompatibleStopPattern,
@@ -72,6 +73,66 @@ test("finds the following non-cancelled departure over the same observed route",
       ?.id,
     "replacement",
   );
+});
+
+test("names a whole line by the furthest observed run instead of the drawn short working", () => {
+  const short = departure({
+    id: "short",
+    destination: "D",
+    tripCalls: calls("B", "C", "D"),
+  });
+  const full = departure({
+    id: "full",
+    destination: "A",
+    tripCalls: calls("D", "C", "B", "A"),
+  });
+  const line = {
+    id: "2",
+    destinations: ["D", "C"],
+  } as Parameters<typeof getFarthestLineRun>[0];
+
+  // The diagram is displayed destination-first as D, C, B. The full observation happens to have
+  // been made in the other direction, but D remains the heading at the top of the view — and its
+  // calls come back in that same order, which is the chain the view is drawn out to.
+  assert.deepEqual(getFarthestLineRun(line, [short, full], [...short.tripCalls!].reverse()), {
+    firstTerminus: "D",
+    lastTerminus: "A",
+    calls: full.tripCalls,
+  });
+});
+
+test("a run observed heading the diagram's own way comes back in the diagram's order", () => {
+  const towardDiagram = departure({
+    id: "toward",
+    destination: "D",
+    tripCalls: calls("A", "B", "C", "D"),
+  });
+  const line = {
+    id: "2",
+    destinations: ["D", "A"],
+  } as Parameters<typeof getFarthestLineRun>[0];
+  const drawn = calls("D", "C", "B");
+
+  // The furthest run ends where the diagram's top row is, so its origin end is the one the view
+  // reads downward and its calls are read the other way round.
+  assert.deepEqual(getFarthestLineRun(line, [towardDiagram], drawn), {
+    firstTerminus: "D",
+    lastTerminus: "A",
+    calls: [...towardDiagram.tripCalls!].reverse(),
+  });
+});
+
+test("falls back to the line's observed destinations until a complete run is in hand", () => {
+  const line = {
+    id: "2",
+    destinations: ["Durlach", "Knielingen Nord", "Rheinstetten"],
+  } as Parameters<typeof getFarthestLineRun>[0];
+
+  assert.deepEqual(getFarthestLineRun(line, [], []), {
+    firstTerminus: "Durlach",
+    lastTerminus: "Knielingen Nord",
+    calls: undefined,
+  });
 });
 
 /**

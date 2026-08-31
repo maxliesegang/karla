@@ -19,7 +19,7 @@ const DEFAULT_STOP_SEARCH_ENDPOINT =
 /** The operator's published notices — planned closures, replacement services, diversions. */
 const DEFAULT_SERVICE_NOTICE_ENDPOINT =
   "https://projekte.kvv-efa.de/sl3-alone/XSLT_ADDINFO_REQUEST";
-const DEFAULT_TIMEOUT_MS = 8_000;
+const DEFAULT_TIMEOUT_MS = 20_000;
 const DEFAULT_DEPARTURE_LIMIT = 20;
 /** Lets the feed answer in longitude,latitude instead of its own projected grid. */
 const WGS84_COORDINATE_FORMAT = "WGS84[DD.ddddd]";

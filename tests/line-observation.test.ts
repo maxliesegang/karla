@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { Departure, TransitLine } from "../src/data/transit-types.ts";
 import {
+  extendLineCallStopIds,
   getLineCallStopIds,
   getLineDirectionIds,
   getLineObservationStopIds,
@@ -41,47 +42,48 @@ function tripWithCalls(stopIds: readonly string[]): Departure {
   } as Departure;
 }
 
-test("reads a line's vehicles from its ends, where every running trip is still listed", () => {
+test("reads every known stop of a line, so no trip can hide between observations", () => {
   const observed = getLineObservationStopIds(lineStopIds, "hauptbahnhof");
 
   // The rider's own board is never asked for twice.
   assert.equal(observed.includes("hauptbahnhof"), false);
-  // One call in from each terminus, and then the middle of the stretch between them: a board lists
-  // a trip while that stop is still ahead of it, so the ends see every vehicle running towards
-  // them and the third sees the short workings that turn back before reaching either.
-  assert.deepEqual(observed, ["marktplatz", "poststrasse", "karl-wilhelm-platz"]);
+  assert.deepEqual(observed, lineStopIds.slice(0, -1));
 });
 
-test("the rider standing where a sample would be taken is that sample", () => {
-  // Their own board is that end's board; asking for it again buys nothing, so it is not asked for.
+test("the rider's own board is not requested twice", () => {
+  // Their own board is already in hand, so it is removed from the crawl.
   assert.deepEqual(getLineObservationStopIds(lineStopIds, "marktplatz"), [
-    "poststrasse",
+    "europaplatz",
+    "kronenplatz",
+    "durlacher-tor",
     "karl-wilhelm-platz",
+    "ettlinger-tor",
+    "kongresszentrum",
+    "tivoli",
+    "poststrasse",
+    "hauptbahnhof",
   ]);
 });
 
-test("samples an observation post like any other stop on the line", () => {
+test("reads an observation post like any other stop on the line", () => {
   // Posts were skipped while the shell's unfiltered boards were the diagram's source of marks.
   // These reads are filtered to one line and answer a different question, so a post sitting on the
-  // line is worth sampling — and on a line whose stops are mostly posts, skipping them left the
+  // line is worth reading — and on a line whose stops are mostly posts, skipping them left the
   // diagram with almost nothing.
   assert.deepEqual(
     getLineObservationStopIds(["europaplatz", "kronenplatz", "hauptbahnhof", "tivoli"], "tivoli"),
-    ["kronenplatz", "hauptbahnhof", "europaplatz"],
+    ["europaplatz", "kronenplatz", "hauptbahnhof"],
   );
 });
 
-test("samples both ends of the line rather than twice at one of them", () => {
+test("does not cap discovery at a fixed board count", () => {
   const observed = getLineObservationStopIds(["a", "b", "c", "d", "e", "f"], "a");
-  assert.deepEqual(observed, ["b", "e", "c"]);
-  // Spread evenly, the samples cover the middle alone: a vehicle past the outer one is on no board
-  // in hand, and on a fresh visit there is no retained observation to place it from either.
-  assert.deepEqual(getLineObservationStopIds(["a", "b", "c", "d", "e", "f"], "a", 2), ["b", "e"]);
+  assert.deepEqual(observed, ["b", "c", "d", "e", "f"]);
 });
 
 test("falls back to a terminus only where the line has no stop behind it", () => {
   // A terminus board is departures from it, so it lists the return workings alone — the far end's
-  // sample already sees those. On a two-stop line it is nonetheless all there is.
+  // far board already sees those. On a two-stop line it is nonetheless all there is.
   assert.deepEqual(getLineObservationStopIds(["a", "b"], "a"), ["b"]);
 });
 
@@ -129,7 +131,7 @@ test("reads no line filter from departures that state no direction", () => {
   assert.deepEqual(getLineDirectionIds("3", [lineDeparture("3", undefined)]), []);
 });
 
-test("samples the whole run a loaded trip describes, not just its core stretch", () => {
+test("reads the whole run a loaded trip describes, not just its core stretch", () => {
   // Sampling the core stops only ever reached into the Zentrum, which every observation post
   // already sees. The outer thirds are exactly where marks were missing.
   const trip = tripWithCalls([
@@ -144,6 +146,33 @@ test("samples the whole run a loaded trip describes, not just its core stretch",
     getLineCallStopIds([trip], { zentrumStopIds: ["kronenplatz", "europaplatz"] } as TransitLine),
     ["durlach", "gottesauer-platz", "kronenplatz", "europaplatz", "knielingen"],
   );
+});
+
+test("combines branches and short workings instead of trusting one longest trip", () => {
+  const trunk = tripWithCalls(["a", "b", "c", "d", "e"]);
+  const branch = tripWithCalls(["a", "b", "x", "y"]);
+  const shortWorking = tripWithCalls(["b", "c", "d"]);
+
+  assert.deepEqual(getLineCallStopIds([trunk, branch, shortWorking], undefined), [
+    "a",
+    "b",
+    "c",
+    "d",
+    "e",
+    "x",
+    "y",
+  ]);
+});
+
+test("line discovery is a stable fixed-point transition", () => {
+  const known = ["a", "b"];
+  const unchanged = extendLineCallStopIds(known, [tripWithCalls(["a", "b"])]);
+  assert.equal(unchanged, known);
+
+  const expanded = extendLineCallStopIds(unchanged, [tripWithCalls(["b", "x", "y"])]);
+  assert.deepEqual(expanded, ["a", "b", "x", "y"]);
+  assert.notEqual(expanded, known);
+  assert.equal(extendLineCallStopIds(expanded, [tripWithCalls(["x", "y"])]), expanded);
 });
 
 test("falls back to the line's core stops until a trip carries its calls", () => {

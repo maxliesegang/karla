@@ -308,6 +308,12 @@ export function useCoveredStopState({
  * Markers live once in a continuous layer rather than once per stop row. Row centres are measured
  * because qualifiers, call times and the current-stop note can make row heights differ.
  * ResizeObserver runs only when layout changes; the one-second vehicle tick reuses this geometry.
+ *
+ * Measurement is a render behind the chain it measures, so between the two there is one render in
+ * which the offsets in state belong to rows that are no longer on the screen. Nothing is returned
+ * for it — a mark placed against another chain's rows is worse than no mark for one frame — and
+ * that is settled here rather than at each call site, where two copies of the same guard is one
+ * copy too many.
  */
 export function useVehicleLayerGeometry({
   stopListRef,
@@ -358,5 +364,5 @@ export function useVehicleLayerGeometry({
     return () => observer.disconnect();
   }, [coordinateKey, stopListRef]);
 
-  return geometry;
+  return geometry.coordinateKey === coordinateKey ? geometry : EMPTY_VEHICLE_LAYER_GEOMETRY;
 }

@@ -6,9 +6,16 @@ import { getInterchangesAtStop, type InterchangeIndex } from "./interchanges";
 import type { JoinedTripPortionPair } from "./joined-trip-portions";
 import { isSameLineFamily } from "./line-families";
 import { isSelectedLine, type LineSelection } from "./line-bundles";
-import { getCallKey } from "./trip-calls";
-import { createSoonestPassageComparator, getSmoothTripPlacement } from "./vehicle-positioning";
+import { getCallKey, getTripCallInstant, statesRunEnd } from "./trip-calls";
+import {
+  createSoonestPassageComparator,
+  getTripPlacement,
+  type TripPlacementMotion,
+  type TripPlacementPhase,
+  type TripSegmentTrajectory,
+} from "./vehicle-positioning";
 import { getDistinctVehicleTrips, getVehicleTripKey, isSameVehicleTrip } from "./trips";
+import { findTurnarounds, type TurnaroundIndex } from "./line-turnarounds";
 
 const EMPTY_INTERCHANGES: readonly TransitLine[] = [];
 
@@ -27,28 +34,81 @@ export type LineDiagramVehicle = {
   joinedDepartures: readonly Departure[];
   /** Render identity including every portion represented by a composite mark. */
   markerKey: string;
-  /** One continuous coordinate along the visible stop rows. */
-  diagramPosition: number;
-  /** The call behind the vehicle, used to include its estimate in that row's spoken label. */
+  /**
+   * The link the mark is on, as two rows of *this* diagram, and how far along it the mark stands.
+   *
+   * Named rather than folded into one continuous coordinate. The two are the same number where a
+   * link joins adjacent rows, but the coordinate has to be taken apart again by everything that
+   * reads it — the layer floors it to find the rows to interpolate between, the position control
+   * rounds it to find the row to scroll to — and each of those is a second place that has to agree
+   * about what the encoding meant. The link is the fact the placement actually states, so it is
+   * what is carried.
+   *
+   * `toIndex` is above `fromIndex` for a mark running up the diagram, and the two need not be
+   * adjacent: a working that skips stops this diagram draws is on a link that spans them.
+   */
+  fromIndex: number;
+  toIndex: number;
+  /** 0 at `fromIndex`, 1 at `toIndex`. */
+  progress: number;
+  /** The row that speaks for the mark: behind it while running, at the terminus after arrival. */
   rowIndex: number;
   /** A stable sideways lane among vehicles sharing this link and direction. */
   laneIndex: number;
   directionArrow: "↑" | "↓";
+  /**
+   * Where this trip is going, in the operator's own wording.
+   *
+   * Every mark carries one, and the diagram shows it only while the rider is pointing at that mark
+   * or has tapped it: a line with Zwischenendstellen runs some of its trips over part of itself,
+   * and which of the marks does that is a question only the mark can answer — but answering it on
+   * twelve marks at once would make a line diagram into a column of destinations.
+   */
+  destinationLabel: string;
+  /** What the mark is doing: running between two calls, or standing at an end of its run. */
+  phase: TripPlacementPhase;
+  /** Whether the mark travelled to this position or was put here — see `TripPlacement.motion`. */
+  motion: TripPlacementMotion;
+  /** One stable animation to the next stop, replaced only when its timing changes. */
+  trajectory?: TripSegmentTrajectory;
   /** Any other trip on the line while one is being followed — tinted so the ride stands out. */
   isOtherTrip: boolean;
   isSelected: boolean;
 };
 
+export type LineDiagramVehicleOptions = {
+  /** Share this across a bundled trunk and its legs; it changes only with the observations. */
+  turnaroundIndex?: TurnaroundIndex;
+  /**
+   * Whether a trip that has not begun is drawn waiting at the stop it is due out of — the stand
+   * read from the lead before its first departure, and from the arrival it turns out of where a
+   * turnaround was found for it. On by default: it is the one thing that keeps a terminus from
+   * standing empty between one run ending and the next setting out. Off, the diagram draws only
+   * vehicles its calls place between stops, and the platform arbitration below has nothing left
+   * to arbitrate.
+   */
+  showWaitingVehicles?: boolean;
+};
+
 type PlacedLineDiagramVehicle = {
   departure: Departure;
-  diagramPosition: number;
+  fromIndex: number;
+  toIndex: number;
+  progress: number;
   rowIndex: number;
   linkKey: string;
   fromStopId: string;
   toStopId: string;
   directionArrow: "↑" | "↓";
+  phase: TripPlacementPhase;
+  motion: TripPlacementMotion;
+  trajectory?: TripSegmentTrajectory;
   realtimeQuality: number;
 };
+
+/** Both portions of a joined mark are going somewhere; the mark names each end once. */
+const getDestinationLabel = (portions: readonly Departure[]): string =>
+  [...new Set(portions.map((portion) => portion.destination))].join(" / ");
 
 const getRealtimeQuality = (departure: Departure): number =>
   (departure.predictedDepartureTime ? 1 : 0) +
@@ -120,63 +180,266 @@ export function buildLineDiagramStops(
 }
 
 /**
+ * The whole line drawn out to the furthest run observed for it.
+ *
+ * The drawn chain stays what it is — the reading in hand, the one held so the rows do not move
+ * under a rider walking along the line — and the run observed furthest is read into it around it:
+ * the stops the drawn trip never reached go in past its ends, and the stops the drawn trip skipped
+ * that the run calls at go in between its own. Both chains are in the diagram's own order, so
+ * everything is read in where the two agree it belongs — a drawn-only call after the shared call it
+ * was read behind, a run-only one into the gap it lies in. Nothing is lost, nothing doubled, and
+ * where the two chains share nothing at all there is nothing that says how the one continues into
+ * the other, so the drawn chain is left exactly as it was.
+ */
+export function extendLineDiagramCalls(
+  drawnCalls: readonly TripCall[],
+  farthestCalls: readonly TripCall[] | undefined,
+): readonly TripCall[] {
+  if (!farthestCalls?.length || drawnCalls.length === 0) return drawnCalls;
+  const farthestIndexByKey = new Map(
+    farthestCalls.map((call, index) => [getCallKey(call), index] as const),
+  );
+  const merged: TripCall[] = [];
+  let farthestCursor = 0;
+  let drawnOnly: TripCall[] = [];
+  for (const call of drawnCalls) {
+    const farthestIndex = farthestIndexByKey.get(getCallKey(call));
+    if (farthestIndex === undefined) {
+      drawnOnly.push(call);
+      continue;
+    }
+    merged.push(...farthestCalls.slice(farthestCursor, farthestIndex));
+    merged.push(...drawnOnly, call);
+    drawnOnly = [];
+    // A drawn chain may pass one of its own stops twice, and the run has seen the line once
+    // through: the second pass is a call of the reading, but it must not walk the run's cursor
+    // back with it, or what the run had left to give would be given twice.
+    if (farthestIndex >= farthestCursor) farthestCursor = farthestIndex + 1;
+  }
+  if (merged.length === 0) return drawnCalls;
+  return [...merged, ...drawnOnly, ...farthestCalls.slice(farthestCursor)];
+}
+
+/**
  * Selects vehicle observations once per board refresh. Position updates can then reuse this stable
  * list each second instead of repeatedly flattening and deduplicating every board.
+ *
+ * `readAt` is what decides a contest between two boards' copies of one vehicle: the freshest board
+ * wins, so a mark is drawn from the newest reading of its trip rather than from whichever board the
+ * caller happens to hold first — the observation posts along a line answer far more slowly than the
+ * boards on the line itself, and the same trip is usually on both.
  */
 export function getLineDiagramVehicleDepartures(
   selection: LineSelection,
   departures: readonly Departure[],
+  readAt?: (departure: Departure) => number,
 ): Departure[] {
   return getDistinctVehicleTrips(
     departures.filter((departure) => isSelectedLine(selection, departure.lineId)),
+    readAt,
   );
 }
 
-/** Places the observed vehicles whose current link exists in this diagram. */
-export function getLineDiagramVehicles(
-  diagramStops: readonly LineDiagramStop[],
-  vehicleDepartures: readonly Departure[],
-  joinedPairs: readonly JoinedTripPortionPair[],
-  selectedDeparture: Departure | undefined,
+/**
+ * The two rows a placed link falls on, where a chain names the same stop more than once.
+ *
+ * A `Map` of stop to row answers with whichever occurrence it happened to keep, and on a chain that
+ * passes a stop twice — a working that runs through its own loop, a variant timed into a complex at
+ * two of its points — that is a mark placed half a diagram away from the link it is on, and slid
+ * there from wherever it stood. The link is the fact in hand, so both ends are resolved together:
+ * of every pair of rows those two stops occur at, the closest one is the link the vehicle is on.
+ * A chain naming each stop once — every ordinary one — has exactly one pair and this is the answer
+ * it already gave.
+ *
+ * Where two pairs are equally close the feed has not said which of them it means, and this does not
+ * pretend to know: the earlier link is taken. Both name the two stops the vehicle is between, which
+ * is as much as the reading supports, and the mark stays on a link it could be on either way.
+ */
+function findDiagramLink(
+  rowsByStopId: ReadonlyMap<string, readonly number[]>,
+  fromStopId: string,
+  toStopId: string,
+): { fromIndex: number; toIndex: number } | undefined {
+  let link: { fromIndex: number; toIndex: number } | undefined;
+  for (const fromIndex of rowsByStopId.get(fromStopId) ?? []) {
+    for (const toIndex of rowsByStopId.get(toStopId) ?? []) {
+      if (fromIndex === toIndex) continue;
+      const isCloser =
+        !link || Math.abs(toIndex - fromIndex) < Math.abs(link.toIndex - link.fromIndex);
+      if (isCloser) link = { fromIndex, toIndex };
+    }
+  }
+  return link;
+}
+
+/**
+ * A mark's link read back as one continuous row coordinate: whole numbers on rows, fractions
+ * between them. What draws the mark needs a number, and so does anything asking how far down the
+ * diagram it has got — but it is derived where it is needed rather than stored, so there is one
+ * statement of what the encoding means instead of one per reader.
+ */
+export const getVehicleRowCoordinate = ({
+  fromIndex,
+  toIndex,
+  progress,
+}: Pick<LineDiagramVehicle, "fromIndex" | "toIndex" | "progress">): number =>
+  fromIndex + (toIndex - fromIndex) * progress;
+
+/**
+ * Whether the platform this trip is waiting to leave from still belongs to a vehicle on its way in.
+ *
+ * A waiting mark is the one placement drawn from a timetable rather than from a position, so it is
+ * the one that can put a vehicle where none is. The check is deliberately narrow: only a run the
+ * feed itself says *ends* at that stop counts, only while it is still due in, and only where it is
+ * due in at or before the waiting trip is due away — a run arriving after this one has left is the
+ * next hour's business and says nothing about the platform now.
+ */
+function isRunStillDueIn(
+  departures: readonly Departure[],
+  waiting: PlacedLineDiagramVehicle,
   feedNow: number,
-): LineDiagramVehicle[] {
-  const stopIndexById = new Map(diagramStops.map((stop, index) => [stop.stopId, index]));
+): boolean {
+  const leavesAt = getTripCallInstant(waiting.departure.tripCalls?.[0]);
+  if (leavesAt === undefined) return false;
+  return departures.some((departure) => {
+    if (isSameVehicleTrip(departure, waiting.departure)) return false;
+    const calls = departure.tripCalls ?? [];
+    const finalCall = calls[calls.length - 1];
+    if (!statesRunEnd(finalCall) || finalCall.localStopId !== waiting.fromStopId) return false;
+    const arrivesAt = getTripCallInstant(finalCall, "arrival");
+    return arrivesAt !== undefined && arrivesAt <= leavesAt && feedNow < arrivesAt;
+  });
+}
+
+/** Every row each stop occupies, since a chain may name one stop more than once. */
+function getRowsByStopId(
+  diagramStops: readonly LineDiagramStop[],
+): ReadonlyMap<string, readonly number[]> {
+  const rowsByStopId = new Map<string, number[]>();
+  for (const [index, stop] of diagramStops.entries()) {
+    const rows = rowsByStopId.get(stop.stopId);
+    if (rows) rows.push(index);
+    else rowsByStopId.set(stop.stopId, [index]);
+  }
+  return rowsByStopId;
+}
+
+/** Every observed vehicle whose current link exists in this diagram, on the rows it falls on. */
+function placeVehicles(
+  rowsByStopId: ReadonlyMap<string, readonly number[]>,
+  vehicleDepartures: readonly Departure[],
+  turnarounds: TurnaroundIndex,
+  feedNow: number,
+): PlacedLineDiagramVehicle[] {
   const placed: PlacedLineDiagramVehicle[] = [];
-
   for (const candidate of [...vehicleDepartures].sort(createSoonestPassageComparator(feedNow))) {
-    const placement = getSmoothTripPlacement(candidate, feedNow);
+    const placement = getTripPlacement(
+      candidate,
+      feedNow,
+      turnarounds.standFromByDepartureKey.get(getVehicleTripKey(candidate)),
+    );
     if (!placement) continue;
+    const link = findDiagramLink(rowsByStopId, placement.fromStopId, placement.toStopId);
+    if (!link) continue;
 
-    const fromIndex = stopIndexById.get(placement.fromStopId);
-    const toIndex = stopIndexById.get(placement.toStopId);
-    if (fromIndex === undefined || toIndex === undefined || fromIndex === toIndex) continue;
-
-    const directionStep = toIndex > fromIndex ? 1 : -1;
-    const directionArrow = directionStep > 0 ? "↓" : "↑";
-    const linkKey = `${fromIndex}:${toIndex}`;
+    const { fromIndex, toIndex } = link;
     placed.push({
       departure: candidate,
-      diagramPosition: fromIndex + (toIndex - fromIndex) * placement.progress,
-      rowIndex: fromIndex,
-      linkKey,
+      fromIndex,
+      toIndex,
+      progress: placement.progress,
+      // A finished run is drawn at the far end of its last link, so its "ends here" label belongs
+      // to that stop. Running marks remain attached to the link's preceding row as before.
+      rowIndex: placement.phase === "afterEnd" ? toIndex : fromIndex,
+      linkKey: `${fromIndex}:${toIndex}`,
       fromStopId: placement.fromStopId,
       toStopId: placement.toStopId,
-      directionArrow,
+      directionArrow: toIndex > fromIndex ? "↓" : "↑",
+      phase: placement.phase,
+      motion: placement.motion,
+      trajectory: placement.trajectory,
       realtimeQuality: getRealtimeQuality(candidate),
     });
   }
+  return placed;
+}
 
+/**
+ * The marks left once one platform holds one mark, and none holds a vehicle that is not on it yet.
+ *
+ * The arriving half of a stand the diagram is already drawing as the departure that turns out of it
+ * goes first — but only once that departure is really on the diagram, and only once the arrival has
+ * stopped running: until then it is a vehicle of its own, wherever it is.
+ *
+ * A trip waiting to set out is drawn for the lead before it is due away (`vehicle-positioning.ts`)
+ * whether or not the arrival it turns out of was ever found, and that lead is long enough to reach
+ * back over the run before it. Two things follow, and the platform answers both:
+ *
+ *   - a run that has just ended standing at the stop a run that has not begun is drawn at, which is
+ *     two marks where a rider sees one tram. The arrival is the half somebody watched pull in, so
+ *     the inference gives way to it. Where the two were paired the arrival is already gone above and
+ *     the departure carries the whole stand, which is the better reading of the same platform;
+ *   - a lead that starts before the vehicle is even due in. A terminus that turns on the instant —
+ *     line 1's diversion at Wolfartsweier Nord, a tram in and a tram out at the same second — has
+ *     nothing standing on it for the nine minutes before that second, and the outgoing trip's own
+ *     calls do not say otherwise. So a waiting mark stands down while another run is still due into
+ *     that stop at or before it is due away: the vehicle the platform is waiting for is out on the
+ *     line, and the stand begins when it arrives.
+ *
+ * Both are read from the ends of runs the diagram already has in hand, and neither claims the two
+ * trips are one vehicle — that claim is the turnaround pairing's alone, and it is made above.
+ */
+function arbitratePlatforms(
+  placed: readonly PlacedLineDiagramVehicle[],
+  vehicleDepartures: readonly Departure[],
+  turnarounds: TurnaroundIndex,
+  feedNow: number,
+  showWaitingVehicles: boolean,
+): PlacedLineDiagramVehicle[] {
+  const placedKeys = new Set(placed.map(({ departure }) => getVehicleTripKey(departure)));
+  const afterTurnarounds = placed.filter(({ departure, phase }) => {
+    const turningKey = turnarounds.turningDepartureKeyByArrivalKey.get(
+      getVehicleTripKey(departure),
+    );
+    return !(phase === "afterEnd" && turningKey !== undefined && placedKeys.has(turningKey));
+  });
+  if (!showWaitingVehicles) {
+    return afterTurnarounds.filter(({ phase }) => phase !== "beforeStart");
+  }
+
+  const endedStopIds = new Set(
+    afterTurnarounds.flatMap(({ phase, toStopId }) => (phase === "afterEnd" ? [toStopId] : [])),
+  );
+  return afterTurnarounds.filter((placement) => {
+    if (placement.phase !== "beforeStart") return true;
+    if (endedStopIds.has(placement.fromStopId)) return false;
+    return !isRunStillDueIn(vehicleDepartures, placement, feedNow);
+  });
+}
+
+/**
+ * One mark per vehicle: both portions of a joined working share theirs while they share a link.
+ *
+ * EFA can monitor one portion while giving the other no valid call times at all. One placeable
+ * portion therefore represents both while its current link is still inside their proven shared
+ * prefix. Past the terminating trip's final call, the continuing portion stands alone.
+ */
+function mergeJoinedPortions(
+  drawn: readonly PlacedLineDiagramVehicle[],
+  joinedPairs: readonly JoinedTripPortionPair[],
+  selectedDeparture: Departure | undefined,
+): LineDiagramVehicle[] {
   const joinedByDeparture = new Map<Departure, JoinedTripPortionPair>();
   for (const joined of joinedPairs) {
     joinedByDeparture.set(joined.terminating, joined);
     joinedByDeparture.set(joined.continuing, joined);
   }
-  const placementByDeparture = new Map(placed.map((placement) => [placement.departure, placement]));
+  const placementByDeparture = new Map(drawn.map((placement) => [placement.departure, placement]));
   const consumed = new Set<Departure>();
   const laneCountByLink = new Map<string, number>();
   const vehicles: LineDiagramVehicle[] = [];
 
-  for (const candidate of placed) {
+  for (const candidate of drawn) {
     if (consumed.has(candidate.departure)) continue;
     const joined = joinedByDeparture.get(candidate.departure);
     const otherDeparture = joined
@@ -185,9 +448,6 @@ export function getLineDiagramVehicles(
         : joined.terminating
       : undefined;
     const other = otherDeparture ? placementByDeparture.get(otherDeparture) : undefined;
-    // EFA can monitor one portion while giving the other no valid call times at all. One placeable
-    // portion therefore represents both while its current link is still inside their proven shared
-    // prefix. Past the terminating trip's final call, the continuing portion stands alone.
     const isTogether = Boolean(
       joined &&
         isOnSharedLink(candidate, joined) &&
@@ -209,23 +469,57 @@ export function getLineDiagramVehicles(
       departure: representative.departure,
       joinedDepartures: portions,
       markerKey: portions.map(getVehicleTripKey).sort().join("+"),
-      diagramPosition: representative.diagramPosition,
+      fromIndex: representative.fromIndex,
+      toIndex: representative.toIndex,
+      progress: representative.progress,
       rowIndex: representative.rowIndex,
       laneIndex,
       directionArrow: representative.directionArrow,
+      destinationLabel: getDestinationLabel(portions),
+      phase: representative.phase,
+      motion: representative.motion,
+      trajectory: representative.trajectory,
       isOtherTrip: Boolean(selectedDeparture) && !isSelected,
       isSelected,
     });
   }
-
   return vehicles;
 }
 
+/** Places the observed vehicles whose current link exists in this diagram. */
+export function getLineDiagramVehicles(
+  diagramStops: readonly LineDiagramStop[],
+  vehicleDepartures: readonly Departure[],
+  joinedPairs: readonly JoinedTripPortionPair[],
+  selectedDeparture: Departure | undefined,
+  feedNow: number,
+  { turnaroundIndex, showWaitingVehicles = true }: LineDiagramVehicleOptions = {},
+): LineDiagramVehicle[] {
+  // A vehicle turning at a terminus is two trips in the feed and one thing on the platform. The
+  // stand is drawn once, as the departure that leaves it — see `lib/line-turnarounds.ts` for what
+  // that pairing does and does not claim.
+  const turnarounds = turnaroundIndex ?? findTurnarounds(vehicleDepartures);
+  const placed = placeVehicles(
+    getRowsByStopId(diagramStops),
+    vehicleDepartures,
+    turnarounds,
+    feedNow,
+  );
+  const drawn = arbitratePlatforms(
+    placed,
+    vehicleDepartures,
+    turnarounds,
+    feedNow,
+    showWaitingVehicles,
+  );
+  return mergeJoinedPortions(drawn, joinedPairs, selectedDeparture);
+}
+
 /**
- * The stop row an explicit "show position" action should reveal. A placed vehicle wins; rounding
- * its continuous coordinate chooses the nearest real row without coupling scrolling to the
- * absolutely positioned mark. Before the vehicle can be placed, its next timed call is the best
- * available position reading.
+ * The stop row an explicit "show position" action should reveal. A placed vehicle wins, rounded to
+ * the row its coordinate is nearest — a real row, so scrolling is never coupled to the absolutely
+ * positioned mark, and any row the mark's link spans rather than only the two it ends at. Before the
+ * vehicle can be placed, its next timed call is the best available position reading.
  */
 export function getTripPositionAnchorIndex(
   diagramStops: readonly LineDiagramStop[],
@@ -234,10 +528,8 @@ export function getTripPositionAnchorIndex(
 ): number {
   const selectedVehicle = vehicles.find((vehicle) => vehicle.isSelected);
   if (selectedVehicle && diagramStops.length > 0) {
-    return Math.max(
-      0,
-      Math.min(diagramStops.length - 1, Math.round(selectedVehicle.diagramPosition)),
-    );
+    const nearest = Math.round(getVehicleRowCoordinate(selectedVehicle));
+    return Math.max(0, Math.min(diagramStops.length - 1, nearest));
   }
   if (!nextCall) return -1;
   return diagramStops.findIndex(({ tripCall }) => getCallKey(tripCall) === getCallKey(nextCall));
@@ -298,8 +590,8 @@ export function chooseLineDiagramTrip({
   if (heldDeparture && callsAtStop(heldDeparture, lineId, riderStopIds)) return heldDeparture;
 
   // Among the trips heading that way it is the one that runs furthest, not the one that leaves
-  // first. Drawn from a short working the line stops short of its own ends, and every vehicle out
-  // beyond them is a vehicle this view cannot place at all.
+  // first: it is the best chain to start from, and the one a whole-line view is extended around to
+  // the furthest observed run (`extendLineDiagramCalls`).
   const heading = preferredDestination ?? heldDeparture?.destination;
   const ofLine = (candidates: readonly Departure[]) =>
     candidates.filter((candidate) => isSameLineFamily(candidate.lineId, lineId));
@@ -376,9 +668,17 @@ export function getVehicleLabelsByRowIndex(
   vehicles: readonly LineDiagramVehicle[],
 ): ReadonlyMap<number, string> {
   const labelByRowIndex = new Map<number, string>();
-  for (const { rowIndex, departure, joinedDepartures } of vehicles) {
+  for (const { rowIndex, departure, joinedDepartures, phase } of vehicles) {
     const destinations = [...new Set(joinedDepartures.map((portion) => portion.destination))];
-    const label = `geschätzte Position von ${departure.lineId} Richtung ${destinations.join(" und ")}`;
+    const heading = `${departure.lineId} Richtung ${destinations.join(" und ")}`;
+    // A standing mark is spoken as what it is. Neither end of a run is a measured position, and
+    // saying "geschätzte Position" of a trip that has not begun would claim a vehicle is here.
+    const label =
+      phase === "beforeStart"
+        ? `nächste Abfahrt von ${heading}`
+        : phase === "afterEnd"
+          ? `Fahrt von ${heading} endet hier`
+          : `geschätzte Position von ${heading}`;
     const existing = labelByRowIndex.get(rowIndex);
     labelByRowIndex.set(rowIndex, existing ? `${existing}, ${label}` : label);
   }

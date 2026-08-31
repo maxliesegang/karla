@@ -1231,12 +1231,14 @@ button.brand:active .brand-mark,
 .departure-board-line-order[data-corridor-columns="2"] {
   --corridor-strip: repeat(2, var(--corridor-chip));
 }
+/* Nothing between one line's last direction and the next line's band. The air a division needs is
+   real, but paper is the wrong material to spend it in: a strip of blank white between a ruled row
+   and a filled band reads as a hole in the table, it repeats once per line down a board of a dozen,
+   and while the band is stuck it flashes as the next one pushes it off the top. So the space moves
+   inside the band — the sign hangs low in its own block, with the air above it — and the division
+   is the block of colour, which is the one thing on this board already doing that job. */
 .departure-board-line-group {
-  margin-top: 20px;
   scroll-margin-top: 12px;
-}
-.departure-board-line-group:first-child {
-  margin-top: 2px;
 }
 /* The line's own signpost, in the band the platform reading gives a platform: two grouped readings,
    one heading language. In this order the line is what a rider scrolls to find, so — like the
@@ -1431,7 +1433,7 @@ button.brand:active .brand-mark,
    builds structure out of, so it is what builds this one. The whole column takes the tint under the
    pointer and the thumb, which is the same answer a row gives to the same press. */
 .corridor-departure {
-  min-height: 66px;
+  min-height: 62px;
   min-width: 0;
   display: grid;
   justify-items: center;
@@ -1513,6 +1515,35 @@ button.brand:active .brand-mark,
   color: var(--ink-soft);
   font-size: 11px;
   font-weight: 650;
+}
+/* The one published time, under the countdown that is running to it — the same reading the other
+   two orders print, in the same ink, so a rider switching orders never meets two versions of one
+   trip. It is what turns the strip into a table: the countdown above it changes size from chip to
+   chip, this line does not, and a late trip states it here in the ink the whole app states lateness
+   in. Hidden from assistive technology because the chip's own label already speaks the pair. */
+.corridor-departure-time {
+  /* A clear step below the pair it belongs to, and above the exceptions it does not. */
+  margin-bottom: 3px;
+  font-size: 11px;
+  line-height: 1.15;
+}
+.corridor-departure-time .departure-time {
+  gap: 4px;
+}
+.corridor-departure-time .departure-expected-time {
+  font-weight: 700;
+}
+.corridor-departure.lead .corridor-departure-time {
+  font-size: 12px;
+}
+.corridor-departure.cancelled .corridor-departure-time {
+  color: var(--ink-soft);
+}
+/* A column the board lays out and this direction has no trip for. It draws its rule and says
+   nothing: the table keeps its columns to the panel's edge, and the hairline the row closes on runs
+   under a table rather than out into open paper. */
+.corridor-departure-blank {
+  border-left: 1px solid var(--line);
 }
 /* The next trip this way is the one the rider is catching; the ones after it are the answer to
    "and if I miss it". It is the same cell as every other chip, so the columns stay one size and the
@@ -2097,6 +2128,11 @@ button.line-diagram-sign:focus-visible {
 .line-diagram-stop.terminus-start,
 .line-diagram-stop.terminus-end {
   position: sticky;
+  /* An end row sitting where its own stop is stays part of the diagram: a mark on the first or last
+     link is at that stop, and the opaque surface must not swallow it — on a narrow screen, where
+     these rows are never pinned at all, it would swallow it permanently. Only once the row has
+     travelled away from its stop and is covering others does it outrank the layer, which the rule
+     further down does. */
   z-index: 6;
   background: var(--surface-2);
 }
@@ -2120,13 +2156,15 @@ button.line-diagram-sign:focus-visible {
     0 -1px var(--line),
     0 -10px 14px -16px var(--ink-soft);
 }
-/* Once the diagram scrolls, the pinned termini stand above the vehicle layer too: a mark whose
-   run carries it past the row travels underneath it, joining the covered stops there, instead of
-   crossing the terminus it has left behind. Without a scrollport nothing passes behind, so the
-   marks keep their seat above the rows — a train standing at a visible terminus stays seen. */
-.line-diagram-stop-list[data-covers-hidden-stops] .line-diagram-stop.terminus-start,
-.line-diagram-stop-list[data-covers-hidden-stops] .line-diagram-stop.terminus-end {
-  z-index: 8;
+/* A terminus pinned over stops is no longer standing where its own stop is. Everything the vehicle
+   layer is allowed to lift onto a terminus — a mark standing at the end of its run, one opened, one
+   under the pointer — is lifted to be seen *on that stop*, so while the surface has travelled away
+   from it the lift has nothing left to mean: the mark would be drawn on a band of the diagram that
+   is not where the mark is. So a covering terminus outranks the whole layer, and only a terminus
+   sitting where it belongs is stood on. */
+.line-diagram-stop.terminus-start.has-covered-stops,
+.line-diagram-stop.terminus-end.has-covered-stops {
+  z-index: 10;
 }
 /* A pinned terminus reserves a strip on the side it covers, and the track simply carries on into
    it. The strip is there for as long as the diagram scrolls — an empty one is just more line — so
@@ -2317,37 +2355,13 @@ button.line-diagram-sign:focus-visible {
   display: none;
 }
 .line-diagram-bundle-icon {
-  position: relative;
-  width: 16px;
-  height: 16px;
-  font-style: normal;
-}
-.line-diagram-bundle-icon::after {
-  position: absolute;
-  bottom: 1px;
-  left: 7px;
-  width: 2px;
-  height: 7px;
-  border-radius: 2px;
-  background: currentColor;
-  content: "";
-}
-.line-diagram-bundle-icon span {
-  position: absolute;
-  top: 1px;
-  width: 2px;
-  height: 9px;
-  border-radius: 2px;
-  background: currentColor;
-  transform-origin: bottom center;
-}
-.line-diagram-bundle-icon span:first-child {
-  left: 4px;
-  transform: rotate(-32deg);
-}
-.line-diagram-bundle-icon span:last-child {
-  right: 4px;
-  transform: rotate(32deg);
+  width: 18px;
+  height: 18px;
+  overflow: visible;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .line-diagram-bundle-offers summary:hover,
 .line-diagram-bundle-offers summary:focus-visible,
@@ -2526,6 +2540,8 @@ button.line-diagram-bundle-option:focus-visible {
 /* A mark on a leg keeps its compact form at every width: the leg is half a panel, and a labelled
    pill beside a name that already has to fit there is the one thing that would not. */
 .line-diagram-branch .line-diagram-vehicle-layer .line-diagram-vehicle {
+  --line-diagram-vehicle-anchor: 11px;
+  --line-diagram-vehicle-lane-step: 4px;
   min-width: 22px;
   width: 22px;
   height: 22px;
@@ -2536,6 +2552,86 @@ button.line-diagram-bundle-option:focus-visible {
 .line-diagram-branch .line-diagram-vehicle-layer .line-diagram-vehicle span {
   display: none;
 }
+/* And it keeps the compact tier's answer with it. The mark on a leg is the same 22px circle at
+   every width, so the chip is the same overlay: it cannot grow the mark into the names, because a
+   leg's names are the half of the panel that is already tight. Said again here rather than shared
+   with the tier below, for the same reason the mark's own form is: the leg is compact because it is
+   a leg, not because the panel is narrow, and CSS cannot put both conditions on one rule.
+   The one thing that differs is how wide the answer may open. Against the panel it would be the
+   panel's width, and a leg is a fraction of that — so the room is worked out from the leg count the
+   fork states, and the chip stays inside the leg it belongs to instead of running off the far edge
+   of the last one. */
+.line-diagram-branch .line-diagram-vehicle-layer .line-diagram-vehicle-destination {
+  position: absolute;
+  top: 50%;
+  left: calc(100% + 9px);
+  width: max-content;
+  max-width: min(
+    168px,
+    calc(
+      (100cqw - (var(--line-diagram-fork-legs, 1) - 1) * var(--line-diagram-fork-gap)) /
+      var(--line-diagram-fork-legs, 1) -
+      96px
+    )
+  );
+  margin: 0;
+  padding: 5px 7px;
+  overflow: hidden;
+  border-radius: 7px;
+  background: inherit;
+  box-shadow:
+    0 0 0 3px var(--line-diagram-ring),
+    0 2px 7px #12302e2e;
+  opacity: 0;
+  clip-path: inset(0 100% 0 0 round 7px);
+  transform: translate(-5px, -50%) scale(0.97);
+  transform-origin: left center;
+  visibility: hidden;
+  pointer-events: none;
+  text-overflow: ellipsis;
+  transition:
+    clip-path var(--line-diagram-vehicle-open-duration) var(--line-diagram-vehicle-open-ease),
+    transform var(--line-diagram-vehicle-open-duration) var(--line-diagram-vehicle-open-ease),
+    opacity 0.14s ease-out,
+    visibility 0s linear var(--line-diagram-vehicle-open-duration);
+}
+.line-diagram-branch .line-diagram-vehicle-layer .line-diagram-vehicle.open {
+  z-index: 9;
+}
+.line-diagram-branch
+  .line-diagram-vehicle-layer
+  .line-diagram-vehicle.open
+  .line-diagram-vehicle-destination {
+  opacity: 1;
+  clip-path: inset(0 round 7px);
+  transform: translate(0, -50%) scale(1);
+  visibility: visible;
+  transition-delay: 0s;
+}
+@media (hover: hover) and (pointer: fine) {
+  .line-diagram-branch .line-diagram-vehicle-layer .line-diagram-vehicle:hover {
+    z-index: 9;
+  }
+  .line-diagram-branch
+    .line-diagram-vehicle-layer
+    .line-diagram-vehicle:hover
+    .line-diagram-vehicle-destination {
+    opacity: 1;
+    clip-path: inset(0 round 7px);
+    transform: translate(0, -50%) scale(1);
+    visibility: visible;
+    transition-delay: 0s;
+  }
+}
+/* A leg on a wide panel keeps the pill's width where the compact tier hands the mark a narrower
+   one; without this the chip would still be measured against the labelled pill's half-width. */
+.line-diagram-branch .line-diagram-vehicle-layer .line-diagram-vehicle:hover,
+.line-diagram-branch .line-diagram-vehicle-layer .line-diagram-vehicle.open {
+  width: 22px;
+  padding: 0;
+  border-radius: 50%;
+}
+
 .line-diagram-branch .line-diagram-vehicle-layer .line-diagram-vehicle.direction-down,
 .line-diagram-branch .line-diagram-vehicle-layer .line-diagram-vehicle.direction-up {
   justify-content: center;
@@ -2617,6 +2713,8 @@ button.line-diagram-bundle-option:focus-visible {
   .line-diagram-fork {
     flex-direction: column;
     align-items: stretch;
+    /* Stacked, a leg is the panel: one leg's width across, however many are drawn. */
+    --line-diagram-fork-legs: 1;
   }
   .line-diagram-branch.connected .line-diagram-branch-junction::after {
     display: none;
@@ -2720,18 +2818,43 @@ button.line-diagram-bundle-option:focus-visible {
 }
 .line-diagram-vehicle-layer {
   --line-diagram-ring: var(--surface-2);
+  --line-diagram-vehicle-open-duration: 0.24s;
+  /* Half the closed mark. Giving every ordinary chip one known width keeps the two directions
+     centred at equal distances from the spine, independent of how many characters the line has. */
+  --line-diagram-vehicle-anchor: 20px;
+  /* How far each further vehicle on one link steps sideways, so a queue of them reads as a queue
+     rather than as one mark. Declared per tier beside the width it has to stay inside. */
+  --line-diagram-vehicle-lane-step: 7px;
+  /* An in-out sine: the gentlest of the even curves, and the one with the lowest peak speed of the
+     ones that still cover the distance in the time. A cubic spends the same quarter-second but
+     takes it in a rush through the middle, which is the part that read as hectic. */
+  --line-diagram-vehicle-open-ease: cubic-bezier(0.37, 0, 0.63, 1);
+  /* How far past the mark a pointer still counts as pointing at it. Wholly invisible, and drawn
+     below in a pseudo-element, so it costs the diagram no width and the mark no size. */
+  --line-diagram-vehicle-reach-y: 8px;
+  --line-diagram-vehicle-reach-x: 10px;
   position: absolute;
-  z-index: 7;
+  /* Do not make the layer a stacking context. The individual marks must sit below a terminus while
+     moving and above it only while standing there. */
+  z-index: auto;
   inset: 0;
   overflow: visible;
   pointer-events: none;
 }
 .line-diagram-vehicle-layer .line-diagram-vehicle {
   position: absolute;
-  z-index: 3;
+  /* Above ordinary stop rows; a pinned terminus that covers hidden stops is raised to 8. */
+  z-index: 7;
   left: 0;
   top: 0;
-  min-width: 30px;
+  /* The one thing in the layer that answers a pointer, so the one thing that takes it. */
+  pointer-events: auto;
+  appearance: none;
+  border: 0;
+  font-family: inherit;
+  cursor: pointer;
+  min-width: 40px;
+  width: 40px;
   height: 21px;
   display: flex;
   align-items: center;
@@ -2747,18 +2870,27 @@ button.line-diagram-bundle-option:focus-visible {
   font-size: 13px;
   font-weight: 900;
   line-height: 1;
-  /* The whole position rides on one transform — the track offset, the lane, and how far down the
-     link the mark has got — so travel is composited rather than laid out, and one transition covers
-     both moving on and changing lane. A step of the vehicle clock long and linear: each tick is
-     walked to at the pace the timetable gives, never jumped to and never eased into a sprint. */
+  /* The whole position rides on one transform, so a link-long Web Animation can stay on the
+     compositor. Its duration is the trip's remaining time to the next stop; CSS only owns the
+     marker's non-positional feedback. */
   will-change: transform;
-  transition:
-    transform 1.1s linear,
-    box-shadow 0.2s ease;
+  transition: box-shadow 0.2s ease;
   /* Arriving into a diagram is an event of its own: a mark that was not there a moment ago fades up
      in place instead of appearing mid-track fully formed. `scale` stays clear of `transform`, which
      the position is already using. */
   animation: line-diagram-vehicle-enter 0.24s ease-out both;
+}
+/* A mark is a small thing to hit and a moving one to follow, so the pointer is met a little before
+   it arrives. It is part of the mark, so hovering it is hovering the mark; it stays wider than the
+   closed mark on every side, which is what keeps an opening chip from sliding out from under the
+   pointer that opened it. */
+.line-diagram-vehicle-layer .line-diagram-vehicle::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: calc(-1 * var(--line-diagram-vehicle-reach-y))
+    calc(-1 * var(--line-diagram-vehicle-reach-x));
+  border-radius: 12px;
 }
 @keyframes line-diagram-vehicle-enter {
   from {
@@ -2794,6 +2926,12 @@ button.line-diagram-bundle-option:focus-visible {
   font-size: 10px;
   letter-spacing: -0.02em;
 }
+.line-diagram-vehicle-layer .line-diagram-vehicle-pause {
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  fill: currentColor;
+}
 .line-diagram-vehicle-layer .line-diagram-vehicle-portions {
   min-width: 14px;
   height: 14px;
@@ -2814,14 +2952,18 @@ button.line-diagram-bundle-option:focus-visible {
     var(--line-diagram-track-x) -
     var(--line-diagram-vehicle-clearance)
   );
-  justify-content: flex-end;
 }
 .line-diagram-vehicle-layer .line-diagram-vehicle.direction-up {
   --line-diagram-vehicle-offset: calc(
     var(--line-diagram-track-x) +
     var(--line-diagram-vehicle-clearance)
   );
-  justify-content: flex-start;
+}
+/* Both directions use the same closed width, so their contents belong in the visual centre of the
+   chip rather than leaning toward the rail. This keeps longer signs such as S11 balanced too. */
+.line-diagram-vehicle-layer .line-diagram-vehicle.direction-down,
+.line-diagram-vehicle-layer .line-diagram-vehicle.direction-up {
+  justify-content: center;
 }
 /* While a trip is followed, every other vehicle on the line steps back into a tint — same
    direction or not — so the ride the rider is on is the one mark that reads at full strength. */
@@ -2829,21 +2971,98 @@ button.line-diagram-bundle-option:focus-visible {
   background: color-mix(in srgb, var(--line-color) 42%, var(--surface));
   color: var(--ink);
 }
+/* A mark that is not travelling: a monitored trip standing at the stop it is due out of, and one
+   that has just reached the end of its own calls. Neither is a measured position — no vehicle was
+   placed between two calls to draw it — so it is drawn as the quieter, squarer thing it is, and the
+   diagram never says which arrival became which departure, because nothing published says so. */
+.line-diagram-vehicle-layer .line-diagram-vehicle.standing {
+  /* A turnaround belongs visibly on the terminus, not underneath its sticky surface. */
+  z-index: 9;
+  background: color-mix(in srgb, var(--line-color) 24%, var(--surface));
+  border-radius: 4px;
+  color: var(--ink);
+}
+/* Where the trip is going, opened out of the mark itself.
+ *
+ * The mark's own column is barely wider than the mark, and the width for a stop name is in the
+ * names beside it — so the chip does not put a second thing next to the mark, it becomes one: the
+ * destination is carried inside the mark all along, at no width, and the mark opens over the names
+ * to show it and closes back down again. Nothing travels sideways to make that room: the mark is
+ * anchored by its left edge, so opening is width alone, growing into the names, and the mark simply
+ * rides above its neighbours while it is open. It also means the chip can never open out from under
+ * the pointer that opened it, which would lose the hover, close it, and hover it again. */
+.line-diagram-vehicle-layer .line-diagram-vehicle-destination {
+  max-width: 0;
+  /* Cancels the flex gap a zero-width child would still be given, so a closed mark is exactly the
+     mark it was before it could be asked anything. */
+  margin-left: -3px;
+  overflow: hidden;
+  opacity: 0;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  /* One curve and one duration for every part of the opening. `ease` puts most of the movement in
+     the first third and the text arrived before the chip had finished making room for it, which is
+     what read as hectic; an even curve spends the same quarter-second travelling. */
+  transition:
+    max-width var(--line-diagram-vehicle-open-duration) var(--line-diagram-vehicle-open-ease),
+    margin-left var(--line-diagram-vehicle-open-duration) var(--line-diagram-vehicle-open-ease),
+    opacity var(--line-diagram-vehicle-open-duration) var(--line-diagram-vehicle-open-ease);
+}
+.line-diagram-vehicle-layer .line-diagram-vehicle.open .line-diagram-vehicle-destination {
+  max-width: 168px;
+  margin-left: 0;
+  opacity: 1;
+}
+.line-diagram-vehicle-layer .line-diagram-vehicle.open {
+  width: auto;
+}
+/* Hover is an input capability, not a screen size. Touch browsers can retain :hover after a tap;
+   letting that state open the chip as well as React's explicit tap state made it impossible to
+   close reliably. */
+@media (hover: hover) and (pointer: fine) {
+  .line-diagram-vehicle-layer .line-diagram-vehicle:hover .line-diagram-vehicle-destination {
+    max-width: 168px;
+    margin-left: 0;
+    opacity: 1;
+  }
+  .line-diagram-vehicle-layer .line-diagram-vehicle:hover {
+    width: auto;
+  }
+}
+/* The debug reading rides inside the answer, so it opens and closes with it. It needs more room
+   than a destination alone: a chip carrying one opens wider, on hover and when tapped alike. */
+.line-diagram-vehicle-layer .line-diagram-vehicle-debug {
+  display: block;
+  font-size: 9px;
+  font-weight: 500;
+  opacity: 0.72;
+}
+.line-diagram-vehicle-layer
+  .line-diagram-vehicle:has(.line-diagram-vehicle-debug)
+  .line-diagram-vehicle-destination {
+  max-width: 320px;
+}
+
 .line-diagram-vehicle-layer .line-diagram-vehicle.selected {
-  z-index: 5;
   box-shadow:
     0 0 0 3px var(--surface),
     0 0 0 6px var(--ink),
     0 3px 9px #12302e42;
 }
-
 /* A panel too narrow for a labelled pill beside every stop name. The line number already stands in
-   the header above, so the mark keeps only what the header cannot say — which way it is going —
-   and the rail moves in to leave the names the width that is left. */
+   the header above, so the mark keeps only what the header cannot say — which way it is going, or
+   that it is waiting at the terminus — and the rail moves in to leave the names the width that is
+   left. */
 @container panel (max-width: 620px) {
   .line-diagram {
-    --line-diagram-track-x: 36px;
-    --line-diagram-vehicle-clearance: 24px;
+    /* The rail stands a little off the column's own centre so the pair of marks either side of it
+       has the same paper on both flanks: 5px between the inbound mark and the panel edge, 4px
+       between the outbound one and the first letter of a stop name. */
+    --line-diagram-track-x: 38px;
+    /* 11px marker radius + 3px ring + 3px half-spine + 8px clear paper. */
+    --line-diagram-vehicle-clearance: 25px;
     --line-diagram-name-x: 72px;
     --line-diagram-column-gap: 9px;
     --line-diagram-row-inset: 6px;
@@ -2852,6 +3071,11 @@ button.line-diagram-bundle-option:focus-visible {
     gap: 9px;
   }
   .line-diagram-vehicle-layer .line-diagram-vehicle {
+    --line-diagram-vehicle-anchor: 11px;
+    /* A compact mark is half the width of a labelled one and rides much closer to the panel edge,
+       so its queue fans in shorter steps: the second mark of a link still reads as a second mark
+       without the third leaving the paper. */
+    --line-diagram-vehicle-lane-step: 4px;
     min-width: 22px;
     width: 22px;
     height: 22px;
@@ -2862,26 +3086,87 @@ button.line-diagram-bundle-option:focus-visible {
   .line-diagram-vehicle-layer .line-diagram-vehicle span {
     display: none;
   }
-  .line-diagram-vehicle-layer .line-diagram-vehicle.direction-down,
-  .line-diagram-vehicle-layer .line-diagram-vehicle.direction-up {
-    justify-content: center;
+  /* Keep the compact mark completely still. Its old open state changed width, padding, radius and
+     contents at once; on a moving mark that read as a jump. The destination is now a lightweight
+     label revealed beside it, while the direction or pause icon remains the stable point the rider
+     tapped. */
+  .line-diagram-vehicle-layer .line-diagram-vehicle:hover,
+  .line-diagram-vehicle-layer .line-diagram-vehicle.open {
+    width: 22px;
+    padding: 0;
+    border-radius: 50%;
   }
-  /* In a narrow panel the bundle control takes a second line instead of shortening both termini.
-     A selected trip needs the same arrangement for its ride control, because its destination is
-     the thing that was chosen: it keeps the first line and the controls step down under it.
+  .line-diagram-vehicle-layer .line-diagram-vehicle-destination {
+    position: absolute;
+    top: 50%;
+    /* Beside the mark that was asked, on whichever side of the rail it rides: the answer belongs to
+       the mark, so it stands where the mark does rather than in a column of its own. An inbound
+       mark's answer therefore crosses the rail — it is an overlay while the rider points at it, and
+       the ring around it is what says so. 3px of that ring, then 6px of paper. */
+    left: calc(100% + 9px);
+    width: max-content;
+    max-width: min(168px, calc(100cqw - 96px));
+    margin: 0;
+    padding: 5px 7px;
+    overflow: hidden;
+    border-radius: 7px;
+    background: inherit;
+    box-shadow:
+      0 0 0 3px var(--line-diagram-ring),
+      0 2px 7px #12302e2e;
+    opacity: 0;
+    clip-path: inset(0 100% 0 0 round 7px);
+    transform: translate(-5px, -50%) scale(0.97);
+    transform-origin: left center;
+    visibility: hidden;
+    pointer-events: none;
+    text-overflow: ellipsis;
+    transition:
+      clip-path var(--line-diagram-vehicle-open-duration) var(--line-diagram-vehicle-open-ease),
+      transform var(--line-diagram-vehicle-open-duration) var(--line-diagram-vehicle-open-ease),
+      opacity 0.14s ease-out,
+      visibility 0s linear var(--line-diagram-vehicle-open-duration);
+  }
+  /* An answer is the one thing here allowed to cover the diagram, so the mark carrying it is
+     lifted over its neighbours and over a pinned terminus for as long as it is being asked. */
+  .line-diagram-vehicle-layer .line-diagram-vehicle.open {
+    z-index: 9;
+  }
+  .line-diagram-vehicle-layer .line-diagram-vehicle.open .line-diagram-vehicle-destination {
+    opacity: 1;
+    clip-path: inset(0 round 7px);
+    transform: translate(0, -50%) scale(1);
+    visibility: visible;
+    transition-delay: 0s;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .line-diagram-vehicle-layer .line-diagram-vehicle:hover {
+      z-index: 9;
+    }
+    .line-diagram-vehicle-layer .line-diagram-vehicle:hover .line-diagram-vehicle-destination {
+      opacity: 1;
+      clip-path: inset(0 round 7px);
+      transform: translate(0, -50%) scale(1);
+      visibility: visible;
+      transition-delay: 0s;
+    }
+  }
+  /* In a narrow panel the controls take a second line instead of shortening both termini. That
+     second line is the header's *shape*, not the data's: the bundle offer, the legend and the
+     status chip each come and go with the feed, and a header that changed height with them would
+     move the scrollport under a reading rider — the whole diagram, every vehicle mark with it,
+     dropping and returning for a reason no vehicle stated. So the shape is held for as long as the
+     view is a line at all, and the row keeps the height of the controls that may stand in it.
      The ride's header has no name of its own — the status card above carries it — and stays one
      right-aligned row at every width. */
-  .line-diagram:not(.ride) .line-diagram-header:has(.line-diagram-bundle),
-  .line-diagram.has-selected-trip:not(.ride) .line-diagram-header {
+  .line-diagram:not(.ride) .line-diagram-header {
     grid-template-columns: auto minmax(0, 1fr);
     row-gap: 8px;
   }
-  .line-diagram:not(.ride)
-    .line-diagram-header:has(.line-diagram-bundle)
-    .line-diagram-header-actions,
-  .line-diagram.has-selected-trip:not(.ride) .line-diagram-header-actions {
+  .line-diagram:not(.ride) .line-diagram-header-actions {
     grid-column: 2;
     grid-row: 2;
+    min-height: 34px;
   }
 }
 
@@ -2893,6 +3178,11 @@ button.line-diagram-bundle-option:focus-visible {
   .line-diagram-branch .line-diagram-vehicle-layer .line-diagram-vehicle.branch-transfer {
     transition: none;
     animation: none;
+  }
+  /* The chip still opens and closes; it simply does so at once rather than travelling to get there. */
+  .line-diagram-vehicle-layer .line-diagram-vehicle-destination,
+  .line-diagram-branch .line-diagram-vehicle-layer .line-diagram-vehicle-destination {
+    transition: none;
   }
 }
 .line-diagram-stop-name {
@@ -3009,14 +3299,21 @@ button.line-diagram-bundle-option:focus-visible {
    The band names the line on the left and offers the way to it on the right: the words and the mark
    that open it travel together as one pressable phrase, rather than sitting a hand's width apart
    with the band's whole width dead between them. */
+/* The band is a signpost the eye finds while scrolling, so it is set at the weight the platform
+   reading's signpost is set at rather than as a full-height row: the sign, the way to the line, and
+   nothing between them. It carried a 34px badge and 46px of height, which made every line of the
+   board announce itself in the same breath as the departures under it and left the reading a
+   ladder of bands with a table squeezed between them. */
 .stop-line-group-heading {
   width: 100%;
-  min-height: 46px;
+  min-height: 38px;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 0 7px;
-  padding: 6px var(--row-inset);
+  /* Asymmetric on purpose: this is the space that used to stand above the band as paper. Inside it,
+     it sets the sign nearer the departures it heads than the line it closes off. */
+  padding: 11px var(--row-inset) 5px;
   border: 0;
   background: transparent;
   text-align: left;

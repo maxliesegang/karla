@@ -15,6 +15,7 @@ import {
   type LineBundleOffer,
 } from "../../lib/line-bundles";
 import { isSameLineFamily } from "../../lib/line-families";
+import type { TurnaroundIndex } from "../../lib/line-turnarounds";
 import {
   buildLineDiagramStops,
   getLineDiagramVehicleDepartures,
@@ -191,6 +192,8 @@ export function useLineBundleBranchVehicles({
   joinedTripPairs,
   selectedDeparture,
   feedNow,
+  turnaroundIndex,
+  showWaitingVehicles = true,
   trunkVehicles,
 }: {
   branches: readonly LineBundleBranch[];
@@ -200,6 +203,9 @@ export function useLineBundleBranchVehicles({
   joinedTripPairs: readonly JoinedTripPortionPair[];
   selectedDeparture: Departure | undefined;
   feedNow: number;
+  turnaroundIndex: TurnaroundIndex;
+  /** See `getLineDiagramVehicles`: whether a trip still waiting to set out carries a mark. */
+  showWaitingVehicles?: boolean;
   trunkVehicles: readonly LineDiagramVehicle[];
 }): {
   vehiclesByBranchKey: ReadonlyMap<string, readonly LineDiagramVehicle[]>;
@@ -229,11 +235,22 @@ export function useLineBundleBranchVehicles({
           joinedTripPairs,
           selectedDeparture,
           feedNow,
+          { turnaroundIndex, showWaitingVehicles },
         ),
       );
     }
     return byKey;
-  }, [branches, feedNow, joinedTripPairs, lineById, network, selectedDeparture, vehicleDepartures]);
+  }, [
+    branches,
+    feedNow,
+    joinedTripPairs,
+    lineById,
+    network,
+    selectedDeparture,
+    turnaroundIndex,
+    showWaitingVehicles,
+    vehicleDepartures,
+  ]);
 
   const previousTrunkMarkerKeysRef = useRef<ReadonlySet<string>>(new Set());
   const [transferKeysByBranchKey, setTransferKeysByBranchKey] =

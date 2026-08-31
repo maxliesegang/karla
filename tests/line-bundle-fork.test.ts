@@ -8,6 +8,7 @@ import type {
 } from "../src/data/transit-types.ts";
 import { buildLineDiagramStops, getLineDiagramVehicles } from "../src/lib/line-diagram.ts";
 import { getDrawableLineBundleOffers, getLineBundleTrunk } from "../src/lib/line-bundles.ts";
+import { createCall } from "./support/calls.ts";
 
 /**
  * The handover between the trunk and its legs.
@@ -19,17 +20,7 @@ import { getDrawableLineBundleOffers, getLineBundleTrunk } from "../src/lib/line
  */
 
 const start = Date.parse("2026-08-23T12:00:00Z");
-
-const call = (stopId: string, minute: number): TripCall => {
-  const time = new Date(start + minute * 60_000).toISOString();
-  return {
-    stopName: stopId.toUpperCase(),
-    localStopId: stopId,
-    scheduledArrivalTime: time,
-    scheduledDepartureTime: time,
-    delayMinutes: 0,
-  };
-};
+const call = createCall(start);
 
 const network: TransitNetwork = {
   stops: ["hochstetten", "neureut", "busenbach", "etzenrot", "langensteinbach"].map((id) => ({

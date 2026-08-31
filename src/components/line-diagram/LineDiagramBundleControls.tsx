@@ -104,10 +104,19 @@ export function LineDiagramBundleControls({
         <summary
           aria-label={`Linien im Korridor bündeln${bundled.length > 0 ? `, ${bundled.length + 1} Linien ausgewählt` : ""}`}
         >
-          <i className="line-diagram-bundle-icon" aria-hidden="true">
-            <span />
-            <span />
-          </i>
+          <svg
+            className="line-diagram-bundle-icon"
+            viewBox="0 0 20 20"
+            fill="none"
+            aria-hidden="true"
+            focusable="false"
+          >
+            <path d="M4 2v3c0 .55.45 1 1 1h5" />
+            <path d="M16 2v3c0 .55-.45 1-1 1h-5" />
+            <path d="M10 6v8" />
+            <path d="M10 14H5c-.55 0-1 .45-1 1v3" />
+            <path d="M10 14h5c.55 0 1 .45 1 1v3" />
+          </svg>
         </summary>
         <div className="line-diagram-bundle-overlay">
           <div className="line-diagram-bundle-overlay-heading">

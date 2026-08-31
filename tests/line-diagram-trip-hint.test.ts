@@ -2,19 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { Departure, TripCall } from "../src/data/transit-types.ts";
 import { getSelectedTripPositionHint } from "../src/lib/departure-presentation.ts";
+import { createCall } from "./support/calls.ts";
 
 const start = Date.parse("2026-08-23T12:00:00Z");
-
-function call(stopId: string, minute: number, delayMinutes = 0): TripCall {
-  const time = new Date(start + minute * 60_000).toISOString();
-  return {
-    stopName: stopId.toUpperCase(),
-    localStopId: stopId,
-    scheduledArrivalTime: time,
-    scheduledDepartureTime: time,
-    delayMinutes,
-  };
-}
+const call = createCall(start);
 
 const trip = (
   tripCalls: readonly TripCall[],

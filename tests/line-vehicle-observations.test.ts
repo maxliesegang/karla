@@ -5,19 +5,10 @@ import {
   getCurrentLineVehicleDepartures,
   updateLineVehicleObservations,
 } from "../src/lib/line-vehicle-observations.ts";
+import { createCall } from "./support/calls.ts";
 
 const start = Date.parse("2026-08-23T12:00:00Z");
-
-function call(stopId: string, minute: number, delayMinutes = 0): TripCall {
-  const time = new Date(start + minute * 60_000).toISOString();
-  return {
-    stopName: stopId.toUpperCase(),
-    localStopId: stopId,
-    scheduledArrivalTime: time,
-    scheduledDepartureTime: time,
-    delayMinutes,
-  };
-}
+const call = createCall(start);
 
 function departure(
   id: string,

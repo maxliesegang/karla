@@ -7,7 +7,8 @@ import type {
   TransitStop,
   TripCall,
 } from "../data/transit-types";
-import { getLineTermini } from "../lib/stop-services";
+import { getFarthestLineRun, getLineTermini } from "../lib/stop-services";
+import { findTurnarounds, type TurnaroundIndex } from "../lib/line-turnarounds";
 import { buildInterchangeIndex } from "../lib/interchanges";
 import { getDepartureRouteId, getSelectionPath, navigateTo, routePaths } from "../routing";
 import { useLineVehicleDepartures, useTransientScrollbar } from "../hooks";
@@ -20,6 +21,7 @@ import {
   buildLineDiagramStops,
   chooseLineDiagramTrip,
   countLineDiagramVehicles,
+  extendLineDiagramCalls,
   getCurrentStopIndex,
   getLineDiagramCoordinateKey,
   getLineDiagramVehicleDepartures,
@@ -47,7 +49,6 @@ import {
   useLineDiagramFork,
 } from "./line-diagram/bundle";
 import {
-  EMPTY_VEHICLE_LAYER_GEOMETRY,
   useCoveredStopState,
   useCurrentStopMove,
   useRetainedDiagramTrip,
@@ -64,6 +65,20 @@ const EMPTY_OFFERS: readonly LineBundleOffer[] = [];
 const ROW_CLOCK_STEP_MS = 5_000;
 /** Beside each stop of the ride. Off until there is an option to turn it back on. */
 const SHOW_INTERCHANGES = false;
+/**
+ * The turnaround reading. On, a vehicle at an end of its run is drawn standing there — a departure
+ * waiting at its first stop from the lead before it is due away, extended back to the arrival it
+ * turns back out of where the pairing found one — and the pairing draws that stand once rather
+ * than twice. Off for now: the diagram draws only vehicles its calls place between stops, a
+ * terminus stands empty between one run ending and the next setting out, and an arrival keeps
+ * nothing but its own short grace.
+ */
+const SHOW_TURNAROUND_VEHICLES = false;
+/** The index that hands down while the toggle above is off: a pairing with nothing in it. */
+const EMPTY_TURNAROUND_INDEX: TurnaroundIndex = {
+  turningDepartureKeyByArrivalKey: new Map(),
+  standFromByDepartureKey: new Map(),
+};
 
 type LineDiagramPanelProps = {
   line: TransitLine;
@@ -173,17 +188,10 @@ export function LineDiagramPanel({
       ),
     [bundledLines, line.id],
   );
-  const observedVehicleDepartures = useMemo(
-    () =>
-      getLineDiagramVehicleDepartures(
-        lineSelection,
-        vehicleObservationBoards.flatMap((board) => board.departures),
-      ),
-    [lineSelection, vehicleObservationBoards],
-  );
   // Which board a trip was read from decides how old its mark is, and these boards are not read
   // together: the core observation runs slower than the line's own boards. Deduplication keeps the
-  // departure objects themselves, so the board each one came off is still identifiable here.
+  // departure objects themselves, so the board each one came off is still identifiable here — and
+  // it is what lets a contest between two boards' copies of one vehicle be settled by age.
   const observedAtByDeparture = useMemo(() => {
     const observedAt = new Map<Departure, number>();
     for (const board of vehicleObservationBoards) {
@@ -201,6 +209,15 @@ export function LineDiagramPanel({
     (departure: Departure) => observedAtByDeparture.get(departure) ?? newestObservedAt,
     [newestObservedAt, observedAtByDeparture],
   );
+  const observedVehicleDepartures = useMemo(
+    () =>
+      getLineDiagramVehicleDepartures(
+        lineSelection,
+        vehicleObservationBoards.flatMap((board) => board.departures),
+        getVehicleObservedAt,
+      ),
+    [getVehicleObservedAt, lineSelection, vehicleObservationBoards],
+  );
   const { vehicleDepartures, feedNow } = useLineVehicleDepartures(
     lineSelection.lineId,
     observedVehicleDepartures,
@@ -216,8 +233,9 @@ export function LineDiagramPanel({
       getLineDiagramVehicleDepartures(
         lineSelection,
         departure ? [...vehicleDepartures, departure] : vehicleDepartures,
+        getVehicleObservedAt,
       ),
-    [departure, lineSelection, vehicleDepartures],
+    [departure, getVehicleObservedAt, lineSelection, vehicleDepartures],
   );
   // Without a selected trip the diagram is still drawn from one, and which one it is decides which
   // way up the line is drawn. Held rather than chosen again at every stop — see
@@ -301,16 +319,29 @@ export function LineDiagramPanel({
   // Trips arrive in travel order. Read the line diagram toward the destination by placing its last
   // call at the top; vehicle placement derives its arrows from this visible order as well.
   const diagramTripCalls = useMemo(() => [...tripCalls].reverse(), [tripCalls]);
-  // A loaded trip states its own ends exactly; until one arrives, the ends the line was seen
-  // running between stand in.
+  // A whole-line selection names the furthest run any of its observation boards has reached — and
+  // now draws it. The trip that happens to be drawn may be a short working, which is its own end
+  // and not the line's, so the chain is read out to that run: the stops past its ends come onto the
+  // diagram, and with them the vehicles running where the short working never went. A bundle
+  // remains the shared trunk actually drawn here, whose forks name their own outer ends.
   const [seenFirstTerminus, seenLastTerminus] = getLineTermini(line);
-  const termini =
-    diagramTripCalls.length > 0
-      ? {
-          firstTerminus: diagramTripCalls[0].stopName,
-          lastTerminus: diagramTripCalls[diagramTripCalls.length - 1].stopName,
-        }
-      : { firstTerminus: seenFirstTerminus, lastTerminus: seenLastTerminus };
+  const farthestRun = useMemo(
+    () => getFarthestLineRun(line, observedVehicleDepartures, diagramTripCalls),
+    [diagramTripCalls, line, observedVehicleDepartures],
+  );
+  const isWholeLine = !departure && bundledLines.length === 0;
+  const diagramCalls = useMemo(
+    () =>
+      isWholeLine ? extendLineDiagramCalls(diagramTripCalls, farthestRun.calls) : diagramTripCalls,
+    [diagramTripCalls, farthestRun.calls, isWholeLine],
+  );
+  const drawnTermini = {
+    firstTerminus: diagramCalls[0]?.stopName ?? seenFirstTerminus,
+    lastTerminus: diagramCalls[diagramCalls.length - 1]?.stopName ?? seenLastTerminus,
+  };
+  const termini = isWholeLine
+    ? { firstTerminus: farthestRun.firstTerminus, lastTerminus: farthestRun.lastTerminus }
+    : drawnTermini;
   // A line outside the core network knows no termini until a trip loads, and half a heading around a
   // bare arrow says less than the line's own name.
   const hasTermini = Boolean(termini.firstTerminus && termini.lastTerminus);
@@ -326,8 +357,8 @@ export function LineDiagramPanel({
     [isRide, observationBoards, lineDepartureBoards],
   );
   const diagramStops = useMemo(
-    () => buildLineDiagramStops(network, line, diagramTripCalls, interchangeIndex),
-    [network, line, diagramTripCalls, interchangeIndex],
+    () => buildLineDiagramStops(network, line, diagramCalls, interchangeIndex),
+    [network, line, diagramCalls, interchangeIndex],
   );
   // A ride is nobody's stop — the rider is on board, not waiting at one.
   const currentStopIndex = isRide
@@ -341,10 +372,24 @@ export function LineDiagramPanel({
   // part of this: it changes whenever a board refresh finds a nearer one, and remounting for that
   // took every mark off the screen and put it straight back.
   const vehicleCoordinateKey = getLineDiagramCoordinateKey(line.id, diagramStops);
+  // Row names for the vehicle marks' debug reading; a list keeps the layer memoized across ticks.
+  const diagramStopNames = useMemo(
+    () => diagramStops.map(({ stopName }) => stopName),
+    [diagramStops],
+  );
   // Joining is route inference over complete sequences. Vehicle positions tick every second, but
   // those sequences change only with the observations that supplied them.
   const joinedTripPairs = useMemo(
     () => getJoinedTripPortionPairs(visibleVehicleDepartures),
+    [visibleVehicleDepartures],
+  );
+  // Turnaround inference depends on observations, not the clock or the diagram shape. A bundled
+  // reading places the same trips on its trunk and every leg, so build the index once and share it.
+  // Off while the toggle above is: an empty index pairs nothing, so neither the trunk nor a leg
+  // draws the inferred stand.
+  const turnaroundIndex = useMemo(
+    () =>
+      SHOW_TURNAROUND_VEHICLES ? findTurnarounds(visibleVehicleDepartures) : EMPTY_TURNAROUND_INDEX,
     [visibleVehicleDepartures],
   );
   const vehicles = useMemo(
@@ -355,8 +400,9 @@ export function LineDiagramPanel({
         joinedTripPairs,
         departure,
         feedNow,
+        { turnaroundIndex, showWaitingVehicles: SHOW_TURNAROUND_VEHICLES },
       ),
-    [diagramStops, visibleVehicleDepartures, joinedTripPairs, departure, feedNow],
+    [diagramStops, visibleVehicleDepartures, joinedTripPairs, departure, feedNow, turnaroundIndex],
   );
   const vehicleLabelByRowIndex = useMemo(() => getVehicleLabelsByRowIndex(vehicles), [vehicles]);
   const { vehiclesByBranchKey, transferKeysByBranchKey } = useLineBundleBranchVehicles({
@@ -367,6 +413,8 @@ export function LineDiagramPanel({
     joinedTripPairs,
     selectedDeparture: departure,
     feedNow,
+    turnaroundIndex,
+    showWaitingVehicles: SHOW_TURNAROUND_VEHICLES,
     trunkVehicles: vehicles,
   });
   // A joined mark still contributes once for each line it represents, matching the number shown
@@ -389,7 +437,9 @@ export function LineDiagramPanel({
     diagramStops.length > 0
       ? getSelectedTripPositionHint(
           departure,
-          vehicles.some((vehicle) => vehicle.isSelected),
+          // A mark standing at either end of the run is not the diagram placing the trip: the
+          // sentence that says the run has not begun, or is over, is still the one to read.
+          vehicles.some((vehicle) => vehicle.isSelected && vehicle.phase === "running"),
           rowFeedNow,
         )
       : undefined;
@@ -607,7 +657,14 @@ export function LineDiagramPanel({
           </p>
         )}
         {branchesAhead.length > 0 && (
-          <div className="line-diagram-fork ahead">{branchesAhead.map(renderBranch)}</div>
+          <div
+            className="line-diagram-fork ahead"
+            /* How wide an answer opened on a leg may be is a fraction of the panel, and the fork
+               is the only thing that knows which fraction. */
+            style={{ "--line-diagram-fork-legs": branchesAhead.length } as React.CSSProperties}
+          >
+            {branchesAhead.map(renderBranch)}
+          </div>
         )}
         <div
           ref={stopListRef}
@@ -645,17 +702,21 @@ export function LineDiagramPanel({
             key={vehicleCoordinateKey}
             vehicles={vehicles}
             lineById={lineById}
-            geometry={
-              vehicleLayerGeometry.coordinateKey === vehicleCoordinateKey
-                ? vehicleLayerGeometry
-                : EMPTY_VEHICLE_LAYER_GEOMETRY
-            }
+            stopNames={diagramStopNames}
+            geometry={vehicleLayerGeometry}
           />
         </div>
         {/* And the other end: where the lines came together, for a bundle read from a stop they
             part at both ways round. */}
         {branchesBehind.length > 0 && (
-          <div className="line-diagram-fork behind">{branchesBehind.map(renderBranch)}</div>
+          <div
+            className="line-diagram-fork behind"
+            /* How wide an answer opened on a leg may be is a fraction of the panel, and the fork
+               is the only thing that knows which fraction. */
+            style={{ "--line-diagram-fork-legs": branchesBehind.length } as React.CSSProperties}
+          >
+            {branchesBehind.map(renderBranch)}
+          </div>
         )}
         {fork.terminatingBehind && (
           <p className="line-diagram-split behind">{fork.terminatingBehind}</p>

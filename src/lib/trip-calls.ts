@@ -68,6 +68,26 @@ export function getCallsPastIndex(
 }
 
 /**
+ * Whether the feed itself says a run begins or ends at this call, rather than our reading of it.
+ *
+ * A vehicle that terminates somewhere is timed into the stop and out of nothing: EFA marks that
+ * call `depValid=0` and publishes no departure time for it, and the origin of a run is the same
+ * statement the other way round (`arrValid=0`, no arrival time — see `docs/kvv-efa-api.md`). The
+ * parser drops the time it invalidates, so a missing end here *is* the feed's statement.
+ *
+ * The distinction matters wherever a view is about to call something an end of a line. The end of
+ * the calls in hand is not one: a sequence read without `depType=stopEvents`, one cut short, one
+ * whose remaining calls carry no usable time — each of those stops mid-route while the vehicle
+ * keeps going, and treated as a terminus it puts a standing mark, or an inferred turnaround, at a
+ * stop no service ends at. Only the two calls the feed marks are ends of a run.
+ */
+export const statesRunStart = (call: TripCall | undefined): boolean =>
+  call?.scheduledDepartureTime !== undefined && call.scheduledArrivalTime === undefined;
+
+export const statesRunEnd = (call: TripCall | undefined): boolean =>
+  call?.scheduledArrivalTime !== undefined && call.scheduledDepartureTime === undefined;
+
+/**
  * When the run these calls describe is expected to be over, or nothing where they carry no time.
  *
  * The last call's published time shifted by the deviation reported there — the feed states no

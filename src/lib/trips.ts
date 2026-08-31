@@ -69,10 +69,11 @@ export function isBetterTripReading(reading: TripReading, best: TripReading): bo
   return callCount > bestCallCount;
 }
 
-/** One entry per key, keeping whichever saw most of the trip. Keyless entries cannot be merged. */
+/** One entry per key, keeping the best reading of it: freshest where that is known, then fullest. */
 function getLongestTripPerKey(
   departures: Iterable<Departure>,
   getKey: (departure: Departure) => string | undefined,
+  readAt?: (departure: Departure) => number,
 ): Departure[] {
   const byKey = new Map<string, Departure>();
   const unkeyed: Departure[] = [];
@@ -84,12 +85,36 @@ function getLongestTripPerKey(
       continue;
     }
     const existing = byKey.get(key);
-    if (!existing || (departure.tripCalls?.length ?? 0) > (existing.tripCalls?.length ?? 0)) {
+    if (!existing || isBetterVehicleReading(departure, existing, readAt)) {
       byKey.set(key, departure);
     }
   }
 
   return [...byKey.values(), ...unkeyed];
+}
+
+/**
+ * Whether one board's copy of a vehicle should displace another's.
+ *
+ * Every board carries the whole sequence, so the copies tie on completeness and the contest is
+ * about age: a line's trips are read off the Zentrum and reach posts on five- and twenty-minute
+ * cadences *as well as* off the boards along the line on their own faster ones, and the copies
+ * arrive in whatever order the boards are held in. Letting the first copy win let a five-minute-old
+ * reading outvote a thirty-second-old one — a mark drawn minutes behind its vehicle, catching up in
+ * a jump whenever the slow board refreshed. So the freshest copy wins, exactly the order
+ * `findBestTripReading` reads one trip's copies by; between equals the fuller sequence, as before.
+ */
+function isBetterVehicleReading(
+  candidate: Departure,
+  existing: Departure,
+  readAt: ((departure: Departure) => number) | undefined,
+): boolean {
+  if (readAt) {
+    const candidateAt = readAt(candidate);
+    const existingAt = readAt(existing);
+    if (candidateAt !== existingAt) return candidateAt > existingAt;
+  }
+  return (candidate.tripCalls?.length ?? 0) > (existing.tripCalls?.length ?? 0);
 }
 
 /**
@@ -107,11 +132,16 @@ export function getDistinctTimetableTrips(boards: readonly DepartureBoard[]): De
 
 /**
  * One mark per running vehicle. Entries sharing a dated provider trip identity collapse to the one
- * describing most of the trip; entries without a provider identity stand on their own.
+ * best reading of it — the freshest board's where the caller can say when each was read, else the
+ * one describing most of the trip. Entries without a provider identity stand on their own.
  */
-export function getDistinctVehicleTrips(departures: readonly Departure[]): Departure[] {
+export function getDistinctVehicleTrips(
+  departures: readonly Departure[],
+  readAt?: (departure: Departure) => number,
+): Departure[] {
   return getLongestTripPerKey(
     departures,
     (departure) => departure.tripInstanceId ?? departure.tripId,
+    readAt,
   );
 }

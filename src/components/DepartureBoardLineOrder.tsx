@@ -5,7 +5,9 @@ import {
   findVehicleAccessLabel,
   getDepartureAccessibilityLabel,
   getCountdownReading,
+  getDepartureTimeReading,
   isDepartureSelected,
+  type DepartureTimeReading,
 } from "../lib/departure-presentation";
 import {
   findSharedPlatformKind,
@@ -22,6 +24,7 @@ import {
 import { getDepartureOpenPath, navigateTo, routePaths } from "../routing";
 import type { LineSelection } from "../lib/line-bundles";
 import { DepartureCountdown } from "./DepartureCountdown";
+import { DepartureTime } from "./DepartureTime";
 import { LineBadge } from "./LineBadge";
 
 /**
@@ -39,12 +42,26 @@ const CORRIDOR_CHIP_LIMIT = 3;
 /**
  * What a trip has to state for itself, under a heading that has already stated the rest.
  *
- * Every trip names its own terminus — a rider deciding between two countdowns of one direction is
- * still deciding where each of them ends, and the heading names the shared way out, not each trip's
- * end. Also the exceptions: a platform where the trips leave from different ones, and the two facts
- * about a single trip that no heading could ever carry — that it is running a diversion, and that
- * its vehicle is not step-free. Where the platform holds for every trip, a chip repeating it
- * nineteen times would be the noise this reading exists to remove.
+ * Every chip publishes the time its trip is expected at — the same one published time the other two
+ * orders print, with the schedule struck through beside it where a deviation moved it. A countdown
+ * alone was the reading's own doing: "in 5 min" is not a time a rider can hold a departure board or
+ * a printed timetable up against, and the punctuality that the pair of numbers states — this trip
+ * is running late, that one is not — was the one thing the line order could not show at all. It is
+ * also what makes the strip a table: one number in the same place in every box, under a countdown
+ * whose size changes from chip to chip.
+ *
+ * Whether the trip is monitored is not printed here. It is a word on nineteen chips out of twenty
+ * at the hours a board is mostly timetable, and a strip of small print under every countdown is
+ * exactly what this reading exists to be free of; the time order states it on the row, and every
+ * chip still speaks it in its own label.
+ *
+ * The destination is stated only where the trips of the direction actually part. A corridor is the
+ * way these trips share, so where every one of them ends in the same place the heading above has
+ * already said where they go: three chips each captioned "Durlach Turmberg" under "→ Durlach" said
+ * one thing three times over, in the smallest type on the board, and left a rider scanning the
+ * exceptions to find the one trip that really does end early. Where they do part, every chip names
+ * its own end, because that is the choice being made. The full destination is never lost either
+ * way: each chip speaks it in its own label, as it always did.
  *
  * Each warning prints on a line of its own, under the rest. A warning is the one part of a chip a
  * rider may be scanning *for*, and it is the whole of what says a trip is diverted or has steps —
@@ -53,13 +70,22 @@ const CORRIDOR_CHIP_LIMIT = 3;
  * they were as lossy as they had been joined to the destination — a column this narrow gives a
  * warning two lines, and two warnings sharing them cost the second one its word.
  */
-type CorridorDepartureNote = { text?: string; warnings: string[] };
+type CorridorDepartureNote = {
+  /** The one published time, which every chip states. */
+  time: DepartureTimeReading | undefined;
+  /** Only what the heading cannot say for this trip: where it ends short, where it leaves from. */
+  text?: string;
+  warnings: string[];
+};
 
 function getCorridorDepartureNote(
   departure: Departure,
   sharedPlatformName: string | undefined,
+  /** Whether the trips of this direction end in different places, which is the only time they say. */
+  showsDestination: boolean,
 ): CorridorDepartureNote {
-  const parts: string[] = [departure.destination];
+  const parts: string[] = [];
+  if (showsDestination) parts.push(departure.destination);
   if (!sharedPlatformName && departure.platformName) {
     parts.push(formatPlatformName(departure.platformName, departure.platformKind));
   }
@@ -71,17 +97,21 @@ function getCorridorDepartureNote(
           departure.status === "diverted" ? "Umleitung" : undefined,
           findVehicleAccessLabel(departure),
         ].filter((warning): warning is string => Boolean(warning));
-  return { text: parts.length > 0 ? parts.join(" · ") : undefined, warnings };
+  return {
+    time: getDepartureTimeReading(departure),
+    text: parts.length > 0 ? parts.join(" · ") : undefined,
+    warnings,
+  };
 }
 
 /**
- * One trip of a corridor, as its countdown alone.
+ * One trip of a corridor, as the minute it leaves in.
  *
  * The line reading is a comparison, and a comparison is only readable while the things compared are
  * on screen together. A full row per trip put four departures where four *lines* had to fit, so the
  * reading that exists to give an overview was the one that had to be scrolled. The direction is
- * stated once, above; what a trip has left to add is the minute it leaves in, and that is all this
- * prints. Every chip of the board sits in the same three columns, so the next departure of one line
+ * stated once, above; what a trip has left to add is when it goes — the countdown, the time that
+ * countdown is running to, and then only the exceptions. Every chip of the board sits in the same three columns, so the next departure of one line
  * is directly above the next departure of the next — which is the comparison itself, drawn.
  * Nothing is dropped from the button's label, so a screen reader still hears the whole row.
  */
@@ -126,6 +156,12 @@ function CorridorDepartureChip({
       <span className="corridor-departure-countdown">
         <DepartureCountdown reading={getCountdownReading(departure, feedNow)} />
       </span>
+      {/* The minute it is expected at, spoken in full in the button's label above. */}
+      {note.time && (
+        <small className="corridor-departure-time" aria-hidden="true">
+          <DepartureTime reading={note.time} />
+        </small>
+      )}
       {note.text && <small className="corridor-departure-note">{note.text}</small>}
       {note.warnings.map((warning) => (
         <small key={warning} className="corridor-departure-note corridor-departure-warning">
@@ -272,10 +308,13 @@ function DirectionChain({
 function CorridorGroup({
   corridor,
   lineId,
+  columns,
   renderChip,
 }: {
   corridor: StopServiceCorridor;
   lineId: string;
+  /** How many countdown columns the whole board is laid out in, which every strip fills. */
+  columns: number;
   renderChip: (departure: Departure, note: CorridorDepartureNote, isLead: boolean) => ReactNode;
 }) {
   // The platform is a fact about where to stand, so it is stated where it holds: on the heading when
@@ -342,10 +381,22 @@ function CorridorGroup({
         {shownDepartures.map((departure, index) =>
           renderChip(
             departure,
-            getCorridorDepartureNote(departure, sharedPlatformName),
+            getCorridorDepartureNote(
+              departure,
+              sharedPlatformName,
+              corridor.destinations.length > 1,
+            ),
             index === 0,
           ),
         )}
+        {/* A direction with fewer trips in view than the board lays out columns for keeps the
+            columns: the strip is one table across the whole board, and a row that simply stopped
+            two thirds of the way across it left the hairline it closes on running out over nothing.
+            An empty cell is the honest reading — this direction has no third trip on the board —
+            and it is what keeps every rule of the table straight down the panel. */}
+        {Array.from({ length: Math.max(0, columns - shownDepartures.length) }, (_, index) => (
+          <i key={`blank-${index}`} className="corridor-departure-blank" aria-hidden="true" />
+        ))}
       </div>
     </section>
   );
@@ -363,10 +414,12 @@ function CorridorGroup({
 function LineGroup({
   group,
   stopId,
+  columns,
   renderChip,
 }: {
   group: StopServiceCorridorLineGroup;
   stopId: string;
+  columns: number;
   renderChip: (departure: Departure, note: CorridorDepartureNote, isLead: boolean) => ReactNode;
 }) {
   return (
@@ -381,7 +434,7 @@ function LineGroup({
           // rather than in a flat white. CSS mixes it toward the ink before painting with it.
           style={{ "--line-color": group.line.color } as CSSProperties}
         >
-          <LineBadge line={group.line} />
+          <LineBadge line={group.line} size="sm" />
           <span>Linienverlauf</span>
           <b aria-hidden="true">›</b>
         </button>
@@ -391,6 +444,7 @@ function LineGroup({
           key={corridor.id}
           corridor={corridor}
           lineId={group.id}
+          columns={columns}
           renderChip={renderChip}
         />
       ))}
@@ -448,7 +502,13 @@ export function DepartureBoardLineOrder({
   return (
     <div className="departure-board-line-order" data-corridor-columns={corridorColumns}>
       {groups.map((group) => (
-        <LineGroup key={group.id} group={group} stopId={stopId} renderChip={renderChip} />
+        <LineGroup
+          key={group.id}
+          group={group}
+          stopId={stopId}
+          columns={corridorColumns}
+          renderChip={renderChip}
+        />
       ))}
     </div>
   );

@@ -10,6 +10,7 @@ import {
   useTripDepartures,
 } from "./hooks";
 import {
+  extendLineCallStopIds,
   getLineCallStopIds,
   getLineDirectionIds,
   getLineObservationStopIds,
@@ -44,6 +45,7 @@ import {
 
 const EMPTY_DEPARTURES: readonly Departure[] = [];
 const EMPTY_LINES: readonly TransitLine[] = [];
+const EMPTY_STOP_IDS: readonly string[] = [];
 /**
  * How many of a line's departures at this stop are loaded as whole trips. Enough to mark the
  * vehicles a rider can still reach; past that a board lists trips nobody in front of it is waiting
@@ -99,7 +101,7 @@ export type ResolvedSelectionChain = {
    * departed this keeps the diagram pointing the same way instead of turning around.
    */
   preferredDestination: string | undefined;
-  /** This stop's board plus the stops sampled along the line, beyond the shell's observation posts. */
+  /** This stop's board plus the line-filtered boards discovered along the whole line. */
   lineDepartureBoards: readonly DepartureBoard[];
   /** Whole-trip readings for the selected line at this stop, used for route-aware presentation. */
   lineTripDepartures: readonly Departure[];
@@ -216,10 +218,12 @@ export function useSelectionChain(
   );
   const currentLineTrips = useTripDepartures(lineDeparturesAtStop, stopDeparture?.id);
   const lineDepartureBoards = useLineDepartureBoards(
+    lineSelection,
     selectedLine,
     stopId,
     lineStopBoard ?? departureBoard,
     currentLineTrips,
+    observationBoards,
     lineDirectionIds,
   );
   // A trip addressed on its own names no stop, so the board it was read from is not known in
@@ -359,33 +363,35 @@ const findTripInDepartureBoards = (
     : undefined;
 
 /**
- * This stop's individually loaded same-line trips first, then the sampled boards read for this line
+ * This stop's individually loaded same-line trips first, then the boards read for this line
  * alone.
  *
- * Not every core stop the line calls at: each of those boards carries the complete calling sequence
- * of twenty trips, and a line crossing the Zentrum touches ten of them. The stop in view is
- * different: a board filtered to this line discovers its departures cheaply, and only those few
- * trips are then loaded individually.
- *
- * The samples are asked for this line's directions only, which is what lets so few of them cover so
- * much: a stop's rows are shared by every line calling there, so an unfiltered board at a Zentrum
- * post reaches minutes ahead and a vehicle still out at the end of its run is on none of them. They
- * are taken along the whole line the loaded trips describe rather than across its core stretch, and
- * from its ends first — see `getLineObservationStopIds` for why that is what shows the whole fleet
- * instead of the part of it near the middle.
+ * Every discovered calling point is read, but each board is filtered to this line rather than
+ * spending its rows on every service at the stop. The stop in view is different: its filtered rows
+ * are also loaded individually so the board beside the diagram can present their complete routes.
  */
 function useLineDepartureBoards(
+  selection: LineSelection,
   line: TransitLine | undefined,
   stopId: string,
   departureBoard: DepartureBoard | null,
   currentLineTrips: readonly Departure[],
+  networkObservationBoards: readonly DepartureBoard[],
   lineDirectionIds: readonly string[],
 ): readonly DepartureBoard[] {
-  const lineStopIds = getLineCallStopIds(currentLineTrips, line);
-  const otherStopIds = line ? getLineObservationStopIds(lineStopIds, stopId) : [];
-  const otherBoards = useDepartureBoards(
-    otherStopIds,
-    LINE_OBSERVATION_REFRESH_MS,
+  // Reuse the full trip sequences the shell's network observation already paid for. They often
+  // disclose a branch before this view's own crawl reaches its junction.
+  const seedTrips = useMemo(() => {
+    const networkLineTrips = networkObservationBoards.flatMap((board) =>
+      board.departures.filter((departure) => isSelectedLine(selection, departure.lineId)),
+    );
+    return [...currentLineTrips, ...networkLineTrips];
+  }, [currentLineTrips, networkObservationBoards, selection]);
+  const observationBoards = useLineObservationBoards(
+    selection,
+    line,
+    stopId,
+    seedTrips,
     lineDirectionIds,
   );
   const currentLineBoard = useMemo(
@@ -396,9 +402,68 @@ function useLineDepartureBoards(
     [currentLineTrips, departureBoard],
   );
   return useMemo(
-    () => (currentLineBoard ? [currentLineBoard, ...otherBoards] : otherBoards),
-    [currentLineBoard, otherBoards],
+    () => (currentLineBoard ? [currentLineBoard, ...observationBoards] : observationBoards),
+    [currentLineBoard, observationBoards],
   );
+}
+
+/**
+ * The boards read for this line alone, along the whole route discovery has reached.
+ *
+ * The crawl is asked for this line's directions only: a stop's rows are shared by every line
+ * calling there, so an unfiltered board at a Zentrum post reaches minutes ahead and a vehicle still
+ * out at the end of its run is on none of them. It starts with the whole route the seed trips
+ * describe, then every answer may extend it with another branch or short working — a fixed-point
+ * crawl that stops naturally once an answer adds no calling point. Only the selected lines may
+ * teach it: the first, still-unfiltered read must not pull neighbouring lines into the crawl.
+ */
+function useLineObservationBoards(
+  selection: LineSelection,
+  line: TransitLine | undefined,
+  stopId: string,
+  seedTrips: readonly Departure[],
+  lineDirectionIds: readonly string[],
+): readonly DepartureBoard[] {
+  const selectionKey = getLineSelectionIds(selection).slice().sort().join(",");
+  const seedStopIds = useMemo(() => getLineCallStopIds(seedTrips, line), [line, seedTrips]);
+  const [discovery, setDiscovery] = useState<{ key: string; stopIds: readonly string[] }>({
+    key: selectionKey,
+    stopIds: seedStopIds,
+  });
+  const knownStopIds = useMemo(
+    () =>
+      discovery.key === selectionKey
+        ? extendLineCallStopIds(discovery.stopIds, seedTrips)
+        : seedStopIds,
+    [discovery, seedStopIds, seedTrips, selectionKey],
+  );
+  const observationStopIds = useMemo(
+    () => (line ? getLineObservationStopIds(knownStopIds, stopId) : EMPTY_STOP_IDS),
+    [knownStopIds, line, stopId],
+  );
+  const observationBoards = useDepartureBoards(
+    observationStopIds,
+    LINE_OBSERVATION_REFRESH_MS,
+    lineDirectionIds,
+  );
+  const observedLineTrips = useMemo(
+    () =>
+      observationBoards.flatMap((board) =>
+        board.departures.filter((departure) => isSelectedLine(selection, departure.lineId)),
+      ),
+    [observationBoards, selection],
+  );
+  const expandedStopIds = useMemo(
+    () => extendLineCallStopIds(knownStopIds, observedLineTrips),
+    [knownStopIds, observedLineTrips],
+  );
+  // Adjusted while rendering rather than in an effect: the newly discovered stops are read on the
+  // next render, and waiting a paint would show a diagram missing the very branch its boards just
+  // disclosed. A line change restarts the crawl under its own selection.
+  if (discovery.key !== selectionKey || expandedStopIds !== discovery.stopIds) {
+    setDiscovery({ key: selectionKey, stopIds: expandedStopIds });
+  }
+  return observationBoards;
 }
 
 /**

@@ -126,6 +126,30 @@ A line of the pair that simply terminates at the junction has no leg to draw and
 instead (*S11 endet in Busenbach*). That is the short working the whole bundled reading exists to
 make visible.
 
+### What a mark on the diagram says
+
+A vehicle mark is read off the trip's own calls — the link between the last call it has left and the
+next it is due at — and never from a position feed; KVV publishes none that answers
+(`docs/kvv-efa-api.md`). Two things a mark can say beyond where it is:
+
+**Where the trip is going.** Point at a mark, or tap it, and the mark opens into a chip with its
+destination and closes again afterwards. It is asked rather than shown because a line with
+Zwischenendstellen runs some of its trips over part of itself — which of the twelve marks turns back
+early is exactly the question the diagram cannot answer by itself, and answering it on all twelve at
+once would make the line into a column of destinations. One mark is open at a time, and the chip
+opens across the stop names beside it, which is the only part of the row with the width for a name.
+
+**That it is standing at a terminus.** A trip whose calls have run out keeps its mark at the end of
+the line, and a trip that has not begun stands at the stop it is due out of; both are drawn as a
+quieter, squarer mark, because neither is a measured position — nothing was placed between two calls
+to draw it. Where an arrival and a departure of the same line meet at one stop within a turnaround of
+each other, they are drawn as *one* standing mark for the whole of the stand, the departure that
+leaves it (`lib/line-turnarounds.ts`). That pairing is an inference and is kept honest by being a
+narrow one: same stop, same line family, nearest first, one arrival to one departure, and nothing —
+no time, deviation or platform — carried from either trip to the other. Nothing published links a
+working to the one it turns back out as, so a stand the rules cannot pair stays what the feed says
+it is: an arrival that ends, and a departure that begins.
+
 ### Naming a direction
 
 A direction is named by the place its corridor heads into, not by a headsign: `Richtung Ettlingen`
