@@ -39,7 +39,7 @@ export function AppHeader({
     <header className="app-header">
       <div className="app-header-brand">
         {isStationBoardMode ? (
-          <span className="brand">
+          <span className="brand" aria-label="KARLA">
             <span className="brand-mark">KARLA</span>
           </span>
         ) : (

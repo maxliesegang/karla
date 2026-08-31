@@ -11,16 +11,15 @@
  * Bump APP_SHELL_CACHE_NAME whenever the stable precache list or caching behaviour changes.
  */
 const APP_CACHE_PREFIX = "karla-app-shell-";
-const APP_SHELL_CACHE_NAME = `${APP_CACHE_PREFIX}v2`;
+const APP_SHELL_CACHE_NAME = `${APP_CACHE_PREFIX}v5`;
 const BUILD_MANIFEST_URL = "./vite-manifest.json";
 const STATIC_SHELL_URLS = [
   "./",
   "./index.html",
   "./manifest.webmanifest",
-  "./favicon.svg",
+  "./favicon.png",
   "./icon-192.png",
   "./icon-512.png",
-  "./icon-maskable.svg",
   "./icon-maskable-512.png",
   "./apple-touch-icon.png",
 ];

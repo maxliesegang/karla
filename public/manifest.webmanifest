@@ -1,5 +1,5 @@
 {
-  "name": "KARLA – Karlsruhes Linien & Abfahrten",
+  "name": "KARLA – Karlsruher Abfahrten & Linien",
   "short_name": "KARLA",
   "description": "Live-Abfahrten und Linien im Karlsruher Nahverkehr.",
   "lang": "de",
@@ -21,7 +21,7 @@
       "type": "image/png",
       "purpose": "maskable"
     },
-    { "src": "./favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+    { "src": "./favicon.png", "sizes": "64x64", "type": "image/png", "purpose": "any" }
   ],
   "shortcuts": [
     {

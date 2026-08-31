@@ -110,15 +110,21 @@ h2 {
   font-size: 13px;
 }
 .loading-mark {
-  min-width: 64px;
-  height: 46px;
-  display: grid;
-  place-items: center;
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
   border-radius: 10px;
   background: var(--kvv-red);
   color: #fff;
   font-size: 14px;
   font-weight: 900;
+}
+.loading-mark img {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
 }
 
 /* ---------- Shell ---------- */

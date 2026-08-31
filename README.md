@@ -1,6 +1,6 @@
 # KARLA
 
-**KAR**lsruhes **L**inien & **A**bfahrten — a static React site showing the current state of the
+Karlsruher Abfahrten & Linien — a static React site showing the current state of the
 Karlsruhe public transport network: the stops served in the Zentrum, a line index, and stop views
 with live departures from the KVV realtime feed. It is not a journey planner: no routing, no
 ticketing, no accounts.

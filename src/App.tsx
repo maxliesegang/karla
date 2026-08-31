@@ -150,6 +150,7 @@ export default function App() {
     return (
       <main className="loading" aria-live="polite">
         <span className="loading-mark" aria-hidden="true">
+          <img src="./favicon.png" alt="" />
           KARLA
         </span>
         <span>
