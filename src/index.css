@@ -2876,8 +2876,10 @@ button.line-diagram-bundle-option:focus-visible {
   will-change: transform;
   transition: box-shadow 0.2s ease;
   /* Arriving into a diagram is an event of its own: a mark that was not there a moment ago fades up
-     in place instead of appearing mid-track fully formed. `scale` stays clear of `transform`, which
-     the position is already using. */
+     in place instead of appearing mid-track fully formed. The fade is opacity alone. The whole
+     position rides on `transform`, and the individual `scale` is applied after that transform —
+     scaling it scales the translation too, so a mark would slide in from a fraction of its
+     position, which is precisely the journey an entry must not be seen to make. */
   animation: line-diagram-vehicle-enter 0.24s ease-out both;
 }
 /* A mark is a small thing to hit and a moving one to follow, so the pointer is met a little before
@@ -2895,11 +2897,9 @@ button.line-diagram-bundle-option:focus-visible {
 @keyframes line-diagram-vehicle-enter {
   from {
     opacity: 0;
-    scale: 0.7;
   }
   to {
     opacity: 1;
-    scale: 1;
   }
 }
 /* A vehicle that just left the shared stretch enters its branch from the trunk rail. The percentage
