@@ -92,9 +92,9 @@ export type LineBundleOffer = {
    * order, longest first.
    *
    * The offer's whole evidence, kept as calls rather than as a count of them, because it is also
-   * what says which way the corridor runs: the trip the diagram happens to be drawing has to be
-   * heading along this stretch for the offer to mean anything, and nothing but the stretch itself
-   * can answer that. Nothing of the sibling's own *trips* is in hand at this point — the board is
+   * what says whether the trip the diagram happens to be drawing runs along this stretch at all —
+   * ahead of the rider's stop or behind it — and nothing but the stretch itself can answer that.
+   * Nothing of the sibling's own *trips* is in hand at this point — the board is
    * asked for the lines the address names, so a line is only fetched once it has been added — and
    * an offer that waited for them would never be made.
    *
@@ -138,9 +138,12 @@ const EMPTY_DRAWABLE_OFFERS: readonly DrawableLineBundleOffer[] = [];
  * The offers worth making beside one drawn trip.
  *
  * Corridor observations are direction-blind because a stop is served both ways. A diagram is not:
- * it draws one trip heading one way, so an offer is useful only when that trip follows one of the
- * observed shared stretches. The promised stretch is also capped at the calls the drawn trip
- * confirms, so a short working never claims to share a way beyond its own turn-off.
+ * it draws one trip, whose chain runs out of the rider's stop both ways — the corridor it came
+ * along behind the stop as much as the one it follows ahead of it — so an offer is useful only
+ * when the drawn trip follows one of the observed shared stretches, and it is tried against both
+ * sides of the rider's stop. The promised stretch is also capped at the calls the drawn trip
+ * confirms, so a short working never claims to share a way beyond its own turn-off, whichever
+ * direction it turns off in.
  */
 export function getDrawableLineBundleOffers({
   offers,
@@ -156,21 +159,37 @@ export function getDrawableLineBundleOffers({
     (call) => call.localStopId && riderStopIds.includes(call.localStopId),
   );
   const drawnAhead = getCallsPastIndex(drawnCalls, riderStopIndex);
+  // The same reading the other way out of the stop: the calls before the rider's stop, reversed
+  // into the travel order a route out of the stop is stated in. A shared stretch behind the stop
+  // is drawn by the same diagram as one ahead of it — the trip ran it to get here.
+  const drawnBehind = getCallsPastIndex(
+    [...drawnCalls].reverse(),
+    drawnCalls.length - 1 - riderStopIndex,
+  );
   return offers.flatMap((offer) => {
-    const sharedCalls = findDrawnSharedCalls(offer, drawnAhead);
+    const sharedCalls = findDrawnSharedCalls(offer, drawnAhead, drawnBehind);
     return sharedCalls ? [toDrawableLineBundleOffer(offer.lineId, sharedCalls)] : [];
   });
 }
 
-/** The longest observed shared stretch that the drawn trip actually follows. */
+/**
+ * The longest observed shared stretch that the drawn trip actually follows, either side of the
+ * rider's stop.
+ *
+ * Tried ahead first, and ahead wins a tie: where a trip runs past the same stretch both ways out
+ * of a stop — a loop — the corridor it is still to ride is the one the offer is about.
+ */
 function findDrawnSharedCalls(
   offer: LineBundleOffer,
   drawnAhead: readonly TripCall[],
+  drawnBehind: readonly TripCall[],
 ): readonly TripCall[] | undefined {
   let best: readonly TripCall[] = [];
-  for (const sharedRoute of offer.sharedRoutes) {
-    const common = getCommonCallPrefix([drawnAhead, sharedRoute]);
-    if (common.length > best.length) best = common;
+  for (const drawn of [drawnAhead, drawnBehind]) {
+    for (const sharedRoute of offer.sharedRoutes) {
+      const common = getCommonCallPrefix([drawn, sharedRoute]);
+      if (common.length > best.length) best = common;
+    }
   }
   return best.length >= MIN_BUNDLE_SHARED_CALLS ? best : undefined;
 }

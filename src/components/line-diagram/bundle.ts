@@ -147,10 +147,11 @@ function getObservedLineBundleTrunk({
  *
  * `findLineBundleOffers` reads the corridor from what the stop has been observed doing, which is
  * the right evidence for *whether* two lines share a way — but it is direction-blind. The diagram
- * draws one trip heading one way, and a sibling whose shared stretch lies behind it shares none of
- * what is on screen: taking that offer would leave the diagram exactly as it was, with a pressed
- * control claiming a bundle nobody can see. So every offer is tried against the drawn trip before
- * it is made.
+ * draws one trip, and the stop the rider is at sits in its chain: the trip ran one way out of it
+ * and goes on the other, so a shared stretch on either side of the stop is drawn, and one on
+ * neither side is on no part of this diagram at all. Taking such an offer would leave the drawing
+ * exactly as it was, with a pressed control claiming a bundle nobody can see. So every offer is
+ * tried against the drawn trip — both sides of the rider's stop — before it is made.
  *
  * Tried against the *corridor*, and not against the sibling's own next trip. The stop's board is
  * asked for the lines the address names, so a sibling's trips are not in hand until it has been

@@ -125,9 +125,9 @@ test("each leg is drawn from the junction, so its first link has both its ends",
 /**
  * The offer and the diagram have to agree.
  *
- * A corridor observed at some hour is what makes a sibling worth offering; whether it runs the way
- * the trip on screen is heading is what makes taking the offer mean anything. Where the second does
- * not hold, the control is not shown at all.
+ * A corridor observed at some hour is what makes a sibling worth offering; whether the trip on
+ * screen actually runs it — ahead of the rider's stop or behind it — is what makes taking the
+ * offer mean anything. Where neither holds, the control is not shown at all.
  *
  * What is deliberately *not* asked is whether a trip of the sibling is in hand. The stop's board is
  * asked for the lines the address names, so none ever is until the sibling has been added — an
@@ -193,4 +193,38 @@ test("promises only as far as the drawn trip confirms the corridor", () => {
     drawableOffers(drawn, [runsOn]).map(({ sharedUntilStopName }) => sharedUntilStopName),
     ["ETZENROT"],
   );
+});
+
+/**
+ * The drawn trip is read out of the rider's stop both ways.
+ *
+ * A trip the diagram holds on to departs, and the rider's stop sits in the middle of its chain
+ * from then on: the corridor it came along is drawn behind the stop, as much on screen as the one
+ * ahead. A sibling observed running it is offered over that stretch by the same rule either side
+ * of the stop — `getLineBundleTrunk` already forks at the near end as well as the far one.
+ */
+test("offers the sibling over the shared stretch the drawn trip came along", () => {
+  const underway = [
+    ...[...sharedAhead].reverse(),
+    call("hochstetten", 12),
+    call("grenzstraße", 18),
+  ];
+
+  assert.deepEqual(
+    drawableOffers(underway).map(({ sharedUntilStopName }) => sharedUntilStopName),
+    ["ETZENROT"],
+  );
+});
+
+test("promises only as far as the drawn trip came along the corridor", () => {
+  // The lines are observed together as far as Etzenrot, but this trip set out at Busenbach: behind
+  // the rider's stop it confirms Neureut and Busenbach alone, one call short of a promise.
+  const startedShort = [
+    call("busenbach", 0),
+    call("neureut", 6),
+    call("hochstetten", 12),
+    call("grenzstraße", 18),
+  ];
+
+  assert.deepEqual(drawableOffers(startedShort), []);
 });
