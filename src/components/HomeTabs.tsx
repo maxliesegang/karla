@@ -2,12 +2,12 @@ import { navigateTo, routePaths, type HomeView } from "../routing";
 import { SegmentedControl, type SegmentedControlItem } from "./SegmentedControl";
 
 const homeViewItems: readonly SegmentedControlItem<HomeView>[] = [
-  { value: "core", label: "Zentrum" },
+  { value: "zentrum", label: "Zentrum" },
   { value: "network", label: "Linien" },
 ];
 
 const homePathByView: Record<HomeView, string> = {
-  core: routePaths.core(),
+  zentrum: routePaths.zentrum(),
   network: routePaths.network("city"),
 };
 

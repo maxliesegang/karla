@@ -1,7 +1,7 @@
 import type { DepartureBoard, DepartureBoardCoverage } from "../data/transit-types";
 
 /** Past this the retained board is too old to act on and the failure becomes the answer. */
-export const RETAINED_BOARD_LIMIT_MS = 10 * 60_000;
+export const RETAINED_DEPARTURE_BOARD_LIMIT_MS = 10 * 60_000;
 
 export function getDepartureBoardCoverage(
   stopIds: readonly string[],
@@ -47,7 +47,7 @@ export function buildRetainedDepartureBoards(
     if (current.dataStatus === "live") return [current];
 
     const retained = liveBoardByStopId.get(stopId);
-    return retained && current.receivedAt - retained.receivedAt <= RETAINED_BOARD_LIMIT_MS
+    return retained && current.receivedAt - retained.receivedAt <= RETAINED_DEPARTURE_BOARD_LIMIT_MS
       ? [retained]
       : [current];
   });

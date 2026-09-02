@@ -27,7 +27,7 @@ export function useViewShortcuts({
 
       if (isAwaitingGoTarget) {
         isAwaitingGoTarget = false;
-        if (event.key === "z") navigateTo(routePaths.core());
+        if (event.key === "z") navigateTo(routePaths.zentrum());
         if (event.key === "n") navigateTo(routePaths.network("city"));
         return;
       }

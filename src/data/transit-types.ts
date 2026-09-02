@@ -162,6 +162,9 @@ export type DepartureBoard = DepartureBoardReading &
       }
   );
 
+/** A board that was actually read, which is the only one that dates itself by the feed's clock. */
+export type LiveDepartureBoard = Extract<DepartureBoard, { dataStatus: "live" }>;
+
 /**
  * A disruption the operator has published, rather than one read off a departure.
  *
@@ -215,4 +218,44 @@ export type DepartureBoardCoverage = {
   status: "loading" | "complete" | "partial" | "unavailable";
   expectedBoardCount: number;
   liveBoardCount: number;
+};
+
+/**
+ * What a caller wants of a board, beyond which stop it is.
+ *
+ * Both fields exist because a board is a hundred kilobytes and this app reads several of them a
+ * minute. Neither is a hint: a caller that states neither is answered with the smallest board and
+ * the freshest reading, which is the safe pair and the expensive one.
+ */
+export type DepartureBoardRequest = {
+  /**
+   * The complete calling sequence behind every departure — twenty trips of forty calls. Batched
+   * observations use it to discover the network; selected-line trips at the visible stop use the
+   * one-trip endpoint instead. It is also the whole weight of a board: the same board without it is
+   * a fraction of the size.
+   */
+  includeTripCalls?: boolean;
+  /**
+   * How old a board already in hand may be and still answer this request. A view refreshing every
+   * ninety seconds has no use for a request of its own when the board the rider's own stop fetched
+   * ten seconds ago says the same thing. Zero is a reader that will take nothing but the feed.
+   */
+  maxAgeMs?: number;
+  /**
+   * Fill sparse line-directions with filtered live reads. This is for the stop overview only: the
+   * ordinary board remains the provider's first forty departures and topology reads stay detailed.
+   */
+  minimumDeparturesPerDirection?: number;
+  /** Only supplemented departures expected inside this live window may be added. */
+  coverageHorizonMs?: number;
+  /**
+   * Restrict the board to these `routeDirectionId`s — the provider's own per-direction line ids,
+   * which every departure already carries.
+   *
+   * A stop's forty rows are shared by every line calling there, so a Zentrum post spends them on
+   * about twenty minutes of everything. Asked for one line, the same forty rows are spent on that
+   * line alone and reach an hour and a half ahead — which is what lets a diagram see a vehicle
+   * still out at the end of its run instead of only the ones already near the middle.
+   */
+  lineIds?: readonly string[];
 };

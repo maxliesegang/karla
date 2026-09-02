@@ -6,11 +6,11 @@ import {
   getObservedTransitLines,
   type ObservedNetwork,
 } from "../lib/observed-network";
-import { useKeyedLoad } from "./use-keyed-load";
+import { useKeyedLoad } from "./keyed-load";
 
 /**
  * The stops the app can resolve, plus the lines the feed is currently running. The stops are stable
- * for the session; the lines are read from the live core observation, so the app never offers a
+ * for the session; the lines are read from the live Zentrum observation, so the app never offers a
  * rider a line that is not running.
  */
 export function useTransitNetwork(observedNetwork: ObservedNetwork): TransitNetwork | null {

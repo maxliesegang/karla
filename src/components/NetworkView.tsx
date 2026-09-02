@@ -18,17 +18,11 @@ const networkScopeItems = (Object.keys(networkScopeLabels) as NetworkScope[]).ma
 const isWithinScope = (lineId: string, scope: NetworkScope) =>
   scope === "region" || !lineId.startsWith("S");
 
-export function NetworkOverviewPanel({
-  network,
-  scope,
-}: {
-  network: TransitNetwork;
-  scope: NetworkScope;
-}) {
+export function NetworkView({ network, scope }: { network: TransitNetwork; scope: NetworkScope }) {
   const lines = getGroupedLines(network.lines).filter((line) => isWithinScope(line.id, scope));
 
   return (
-    <div className="network-overview">
+    <div className="network-view">
       <div className="panel-heading">
         <div>
           <h1>Linien in Karlsruhe</h1>

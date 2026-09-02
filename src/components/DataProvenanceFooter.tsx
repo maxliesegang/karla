@@ -22,7 +22,7 @@ export function DataProvenanceFooter({
   showsNoticesLink = false,
 }: {
   departureBoard?: DepartureBoard | null;
-  /** Several observation posts describe the core; the oldest live timestamp is the honest stand. */
+  /** Several observation posts describe the Zentrum; the oldest live timestamp is the honest stand. */
   departureBoards?: readonly DepartureBoard[];
   coverage?: DepartureBoardCoverage;
   /** Present only on the dedicated notice view; null means that feed is still loading. */

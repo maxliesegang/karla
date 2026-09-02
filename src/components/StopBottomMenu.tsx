@@ -4,7 +4,7 @@ import type {
   TransitLine,
   TransitStop,
 } from "../data/transit-types";
-import { StopServiceNoticeDisclosure } from "./ServiceNoticePanel";
+import { StopServiceNoticeDisclosure } from "./StopServiceNoticeDisclosure";
 
 /**
  * What KVV announced about this stop, at the foot of its departure board.

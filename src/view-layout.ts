@@ -21,7 +21,7 @@ import {
 } from "./routing";
 
 /**
- * A board mounted at one stop needs none of the core observation, and polling five deep boards for
+ * A board mounted at one stop needs none of the Zentrum observation, and polling five deep boards for
  * the rest of the day to colour a few badges is the whole of what it would buy.
  */
 export const isStationBoardStopView = (view: RouteView, isStationBoardMode: boolean): boolean =>
@@ -32,7 +32,7 @@ export const isStationBoardStopView = (view: RouteView, isStationBoardMode: bool
  * cadence it runs at. Beside a departure board or a line diagram it only lends line signs, stop
  * positions and interchanges, which hold for hours.
  */
-export const isObservedNetworkInView = (view: ActiveView): boolean =>
+export const readsObservedNetwork = (view: ActiveView): boolean =>
   isHomeView(view) || view === "nearby";
 
 /** The levels of the resolved chain the layout is read from — never the raw address. */
@@ -174,7 +174,7 @@ function getBackPath(
 ): string | undefined {
   // The nearby list is a correction to one page, so it returns to the page it corrected.
   if (route.view === "nearby") {
-    return nearbyReturnStopId ? routePaths.stop(nearbyReturnStopId) : routePaths.core();
+    return nearbyReturnStopId ? routePaths.stop(nearbyReturnStopId) : routePaths.zentrum();
   }
   return getParentSelectionPath({
     view: route.view,

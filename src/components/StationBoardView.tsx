@@ -38,7 +38,7 @@ const PAGE_DURATION_MS = 15_000;
 /** Past this the board says how old it is at full size, rather than in a footer nobody can read. */
 const STALE_BOARD_MS = 3 * 60_000;
 
-type StationBoardPanelProps = {
+type StationBoardViewProps = {
   stop: TransitStop;
   departures: readonly Departure[];
   departureBoard: DepartureBoard | null;
@@ -120,14 +120,14 @@ function StationBoardRow({
   );
 }
 
-export function StationBoardPanel({
+export function StationBoardView({
   stop,
   departures,
   departureBoard,
   network,
   stationBoardConfig,
   feedNow,
-}: StationBoardPanelProps) {
+}: StationBoardViewProps) {
   const { rowCount, platformNames, mode, minimumMinutes, grouping } = stationBoardConfig;
 
   const platformDepartures = useMemo(

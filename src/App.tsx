@@ -1,11 +1,13 @@
 import { useMemo, useRef, useState } from "react";
-import { ZentrumPanel } from "./components/ZentrumPanel";
+import { ZentrumView } from "./components/ZentrumView";
 import { DataProvenanceFooter } from "./components/DataProvenanceFooter";
 import { DepartureBoardPanel } from "./components/DepartureBoardPanel";
-import { StationBoardPanel } from "./components/StationBoardPanel";
+import { StationBoardView } from "./components/StationBoardView";
 import { AppHeader } from "./components/AppHeader";
+import { AppLoadingScreen } from "./components/AppLoadingScreen";
+import { StopNotFoundView } from "./components/StopNotFoundView";
 import { LineDiagramPanel } from "./components/LineDiagramPanel";
-import { NetworkOverviewPanel } from "./components/NetworkOverviewPanel";
+import { NetworkView } from "./components/NetworkView";
 import { NearbyStopsView } from "./components/NearbyStopsView";
 import { StopBottomMenu } from "./components/StopBottomMenu";
 import { RideStatusPanel } from "./components/RideStatusPanel";
@@ -45,7 +47,7 @@ import { findLineBundleOffers } from "./lib/line-bundles";
 import {
   getDashboardClassNames,
   getViewLayout,
-  isObservedNetworkInView as getIsObservedNetworkInView,
+  readsObservedNetwork,
   isStationBoardStopView,
 } from "./view-layout";
 
@@ -63,7 +65,7 @@ export default function App() {
   // view actually reads from it. A diagram's vehicle marks used to, which is what held it at the
   // fast cadence; they are read from the line's own filtered boards now, which see more of the line.
   const isStationBoardView = isStationBoardStopView(route.view, isStationBoardMode);
-  const isObservedNetworkInView = getIsObservedNetworkInView(route.view);
+  const isObservedNetworkInView = readsObservedNetwork(route.view);
   const {
     network: observedNetwork,
     departureBoards: observationBoards,
@@ -147,22 +149,9 @@ export default function App() {
   };
 
   if (!network || selection.isStopLoading || selection.isAwaitingLegacyTrip) {
-    return (
-      <main className="loading" aria-live="polite">
-        <span className="loading-mark" aria-hidden="true">
-          <img src="./favicon.png" alt="" />
-          KARLA
-        </span>
-        <span>
-          <strong>KARLA wird geladen</strong>
-        </span>
-      </main>
-    );
+    return <AppLoadingScreen />;
   }
 
-  // A stop is the one level with nothing beneath it, so it is the only genuine dead end. A provider
-  // read that failed is not that dead end: nothing was learned about the stop, so the view says so
-  // and offers the read again rather than claiming the stop does not exist.
   if (route.view === "stop" && !selectedStop) {
     return (
       <main className={classNames("app-shell", isStationBoardMode && "station-board-mode")}>
@@ -170,31 +159,7 @@ export default function App() {
           nearbyStopsController={nearbyStopsController}
           onShowNearbyStops={() => showNearbyStops()}
         />
-        <section className="not-found">
-          {selection.isStopFailed ? (
-            <>
-              <h1>Haltestelle nicht erreichbar</h1>
-              <p>
-                Diese Haltestelle ließ sich gerade nicht vom KVV-Feed lesen — ob es sie gibt, ist
-                damit nicht gesagt. Ein erneuter Versuch kann helfen.
-              </p>
-              <div className="not-found-actions">
-                <button onClick={selection.retryStop}>Erneut versuchen</button>
-                <button
-                  className="not-found-secondary"
-                  onClick={() => navigateTo(routePaths.home())}
-                >
-                  Zur Startseite
-                </button>
-              </div>
-            </>
-          ) : (
-            <>
-              <h1>Haltestelle nicht gefunden</h1>
-              <button onClick={() => navigateTo(routePaths.home())}>Zur Startseite</button>
-            </>
-          )}
-        </section>
+        <StopNotFoundView isFailed={selection.isStopFailed} onRetry={selection.retryStop} />
       </main>
     );
   }
@@ -268,7 +233,7 @@ export default function App() {
         data-panel-change={panelChange}
       >
         {layout.isStationBoardView && stationBoardConfig ? (
-          <StationBoardPanel
+          <StationBoardView
             stop={selectedStop!}
             departures={selection.departures}
             departureBoard={selection.departureBoard}
@@ -295,11 +260,11 @@ export default function App() {
                   />
                 )}
                 {activeView === "nearby" && <NearbyStopsView controller={nearbyStopsController} />}
-                {activeView === "core" && (
-                  <ZentrumPanel network={observedNetwork} coverage={zentrumCoverage} />
+                {activeView === "zentrum" && (
+                  <ZentrumView network={observedNetwork} coverage={zentrumCoverage} />
                 )}
                 {activeView === "network" && (
-                  <NetworkOverviewPanel network={network} scope={route.networkScope} />
+                  <NetworkView network={network} scope={route.networkScope} />
                 )}
                 {activeView === "notices" && (
                   <ServiceNoticesView

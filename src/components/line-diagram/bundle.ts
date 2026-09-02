@@ -86,7 +86,7 @@ export function useLineDiagramFork({
   return useMemo(() => {
     const trunk =
       bundledLines.length > 0 && drawnCalls.length > 0 && destination !== undefined
-        ? getBundleTrunk({
+        ? getObservedLineBundleTrunk({
             primary: { lineId, calls: drawnCalls, destination },
             bundledLineIds: bundledLines.map(({ id }) => id),
             riderStopIds,
@@ -113,7 +113,7 @@ export function useLineDiagramFork({
 }
 
 /** Each sibling's drawn trip beside the primary one, and the stretch they all have in common. */
-function getBundleTrunk({
+function getObservedLineBundleTrunk({
   primary,
   bundledLineIds,
   riderStopIds,

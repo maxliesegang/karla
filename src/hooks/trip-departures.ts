@@ -3,8 +3,8 @@ import { transitSource } from "../data/transit-source";
 import type { Departure } from "../data/transit-types";
 import { toSortedIds } from "../lib/collections";
 import { mergeTripSequence } from "../lib/trip-calls";
-import { BOARD_REFRESH_MS } from "./boards";
-import { useKeyedLoad, type KeyedLoadOptions } from "./use-keyed-load";
+import { DEPARTURE_BOARD_REFRESH_MS } from "./departure-board";
+import { useKeyedLoad, type KeyedLoadOptions } from "./keyed-load";
 
 /**
  * How stale a trip a rider did not choose may be. Its sequence is fixed and its published times come
@@ -45,7 +45,7 @@ export function useTripDepartures(
   /** Memoize this: it decides the load key and the identity of everything read from the result. */
   departures: readonly Departure[],
   selectedDepartureId?: string,
-  refreshMs = BOARD_REFRESH_MS,
+  refreshMs = DEPARTURE_BOARD_REFRESH_MS,
 ): readonly Departure[] {
   const departureIds = toSortedIds(departures.map(({ id }) => id));
   const key =

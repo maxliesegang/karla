@@ -320,7 +320,7 @@ export function useSelectionChain(
 
 /**
  * The line in view. A line is running here if this stop's own board says so, whether or not the
- * core observation covers it — that is how a bus keeps its sign. A legacy `/departure/:trip/:stop`
+ * Zentrum observation covers it — that is how a bus keeps its sign. A legacy `/departure/:trip/:stop`
  * link names no line at all, so the trip it resolves to supplies one.
  */
 function findSelectedLine(

@@ -17,14 +17,14 @@ import {
 } from "./lib/line-bundles";
 import type { Departure } from "./data/transit-types";
 
-export type RouteView = "core" | "stop" | "network" | "nearby" | "notices";
+export type RouteView = "zentrum" | "stop" | "network" | "nearby" | "notices";
 
 /**
  * The panel the shell actually shows. A stop with a line selected refines the stop view into the
  * line diagram, which is a view of its own to render but never an address of its own.
  */
 export type ActiveView = RouteView | "line";
-export const HOME_VIEWS = ["core", "network"] as const;
+export const HOME_VIEWS = ["zentrum", "network"] as const;
 export type HomeView = (typeof HOME_VIEWS)[number];
 export type NetworkScope = "city" | "region";
 
@@ -101,7 +101,7 @@ export type AppRoute = {
 };
 
 const defaultRoute: AppRoute = {
-  view: "core",
+  view: "zentrum",
   stopId: DEFAULT_STOP_ID,
   lineId: "",
   bundledLineIds: [],
@@ -231,7 +231,7 @@ export function parseRoute(hash: string): AppRoute {
     case "notices":
       return { ...defaultRoute, view: "notices" };
     case "center":
-      return { ...defaultRoute, view: "core" };
+      return { ...defaultRoute, view: "zentrum" };
     case "stop":
       return parseStopRoute(rest);
     default:
@@ -239,10 +239,15 @@ export function parseRoute(hash: string): AppRoute {
   }
 }
 
-/** The only place route paths are spelled out, so a route change cannot be half-applied. */
+/**
+ * The only place route paths are spelled out, so a route change cannot be half-applied.
+ *
+ * `zentrum` addresses `/center`: the segment is published and shared, so it stays as it was spelled
+ * while the code around it calls the place by the one name the rest of the app uses.
+ */
 export const routePaths = {
-  home: () => "/center",
-  core: () => "/center",
+  home: () => routePaths.zentrum(),
+  zentrum: () => "/center",
   network: (scope: NetworkScope) => `/network/${scope}`,
   nearby: () => "/nearby",
   notices: () => "/notices",

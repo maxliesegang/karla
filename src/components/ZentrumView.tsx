@@ -6,7 +6,7 @@ import { compareLineIds } from "../lib/line-families";
 import { navigateTo, routePaths } from "../routing";
 import { LineBadge } from "./LineBadge";
 
-export function ZentrumPanel({
+export function ZentrumView({
   network,
   coverage,
 }: {
@@ -46,16 +46,16 @@ export function ZentrumPanel({
       </div>
 
       {stops.length > 0 ? (
-        <div className="core-stops-scroll">
-          <section className="core-stops" aria-label="Haltestellen im Zentrum">
+        <div className="zentrum-stops-scroll">
+          <section className="zentrum-stops" aria-label="Haltestellen im Zentrum">
             {stops.map((stop) => (
               <button
                 key={stop.id}
                 onClick={() => navigateTo(routePaths.stop(stop.id))}
                 aria-label={`${stop.name}, Linien ${stop.lines.map((line) => line.id).join(", ")}. Haltestelle öffnen`}
               >
-                <span className="core-stop-name">{stop.name}</span>
-                <span className="core-stop-lines">
+                <span className="zentrum-stop-name">{stop.name}</span>
+                <span className="zentrum-stop-lines">
                   {stop.lines.map((line) => (
                     <LineBadge key={line.id} line={line} size="xs" />
                   ))}

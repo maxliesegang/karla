@@ -11,8 +11,8 @@ import {
   getDepartureBoardCoverage,
 } from "../lib/departure-board-collection";
 import { createSortedKey } from "../lib/collections";
-import { createDepartureBoardsLoader } from "./boards";
-import { useKeyedLoad, type KeyedLoadOptions } from "./use-keyed-load";
+import { createDepartureBoardsLoader } from "./departure-board";
+import { useKeyedLoad, type KeyedLoadOptions } from "./keyed-load";
 
 /**
  * The cadence for the boards that place a line's vehicles.
@@ -67,7 +67,7 @@ export type DepartureBoardCollection = {
 
 /**
  * Loads several stops' boards at once. Each board carries the whole trip behind every departure, so
- * a handful of well-placed boards describes the entire core — the stops, the track between them,
+ * a handful of well-placed boards describes the entire Zentrum — the stops, the track between them,
  * and the vehicles on it. Requests are deduplicated and cached by the source, so a shared stop
  * costs nothing.
  */
@@ -94,7 +94,7 @@ export function useDepartureBoardCollection(
    * Restrict these boards to one line's directions. A stop's rows are shared by every line calling
    * there, so an unfiltered board reaches about twenty minutes; asked for one line the same rows
    * reach an hour and a half, which is the difference between seeing a vehicle at the end of its
-   * run and not seeing it at all. Empty reads the whole stop, as the core observation does.
+   * run and not seeing it at all. Empty reads the whole stop, as the Zentrum observation does.
    */
   lineIds: readonly string[] = EMPTY_LINE_IDS,
 ): DepartureBoardCollection {

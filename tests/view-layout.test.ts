@@ -3,7 +3,7 @@ import test from "node:test";
 
 Object.defineProperty(globalThis, "window", { value: { location: { search: "" } } });
 const { parseRoute } = await import("../src/routing.ts");
-const { describePanelChange, getViewLayout, isObservedNetworkInView, isStationBoardStopView } =
+const { describePanelChange, getViewLayout, readsObservedNetwork, isStationBoardStopView } =
   await import("../src/view-layout.ts");
 
 const TRIP = "de:kvv:00S11_:.kvv-22-311-E.5.T0.161.s26";
@@ -101,7 +101,7 @@ test("arriving from elsewhere changes both halves, and a refresh changes neither
 
 test("the home keeps one key across its tabs, so its search field survives the switch", () => {
   assert.equal(layoutFor("#/center").primaryKey, layoutFor("#/network/city").primaryKey);
-  assert.equal(layoutFor("#/center").homeView, "core");
+  assert.equal(layoutFor("#/center").homeView, "zentrum");
   assert.equal(layoutFor("#/stop/marktplatz").homeView, undefined);
 });
 
@@ -121,14 +121,14 @@ test("an unattended station board is the stop view alone, and reads nothing else
   assert.equal(board.isStationBoardView, true);
   assert.equal(board.hasPrimaryPanel, false);
   assert.equal(board.hasDepartureBoard, false);
-  assert.equal(isStationBoardStopView("core", true), false);
+  assert.equal(isStationBoardStopView("zentrum", true), false);
   assert.equal(isStationBoardStopView("stop", false), false);
 });
 
 test("the observation cycle is only read from where a view actually shows it", () => {
-  assert.equal(isObservedNetworkInView("core"), true);
-  assert.equal(isObservedNetworkInView("network"), true);
-  assert.equal(isObservedNetworkInView("nearby"), true);
-  assert.equal(isObservedNetworkInView("line"), false);
-  assert.equal(isObservedNetworkInView("stop"), false);
+  assert.equal(readsObservedNetwork("zentrum"), true);
+  assert.equal(readsObservedNetwork("network"), true);
+  assert.equal(readsObservedNetwork("nearby"), true);
+  assert.equal(readsObservedNetwork("line"), false);
+  assert.equal(readsObservedNetwork("stop"), false);
 });

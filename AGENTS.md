@@ -33,6 +33,26 @@ npm run refresh:stops  # regenerates src/data/generated from the operator's publ
 | [public/](public/) | icons, manifest, and `sw.js` — the offline app shell |
 | [tests/](tests/) | `node --test` over the pure modules; no DOM, no network |
 
+## Naming
+
+One concept, one name, everywhere it appears — the Zentrum is `zentrum` in code even where its
+published URL segment is still `/center`.
+
+- **Components.** `*View` is a whole route view, one per `RouteView` (`ZentrumView`, `NetworkView`,
+  `NearbyStopsView`, `ServiceNoticesView`, `StationBoardView`). `*Panel` is a half of the dashboard
+  or a section inside a view (`DepartureBoardPanel`, `LineDiagramPanel`, `RideStatusPanel`,
+  `ServiceNoticePanel`). Everything else is named for what it is: badge, chip, row, list, tabs, menu.
+  A component exported from a file the file is not named after belongs in its own file.
+- **Modules.** A module is named for the concern its exports name, so a hook module and the pure
+  module beneath it share a name — `hooks/departure-board-collection.ts` over
+  `lib/departure-board-collection.ts`. Filenames drop the `use` prefix that the hooks inside carry.
+- **`get*` derives an answer from what it is handed; `find*` searches through data for one.** Either
+  may come back with nothing — that is in the return type, not in the verb.
+- **Constants carry the whole noun**, not the shortened one the module could get away with:
+  `DEPARTURE_BOARD_REFRESH_MS`, not `BOARD_REFRESH_MS`.
+- **CSS classes are kebab-case of the component that owns them**, and a view's root class ends
+  `-view`.
+
 ## Constraints
 
 - **No backend, no secrets.** Must stay deployable to GitHub Pages as plain files.

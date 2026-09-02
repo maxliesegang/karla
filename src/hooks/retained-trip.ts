@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { transitSource } from "../data/transit-source";
 import type { Departure, TripReading } from "../data/transit-types";
 import { getVehicleTripKey, isBetterTripReading } from "../lib/trips";
-import { BOARD_REFRESH_MS } from "./boards";
+import { DEPARTURE_BOARD_REFRESH_MS } from "./departure-board";
 import { useDeviceNow } from "./clock";
-import { useKeyedLoad, type KeyedLoadOptions } from "./use-keyed-load";
+import { useKeyedLoad, type KeyedLoadOptions } from "./keyed-load";
 import {
   findActiveRideObservation,
   forgetActiveRideObservation,
@@ -59,10 +59,10 @@ export type RetainedTrip = {
 type TripObservation = ActiveRideObservation & { key: string };
 
 const loadRetainedTrip = (departureId: string): Promise<TripReading | undefined> =>
-  transitSource.getTrip(departureId, BOARD_REFRESH_MS);
+  transitSource.getTrip(departureId, DEPARTURE_BOARD_REFRESH_MS);
 
 const RETAINED_TRIP_LOAD_OPTIONS: KeyedLoadOptions<TripReading | undefined> = {
-  refreshMs: BOARD_REFRESH_MS,
+  refreshMs: DEPARTURE_BOARD_REFRESH_MS,
   // A trip the source can no longer name is not a trip that stopped running; it is a locator the
   // cap evicted. Backing off is right, and the kept observation still answers the view meanwhile.
   isFailure: (reading) => reading === undefined,
@@ -102,7 +102,7 @@ export function useRetainedTrip(
   // whole calling sequences, so a ride can be "on a board" and still be publishing half-hour-old
   // deviations. What suppresses the request is a reading no older than the board cadence — anything
   // slower than that is a reading the ride has to renew for itself.
-  const isObservationCurrent = Boolean(departure) && now - receivedAt < BOARD_REFRESH_MS;
+  const isObservationCurrent = Boolean(departure) && now - receivedAt < DEPARTURE_BOARD_REFRESH_MS;
   // Only the ride earns a request of its own: away from it the trip in view is the one on the board
   // beside it, and reading it separately would spend a request restating what that row just said.
   const refreshed = useRetainedTripReading(

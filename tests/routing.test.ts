@@ -22,7 +22,7 @@ test("published notices have a dedicated canonical route", () => {
 
 test("the Zentrum is the canonical home, and nearby has its own route", () => {
   assert.equal(routePaths.home(), "/center");
-  assert.equal(parseRoute("").view, "core");
+  assert.equal(parseRoute("").view, "zentrum");
   assert.equal(routePaths.nearby(), "/nearby");
   assert.equal(parseRoute("#/nearby").view, "nearby");
 });
@@ -34,7 +34,7 @@ test("the app opens on the stop last read, and on the home for a rider with no h
 });
 
 test("only the tabbed roots use the home layout", () => {
-  assert.equal(isHomeView("core"), true);
+  assert.equal(isHomeView("zentrum"), true);
   assert.equal(isHomeView("network"), true);
   assert.equal(isHomeView("stop"), false);
   assert.equal(isHomeView("line"), false);
@@ -203,7 +203,7 @@ test("step up drops exactly one level of the address, and never reads live data 
   );
   assert.equal(getParentSelectionPath({ view: "stop", stopId: "europaplatz" }), "/center");
   // The two home roots are the top; the views nested under it step back up to it.
-  assert.equal(getParentSelectionPath({ view: "core", stopId: "europaplatz" }), undefined);
+  assert.equal(getParentSelectionPath({ view: "zentrum", stopId: "europaplatz" }), undefined);
   assert.equal(getParentSelectionPath({ view: "network", stopId: "europaplatz" }), undefined);
   assert.equal(getParentSelectionPath({ view: "notices", stopId: "europaplatz" }), "/center");
   assert.equal(getParentSelectionPath({ view: "nearby", stopId: "europaplatz" }), "/center");

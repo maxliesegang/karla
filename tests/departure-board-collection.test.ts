@@ -4,7 +4,7 @@ import type { DepartureBoard } from "../src/data/transit-types.ts";
 import {
   buildRetainedDepartureBoards,
   getDepartureBoardCoverage,
-  RETAINED_BOARD_LIMIT_MS,
+  RETAINED_DEPARTURE_BOARD_LIMIT_MS,
 } from "../src/lib/departure-board-collection.ts";
 
 const createBoard = (
@@ -44,7 +44,7 @@ test("retains a failed observation post independently while reporting partial co
 test("makes an expired retained board unavailable", () => {
   const stopIds = ["a"];
   const first = buildRetainedDepartureBoards(stopIds, [createBoard("a", 1_000, "live")], new Map());
-  const failed = createBoard("a", 1_000 + RETAINED_BOARD_LIMIT_MS + 1, "unavailable");
+  const failed = createBoard("a", 1_000 + RETAINED_DEPARTURE_BOARD_LIMIT_MS + 1, "unavailable");
   const expired = buildRetainedDepartureBoards(stopIds, [failed], first.liveBoardByStopId);
 
   assert.equal(expired.departureBoards[0].dataStatus, "unavailable");

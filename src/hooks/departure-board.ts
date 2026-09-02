@@ -1,12 +1,12 @@
 import { useState } from "react";
 import { transitSource, type DepartureBoardRequest } from "../data/transit-source";
 import type { DepartureBoard, ServiceNoticeBoard } from "../data/transit-types";
-import { RETAINED_BOARD_LIMIT_MS } from "../lib/departure-board-collection";
+import { RETAINED_DEPARTURE_BOARD_LIMIT_MS } from "../lib/departure-board-collection";
 import { createSortedKey } from "../lib/collections";
-import { useKeyedLoad, type KeyedLoadOptions } from "./use-keyed-load";
+import { useKeyedLoad, type KeyedLoadOptions } from "./keyed-load";
 
 /** The board is re-read often enough that countdowns stay believable without churning. */
-export const BOARD_REFRESH_MS = 30_000;
+export const DEPARTURE_BOARD_REFRESH_MS = 30_000;
 /** Route relationships change slowly; the live countdown board remains on its 30-second cadence. */
 const STOP_TOPOLOGY_REFRESH_MS = 30 * 60_000;
 /** Notices are written by hand and published for weeks; asking often would only cost the rider data. */
@@ -91,7 +91,7 @@ const loadStopTopologyBoard = createDepartureBoardLoader({
 const isUnavailableBoard = (board: DepartureBoard) => board.dataStatus === "unavailable";
 
 const SINGLE_BOARD_LOAD_OPTIONS: KeyedLoadOptions<DepartureBoard> = {
-  refreshMs: BOARD_REFRESH_MS,
+  refreshMs: DEPARTURE_BOARD_REFRESH_MS,
   isFailure: isUnavailableBoard,
 };
 
@@ -129,7 +129,7 @@ function useLastLiveBoard(
  * view on one timeout throws away good data and answers the rider with nothing. The retained board
  * keeps its own `feedUpdatedAt` and `receivedAt`, so it states its real age and every countdown read from
  * it stays honest — no local data is substituted, and nothing is presented as fresher than it is.
- * Past `RETAINED_BOARD_LIMIT_MS` the board is too old to act on and the failure is the answer.
+ * Past `RETAINED_DEPARTURE_BOARD_LIMIT_MS` the board is too old to act on and the failure is the answer.
  */
 function useRetainedDepartureBoard(
   stopId: string | undefined,
@@ -146,7 +146,7 @@ function useRetainedDepartureBoard(
   if (!loaded) return retained;
   // The failed read carries the instant it failed, so how old the retained board is by now is a
   // subtraction between two boards rather than a reading of the device clock while rendering.
-  return retained && loaded.receivedAt - retained.receivedAt <= RETAINED_BOARD_LIMIT_MS
+  return retained && loaded.receivedAt - retained.receivedAt <= RETAINED_DEPARTURE_BOARD_LIMIT_MS
     ? retained
     : loaded;
 }
