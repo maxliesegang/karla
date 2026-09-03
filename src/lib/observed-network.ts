@@ -1,14 +1,8 @@
-import type {
-  Departure,
-  DepartureBoard,
-  TransitLine,
-  TransportMode,
-  TripCall,
-} from "../data/transit-types";
+import type { DepartureBoard, TransitLine, TransportMode, TripCall } from "../data/transit-types";
 import { createLineSign } from "../data/line-signs";
-import { compareLineIds, getLineFamilyId, isSameLineFamily } from "./line-families";
+import { compareLineIds, getLineFamilyId } from "./line-families";
 import { isZentrumStop } from "../data/zentrum-stops";
-import { addOnce, getDistinctByFrequency, toSortedIds } from "./collections";
+import { addOnce, getDistinctByFrequency } from "./collections";
 import { getDistinctTimetableTrips } from "./trips";
 
 /**
@@ -98,93 +92,6 @@ export const REACH_OBSERVATION_POST_STOP_IDS = [
   "zuendhuetle",
   "turmberg",
 ] as const;
-
-/**
- * The stops a line's vehicles are read from, beside the rider's own board.
- *
- * These are read filtered to the line, which is what changed the arithmetic: an unfiltered board
- * spends its rows on every line at the stop and reaches about twenty minutes, so a vehicle still
- * out at the end of its run appeared on none of them. Filtered, the whole row budget goes to this
- * line.
- *
- * Observation posts are no longer excluded. They were, because the shell passed their loaded boards
- * straight to the diagram — but those boards are unfiltered and answer a different question, so a
- * post that sits on this line is now as worth reading as any other stop.
- *
- * A bounded sample cannot be complete. A short working may begin and end between two samples, and
- * a branch may be absent from the one full-length trip used to place them. Such a trip is then found
- * only after the rider opens one of its stops. Every known calling point is therefore read. These
- * are still line-filtered boards: completeness costs more requests, never more rows shared with
- * unrelated lines.
- *
- * The rider's own board is one of these readings, not an extra beside them, so it is never requested
- * twice.
- */
-export function getLineObservationStopIds(
-  lineStopIds: readonly string[],
-  currentStopId: string,
-): string[] {
-  return [...new Set(lineStopIds)].filter((stopId) => stopId !== currentStopId);
-}
-
-/**
- * Every stop the line's trips in hand call at.
- *
- * Sampling the line from its *core* stops only ever reached into the Zentrum, which is the one
- * stretch every observation post already sees. A loaded trip states the complete run, so the
- * reads can cover the real line instead — including the outer thirds, branches and short workings,
- * which are exactly where marks went missing. One longest trip is insufficient: it describes only
- * one route through a branching line. Until a trip carries its calls the core stops are all there
- * is to go on.
- */
-export function getLineCallStopIds(
-  trips: readonly Departure[],
-  line: TransitLine | undefined,
-): readonly string[] {
-  const called = extendLineCallStopIds([], trips);
-  return called.length > 0 ? called : (line?.zentrumStopIds ?? []);
-}
-
-/**
- * Adds the calling points newly observed for a line, preserving its existing discovery order.
- *
- * Returning the original value when nothing was learned makes this both the pure transition for
- * the line crawl and its change signal. The hook can therefore stay concerned with loading boards
- * rather than reimplementing line-route merging and array equality around them.
- */
-export function extendLineCallStopIds(
-  knownStopIds: readonly string[],
-  trips: readonly Departure[],
-): readonly string[] {
-  const known = new Set(knownStopIds);
-  let expanded: string[] | undefined;
-  for (const { tripCalls } of trips) {
-    for (const { localStopId } of tripCalls ?? []) {
-      if (!localStopId || known.has(localStopId)) continue;
-      known.add(localStopId);
-      if (!expanded) expanded = [...knownStopIds];
-      expanded.push(localStopId);
-    }
-  }
-  return expanded ?? knownStopIds;
-}
-
-/**
- * The provider's per-direction ids for one line, which is what a filtered board is asked for.
- *
- * A line is two of these — `:H:` and `:R:` — and a board filtered to one of them shows one
- * direction, so both have to be named. They are read off the departures rather than authored: the
- * feed already states one on every row as `routeDirectionId`.
- */
-export function getLineDirectionIds(lineId: string, departures: readonly Departure[]): string[] {
-  return toSortedIds(
-    departures.flatMap((departure) =>
-      departure.routeDirectionId && isSameLineFamily(departure.lineId, lineId)
-        ? [departure.routeDirectionId]
-        : [],
-    ),
-  );
-}
 
 export type ObservedStop = {
   id: string;

@@ -23,9 +23,18 @@ import { createDepartureId, keepOneRowPerRun } from "./departure-runs";
 import { SharedRequests } from "./request-sharing";
 import { DYNAMIC_STOP_ID_PATTERN, StopRegistry, hashProviderStopId } from "./stop-registry";
 import { sortDeparturesByExpectedTime } from "../lib/departure-order";
+import { mergeTripSequence } from "../lib/trip-calls";
+import { getDistinctVehicleTrips, getVehicleTripKey } from "../lib/trips";
 import { createSortedKey } from "../lib/collections";
 
 export type { DepartureBoardRequest };
+
+/** What a line's own reading is asked for: which directions, and how stale an answer may be. */
+export type LineDepartureBoardsRequest = {
+  /** The provider's per-direction ids. Required: this reading is only ever one line's. */
+  lineIds: readonly string[];
+  maxAgeMs?: number;
+};
 export { createDepartureId };
 
 /**
@@ -56,6 +65,29 @@ export interface TransitSource {
   searchStops(query: string): Promise<readonly TransitStop[]>;
   /** One stop's live board. Never rejects: failures resolve to an explicit unavailable state. */
   getDepartureBoard(stopId: string, request?: DepartureBoardRequest): Promise<DepartureBoard>;
+  /**
+   * Several stops of one line, read as the rows they have and completed with each trip's calls.
+   *
+   * The reading a line diagram is drawn from: it wants every stop of the line, and behind every row
+   * the whole run. Asking each board for the runs as well is what that used to mean, and it made
+   * the same trip's calling sequence arrive once per stop it had yet to leave — fifteen times over
+   * for a city line. Here the boards state which trips are running and each trip states itself,
+   * once. Never rejects, for the same reason `getDepartureBoard` does not.
+   */
+  getLineDepartureBoards(
+    stopIds: readonly string[],
+    request: LineDepartureBoardsRequest,
+  ): Promise<DepartureBoard[]>;
+  /**
+   * Where a line-direction goes, as a route of our own local stop ids, or `undefined` where it
+   * could not be read.
+   *
+   * Addressed by an observed departure because that is the only handle the provider offers — but
+   * what comes back is the line's route and not that run's, so one row of a line answers for the
+   * whole of it. Nothing about it is a departure: it is asked for once per line-direction and kept
+   * for the session, since a route does not move.
+   */
+  getLineRoute(departureId: string): Promise<readonly string[] | undefined>;
   /**
    * The complete calls of one observed departure, with the instant that reading was taken;
    * `undefined` means it could not be read.
@@ -97,12 +129,44 @@ const SERVICE_NOTICE_REQUEST_KEY = "service-notices";
 /** How many local and remote matches a typed query is answered with. */
 const STOP_SEARCH_LIMIT = 8;
 
+/**
+ * How soon a run's own next call must be for its calls to be worth reading.
+ *
+ * Every stop of a line is read, so a vehicle out on it is a few minutes from *somewhere*: its next
+ * call is the nearest row it has anywhere on the line. A run whose nearest row is hours away has
+ * not set out — a departure a rider can read on a board, and no vehicle anybody can draw. Forty
+ * rows at each of seventy stops name some 250 runs, a dozen of which are on the line.
+ *
+ * Half an hour is generous for that: it covers a run about to leave its origin and one crossing a
+ * stretch where the stops are far apart, and still leaves the small hours out.
+ */
+const RUN_UNDER_WAY_MINUTES = 30;
+
+/** Whether any board holds this run's next call soon enough for the run to be one now. */
+function isRunUnderWay(row: Departure, rows: readonly Departure[]): boolean {
+  if (row.minutesUntilDeparture <= RUN_UNDER_WAY_MINUTES) return true;
+  const key = getVehicleTripKey(row);
+  return rows.some(
+    (other) =>
+      other.minutesUntilDeparture <= RUN_UNDER_WAY_MINUTES && getVehicleTripKey(other) === key,
+  );
+}
+
 /** Core-network stops are stable local data; every other stop is resolved from KVV when requested. */
 export class KvvTransitSource implements TransitSource {
   /** Keyed by stop and variant. Every board dates itself, so how old one is needs no second field. */
   private readonly departureBoardCache = new Map<string, DepartureBoard>();
   private readonly boardRequests = new SharedRequests<DepartureBoard>();
   private readonly tripRequests = new SharedRequests<CachedTrip | undefined>();
+  private readonly lineRouteRequests = new SharedRequests<readonly string[] | undefined>();
+  /**
+   * One route per line-direction, kept for the session.
+   *
+   * A route is timetable data — it is not a countdown, and nothing in a visit makes it wrong — so
+   * unlike a board this has no refresh cycle and no age. A diversion published mid-visit is the one
+   * thing it would miss, which is what the reload it survives is for.
+   */
+  private readonly lineRoutes = new Map<string, readonly string[]>();
   private readonly noticeRequests = new SharedRequests<ServiceNoticeBoard>();
   private readonly departures = new DepartureMemory();
   private readonly coverage = new DirectionCoverageCompleter();
@@ -233,6 +297,73 @@ export class KvvTransitSource implements TransitSource {
     );
   }
 
+  async getLineDepartureBoards(
+    stopIds: readonly string[],
+    { lineIds, maxAgeMs }: LineDepartureBoardsRequest,
+  ): Promise<DepartureBoard[]> {
+    // The rows first, and only the rows. A board filtered to named directions cannot hold another
+    // line, so it needs none of the mode macros — and without them it answers without the calling
+    // sequences too, which is the whole saving: one line's stop read this way is a fifth of the
+    // board it used to be.
+    const boards = await Promise.all(
+      stopIds.map((stopId) => this.getDepartureBoard(stopId, { lineIds, maxAgeMs })),
+    );
+
+    // One request per *trip*, not per row: the same run is listed at every stop it has yet to
+    // leave, and its calls are the same wherever they are asked for. Keyed by the rows as they
+    // arrived, because a row that carries no sequence cannot state the dated identity a completed
+    // one does — the key has to mean the same thing on both sides of this map.
+    const rows = boards.flatMap((board) => board.departures);
+    const sequenceByRow = new Map<string, Departure>();
+    await Promise.all(
+      getDistinctVehicleTrips(rows.filter((row) => isRunUnderWay(row, rows))).map(async (row) => {
+        const reading = await this.getTrip(row.id, maxAgeMs).catch(() => undefined);
+        if (reading) sequenceByRow.set(getVehicleTripKey(row), reading.trip);
+      }),
+    );
+
+    return boards.map((board) => ({
+      ...board,
+      departures: board.departures.map((row) =>
+        mergeTripSequence(row, sequenceByRow.get(getVehicleTripKey(row))),
+      ),
+    }));
+  }
+
+  getLineRoute(departureId: string): Promise<readonly string[] | undefined> {
+    const locator = this.departures.findLocator(departureId);
+    if (!locator) return Promise.resolve(undefined);
+    // Keyed by the line-direction and not by the row, because every run of a direction answers
+    // with the same route: the second row of a line asks for nothing.
+    const kept = this.lineRoutes.get(locator.line);
+    if (kept) return Promise.resolve(kept);
+
+    return (
+      this.lineRouteRequests.find(locator.line) ??
+      this.lineRouteRequests.share(locator.line, () =>
+        this.client
+          .fetchLineRoute(locator)
+          .then((route) => {
+            // Resolved through the registry like any other calling point, so a stop first met out
+            // along a line is registered with its position and has a page of its own from then on.
+            const stopIds = [
+              ...new Set(
+                this.stops
+                  .toTripCalls(route)
+                  .map(({ localStopId }) => localStopId)
+                  .filter((stopId): stopId is string => Boolean(stopId)),
+              ),
+            ];
+            if (stopIds.length > 0) this.lineRoutes.set(locator.line, stopIds);
+            return stopIds;
+          })
+          // A route that could not be read is asked for again; the reading falls back to what the
+          // trips in hand describe, which is where it stood before this existed.
+          .catch(() => undefined),
+      )
+    );
+  }
+
   getTrip(
     departureId: string,
     maxAgeMs = DEFAULT_BOARD_MAX_AGE_MS,
@@ -344,15 +475,21 @@ export class KvvTransitSource implements TransitSource {
         ...(lineIds?.length ? { lineIds } : {}),
       });
       // A filtered board saw only the lines it asked about, so it must never be recorded as the
-      // stop's full set of serving directions — that set is what the coverage pass reads.
-      if (!lineIds?.length) {
-        this.coverage.rememberServingDirections(stopId, board.servingDirectionIds);
+      // stop's full set of serving directions — that set is what the coverage pass reads, and what
+      // the line crawl reads to name the direction a terminus lists no row for.
+      const isWholeStop = !lineIds?.length;
+      if (isWholeStop) {
+        this.coverage.rememberServingDirections(
+          stopId,
+          board.servingLines.map(({ directionId }) => directionId),
+        );
       }
       return {
         stopId,
         dataStatus: "live",
         feedUpdatedAt: board.serverTime,
         receivedAt: Date.now(),
+        ...(isWholeStop ? { servingLines: board.servingLines } : {}),
         // The feed answers in schedule order, but every countdown counted off this board contains
         // its deviation — so the board is published in the order a rider catches the vehicles.
         departures: sortDeparturesByExpectedTime(

@@ -29,7 +29,7 @@ function createRecordingSource() {
         stopPointId: providerStopId,
         stopName: "Europaplatz",
         serverTime: "",
-        servingDirectionIds: [],
+        servingLines: [],
         departures: [],
       };
     },
@@ -101,7 +101,7 @@ test("a covered stop board batches sparse directions and keeps only live rows in
             stopPointId: "provider-stop",
             stopName: "Europaplatz",
             serverTime,
-            servingDirectionIds: [],
+            servingLines: [],
             departures: [
               baseDepartures[3],
               departure("b2", directionB, "2026-08-26T11:20:00.000Z"),
@@ -114,7 +114,11 @@ test("a covered stop board batches sparse directions and keeps only live rows in
             stopPointId: "provider-stop",
             stopName: "Europaplatz",
             serverTime,
-            servingDirectionIds: [directionA, directionB, directionC],
+            servingLines: [
+              { lineId: "test", directionId: directionA },
+              { lineId: "test", directionId: directionB },
+              { lineId: "test", directionId: directionC },
+            ],
             departures: baseDepartures,
           };
     },
@@ -183,9 +187,12 @@ test("a full second answer that still starves a direction earns a third pass", a
         stopPointId: "provider-stop",
         stopName: "Europaplatz",
         serverTime,
-        servingDirectionIds: options.lineIds
+        servingLines: options.lineIds
           ? []
-          : [directionA, directionB, directionC, directionD],
+          : [directionA, directionB, directionC, directionD].map((directionId) => ({
+              lineId: "test",
+              directionId,
+            })),
         departures: options.lineIds
           ? (supplementRowsByFirstDirection[options.lineIds[0]] ?? [])
           : baseDepartures,
@@ -235,7 +242,12 @@ test("a coverage supplement is a reading of its own, not part of the board's cyc
         stopPointId: "provider-stop",
         stopName: "Europaplatz",
         serverTime,
-        servingDirectionIds: options.lineIds ? [] : [directionA, directionC],
+        servingLines: options.lineIds
+          ? []
+          : [
+              { lineId: "test", directionId: directionA },
+              { lineId: "test", directionId: directionC },
+            ],
         // Rare enough that it is on no unfiltered board, which is the whole reason to ask for it.
         departures: options.lineIds
           ? [departure("c1", directionC, "2026-08-26T11:00:00.000Z")]
@@ -268,7 +280,12 @@ test("a held supplement is dropped rather than aged into the rider's next few mi
       stopPointId: "provider-stop",
       stopName: "Europaplatz",
       serverTime,
-      servingDirectionIds: options.lineIds ? [] : [directionA, directionC],
+      servingLines: options.lineIds
+        ? []
+        : [
+            { lineId: "test", directionId: directionA },
+            { lineId: "test", directionId: directionC },
+          ],
       departures: options.lineIds
         ? // Two minutes out: nearer than the reading will be old, so it is the live board's to state.
           [departure("c1", directionC, "2026-08-26T10:02:00.000Z")]
@@ -302,7 +319,12 @@ test("a failed coverage pass returns the current basic board, never a half-compl
         stopPointId: "provider-stop",
         stopName: "Europaplatz",
         serverTime,
-        servingDirectionIds: options.lineIds ? [] : [directionA, directionC],
+        servingLines: options.lineIds
+          ? []
+          : [
+              { lineId: "test", directionId: directionA },
+              { lineId: "test", directionId: directionC },
+            ],
         departures: options.lineIds
           ? [departure("c1", directionC, "2026-08-26T11:00:00.000Z")]
           : [base],
@@ -419,7 +441,13 @@ test("a filtered board does not shrink what the stop is known to serve", async (
         stopName: "Europaplatz",
         serverTime,
         // Only the unfiltered board states the whole set; directionC runs later than this board reaches.
-        servingDirectionIds: options.lineIds ? [] : [directionA, directionB, directionC],
+        servingLines: options.lineIds
+          ? []
+          : [
+              { lineId: "test", directionId: directionA },
+              { lineId: "test", directionId: directionB },
+              { lineId: "test", directionId: directionC },
+            ],
         departures: [
           departure("a1", directionA, "2026-08-26T10:10:00.000Z"),
           departure("a2", directionA, "2026-08-26T10:40:00.000Z"),
@@ -462,7 +490,7 @@ test("one run read twice is one row, and it is the row carrying the prediction",
       stopPointId: "provider-stop",
       stopName: "Europaplatz",
       serverTime,
-      servingDirectionIds: [directionA],
+      servingLines: [{ lineId: "test", directionId: directionA }],
       departures: [
         runReading("de:kvv:00S05_:.kvv-22-305-E.7.T0.1604.s26", "2026-08-26T10:05:00.000Z"),
         runReading("de:kvv:00S05_:.kvv-22-305-E.7.T0.1586.s26", "2026-08-26T10:05:00.000Z", 6),
@@ -504,7 +532,7 @@ test("a completion may not state a run the live board already carries", async ()
       stopPointId: "provider-stop",
       stopName: "Europaplatz",
       serverTime,
-      servingDirectionIds: [directionA],
+      servingLines: [{ lineId: "test", directionId: directionA }],
       departures: options.lineIds
         ? [runReading("de:kvv:00S05_:.kvv-22-305-E.7.T0.1586.s26", "2026-08-26T10:05:00.000Z")]
         : [baseRow],
@@ -517,4 +545,40 @@ test("a completion may not state a run the live board already carries", async ()
 
   assert.equal(board.departures.length, 1);
   assert.equal(board.departures[0].delayMinutes, 6);
+});
+
+test("a board that describes the whole stop names the directions it knows there", async () => {
+  // The one thing a filtered board cannot say. At a terminus the returning direction has no row on
+  // any board, so this metadata is the only place its id is ever stated — and naming it is what
+  // lets the rest of the line be read filtered instead of one direction at a time.
+  const client = {
+    fetchDepartureBoard: async (
+      _providerStopId: string,
+      options: { lineIds?: readonly string[] } = {},
+    ): Promise<KvvDepartureBoard> => ({
+      stopPointId: "provider-stop",
+      stopName: "Europaplatz",
+      serverTime,
+      // A filtered answer describes only what it was asked about; the provider says as much.
+      servingLines: options.lineIds
+        ? [{ lineId: "test", directionId: directionA }]
+        : [
+            { lineId: "test", directionId: directionA },
+            { lineId: "test", directionId: directionB },
+          ],
+      departures: [],
+    }),
+  } as unknown as KvvEfaClient;
+  const source = new KvvTransitSource(client);
+
+  const wholeStop = await source.getDepartureBoard(STOP_ID);
+  assert.deepEqual(
+    wholeStop.servingLines?.map(({ directionId }) => directionId),
+    [directionA, directionB],
+  );
+
+  // A filtered board carries none at all: its silence about a direction is not evidence that the
+  // stop has none, and a reading that took it for evidence would keep filtering out what it missed.
+  const filtered = await source.getDepartureBoard(STOP_ID, { lineIds: [directionA] });
+  assert.equal(filtered.servingLines, undefined);
 });

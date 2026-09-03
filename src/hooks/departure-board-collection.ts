@@ -105,8 +105,10 @@ export function useDepartureBoardCollection(
     () => ({ refreshMs, isFailure: hasUnavailableBoard }),
     [refreshMs],
   );
-  // Every one of these boards carries its trips, because the trips are what the network is observed
-  // from. A board another view fetched within this cadence answers instead of a request of its own.
+  // An observation of the whole stop carries its trips, because the trips are what the network is
+  // read from; a reading of one line takes its rows here and its runs from the trip endpoint (see
+  // `createDepartureBoardsLoader`). A board another view fetched within this cadence answers
+  // instead of a request of its own.
   const load = useMemo(
     () => createDepartureBoardsLoader({ includeTripCalls: true, maxAgeMs: refreshMs }),
     [refreshMs],

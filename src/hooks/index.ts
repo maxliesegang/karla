@@ -38,6 +38,12 @@ export { useCurrentTime, useDeviceNow, useFeedNow, useVehicleFeedNow } from "./c
 export { useIsNarrowViewport } from "./viewport";
 export { useTransientScrollbar } from "./scrollbar";
 export { useLineVehicleDepartures } from "./line-vehicle-departures";
+export {
+  useLineFilterDirectionIds,
+  useLineObservation,
+  useLineRoutes,
+  type LineObservationReading,
+} from "./line-observation";
 export { useTripDepartures } from "./trip-departures";
 export { useRetainedTrip, type RetainedTrip } from "./retained-trip";
 export { useNearbyStops, type NearbyStopsController, type NearbyStopsState } from "./nearby-stops";

@@ -409,6 +409,34 @@ export function getDepartureOpenPath(
     : routePaths.trip(getDepartureRouteId(departure), lineId, stopId, bundledLineIds);
 }
 
+/**
+ * Whether a trip the address names could still be found by a reading that has not answered yet.
+ *
+ * The rider's own board is not that reading. A trip that has already left this stop is on no board
+ * here at all — a board lists what has yet to leave — and while it is still running it is on the
+ * boards read along its line, which answer seconds after the stop's own. A chain that read the stop
+ * board alone and rewrote the address without the trip took it out of a shared link before the
+ * reading that had it could answer, and then stopped looking, because the address it would have
+ * looked with was the one it had just rewritten. Opening the same link at a stop the trip has not
+ * reached yet kept it, which is how the two readings of one trip came to disagree.
+ */
+export function isAddressedTripOutstanding({
+  addressedTripId,
+  hasResolvedTrip,
+  isStopBoardRead,
+  isReadingLine,
+}: {
+  addressedTripId: string | undefined;
+  /** Whether something in hand has resolved the trip. Resolved leaves nothing outstanding. */
+  hasResolvedTrip: boolean;
+  isStopBoardRead: boolean;
+  /** Whether the boards along the line are still outstanding for the route as it is known. */
+  isReadingLine: boolean;
+}): boolean {
+  if (!addressedTripId || hasResolvedTrip) return false;
+  return !isStopBoardRead || isReadingLine;
+}
+
 /** Resolves current and legacy departure URLs against a freshly loaded board. */
 export function findDepartureByRouteId(
   departures: readonly Departure[],

@@ -2,8 +2,17 @@ import type { KvvTrip, KvvTripLocator } from "./kvv-efa-parsers";
 import type { Departure } from "./transit-types";
 import { findFinalCallInstant } from "../lib/trip-calls";
 
-/** Provider locators are short-lived board state, never an unbounded timetable cache. */
-const TRIP_LOCATOR_CAPACITY = 1_024;
+/**
+ * How many rows the session keeps. Provider locators are short-lived board state, never an
+ * unbounded timetable cache.
+ *
+ * Sized by what one reading of a line actually holds, because a row is not asked for its sequence
+ * until every board of that reading has been read: a long line is some seventy calling points at
+ * forty rows each, and a bundle is two of those, beside the network observation and the rider's own
+ * board. A cap below that evicts the rows the reading is about to ask about — and it evicts them
+ * first, since a row with no sequence yet is exactly the row that has none to be judged by.
+ */
+export const DEPARTURE_MEMORY_CAPACITY = 8_192;
 
 /** One provider reading of a trip's sequence, with the instant it was taken. */
 export type CachedTrip = { receivedAt: number; trip: KvvTrip };
@@ -47,7 +56,7 @@ export class DepartureMemory {
 
   // Written out rather than declared as a constructor parameter, so the module still parses under
   // the type-stripping test runner the boundary is exercised with.
-  constructor(capacity: number = TRIP_LOCATOR_CAPACITY) {
+  constructor(capacity: number = DEPARTURE_MEMORY_CAPACITY) {
     this.capacity = capacity;
   }
 
@@ -98,22 +107,26 @@ export class DepartureMemory {
   }
 
   /**
-   * Which remembered row the cap should take next: the oldest one whose run is over, or that
-   * nothing is known about.
+   * Which remembered row the cap should take next: the oldest one whose run is over.
    *
    * Insertion order alone used to decide this, which spent the cap on exactly the wrong rows. A
    * board the rider leaves keeps being re-read and stays young, while a trip fetched once and
    * still out on its route ages quietly at the front — so board churn evicted running vehicles,
    * and the diagram asked for their sequences again. A run whose last call has passed is finished
-   * evidence and nobody will ask for it; a row nothing is known about is a board row that costs
-   * one board to have back. Both go before a vehicle still on its way. Where every remembered run
-   * is still going the oldest is taken regardless: the cap is a bound, not a preference.
+   * evidence and nobody will ask for it, so it goes before a vehicle still on its way.
+   *
+   * A row whose run is simply *unknown* used to go with it, on the reasoning that it was a bare
+   * board row and cost one board to have back. It no longer is one: a line's boards are read as
+   * rows and their sequences fetched per trip, so a row with nothing known about it is the ordinary
+   * state of a row this session is about to ask about — and evicting it first is how a reading
+   * came to throw away precisely what it had just read. Where nothing is finished the oldest is
+   * taken regardless: the cap is a bound, not a preference.
    */
   private findEvictableDepartureId(now: number): string | undefined {
     let oldestId: string | undefined;
     for (const [departureId, entry] of this.entries) {
       oldestId ??= departureId;
-      if (entry.runEndsAt === undefined || entry.runEndsAt <= now) return departureId;
+      if (entry.runEndsAt !== undefined && entry.runEndsAt <= now) return departureId;
     }
     return oldestId;
   }

@@ -11,6 +11,7 @@ import {
   type KvvTripLocator,
 } from "../src/data/kvv-efa-parsers.ts";
 import { KvvTransitSource } from "../src/data/transit-source.ts";
+import { DEPARTURE_MEMORY_CAPACITY } from "../src/data/departure-memory.ts";
 import { getCallsAfterStop } from "../src/lib/trip-calls.ts";
 
 const locator: KvvTripLocator = {
@@ -61,7 +62,9 @@ test("a basic DM row carries the private locator for its one-trip request", () =
   const board = parseDepartureBoardResponse(
     {
       parameters: [{ name: "serverTime", value: "2026-08-26T07:29:45" }],
-      servingLines: { lines: [{ mode: { diva: { stateless: "kvv:22304:E:H:s26" } } }] },
+      servingLines: {
+        lines: [{ mode: { number: "S4", diva: { stateless: "kvv:22304:E:H:s26" } } }],
+      },
       departureList: [
         {
           stopID: "7001001",
@@ -85,7 +88,7 @@ test("a basic DM row carries the private locator for its one-trip request", () =
   );
 
   assert.deepEqual(board.departures[0].tripLocator, locator);
-  assert.deepEqual(board.servingDirectionIds, [locator.line]);
+  assert.deepEqual(board.servingLines, [{ lineId: "S4", directionId: locator.line }]);
   assert.equal(board.departures[0].routeDirectionId, locator.line);
   assert.equal(board.departures[0].trainNumber, "85653");
   assert.equal(board.departures[0].tripCalls, undefined);
@@ -151,7 +154,7 @@ test("both levels of one place answer as that place, whichever platform the row 
       stopPointId: "7001012",
       stopName: "Ettlinger Tor/Staatstheater (U)",
       serverTime: "2026-08-26T12:00:00.000Z",
-      servingDirectionIds: [],
+      servingLines: [],
       departures: [
         {
           stopPointId: "7000071",
@@ -303,7 +306,7 @@ test("TransitSource merges one trip into the latest stop row and caches its sequ
       stopPointId: providerStopId,
       stopName: "Durlacher Tor/KIT-Campus Süd (U)",
       serverTime: "2026-08-26T05:29:45.000Z",
-      servingDirectionIds: [],
+      servingLines: [],
       departures: [rawDeparture],
     }),
     fetchTrip: async (requested: KvvTripLocator): Promise<KvvTrip> => {
@@ -337,7 +340,7 @@ test("a trip nobody selected is re-read on its own terms, not on the board's", a
       stopPointId: providerStopId,
       stopName: "Durlacher Tor/KIT-Campus Süd (U)",
       serverTime: "2026-08-26T05:29:45.000Z",
-      servingDirectionIds: [],
+      servingLines: [],
       departures: [
         {
           stopPointId: "7001001",
@@ -405,7 +408,7 @@ function createBoardSource(boardsByProviderStopId: Record<string, KvvDeparture[]
       stopPointId: providerStopId,
       stopName: "Durlacher Tor/KIT-Campus Süd (U)",
       serverTime: "2026-08-26T05:29:45.000Z",
-      servingDirectionIds: [],
+      servingLines: [],
       departures: boardsByProviderStopId[providerStopId] ?? [],
     }),
     fetchTrip: async (): Promise<KvvTrip> => {
@@ -432,7 +435,7 @@ test("a reading answered from memory is dated when it was taken, not when it was
       stopPointId: providerStopId,
       stopName: "Durlacher Tor/KIT-Campus Süd (U)",
       serverTime: "2026-08-26T05:29:45.000Z",
-      servingDirectionIds: [],
+      servingLines: [],
       departures: [
         {
           stopPointId: "7001001",
@@ -490,7 +493,7 @@ test("board churn spends the cap on finished runs before the vehicles still out"
   const filling = [
     createRememberedDeparture(0, stillRunning),
     createRememberedDeparture(1, alreadyOver),
-    ...Array.from({ length: 1_022 }, (_, index) =>
+    ...Array.from({ length: DEPARTURE_MEMORY_CAPACITY - 2 }, (_, index) =>
       createRememberedDeparture(index + 2, stillRunning),
     ),
   ];
@@ -500,7 +503,7 @@ test("board churn spends the cap on finished runs before the vehicles still out"
   });
 
   const board = await source.getDepartureBoard("durlacher-tor");
-  assert.equal(board.departures.length, 1_024);
+  assert.equal(board.departures.length, DEPARTURE_MEMORY_CAPACITY);
   const [oldestRunningId, finishedId] = board.departures.map((departure) => departure.id);
   assert.notEqual(oldestRunningId, finishedId);
   assert.ok(await source.getTrip(finishedId));
@@ -516,7 +519,7 @@ test("the cap is a bound, not a preference: all-running churn still evicts the o
   t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-08-26T05:30:00.000Z") });
   const stillRunning = "2026-08-26T06:30:00.000Z";
   const source = createBoardSource({
-    "7001001": Array.from({ length: 1_024 }, (_, index) =>
+    "7001001": Array.from({ length: DEPARTURE_MEMORY_CAPACITY }, (_, index) =>
       createRememberedDeparture(index, stillRunning),
     ),
     "7001002": [createRememberedDeparture(9_000, stillRunning)],
@@ -589,7 +592,7 @@ test("a trip calling at a place's other level resolves to that place", async () 
       stopPointId: providerStopId,
       stopName: "Europaplatz",
       serverTime: "2026-08-26T05:29:45.000Z",
-      servingDirectionIds: [],
+      servingLines: [],
       departures: [
         {
           stopPointId: "7001004",
@@ -670,4 +673,204 @@ test("a single-trip reading dates the run exactly as the boards do, so it is one
   // One dated identity, or the line diagram follows the row and the trip as two vehicles.
   assert.equal(merged?.trip.tripInstanceId, row.tripInstanceId);
   assert.equal(row.tripInstanceId, "de:kvv:00S04_:.trip@2026-08-26T05:30");
+});
+
+test("a line's stops are read as rows, and each trip's calls are fetched once for all of them", async () => {
+  // The same run is listed at every stop it has yet to leave. Asked for per board, its calling
+  // sequence arrived once per stop; asked for per trip, once — and every board's copy of the row
+  // is completed from it.
+  const tripRequests: KvvTripLocator[] = [];
+  const boardRequests: { stopId: string; lineIds?: readonly string[] }[] = [];
+  const runningTrip = (stopPointId: string, minute: number): KvvDeparture => ({
+    stopPointId,
+    stopPointName: stopPointId,
+    tripId: "de:kvv:00S04_:.trip",
+    lineId: "S4",
+    routeDirectionId: "kvv:22304:E:H:s26",
+    transportMode: "tram",
+    destination: "Hochstetten",
+    minutesUntilDeparture: minute,
+    status: "realtime",
+    scheduledDepartureTime: "2026-08-26T07:30:00.000Z",
+    // Every row of a run carries a locator naming its own stop; any one of them reads the trip.
+    tripLocator: locator,
+  });
+  const client = {
+    fetchDepartureBoard: async (
+      stopPointId: string,
+      options: { lineIds?: readonly string[] } = {},
+    ): Promise<KvvDepartureBoard> => {
+      boardRequests.push({ stopId: stopPointId, lineIds: options.lineIds });
+      return {
+        stopPointId,
+        stopName: stopPointId,
+        serverTime: "2026-08-26T07:29:45",
+        servingLines: [],
+        // The one run, seen from each of the three stops it has yet to call at.
+        departures: [runningTrip(stopPointId, 2)],
+      };
+    },
+    fetchTrip: async (requested: KvvTripLocator): Promise<KvvTrip> => {
+      tripRequests.push(requested);
+      return parseTripResponse(tripPayload, requested);
+    },
+  } as unknown as KvvEfaClient;
+  const source = new KvvTransitSource(client);
+
+  const boards = await source.getLineDepartureBoards(
+    ["europaplatz", "muehlburger-tor", "entenfang"],
+    { lineIds: ["kvv:22304:E:H:s26"] },
+  );
+
+  // Three stops read, one trip read.
+  assert.equal(boardRequests.length, 3);
+  assert.equal(tripRequests.length, 1);
+  // Every board asked for the line alone: a filtered board cannot hold another, and needs none of
+  // the mode macros that would make it answer with every row's sequence again.
+  assert.deepEqual(
+    boardRequests.map((request) => request.lineIds?.length),
+    [1, 1, 1],
+  );
+  // And every board's row carries the calls that one reading returned.
+  assert.deepEqual(
+    boards.map((board) => board.departures[0].tripCalls?.length),
+    [2, 2, 2],
+  );
+  assert.deepEqual(
+    boards.map((board) => board.departures[0].tripInstanceId),
+    Array(3).fill(boards[0].departures[0].tripInstanceId),
+  );
+});
+
+test("a trip whose sequence cannot be read still keeps the row it was found on", async () => {
+  // A reading that failed is not evidence that the run is not there: the row stands, and the next
+  // round asks again. Losing it would take a vehicle off the diagram for a lost packet.
+  const client = {
+    fetchDepartureBoard: async (stopPointId: string): Promise<KvvDepartureBoard> => ({
+      stopPointId,
+      stopName: stopPointId,
+      serverTime: "2026-08-26T07:29:45",
+      servingLines: [],
+      departures: [
+        {
+          stopPointId,
+          stopPointName: stopPointId,
+          tripId: "de:kvv:00S04_:.trip",
+          lineId: "S4",
+          routeDirectionId: "kvv:22304:E:H:s26",
+          transportMode: "tram",
+          destination: "Hochstetten",
+          minutesUntilDeparture: 2,
+          status: "realtime",
+          scheduledDepartureTime: "2026-08-26T07:30:00.000Z",
+          tripLocator: locator,
+        } as KvvDeparture,
+      ],
+    }),
+    fetchTrip: async (): Promise<KvvTrip> => {
+      throw new Error("Fahrt nicht lesbar");
+    },
+  } as unknown as KvvEfaClient;
+  const source = new KvvTransitSource(client);
+
+  const boards = await source.getLineDepartureBoards(["europaplatz"], {
+    lineIds: ["kvv:22304:E:H:s26"],
+  });
+
+  assert.equal(boards[0].departures.length, 1);
+  assert.equal(boards[0].departures[0].tripCalls, undefined);
+});
+
+test("a line's reading asks for the calls of the runs out on it, not of tomorrow's departures", async () => {
+  // Forty rows at each of seventy stops name a couple of hundred runs, of which a dozen are on the
+  // line. Every stop of the line is read, so a vehicle out there is minutes from somewhere: a run
+  // whose nearest call anywhere is hours away has not set out, and a sequence read for it buys a
+  // mark that would never be placed.
+  const tripRequests: KvvTripLocator[] = [];
+  const run = (tripId: string, minutesUntilDeparture: number): KvvDeparture =>
+    ({
+      stopPointId: "7001001",
+      stopPointName: "stop",
+      tripId,
+      lineId: "S4",
+      routeDirectionId: "kvv:22304:E:H:s26",
+      transportMode: "tram",
+      destination: "Hochstetten",
+      minutesUntilDeparture,
+      status: "realtime",
+      scheduledDepartureTime: "2026-08-26T07:30:00.000Z",
+      tripLocator: locator,
+    }) as KvvDeparture;
+  const client = {
+    fetchDepartureBoard: async (stopPointId: string): Promise<KvvDepartureBoard> => ({
+      stopPointId,
+      stopName: stopPointId,
+      serverTime: "2026-08-26T07:29:45",
+      servingLines: [],
+      departures: [run("de:kvv:00S04_:.trip", 4), run("de:kvv:00S04_:.tomorrow", 220)],
+    }),
+    fetchTrip: async (requested: KvvTripLocator): Promise<KvvTrip> => {
+      tripRequests.push(requested);
+      return parseTripResponse(tripPayload, requested);
+    },
+  } as unknown as KvvEfaClient;
+  const source = new KvvTransitSource(client);
+
+  const [board] = await source.getLineDepartureBoards(["europaplatz"], {
+    lineIds: ["kvv:22304:E:H:s26"],
+  });
+
+  assert.equal(tripRequests.length, 1);
+  const [underWay, notYetOut] = board.departures;
+  assert.ok(underWay.tripCalls?.length);
+  // The row itself stands either way: it is a departure a rider can read, and the address naming
+  // it reads its calls on its own (`selection.ts`).
+  assert.equal(notYetOut.tripCalls, undefined);
+  assert.equal(notYetOut.destination, "Hochstetten");
+});
+
+test("a run is read once for all its stops, however far along it the rows are", async () => {
+  // The nearest row decides: the same run is minutes away at the stop it is approaching and an
+  // hour away at the end of its route, and it is one vehicle either way.
+  const tripRequests: KvvTripLocator[] = [];
+  const row = (stopPointId: string, minutesUntilDeparture: number): KvvDeparture =>
+    ({
+      stopPointId,
+      stopPointName: stopPointId,
+      tripId: "de:kvv:00S04_:.trip",
+      lineId: "S4",
+      routeDirectionId: "kvv:22304:E:H:s26",
+      transportMode: "tram",
+      destination: "Hochstetten",
+      minutesUntilDeparture,
+      status: "realtime",
+      scheduledDepartureTime: "2026-08-26T07:30:00.000Z",
+      tripLocator: locator,
+    }) as KvvDeparture;
+  let read = 0;
+  const client = {
+    fetchDepartureBoard: async (stopPointId: string): Promise<KvvDepartureBoard> => ({
+      stopPointId,
+      stopName: stopPointId,
+      serverTime: "2026-08-26T07:29:45",
+      servingLines: [],
+      // Near at the stop ahead of it, an hour off at the far end of the same run.
+      departures: [row(stopPointId, read++ === 0 ? 3 : 62)],
+    }),
+    fetchTrip: async (requested: KvvTripLocator): Promise<KvvTrip> => {
+      tripRequests.push(requested);
+      return parseTripResponse(tripPayload, requested);
+    },
+  } as unknown as KvvEfaClient;
+  const source = new KvvTransitSource(client);
+
+  const boards = await source.getLineDepartureBoards(["europaplatz", "entenfang"], {
+    lineIds: ["kvv:22304:E:H:s26"],
+  });
+
+  assert.equal(tripRequests.length, 1);
+  assert.deepEqual(
+    boards.map((board) => Boolean(board.departures[0].tripCalls?.length)),
+    [true, true],
+  );
 });

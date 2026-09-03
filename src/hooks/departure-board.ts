@@ -33,12 +33,24 @@ const loadLineStopBoard = (key: string) => {
 /**
  * Several stops at once, keyed by the joined ids `useKeyedLoad` addresses them under, optionally
  * with a line filter after a `|`.
+ *
+ * The filter is not a narrowing of the same reading but a different one. A stop's board is asked
+ * for the trips behind its rows, because those trips are what the network is observed from and
+ * nothing else will state them. A line's stops are not read that way: the same run is listed at
+ * every stop it has yet to leave, so asking each board for it again transfers one calling sequence
+ * fifteen times to learn it once. `getLineDepartureBoards` reads the rows and then the trips —
+ * see `transit-source.ts`, where both halves and their dating live.
  */
 export const createDepartureBoardsLoader = (request: DepartureBoardRequest) => (key: string) => {
   const { stopKey, lineKey } = parseStopLineKey(key);
-  const lineIds = lineKey ? lineKey.split(",") : undefined;
-  const loadOne = createDepartureBoardLoader(lineIds ? { ...request, lineIds } : request);
-  return Promise.all(stopKey.split(",").map(loadOne));
+  const stopIds = stopKey.split(",");
+  if (lineKey) {
+    return transitSource.getLineDepartureBoards(stopIds, {
+      lineIds: lineKey.split(","),
+      maxAgeMs: request.maxAgeMs,
+    });
+  }
+  return Promise.all(stopIds.map(createDepartureBoardLoader(request)));
 };
 
 /**

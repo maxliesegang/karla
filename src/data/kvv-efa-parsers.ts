@@ -92,9 +92,19 @@ export type KvvDepartureBoard = {
   /** Server time of the feed, so countdowns are anchored to the source, not the browser clock. */
   serverTime: string;
   /** Scheduled line-directions the stop monitor can query; never evidence of a departure itself. */
-  servingDirectionIds: string[];
+  servingLines: KvvServingLine[];
   departures: KvvDeparture[];
 };
+
+/**
+ * One line-direction a stop monitor knows, and the line a rider knows it as.
+ *
+ * The pairing is the point. A provider direction id is opaque — `kvv:22304:E:H:s26` says nothing
+ * about being S4 — so an id read off a departure can only be attributed to the line that departure
+ * is on, and a line with no departure due within the board's few rows can then not be named at all.
+ * The stop states the pairing itself, for every line calling there and whether or not one is due.
+ */
+export type KvvServingLine = { lineId?: string; directionId: string };
 
 export type KvvStopSearchResult = {
   providerId: string;
@@ -126,10 +136,23 @@ export type KvvServiceNotice = {
 /** Today's date in the network's own calendar, as the notice feed's `filterDateValid` wants it. */
 export const formatNetworkCalendarDay = (now: Date): string => networkDateFormat.format(now);
 
+/**
+ * The points a stop search answered with.
+ *
+ * A finder that matched several stops answers with a list of them; one that matched exactly one
+ * answers with that point wrapped in an object instead — `{ points: { point: {…} } }`. Reading the
+ * list shape alone therefore lost every search that succeeded outright, which is exactly what a
+ * deep link performs: a stop whose name matches nothing else could not be resolved by the one
+ * query that names it precisely.
+ */
+function readStopFinderPoints(points: unknown): Record<string, unknown>[] {
+  if (Array.isArray(points)) return points.filter(isRecord);
+  return isRecord(points) ? readRecordList(points.point) : [];
+}
+
 export function parseStopSearchResponse(payload: unknown): KvvStopSearchResult[] {
   if (!isRecord(payload) || !isRecord(payload.stopFinder)) return [];
-  const searchResults = Array.isArray(payload.stopFinder.points) ? payload.stopFinder.points : [];
-  return searchResults.filter(isRecord).flatMap((result) => {
+  return readStopFinderPoints(payload.stopFinder.points).flatMap((result) => {
     if (result.anyType !== "stop") return [];
     const reference = isRecord(result.ref) ? result.ref : undefined;
     const providerId = readOptionalString(reference?.id) ?? readOptionalString(result.stateless);
@@ -171,16 +194,7 @@ export function parseDepartureBoardResponse(
     stopPointId,
     stopName,
     serverTime: parseServerTime(payload.parameters) ?? new Date().toISOString(),
-    servingDirectionIds: [
-      ...new Set(
-        servingLines.flatMap((line) => {
-          const mode = isRecord(line.mode) ? line.mode : undefined;
-          const diva = isRecord(mode?.diva) ? mode.diva : undefined;
-          const id = readOptionalString(diva?.stateless) ?? readOptionalString(line.stateless);
-          return id ? [id] : [];
-        }),
-      ),
-    ],
+    servingLines: parseServingLines(servingLines),
     departures: departureEntries
       .filter(isRecord)
       .map(parseDeparture)
@@ -255,6 +269,30 @@ function findPublishedDelayMinutes(
   const predicted = predictedDepartureTime ? Date.parse(predictedDepartureTime) : Number.NaN;
   if (!Number.isFinite(scheduled) || !Number.isFinite(predicted)) return delayMinutes;
   return Math.round((predicted - scheduled) / 60_000);
+}
+
+/**
+ * The line-directions a stop states for itself, each under the name its departures carry.
+ *
+ * Named the same way a row is (`symbol` before `number`), because the whole use of this is to
+ * recognise a line by the id a departure of it would have stated — read from a different corner of
+ * the same answer, and available when no departure of that line is due.
+ */
+function parseServingLines(lines: readonly Record<string, unknown>[]): KvvServingLine[] {
+  const byDirectionId = new Map<string, KvvServingLine>();
+  for (const line of lines) {
+    const mode = isRecord(line.mode) ? line.mode : undefined;
+    const diva = isRecord(mode?.diva) ? mode.diva : undefined;
+    const directionId = readOptionalString(diva?.stateless) ?? readOptionalString(line.stateless);
+    const lineId =
+      readOptionalString(line.symbol) ??
+      readOptionalString(mode?.symbol) ??
+      readOptionalString(mode?.number) ??
+      readOptionalString(line.number);
+    if (!directionId || byDirectionId.has(directionId)) continue;
+    byDirectionId.set(directionId, lineId ? { lineId, directionId } : { directionId });
+  }
+  return [...byDirectionId.values()];
 }
 
 function parseDeparture(entry: Record<string, unknown>): KvvDeparture | null {
@@ -347,6 +385,36 @@ function parseTripLocator(
     date: `${year}${pad(month)}${pad(day)}`,
     time: `${pad(hour)}${pad(minute)}`,
   };
+}
+
+/**
+ * One line-direction's whole route, from the run a locator names.
+ *
+ * The same shape a trip sequence has, and read by the same call parser — but it is a different
+ * fact. A trip's sequence is what one vehicle is doing; this is where the line goes, stated from
+ * end to end whatever part of it the run was asked about. It is the only reading that says so:
+ * everywhere else the route is inferred from the trips that happen to be out, which is always less
+ * than the line.
+ *
+ * Validated against the echoed `diva.stateless` rather than the trip tuple, because that is what
+ * the answer restates — a wrong `tripCode` comes back as HTTP 200 with an empty sequence, exactly
+ * as it does on the trip endpoint.
+ */
+export function parseLineRouteResponse(payload: unknown, locator: KvvTripLocator): KvvTripCall[] {
+  if (!isRecord(payload)) throw new KvvEfaError(`Linie ${locator.line}: unerwartete Antwort`);
+  const stopSeqCoords = isRecord(payload.stopSeqCoords) ? payload.stopSeqCoords : undefined;
+  const params = isRecord(stopSeqCoords?.params) ? stopSeqCoords.params : undefined;
+  const mode = isRecord(params?.mode) ? params.mode : undefined;
+  const diva = isRecord(mode?.diva) ? mode.diva : undefined;
+  if (readOptionalString(diva?.stateless) !== locator.line) {
+    throw new KvvEfaError(`Linie ${locator.line}: nicht gefunden`);
+  }
+
+  const route = readRecordList(params?.stopSeq)
+    .map((entry) => parseTripCall(entry, false))
+    .filter((call): call is KvvTripCall => call !== null);
+  if (route.length === 0) throw new KvvEfaError(`Linie ${locator.line}: keine Halte`);
+  return route;
 }
 
 /**

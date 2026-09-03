@@ -80,13 +80,16 @@ stops count as the Zentrum (`src/data/zentrum-stops.ts`) and the verified KVV li
 
 ### Reading depth
 
-The ordinary stop board is lightweight and omits complete trip sequences on its 30-second refresh.
-Opening a line reads the same stop again, filtered to that line's two directions: twenty rows spent
-on one line reach most of an hour, where an unfiltered board at a busy post reaches minutes. The
-first few of those departures are then read one at a time through EFA's single-trip endpoint, and
-that is what the line diagram and the ride are drawn from. Sequences batched into a *board* response
-stay bounded — a couple of boards along the line plus the Zentrum's own posts, never one request per
-vehicle.
+Opening a line reads the rider's stop again, filtered to that line's two directions: twenty rows
+spent on one line reach hours of it, where an unfiltered board at a busy post reaches minutes. The
+first few of those departures are read one at a time through EFA's single-trip endpoint, and that is
+what the line diagram and the ride are drawn from.
+
+The line's other calling points are read the same way — filtered, and without calling sequences,
+since the same run is listed at every stop it has yet to leave. Each run actually out on the line is
+read once instead, which is the difference between 34.5 MB and 2.2 MB for one round of S4. The board
+a rider reads is untouched by this: it is read whole, and the operator's mode filter hands it the
+sequences whether or not they were asked for.
 
 Beside a plain board, one detailed reading is reused for 30 minutes to learn which visible trips
 share a first corridor. What those readings say is accumulated for the visit

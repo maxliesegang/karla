@@ -86,13 +86,13 @@ difference of whole minutes, and counting them puts every row a minute below the
 | [`XSLT_TRIP_REQUEST2`](https://projekte.kvv-efa.de/sl3-alone/XSLT_TRIP_REQUEST2?) | Door-to-door journey calculation | Verified, out of scope |
 | [`XSLT_SELTT_REQUEST`](https://projekte.kvv-efa.de/sl3-alone/XSLT_SELTT_REQUEST?) | Select timetable or line variants | Verified, not in use |
 | `XML_STOPLIST_REQUEST` | Every stop of a municipality, with its locality | In use offline by `scripts/refresh-stop-catalog.ts` (`rapidJSON` only) |
-| `XML_SERVINGLINES_REQUEST` | Lines serving one stop | Verified, not in use — GTFS answers it for every stop at once |
+| `XML_SERVINGLINES_REQUEST` | Lines serving one stop | Verified, not in use — every DM board already embeds the same `servingLines` |
 | `XSLT_STT_REQUEST` | Stop timetable document/data | Available, not in use |
-| `XSLT_TTB_REQUEST` | Line timetable document/data | Available, not in use |
-| `XSLT_ROP_REQUEST` | Line route-plan document/data | Available, not in use |
+| `XSLT_TTB_REQUEST` | Line timetable document/data | Reachable; answered an empty `lineByName` for every parameter set tried |
+| `XSLT_ROP_REQUEST` | Line route-plan document/data (`reqType=lvp`) | Reachable; answered an empty `lineByName` for every parameter set tried |
 | `XSLT_ROUTE_REQUEST` | Printable route material | Available, not in use |
 | `XML_GEOOBJECT_REQUEST` | Line geometry | Available, not in use |
-| `XML_STOPSEQCOORD_REQUEST` | Stop-sequence geometry | Available, not in use |
+| [`XML_STOPSEQCOORD_REQUEST`](https://projekte.kvv-efa.de/sl3-alone/XML_STOPSEQCOORD_REQUEST?) | A line's whole route, terminus to terminus, plus its geometry | Verified, not in use |
 | `https://projekte.kvv-efa.de/json` | Nominal live vehicle positions | Returned HTTP 400; do not use |
 
 ## Departure monitor: `XSLT_DM_REQUEST`
@@ -121,7 +121,8 @@ XSLT_DM_REQUEST
 | `mode` | `direct` | Perform the board request directly. |
 | `useRealtime` | `1` | Ask for live predictions. The response may still contain scheduled-only rows. |
 | `itdDateTimeDepArr` | `dep`, `arr` | Select departures or arrivals. |
-| `limit` | positive integer | Limit the returned events exactly. This is the main bandwidth control. |
+| `limit` | positive integer | Limits the returned events exactly — **but only when sent before the mode macros**. See "Row cap". |
+| `depSequence` | integer ≥ 2 | The same cap, honoured in any position. This is the main bandwidth control. |
 | `useProxFootSearch` | `0` | Read this stop only. Without it the board may spend rows on neighbouring stops. |
 | `line` | `servingLine.stateless`, repeatable | Restrict the board to those line-directions. See below. |
 | `coordOutputFormat` | `WGS84[DD.ddddd]` | Return usable stop coordinates. |
@@ -198,6 +199,28 @@ KARLA asks every board for `1`, `4` and `5` and drops the coaches again by `motT
 answer is read, both from the rows and from the serving directions a coverage read would query.
 `limit` is spent before that second pass, so a coach still costs a row.
 
+### The mode macros decide more than the modes
+
+`std3_commonMacro=dm` with the `std3_inclMOT_*` flags does two costly things beyond filtering modes:
+
+- **The row cap only holds before them.** `limit` sent before the macros is exact; sent after them
+  it is ignored and the board answers with the monitor's own forty rows. Nothing in the answer says
+  which happened, so the parameter order in `kvv-efa-client.ts` is load-bearing. `depSequence` caps
+  the same set in either position, so KARLA sends both names, before the macros. `depSequence=1`
+  answers with no rows at all.
+- **They force every row's complete calling sequence**, whether or not
+  `depType=stopEvents&includeCompleteStopSeq=1` was asked for. There is no light board on this form.
+
+A board asked for named line-directions needs none of it — the filter already excludes every other
+mode — so KARLA sends the macros only on an unfiltered board. Twenty rows of one line at
+Augartenstraße, on the wire:
+
+| Board | Wire | Raw |
+| --- | --- | --- |
+| unfiltered, macros (what a rider reads) | 92 kB | 654 kB |
+| filtered, macros | 88 kB | 676 kB |
+| filtered, no macros | **4.1 kB** | 37 kB |
+
 ### Line filter: `line`
 
 Send `servingLine.stateless` values as repeated `line` parameters to restrict the board to those
@@ -208,47 +231,51 @@ but the named line.
 directions of Linie 3 — so covering a line means sending both. KARLA already carries the value on
 every departure as `routeDirectionId`.
 
-The filter's real effect is on horizon rather than on transfer. `limit` is spent on whatever the
-board returns, and an unfiltered Zentrum post spends it across every line calling there.
+A line's reading is therefore two requests deep rather than one wide: light filtered boards say
+which runs are out there, and each run that is actually out is read once from the single-trip
+endpoint below (3.2 kB on the wire) instead of arriving again at every stop it has yet to leave. A
+run whose nearest row anywhere is hours off has not set out, and its sequence is not read at all —
+every stop of the line is read, so a vehicle on it is minutes from somewhere.
 
-Measured at Europaplatz-U (`7001004`) on 26 August 2026, with `depType=stopEvents` and
-`includeCompleteStopSeq=1`:
+One round of S4 from Augartenstraße, 56 calling points, 1093 rows either way:
 
-| Request | Rows | Horizon | Rows of Linie 3 | Wire (gzip) |
-| --- | --- | --- | --- | --- |
-| unfiltered, `limit=40` | 40 | 21 min | 8 | 237 kB |
-| `line` ×2 (Linie 3), `limit=40` | 40 | 92 min | 40 | 318 kB |
-| `line` ×2 (Linie 3), `limit=20` | 20 | 42 min | 20 | 161 kB |
+| Reading | Requests | Raw |
+| --- | --- | --- |
+| one detailed board per stop | 56 | 34.5 MB |
+| rows, then the runs under way | 69 | **2.2 MB** |
 
-Twenty-three distinct line/direction combinations competed for the forty unfiltered rows, which is
-why that board reaches only twenty minutes ahead. A vehicle starting a forty-five-minute run at the
-end of a line is on no Zentrum board at all until it is roughly halfway in.
+The endpoint speaks HTTP/2, so the extra requests are multiplexed over one connection.
 
-Two cautions:
+It buys horizon as well as transfer: `limit` is spent on whatever the board returns, so an
+unfiltered Zentrum post spends twenty rows across every line calling there and reaches minutes,
+where twenty rows of one line reach hours of it.
 
-- **`lineInfos` is repeated per row and could not be suppressed.** Each row of a line under
-  diversion carried the same ~16.5 kB notice blob, so even a *basic* filtered board of a diverted
-  line was 733 kB raw for 86 kB on the wire. `useLineInfo=0`, `lineInfo=0`, `showLineInfo=0`,
-  `itdLPxx_showAddInfo=0` and `genMaps=0` all returned byte-identical responses. It compresses away
-  but still costs parse and heap; notices already have their own endpoint and cadence.
-- **A filtered answer does not describe the stop.** Its `servingLines` covers only what was asked
-  for, so it must never be recorded as the stop's serving directions.
+Because it works exactly, the filter must be sent whole or not at all. A board asked for one
+direction answers with that direction and says nothing about the other, and nothing marks the
+omission — so a half-named filter is a reading with a hole in it, held open by itself: the ids are
+learned from rows, and the rows that would name the missing direction are the ones it drops. KARLA
+reads unfiltered until both directions of every line in the reading are named
+(`lib/line-observation.ts`), taking a shared board's shorter horizon over a long reading of half a
+line.
 
-An *unfiltered* board's `servingLines.lines[].mode.diva.stateless` lists the line-directions the
-monitor knows at that stop, including ones no returned row mentions. That makes it a useful set of
-query candidates for a follow-up filtered read — but it is scheduled metadata, never evidence of a
-departure, so nothing from it may be rendered without a live row behind it.
+Where the ids come from matters as much. An *unfiltered* board's `servingLines.lines[]` names every
+line-direction the monitor knows there — including ones no row mentions — and each entry carries
+both `mode.diva.stateless` and `mode.number`, the id and the line a rider knows it as. Without that
+pairing an id can only be attributed to the line of the departure it was read from, so a line with
+no row among a busy stop's twenty could not be named there at all. It is scheduled metadata, never
+evidence of a departure: nothing from it may be rendered without a live row behind it.
 
-### Sizes are raw, not wire
+### Sizes are raw unless stated
 
-The byte counts in this document are decompressed sizes. The server sets
-`Content-Encoding: gzip` when asked, and these responses compress by roughly 6-8×: the detailed
-unfiltered board above is 1.34 MB raw and 237 kB on the wire. Judge transfer by the wire figure and
-parse cost by the raw one.
+Byte counts here are decompressed unless a table names a wire figure. The server sets
+`Content-Encoding: gzip` when asked and these responses compress by roughly 6-8×, so judge transfer
+by the wire figure and parse cost by the raw one.
 
 ### Batched stop sequences
 
-KARLA uses these parameters together for bounded line and topology observations:
+KARLA uses these parameters together for the stop-topology read and the station board's own
+detailed reading. A line is not read this way — see the line filter above — and a board carrying
+the mode macros answers with the sequences whether or not these are sent:
 
 ```text
 depType=stopEvents
@@ -267,16 +294,15 @@ Observed behavior:
 In a three-departure sample, the response grew from about 37 kB to 88 kB when complete sequences
 were requested. A busy board with more departures can be much larger. Preserve KARLA's rule:
 
-- A plain live board stays basic, and twenty rows is the budget: to see further, filter by `line`
-  rather than raise `limit`.
+- A plain live board asks for nothing past its rows — the mode macros hand it the sequences anyway —
+  and twenty rows is the budget: to see further, filter by `line` rather than raise the cap.
 - A plain stop may make one slow, cached topology read no more than every 30 minutes. Anything that
   *completes* a board — filling directions too sparse to appear in twenty rows — is a reading with
   its own life, not part of the 30-second cycle, and is the one read allowed past the row budget:
   a single filtered answer covers every sparse direction at once, which is cheaper than one request
   per line. Its held rows are published only where they are further out than the reading is old.
-- A line is observed from a few detailed boards spread along it, never one per stop.
-- A selected line's departures use the single-trip endpoint below, capped at the few vehicles a
-  diagram can mark and re-read more slowly than the board beside them.
+- A line is read as rows and its runs as trips, one board per calling point and one request per run
+  actually out on the line — never a detailed board per stop.
 
 ## Single trip: `XML_TRIPSTOPTIMES_REQUEST`
 
@@ -436,6 +462,84 @@ event rather than assuming this option controls complex membership.
 `itdLPxx_template`, `itdLPxx_snippet`, `sessionID`, `requestID`, and similar fields are HTML client
 plumbing and are unnecessary for a direct JSON board.
 
+## Line route: `XML_STOPSEQCOORD_REQUEST`
+
+This endpoint answers the one question the app has no other source for: **every stop of a line, in
+order, in one request**. Everywhere else a line's route is inferred from the trips running on it —
+which is always less than the line — so this is the only reading that states the route rather than
+observing a sample of it.
+
+```text
+XML_STOPSEQCOORD_REQUEST
+  ?outputFormat=json
+  &line=kvv:21003:E:R:s26
+  &tripCode=35
+  &date=20260904
+  &time=0900
+  &stop=7000089
+```
+
+Its locator is the same tuple `XML_TRIPSTOPTIMES_REQUEST` takes, and a basic DM row already carries
+every field of it:
+
+| Request parameter | DM field |
+| --- | --- |
+| `line` | `servingLine.stateless` |
+| `tripCode` | `servingLine.key` |
+| `stop` | `stopID` — note the name, not `stopID` as on the trip endpoint |
+| `date` | scheduled `dateTime`, formatted `YYYYMMDD` |
+| `time` | scheduled `dateTime`, formatted `HHMM` |
+
+The answer is `stopSeqCoords`, with two parts:
+
+- `params.stopSeq[]` — the run's calls from origin terminus to destination terminus, **not** from
+  the requested stop onward. Each entry carries `ref.id` (the numeric stop id a board is requested
+  with), `ref.gid`, `place`, `placeID`, `platformName`, and the scheduled `ref.depDateTime`.
+- `coords.path` — the route geometry as a space-separated list of projected coordinate pairs.
+  `coordListOutputFormat=NONE` does **not** suppress it; the response is the same size either way.
+
+Measured on line 3 (verified 3 September 2026): `:R:` returned 30 stops, Daxlanden Waidweg →
+Rintheim, 29.4 kB, of which 6.7 kB was a 249-point path; `:H:` returned 32 stops, 32.2 kB. That is
+one request in place of a filtered board at each of thirty stops.
+
+Integration cautions:
+
+- **`tripCode` must name a real run** of that line-direction at that date and time. A wrong code
+  returns HTTP 200 with an empty `stopSeq`, as the trip endpoint does. Validate a non-empty
+  sequence.
+- **`stop` must be one the run calls at.** Requesting line 3 `:R:` with its own origin `7000306`
+  returned an empty sequence where `7000089` a few stops later returned the whole route; what
+  distinguishes them is not yet established. Prefer a stop the line passes through.
+- **It answers for one run, not for the line.** A short working returns the short route. Ask at a
+  daytime `date`/`time` for the full-length variant — nothing here needs realtime — or take the
+  union over several runs.
+- A stop id may repeat in the sequence where a line calls twice at one Haltestelle under different
+  `ref.area` / `ref.platform` values. Deduplicate on `ref.id`.
+- It states the route as **currently timetabled**, diversions included: the tested line 3 run was
+  signed `Rintheim (Umleitung)`. A GTFS-derived route would not know that.
+
+## Lines at a stop: `XML_SERVINGLINES_REQUEST`
+
+Verified and deliberately **not** used: it answers nothing a board in hand does not already state.
+
+```text
+XML_SERVINGLINES_REQUEST?outputFormat=json&mode=odv&type_sl=stopID&name_sl=7000089
+```
+
+Every `XSLT_DM_REQUEST` response already embeds a `servingLines.lines[]` array of the same shape,
+each entry carrying `mode.diva.stateless` — the per-direction id — whether or not a departure of
+that line is due. That is what `parseServingLines` reads, and it is why a stop can name a line the
+board has no row for.
+
+The dedicated endpoint returned 58 line-directions at the Hauptbahnhof against the board's 32; the
+difference is modes the board's macros exclude and therefore modes KARLA drops anyway.
+
+**It does not solve the terminus case, and neither does the board.** At Hochstetten, an end of both
+lines calling there, the dedicated endpoint and the DM board agree exactly: `kvv:22301:E:R:s26` and
+`kvv:22311:E:R:s26`, the departing directions only. Nothing at a terminus names the direction that
+merely arrives there. A reading that must name both (see `lib/line-observation.ts`) has to reach a
+stop further along the line, which is a question about the route and belongs to the endpoint above.
+
 ## Stop finder: `XSLT_STOPFINDER_REQUEST`
 
 KARLA currently uses:
@@ -471,6 +575,10 @@ Ahlbeck), so no result can be placed inside the network's area. Keep `type_sf=an
 | `street` | Street | Low |
 | `poi` | Point of interest | Low |
 | `loc` | Locality or district | Low |
+
+The answer's shape depends on how many stops matched: several come back as `stopFinder.points` (a
+list), one comes back as `stopFinder.points.point` (a single object). A precise query — the kind a
+deep link performs — is exactly the one that matches once, so both shapes have to be read.
 
 KARLA correctly keeps only `stop` results today. Address and POI results become useful mainly for
 journey planning.

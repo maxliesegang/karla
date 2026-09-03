@@ -202,3 +202,47 @@ test("a stop the session has already met is answered without another wait", asyn
   assert.ok(resolved);
   assert.equal(source.getKnownStop(resolved.id)?.id, resolved.id);
 });
+
+test("a search that matched exactly one stop is read, not dropped", () => {
+  // The finder lists its points when it found several and wraps the one point in an object when it
+  // found one. Reading only the list shape lost every search that succeeded outright — and that is
+  // the search a deep link performs: a stop whose name matches nothing else could then not be
+  // resolved by the one query that names it precisely, and the whole address failed with it.
+  const results = parseStopSearchResponse({
+    stopFinder: {
+      points: {
+        point: {
+          anyType: "stop",
+          name: "Öhringen, Öhringen Hbf",
+          ref: { id: "5410220", place: "Öhringen", coords: "9.502280,49.203248" },
+        },
+      },
+    },
+  });
+
+  assert.deepEqual(results, [
+    {
+      providerId: "5410220",
+      name: "Öhringen Hbf",
+      placeName: "Öhringen",
+      longitude: 9.50228,
+      latitude: 49.203248,
+    },
+  ]);
+});
+
+test("a stop the session has never met is resolved from the id in a shared link", () => {
+  // The digest in the id says which stop point the link was made from, so only that one will do.
+  const client = {
+    searchStops: async (): Promise<KvvStopSearchResult[]> => [
+      { providerId: "5419603", name: "Öhringen West", placeName: "Öhringen" },
+      { providerId: "5410220", name: "Öhringen Hbf", placeName: "Öhringen" },
+    ],
+  } as unknown as KvvEfaClientType;
+  const source = new KvvTransitSource(client, { stops: [], lines: [] } as TransitNetwork);
+
+  return source.resolveStop("oehringen-hbf--1lmhxmn").then((stop) => {
+    assert.equal(stop?.id, "oehringen-hbf--1lmhxmn");
+    assert.equal(stop?.name, "Öhringen Hbf");
+  });
+});

@@ -134,7 +134,30 @@ type DepartureBoardReading = {
   /** When this board reached us, on the device's clock, so its age and the feed's clock are known. */
   receivedAt: number;
   departures: readonly Departure[];
+  /**
+   * The line-directions the monitor knows at this stop, each with the line a rider knows it as.
+   *
+   * Present only on a board that describes the whole stop. A filtered board saw only the lines it
+   * was asked about, so it cannot say what else calls there and does not carry this at all — the
+   * absence is the statement that this board has nothing to say about it, never that nothing does.
+   *
+   * Scheduled metadata, and never evidence of a departure: it says a line is known here, not that
+   * one is running or due. Nothing may be rendered from it. What it is for is asking the next
+   * question — the ids named here are the ones a board may be filtered to, which is how a line
+   * with no row among a busy stop's few, and the one direction a terminus never lists a row for,
+   * are both still read along the rest of their line.
+   */
+  servingLines?: readonly ServingLine[];
 };
+
+/**
+ * One line-direction a stop states for itself: the provider's id, under the line's own name.
+ *
+ * The name is what makes the id usable — an opaque `kvv:22304:E:H:s26` is nobody's line until
+ * something says it is S4's. It is still optional, because the id alone is worth keeping: the
+ * coverage pass queries by id and never needs to know whose it is.
+ */
+export type ServingLine = { lineId?: string; directionId: string };
 
 /**
  * One trip's calls, and when that reading was actually made.

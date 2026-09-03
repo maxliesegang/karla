@@ -2,6 +2,7 @@ import {
   KvvEfaError,
   formatNetworkCalendarDay,
   parseDepartureBoardResponse,
+  parseLineRouteResponse,
   parseServiceNoticeResponse,
   parseStopSearchResponse,
   parseTripResponse,
@@ -9,11 +10,15 @@ import {
   type KvvServiceNotice,
   type KvvStopSearchResult,
   type KvvTrip,
+  type KvvTripCall,
   type KvvTripLocator,
 } from "./kvv-efa-parsers";
 
 const DEFAULT_DEPARTURE_ENDPOINT = "https://projekte.kvv-efa.de/sl3-alone/XSLT_DM_REQUEST";
 const DEFAULT_TRIP_ENDPOINT = "https://projekte.kvv-efa.de/sl3-alone/XML_TRIPSTOPTIMES_REQUEST";
+/** A line's whole route, which no board states — see `docs/kvv-efa-api.md`. */
+const DEFAULT_LINE_ROUTE_ENDPOINT =
+  "https://projekte.kvv-efa.de/sl3-alone/XML_STOPSEQCOORD_REQUEST";
 const DEFAULT_STOP_SEARCH_ENDPOINT =
   "https://projekte.kvv-efa.de/sl3-alone/XSLT_STOPFINDER_REQUEST";
 /** The operator's published notices — planned closures, replacement services, diversions. */
@@ -33,7 +38,27 @@ const WGS84_COORDINATE_FORMAT = "WGS84[DD.ddddd]";
  * with the regional trains, and the bus group carries long-distance coaches along with the city
  * buses. The coaches are therefore dropped again when the answer is read
  * (`kvv-efa-parsers.ts`), which is the only place their `motType` is visible.
+ *
+ * They are sent only where they answer something. A board asked for named line-directions cannot
+ * contain another mode at all — the filter is the narrower statement of the same thing — and the
+ * macros are not free: they make the monitor answer in its own form, which ignores the row cap and
+ * returns every row's complete calling sequence whether or not one was asked for. On a filtered
+ * board that is the difference between 21 kB and 108 kB on the wire for the same twenty rows.
  */
+/**
+ * How many rows a board may answer with — under both names the endpoint knows.
+ *
+ * `limit` is exact only where it is sent *before* the mode macros below; after them the monitor
+ * ignores it and answers with its own forty rows, and nothing in the answer says which happened.
+ * The order in this object is therefore load-bearing, which is exactly what a later tidy-up would
+ * undo. `depSequence` caps the same set in either position, so both are sent — and never below
+ * two, because `depSequence=1` answers with no rows at all. Measurements: `docs/kvv-efa-api.md`.
+ */
+const toRowLimitParameters = (limit: number) => {
+  const rows = String(Math.max(2, limit));
+  return { limit: rows, depSequence: rows };
+};
+
 const LOCAL_NETWORK_MODE_PARAMETERS = {
   std3_commonMacro: "dm",
   includedMeans: "checkbox",
@@ -45,6 +70,7 @@ const LOCAL_NETWORK_MODE_PARAMETERS = {
 export type KvvEfaClientOptions = {
   departureEndpoint?: string;
   tripEndpoint?: string;
+  lineRouteEndpoint?: string;
   stopSearchEndpoint?: string;
   serviceNoticeEndpoint?: string;
   timeoutMs?: number;
@@ -63,6 +89,7 @@ export type KvvEfaClientOptions = {
 export class KvvEfaClient {
   private readonly departureEndpoint: string;
   private readonly tripEndpoint: string;
+  private readonly lineRouteEndpoint: string;
   private readonly stopSearchEndpoint: string;
   private readonly serviceNoticeEndpoint: string;
   private readonly timeoutMs: number;
@@ -70,6 +97,7 @@ export class KvvEfaClient {
   constructor(options: KvvEfaClientOptions = {}) {
     this.departureEndpoint = options.departureEndpoint ?? DEFAULT_DEPARTURE_ENDPOINT;
     this.tripEndpoint = options.tripEndpoint ?? DEFAULT_TRIP_ENDPOINT;
+    this.lineRouteEndpoint = options.lineRouteEndpoint ?? DEFAULT_LINE_ROUTE_ENDPOINT;
     this.stopSearchEndpoint = options.stopSearchEndpoint ?? DEFAULT_STOP_SEARCH_ENDPOINT;
     this.serviceNoticeEndpoint = options.serviceNoticeEndpoint ?? DEFAULT_SERVICE_NOTICE_ENDPOINT;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -92,14 +120,37 @@ export class KvvEfaClient {
       useRealtime: "1",
       useProxFootSearch: "0",
       itdDateTimeDepArr: "dep",
-      limit: String(options.limit ?? DEFAULT_DEPARTURE_LIMIT),
-      ...LOCAL_NETWORK_MODE_PARAMETERS,
+      ...toRowLimitParameters(options.limit ?? DEFAULT_DEPARTURE_LIMIT),
+      ...(options.lineIds?.length ? {} : LOCAL_NETWORK_MODE_PARAMETERS),
       // Without this the feed answers in its own projected grid (MRCV), which no map shares.
       coordOutputFormat: WGS84_COORDINATE_FORMAT,
       ...(options.lineIds?.length ? { line: options.lineIds } : {}),
       ...(options.includeTripCalls ? { depType: "stopEvents", includeCompleteStopSeq: "1" } : {}),
     });
     return parseDepartureBoardResponse(payload, stopPointId);
+  }
+
+  /**
+   * Where one line-direction goes, from any run of it: the whole route, terminus to terminus.
+   *
+   * The same locator the trip endpoint takes — a run is how this endpoint is addressed — but the
+   * answer is the line's, not the run's, and the requested stop is only where the line is caught.
+   * Ordinary boards never state this: they state trips, and the trips running at any hour describe
+   * less of the line than the line. Measured at about 30 kB for a thirty-stop tram line, which is
+   * one request in place of a filtered board at every stop of it.
+   *
+   * `stop`, not `stopID`, which is the trip endpoint's name for the same field.
+   */
+  async fetchLineRoute(locator: KvvTripLocator): Promise<KvvTripCall[]> {
+    const payload = await this.requestJson(this.lineRouteEndpoint, `Linie ${locator.line}`, {
+      line: locator.line,
+      tripCode: locator.tripCode,
+      stop: locator.stopPointId,
+      date: locator.date,
+      time: locator.time,
+      coordOutputFormat: WGS84_COORDINATE_FORMAT,
+    });
+    return parseLineRouteResponse(payload, locator);
   }
 
   /** One dated trip, identified by the opaque tuple a basic departure row already carries. */

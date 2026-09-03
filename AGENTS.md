@@ -7,10 +7,10 @@ See the [README](./README.md) for the data source and station-board parameters.
 
 ```bash
 npm run dev
-npm run build          # tsc -b && vite build — run before handing off a change
+npm run build          # tsc -b && vite build
 npm run lint
 npm run format         # biome format --write . — the formatter is the style authority
-npm test
+npm test               # tests and build both pass before handing off a change
 npm run refresh:stops  # regenerates src/data/generated from the operator's published data
 ```
 
@@ -60,6 +60,16 @@ published URL segment is still `/center`.
   that stops running leaves the view by itself.
 - **Bandwidth is a design constraint.** Rows are the budget: a view that needs to see further asks
   for one line, not for more rows. Hidden pages neither poll nor tick.
+- **A line is read as rows, then as runs.** Each run out on the line is read once from the trip
+  endpoint, not once per stop it has yet to call (`getLineDepartureBoards`). Whole-stop boards are
+  the other reading and stay as they are.
+- **A route is a seed, never an answer.** The provider states where a line goes
+  (`XML_STOPSEQCOORD_REQUEST`, one request per line-direction, kept for the session). It decides
+  which stops are *read* and never what is drawn: a stop of the route nothing calls at today
+  contributes a board with no rows and leaves the diagram by itself, as an observed stop does.
+- **A filter is sent whole or not at all.** A one-direction board is silently incomplete, so the
+  reading waits until both directions are named from the stop's own `servingLines`
+  (`lib/line-observation.ts`).
 - **Views never touch a provider.** Fetching, id resolution, and merging live behind `TransitSource`.
 - **Routing is hash-based and goes through `routePaths`.** Components get routing, data, and time as
   props and never touch `window`.
@@ -67,7 +77,9 @@ published URL segment is still `/center`.
   have been observed sharing at one stop, addressed `line/S1+S11` and chosen by the rider.
   `lib/line-families.ts` stays the statement of line identity and never merges them.
 - **Each level of the chain drops back on its own.** Never drop a level on a feed failure, and never
-  pin a level the rider did not choose.
+  pin a level the rider did not choose — nor before the readings that could name it have answered:
+  a trip that has left this stop is on no board here and on the line's own boards
+  (`isAddressedTripOutstanding`).
 
 ## Data honesty
 
