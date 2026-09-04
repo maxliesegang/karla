@@ -194,11 +194,12 @@ export function LineDiagramPanel({
                 getSelectionPath({
                   stopId,
                   lineId: line.id,
+                  bundledLineIds: (bundledLines ?? []).map(({ id }) => id),
                   tripId: departure && getDepartureRouteId(departure),
                 }),
               ),
           },
-    [departure, isRide, line.id, onToggleAlighting],
+    [bundledLines, departure, isRide, line.id, onToggleAlighting],
   );
   // The real terminus remains in the measured list. This independent summary supplies destination
   // context only after that row has left the scrollport, and only where there is one top end.

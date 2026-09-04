@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { Departure, TripCall } from "../src/data/transit-types.ts";
+import type { Departure, DepartureBoard, TripCall } from "../src/data/transit-types.ts";
 import { updateStopCorridorPatterns } from "../src/lib/stop-corridor-patterns.ts";
 import {
   chooseLineBundleChain,
   findLineBundleOffers,
   formatLineSelection,
   getLineBundleControls,
+  getResolvedBundledLineIds,
   getLineBundleTermini,
   getLineBundleTerminatingLabel,
   getLineBundleTrunk,
@@ -426,6 +427,49 @@ test("reads and writes the bundle address, and drops a repeated line from it", (
   assert.deepEqual(parseLineSelection("2"), { lineId: "2", bundledLineIds: [] });
   assert.equal(formatLineSelection({ lineId: "S1", bundledLineIds: ["S11"] }), "S1+S11");
   assert.equal(formatLineSelection({ lineId: "S1", bundledLineIds: [] }), "S1");
+});
+
+test("keeps an addressed bundle until the new stop's board has answered", () => {
+  assert.deepEqual(getResolvedBundledLineIds(["S11"], null), ["S11"]);
+  assert.deepEqual(
+    getResolvedBundledLineIds(["S11"], {
+      stopId: "ettlingen-neuwiesenreben--sc3hvj",
+      receivedAt: 1,
+      departures: [],
+      dataStatus: "unavailable",
+      errorMessage: "nicht erreichbar",
+    }),
+    ["S11"],
+  );
+});
+
+test("resolves a bundle from all lines serving the stop, not only its limited rows", () => {
+  const board = {
+    stopId: "ettlingen-neuwiesenreben--sc3hvj",
+    receivedAt: 1,
+    departures: [s1],
+    servingLines: [
+      { lineId: "S1", directionId: "s1-north" },
+      { lineId: "S11", directionId: "s11-north" },
+    ],
+    dataStatus: "live",
+    feedUpdatedAt: "2026-09-04T12:00:00+02:00",
+  } satisfies DepartureBoard;
+
+  assert.deepEqual(getResolvedBundledLineIds(["S11"], board), ["S11"]);
+  assert.deepEqual(getResolvedBundledLineIds(["S2"], board), []);
+});
+
+test("falls back to live departure rows when a whole-stop line list is absent", () => {
+  const board = {
+    stopId: "hochstetten",
+    receivedAt: 1,
+    departures: [s11],
+    dataStatus: "live",
+    feedUpdatedAt: "2026-09-04T12:00:00+02:00",
+  } satisfies DepartureBoard;
+
+  assert.deepEqual(getResolvedBundledLineIds(["S11"], board), ["S11"]);
 });
 
 test("reads a departure of any bundled line as the selection", () => {

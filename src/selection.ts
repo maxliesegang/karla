@@ -14,7 +14,12 @@ import { mergeTripSequence } from "./lib/trip-calls";
 import { findBestTripReading } from "./lib/trips";
 import { getLineSign } from "./data/line-signs";
 import { findLineForRoute, isSameLineFamily } from "./lib/line-families";
-import { createLineSelection, isSelectedLine, type LineSelection } from "./lib/line-bundles";
+import {
+  createLineSelection,
+  getResolvedBundledLineIds,
+  isSelectedLine,
+  type LineSelection,
+} from "./lib/line-bundles";
 import type {
   Departure,
   DepartureBoard,
@@ -175,7 +180,7 @@ export function useSelectionChain(
   // The siblings the address asks for, kept only while this stop's own board still lists them.
   // Nothing else may add one: a bundle is the rider's choice, and inferring it from a shared
   // corridor would pin a level they never chose.
-  const bundledLines = useBundledLines(route.bundledLineIds, selectedLine, network, departures);
+  const bundledLines = useBundledLines(route.bundledLineIds, selectedLine, network, departureBoard);
   const lineSelection = useMemo(
     () =>
       createLineSelection(
@@ -463,27 +468,31 @@ function useLineDeparturesAtStop(
 }
 
 /**
- * The siblings of the addressed line that are actually running here.
+ * The siblings of the addressed line that resolve at this stop.
  *
- * Resolved against this stop's own board rather than the observed network: the bundle is a reading
- * of this stop's corridor, so the evidence that belongs to it is what leaves from here. A sibling
- * the board does not list drops out of the address and the line is read alone — the same way a
- * departed trip drops back to its line.
+ * A bundle is a rider choice, so it is retained while this stop's board is unread or unavailable.
+ * A live whole-stop board resolves it from `servingLines`, not only its limited departure rows: at
+ * a busy stop a sibling can call here without appearing among the next twenty trips. Only a live
+ * answer that names neither the line nor one of its departures drops it from the address.
  */
 function useBundledLines(
   bundledLineIds: readonly string[],
   selectedLine: TransitLine | undefined,
   network: TransitNetwork | null,
-  departures: readonly Departure[],
+  departureBoard: DepartureBoard | null,
 ): readonly TransitLine[] {
   return useMemo(() => {
     if (!selectedLine || !network || bundledLineIds.length === 0) return EMPTY_LINES;
-    return bundledLineIds.flatMap((lineId) => {
+    return getResolvedBundledLineIds(bundledLineIds, departureBoard).flatMap((lineId) => {
       if (isSameLineFamily(lineId, selectedLine.id)) return [];
-      const running = departures.find((departure) => isSameLineFamily(departure.lineId, lineId));
+      const running = departureBoard?.departures.find((departure) =>
+        isSameLineFamily(departure.lineId, lineId),
+      );
+      const observed = findLineForRoute(network.lines, lineId);
+      if (observed) return [observed];
       return running ? [getLineSign(network.lines, running.lineId, running.transportMode)] : [];
     });
-  }, [bundledLineIds, departures, network, selectedLine]);
+  }, [bundledLineIds, departureBoard, network, selectedLine]);
 }
 
 /**

@@ -1,4 +1,4 @@
-import type { Departure, TransportMode, TripCall } from "../data/transit-types";
+import type { Departure, DepartureBoard, TransportMode, TripCall } from "../data/transit-types";
 import { compareLineIds, getLineFamilyId, isSameLineFamily } from "./line-families";
 import { findStopCorridorPattern, type StopCorridorPatterns } from "./stop-corridor-patterns";
 import {
@@ -68,6 +68,31 @@ export const isSelectedLine = (selection: LineSelection, lineId: string): boolea
 
 export const isBundledSelection = ({ bundledLineIds }: LineSelection): boolean =>
   bundledLineIds.length > 0;
+
+/**
+ * The addressed siblings that this stop has actually answered for.
+ *
+ * An unread or failed board cannot disprove the rider's choice, so the address stands until a live
+ * whole-stop reading arrives. Once it does, `servingLines` is the complete answer to which lines
+ * call here; the few departure rows are only a fallback for older/provider readings that carry no
+ * such metadata. This only resolves whether the line serves this stop; its live-network presence
+ * separately decides whether it is running. The distinction matters at busy stops, where a line
+ * can serve the stop without winning one of the board's limited rows.
+ */
+export function getResolvedBundledLineIds(
+  bundledLineIds: readonly string[],
+  departureBoard: DepartureBoard | null,
+): readonly string[] {
+  if (departureBoard?.dataStatus !== "live") return bundledLineIds;
+
+  return bundledLineIds.filter(
+    (lineId) =>
+      departureBoard.servingLines?.some(
+        (servingLine) => servingLine.lineId && isSameLineFamily(servingLine.lineId, lineId),
+      ) ||
+      departureBoard.departures.some((departure) => isSameLineFamily(departure.lineId, lineId)),
+  );
+}
 
 /**
  * Reads a line path segment, which is one line id or a bundle of them.
