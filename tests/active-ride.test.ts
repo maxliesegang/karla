@@ -16,8 +16,8 @@ const departure: Departure = {
   transportMode: "tram",
   destination: "Durlach",
   minutesUntilDeparture: 1,
-  platformName: "2",
-  boardingStopId: "europaplatz",
+  platformCode: "2",
+  boardingLocalStopId: "europaplatz",
   status: "realtime",
   scheduledDepartureTime: "2026-08-23T16:01:00Z",
   tripCalls: [

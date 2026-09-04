@@ -1,9 +1,10 @@
 import { labelByTransportMode } from "../data/line-signs";
 import type { Departure, DepartureBoard, TripCall } from "../data/transit-types";
 import { findExpectedDepartureInstant, getBoardAgeMs, getCountdownMinutes } from "./feed-clock";
-import { formatSpokenPlatformName } from "./platform-naming";
+import { formatSpokenPlatformLabel } from "./platform-naming";
 import { isSelectedLine, type LineSelection } from "./line-bundles";
 import { getTripCallInstant } from "./trip-calls";
+import { isSameVehicleTrip } from "./trips";
 
 /** Departure times are Karlsruhe clock times, so they are read off that clock wherever the viewer is. */
 const clockFormat = new Intl.DateTimeFormat("de-DE", {
@@ -192,15 +193,33 @@ export function getCountdownReading(departure: Departure, feedNow: number): Coun
  * is the whole selection, and its siblings on the same line stay quiet. Without one, the lines being
  * read are the selection and every trip of them reads as chosen — which is the whole of what a
  * bundle changes here: two lines read together highlight as the one corridor the rider chose.
+ *
+ * The trip is matched by vehicle, not by row. A vehicle that calls at two of a complex's places in
+ * turn is published once per place, and both rows are the trip the rider chose — Europaplatz states
+ * its 3 to Rintheim at `Gleis 6` at 13:43 and again at `Gleis 4` at 13:44, and a rider may be
+ * standing at either. `isSameVehicleTrip` settles identity where the readings state different
+ * subsets of a trip's identifiers, exactly as the diagram's own mark is matched.
  */
 export function isDepartureSelected(
   departure: Departure,
-  selectedDepartureId: string | undefined,
+  selectedDeparture: Departure | undefined,
   lineSelection: LineSelection | undefined,
 ): boolean {
-  return selectedDepartureId
-    ? selectedDepartureId === departure.id
+  return selectedDeparture
+    ? isSameVehicleTrip(departure, selectedDeparture)
     : Boolean(lineSelection && isSelectedLine(lineSelection, departure.lineId));
+}
+
+/**
+ * Whether this row is the trip the address names, so tapping it again steps back up to the line.
+ * The address names the trip, never one of the rows it is published on — the same vehicle one
+ * boarding place over is that trip, and it steps up with its sibling.
+ */
+export function isDeparturePinned(
+  departure: Departure,
+  selectedDeparture: Departure | undefined,
+): boolean {
+  return Boolean(selectedDeparture && isSameVehicleTrip(departure, selectedDeparture));
 }
 
 /** The next few calls a trip makes after this stop: the `über …` a rider checks before boarding. */
@@ -303,7 +322,7 @@ export function getDepartureAccessibilityLabel(departure: Departure, feedNow?: n
           // The same order the row is read in: when it leaves, then what that was measured against.
           ...(timeReading ? [`ab ${timeReading.accessibilityLabel}`] : []),
         ]),
-    formatSpokenPlatformName(departure.platformName, departure.platformKind),
+    formatSpokenPlatformLabel(departure.platformCode, departure.platformKind),
     // Whether a rider can board at all outranks everything after it but the operator's own remark.
     ...(departure.status === "cancelled"
       ? []

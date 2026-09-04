@@ -107,6 +107,9 @@ export class StopRegistry {
   toTripCalls(tripCalls: readonly KvvTripCall[]): TripCall[] {
     return tripCalls.map(({ providerId, ...tripStop }) => ({
       ...tripStop,
+      // Kept beside the local id rather than replaced by it: the local id is the page a rider is
+      // on, and the stop point is which part of that page they are being sent to.
+      providerStopPointId: providerId,
       localStopId: providerId
         ? this.resolveTripCallStopId(providerId, tripStop)
         : createStopSlug(tripStop.stopName),

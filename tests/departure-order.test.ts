@@ -20,8 +20,8 @@ const createDeparture = (
   transportMode: "tram",
   destination: "Durlach Turmberg",
   minutesUntilDeparture: minutes,
-  platformName: "1",
-  boardingStopId: "marktplatz",
+  platformCode: "1",
+  boardingLocalStopId: "marktplatz",
   status: "realtime",
   scheduledDepartureTime: new Date(BASE + minutes * 60_000).toISOString(),
   ...overrides,
@@ -73,15 +73,15 @@ test("keeps departures the feed states no time for in the order it listed them",
 
 test("gathers a board by Steig, in platform order, keeping each group in departure order", () => {
   const board = [
-    createDeparture("a", "1", 2, { platformName: "2" }),
-    createDeparture("b", "2", 3, { platformName: "10" }),
-    createDeparture("c", "3", 4, { platformName: "2" }),
-    createDeparture("d", "4", 5, { platformName: "1" }),
+    createDeparture("a", "1", 2, { platformCode: "2" }),
+    createDeparture("b", "2", 3, { platformCode: "10" }),
+    createDeparture("c", "3", 4, { platformCode: "2" }),
+    createDeparture("d", "4", 5, { platformCode: "1" }),
   ];
 
   assert.deepEqual(
     groupDeparturesByPlatform(board).map((group) => [
-      group.platformName,
+      group.platformCode,
       group.departures.map((departure) => departure.id),
     ]),
     [
@@ -94,12 +94,12 @@ test("gathers a board by Steig, in platform order, keeping each group in departu
 
 test("puts trips the feed named no Steig for last, since that group is nowhere to walk to", () => {
   const board = [
-    createDeparture("unplaced", "1", 2, { platformName: "" }),
-    createDeparture("placed", "2", 3, { platformName: "3" }),
+    createDeparture("unplaced", "1", 2, { platformCode: "" }),
+    createDeparture("placed", "2", 3, { platformCode: "3" }),
   ];
 
   assert.deepEqual(
-    groupDeparturesByPlatform(board).map((group) => group.platformName),
+    groupDeparturesByPlatform(board).map((group) => group.platformCode),
     ["3", ""],
   );
 });

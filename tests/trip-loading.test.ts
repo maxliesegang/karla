@@ -163,7 +163,7 @@ test("both levels of one place answer as that place, whichever platform the row 
           transportMode: "tram",
           destination: "Europaplatz",
           minutesUntilDeparture: 2,
-          platformName: "1",
+          platformCode: "1",
           status: "realtime",
           scheduledDepartureTime: "2026-08-26T12:02:00.000Z",
         },
@@ -178,7 +178,7 @@ test("both levels of one place answer as that place, whichever platform the row 
   // The provider answers both from either, so both are the one stop the rider addressed — which is
   // what lets `lib/trip-calls.ts` find the current call for a street departure on this board.
   assert.equal(board.stopId, "ettlinger-tor");
-  assert.equal(board.departures[0].boardingStopId, "ettlinger-tor");
+  assert.equal(board.departures[0].boardingLocalStopId, "ettlinger-tor");
 });
 
 test("the single-trip response validates its locator and preserves call-level cancellation", () => {
@@ -294,7 +294,7 @@ test("TransitSource merges one trip into the latest stop row and caches its sequ
     transportMode: "lightRail",
     destination: "Karlsruhe Albtalbahnhof",
     minutesUntilDeparture: 1,
-    platformName: "1(U)",
+    platformCode: "1(U)",
     status: "realtime",
     scheduledDepartureTime: "2026-08-26T05:30:00.000Z",
     tripLocator: locator,
@@ -322,7 +322,7 @@ test("TransitSource merges one trip into the latest stop row and caches its sequ
   const second = await source.getTrip(departureId);
 
   assert.deepEqual(requests, [locator]);
-  assert.equal(first?.trip.platformName, "1(U)");
+  assert.equal(first?.trip.platformCode, "1(U)");
   assert.equal(first?.trip.destination, "Karlsruhe Albtalbahnhof");
   assert.equal(first?.trip.status, "cancelled");
   assert.equal(first?.trip.tripCalls?.length, 2);
@@ -350,7 +350,7 @@ test("a trip nobody selected is re-read on its own terms, not on the board's", a
           transportMode: "lightRail",
           destination: "Karlsruhe Albtalbahnhof",
           minutesUntilDeparture: 1,
-          platformName: "1(U)",
+          platformCode: "1(U)",
           status: "realtime",
           scheduledDepartureTime: "2026-08-26T05:30:00.000Z",
           tripLocator: locator,
@@ -602,7 +602,7 @@ test("a trip calling at a place's other level resolves to that place", async () 
           transportMode: "lightRail",
           destination: "Hochstetten",
           minutesUntilDeparture: 1,
-          platformName: "2(U)",
+          platformCode: "2(U)",
           status: "realtime",
           scheduledDepartureTime: "2026-08-26T05:30:00.000Z",
           tripLocator: tunnelLocator,

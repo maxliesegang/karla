@@ -15,10 +15,11 @@ import {
   getDepartureAccessibilityLabel,
   getDepartureStatusLabel,
   getDepartureTimeReading,
+  isDeparturePinned,
   isDepartureSelected,
 } from "../lib/departure-presentation";
 import {
-  formatPlatformName,
+  formatPlatformLabel,
   formatSpokenPlatformHeading,
   getPlatformHeadingParts,
 } from "../lib/platform-naming";
@@ -32,11 +33,22 @@ import { SegmentedControl, type SegmentedControlItem } from "./SegmentedControl"
 import { classNames } from "../lib/class-names";
 import { findNextCompatibleDeparture } from "../lib/stop-services";
 import {
-  groupDeparturesByPlatform,
+  groupDeparturesByBoardingPlace,
   type DepartureBoardOrder,
+  type DepartureBoardingPlaceGroup,
   type DeparturePlatformGroup,
 } from "../lib/departure-order";
-import { useDepartureBoardOrder, useTransientScrollbar, writeDepartureBoardOrder } from "../hooks";
+import {
+  getBoardingPlaceLabel,
+  type BoardingPlace,
+  type StopBoardingPlaces,
+} from "../lib/boarding-places";
+import {
+  useBoardingPlaceSections,
+  useDepartureBoardOrder,
+  useTransientScrollbar,
+  writeDepartureBoardOrder,
+} from "../hooks";
 import {
   findJoinedTripPortionPair,
   getJoinedTripPortionPairs,
@@ -68,13 +80,22 @@ type DepartureBoardPanelProps = {
    * reads as the selection, and a row tapped inside the bundle opens inside it.
    */
   lineSelection?: LineSelection;
-  selectedDepartureId?: string;
+  /**
+   * The trip the address pins, which is what reads as selected on this board — every row that is
+   * that vehicle, not only the row it was resolved from.
+   */
+  selectedDeparture?: Departure;
   /**
    * What this stop has been observed to do, which is how the line reading relates its trips to each
    * other. Without it that reading still stands, gathering each line's trips under their headsigns
    * rather than under the places they head into.
    */
   corridorPatterns: StopCorridorPatterns;
+  /**
+   * The places this stop is, where it is more than one. Learned over the visit rather than derived
+   * from the board in hand, so a place does not come and go with the rows that happen to prove it.
+   */
+  boardingPlaces: StopBoardingPlaces;
   /** A stacked layout caps the list; a panel of its own shows the whole board and scrolls it. */
   isStacked?: boolean;
   /**
@@ -116,7 +137,10 @@ function DepartureRow({
   index: number;
   /** This row is the selection: the pinned trip, or any trip of the line when none is pinned. */
   isSelected: boolean;
-  /** This row is the one trip the address names, so tapping it again steps back up to the line. */
+  /**
+   * This row is the trip the address names — either of the rows that vehicle is published on at a
+   * stop of several places — so tapping it again steps back up to the line.
+   */
   isPinned: boolean;
   feedNow: number;
 }) {
@@ -189,7 +213,7 @@ function DepartureRow({
           <span className="departure-access">{vehicleAccessLabel}</span>
         )}
         {showsPlatform && (
-          <b>{formatPlatformName(departure.platformName, departure.platformKind)}</b>
+          <b>{formatPlatformLabel(departure.platformCode, departure.platformKind)}</b>
         )}
       </span>
     </button>
@@ -236,6 +260,87 @@ function DepartureOrderControl({
 }
 
 /**
+ * Where a rider walks to before they read a platform at all.
+ *
+ * Only at a stop that is more than one place — which in this network is the Zentrum's tunnels and
+ * the stops whose street platforms a tram calls at in turn. Everywhere else the platforms stand on
+ * their own, exactly as they always have, and this renders nothing around them.
+ */
+function BoardingPlaceGroup({
+  group,
+  getSectionRef,
+  renderRow,
+}: {
+  group: DepartureBoardingPlaceGroup;
+  /** Registers the section under its place's id, which is what the place bar jumps and reads by. */
+  getSectionRef: (placeId: string) => (section: HTMLElement | null) => void;
+  renderRow: (departure: Departure, index: number) => ReactNode;
+}) {
+  const platformGroups = group.platformGroups.map((platformGroup) => (
+    <PlatformGroup key={platformGroup.platformCode} group={platformGroup} renderRow={renderRow} />
+  ));
+  if (!group.boardingPlace) return <>{platformGroups}</>;
+  const boardingPlace = group.boardingPlace;
+  const label = getBoardingPlaceLabel(boardingPlace);
+  return (
+    <section
+      ref={getSectionRef(boardingPlace.id)}
+      className="departure-board-boarding-place"
+      aria-label={label}
+    >
+      <h2>{label}</h2>
+      {platformGroups}
+    </section>
+  );
+}
+
+/**
+ * The places of a stop as a way to move through the board, not a way to shrink it.
+ *
+ * A rider arriving at a stop that is two places does not read both boards; they walk to one. These
+ * buttons used to answer that by narrowing the board to the chosen place — a filter, which hid the
+ * rest of the board behind a choice made before any row was read, and hid with it the one thing
+ * the choice was made for: the walk between the places. Now the whole board always stands, and the
+ * buttons say where it is being read: tapping one walks the board to that place's own section, and
+ * as the board scrolls the place whose heading is stuck at the top is marked — the same signpost
+ * the sticky headings show, echoed on the buttons.
+ *
+ * Offered only in the platform order, where the board actually has sections to walk to: the time
+ * order interleaves the places in one list, and a button with nothing to arrive at would promise a
+ * walk it cannot make. A place with nothing announced right now has no section either, so no
+ * button — the bar maps the board that is, not the stop in general.
+ */
+function BoardingPlaceBar({
+  places,
+  activePlaceId,
+  onJump,
+}: {
+  places: readonly BoardingPlace[];
+  activePlaceId: string | undefined;
+  onJump: (placeId: string) => void;
+}) {
+  return (
+    <div className="departure-board-place-bar" role="group" aria-label="Zu einem Bereich springen">
+      {places.map((place) => {
+        const label = getBoardingPlaceLabel(place);
+        const isActive = place.id === activePlaceId;
+        return (
+          <button
+            key={place.id}
+            type="button"
+            className={isActive ? "selected" : undefined}
+            aria-current={isActive ? "true" : undefined}
+            onClick={() => onJump(place.id)}
+          >
+            {label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+/**
  * The departures leaving from one platform, under the platform's own signpost.
  *
  * Nothing is hidden and nothing is re-sorted: this is the same board read a second way, so the
@@ -248,11 +353,11 @@ function PlatformGroup({
   group: DeparturePlatformGroup;
   renderRow: (departure: Departure, index: number) => ReactNode;
 }) {
-  const { word, code } = getPlatformHeadingParts(group.platformName, group.platformKind);
+  const { word, code } = getPlatformHeadingParts(group.platformCode, group.platformKind);
   return (
     <section
       className="departure-board-platform-group"
-      aria-label={formatSpokenPlatformHeading(group.platformName, group.platformKind)}
+      aria-label={formatSpokenPlatformHeading(group.platformCode, group.platformKind)}
     >
       {/* A signpost, not a title: the code is the glyph the rider matches against the sign they
           are walking towards, and the operator's word is its caption. */}
@@ -274,8 +379,9 @@ export function DepartureBoardPanel({
   network,
   feedNow,
   lineSelection,
-  selectedDepartureId,
+  selectedDeparture,
   corridorPatterns,
+  boardingPlaces,
   isStacked = false,
   bottomMenu,
 }: DepartureBoardPanelProps) {
@@ -289,8 +395,13 @@ export function DepartureBoardPanel({
   useTransientScrollbar(departureListRef);
   const isGroupedByPlatform = departureOrder === "platform";
   const isGroupedByLine = departureOrder === "line";
-  // A panel of its own scrolls: capping it there hid two thirds of a board the feed had already
-  // answered, behind a click, on a screen with room for all of it.
+  // The places as navigation, not a filter: the board always holds every place, the bar says where
+  // it is being read at, and a button walks it to another. Only alive in the platform order, where
+  // the sections the bar reads and jumps between exist at all.
+  const boardingPlaceSections = useBoardingPlaceSections(departureListRef, {
+    isEnabled: isGroupedByPlatform,
+    isPageScrollport: isStacked,
+  });
   const visibleDepartures = useMemo(
     () => (!isStacked || isExpanded ? departures : departures.slice(0, STACKED_DEPARTURE_LIMIT)),
     [departures, isExpanded, isStacked],
@@ -298,9 +409,17 @@ export function DepartureBoardPanel({
   const collapsedCount = isStacked ? Math.max(0, departures.length - STACKED_DEPARTURE_LIMIT) : 0;
   // Grouping the departures already on screen rather than the whole board: either way the board
   // shows the next few departures, and a cap that changed with the order would be a second board.
-  const platformGroups = useMemo(
-    () => (isGroupedByPlatform ? groupDeparturesByPlatform(visibleDepartures) : []),
-    [isGroupedByPlatform, visibleDepartures],
+  const boardingPlaceGroups = useMemo(
+    () =>
+      isGroupedByPlatform ? groupDeparturesByBoardingPlace(visibleDepartures, boardingPlaces) : [],
+    [boardingPlaces, isGroupedByPlatform, visibleDepartures],
+  );
+  // A place that stops being published — a diversion, the last tram of the night — has no section
+  // on the board, and so no button: the bar maps the board that is.
+  const shownBoardingPlaces = useMemo(
+    () =>
+      boardingPlaceGroups.flatMap((group) => (group.boardingPlace ? [group.boardingPlace] : [])),
+    [boardingPlaceGroups],
   );
   // The same departures the other two orders show, related to one another by what this stop has been
   // observed to do. It is the board's own rows throughout — no second request, and nothing on screen
@@ -328,8 +447,8 @@ export function DepartureBoardPanel({
       line={getLineSign(network.lines, departure.lineId, departure.transportMode)}
       stopId={stop.id}
       lineSelection={lineSelection}
-      isSelected={isDepartureSelected(departure, selectedDepartureId, lineSelection)}
-      isPinned={selectedDepartureId === departure.id}
+      isSelected={isDepartureSelected(departure, selectedDeparture, lineSelection)}
+      isPinned={isDeparturePinned(departure, selectedDeparture)}
       feedNow={feedNow}
       // In grouped order the heading above the row already names its platform.
       showsPlatform={!isGroupedByPlatform}
@@ -363,21 +482,37 @@ export function DepartureBoardPanel({
         </p>
       )}
 
+      {/* Only where the board is read by platform and holds more than one place. A control offering
+          one place to walk to is not a choice, and every ordinary stop must read exactly as it did. */}
+      {shownBoardingPlaces.length > 1 && (
+        <BoardingPlaceBar
+          places={shownBoardingPlaces}
+          activePlaceId={boardingPlaceSections.activePlaceId}
+          onJump={boardingPlaceSections.scrollToSection}
+        />
+      )}
+
       <div
         ref={departureListRef}
         className="departure-board-list"
         aria-busy={departureBoard === null}
       >
         {isGroupedByPlatform ? (
-          platformGroups.map((group) => (
-            <PlatformGroup key={group.platformName} group={group} renderRow={renderRow} />
+          boardingPlaceGroups.map((group) => (
+            <BoardingPlaceGroup
+              key={group.boardingPlace?.id ?? "unplaced"}
+              group={group}
+              getSectionRef={boardingPlaceSections.getSectionRef}
+              renderRow={renderRow}
+            />
           ))
         ) : isGroupedByLine ? (
           <DepartureBoardLineOrder
             groups={lineGroups}
+            boardingPlaces={boardingPlaces}
             stopId={stop.id}
             lineSelection={lineSelection}
-            selectedDepartureId={selectedDepartureId}
+            selectedDeparture={selectedDeparture}
             feedNow={feedNow}
           />
         ) : (

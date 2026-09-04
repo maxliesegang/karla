@@ -1,7 +1,7 @@
 import type { TripCall } from "../data/transit-types";
 import { getDistanceMeters } from "./geo";
 import { getBaseName } from "./stop-naming";
-import { getCallKey, getCallSequenceKey } from "./trip-calls";
+import { getVisitedStopKeys, getCallSequenceKey } from "./trip-calls";
 
 /**
  * The way a corridor's row sketches: the ends its trips turn back at, and the places between them
@@ -137,12 +137,16 @@ function findContinuationRoutes(
 ): readonly (readonly TripCall[])[] | undefined {
   const routeByKey = new Map<string, readonly TripCall[]>();
   for (const sequence of sequences) routeByKey.set(getCallSequenceKey(sequence), sequence);
-  const routes = [...routeByKey.values()].sort((first, second) => first.length - second.length);
-  const longestKeys = (routes.at(-1) ?? []).map(getCallKey);
-  if (longestKeys.length === 0) return undefined;
+  const routes = [...routeByKey.values()].sort(
+    (first, second) =>
+      getVisitedStopKeys(first).length - getVisitedStopKeys(second).length ||
+      first.length - second.length,
+  );
+  const visitedKeys = getVisitedStopKeys(routes.at(-1) ?? []);
+  if (visitedKeys.length === 0) return undefined;
 
   const isContinuation = routes.every((route) =>
-    route.every((call, index) => getCallKey(call) === longestKeys[index]),
+    getVisitedStopKeys(route).every((key, index) => key === visitedKeys[index]),
   );
   return isContinuation ? routes : undefined;
 }

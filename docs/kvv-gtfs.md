@@ -66,7 +66,13 @@ stations in GTFS exactly as it is in EFA — so which stops make up one place co
 **Walking transfers.** `transfers.txt` holds 69,213 rows but only 230 cross-station pairs, 24 of
 them in Karlsruhe, and it states just one of the five tunnel/street pairs in the Zentrum.
 
-KARLA no longer needs them. EFA answers both levels of such a place from either stop id — a board
-requested for `7000037` and one for `7001004` come back with the same departures at Europaplatz —
-so each place is one local stop, and a change between its platforms is a change at the stop rather
-than a walk to another one. See `kvv-stop-mappings.ts`.
+KARLA no longer needs them for stop identity. EFA answers both levels of such a place from either
+stop id — a board requested for `7000037` and one for `7001004` come back with the same departures
+at Europaplatz — so each place is one local stop. See `kvv-stop-mappings.ts`.
+
+That does not make every change at such a place a step across the platform. `stops.txt` is the one
+source here that states platform positions, and it is what showed that Europaplatz's `Gleis 3` and
+`Gleis 5` are 107 m apart while its `Gleis 5` is 3 m from the tunnel's `Gleis 1(U)` — so distance
+alone can neither part the street platforms nor keep the levels apart, since neither GTFS nor EFA
+publishes a height. Which platforms are one place to stand is therefore read from the trips
+themselves (`src/lib/boarding-places.ts`); these positions only order the merges.

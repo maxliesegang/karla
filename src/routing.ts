@@ -492,7 +492,7 @@ export type StationBoardDetail = "via" | "note" | "off";
 export type StationBoardConfig = {
   mode: "stop" | "platform";
   /** The platforms this board covers. Several are allowed: one screen often serves a whole island. */
-  platformNames: readonly string[];
+  platformCodes: readonly string[];
   rowCount: number;
   grouping: StationBoardGrouping;
   detail: StationBoardDetail;
@@ -509,19 +509,19 @@ export type StationBoardConfig = {
  * exact comparison against whatever the operator typed into the URL makes the screen silently
  * empty. Both sides are reduced to the part that identifies the platform before they are compared.
  */
-export function normalizePlatformName(platformName: string): string {
-  return platformName
+export function normalizePlatformCode(platformCode: string): string {
+  return platformCode
     .toLowerCase()
     .replace(/\b(gleis|steig|bstg\.?|bahnsteig|pos\.?)\b/g, "")
     .replace(/[^a-z0-9]/g, "");
 }
 
 export const isPlatformMatch = (
-  platformName: string,
-  wantedPlatformNames: readonly string[],
+  platformCode: string,
+  wantedPlatformCodes: readonly string[],
 ): boolean =>
-  wantedPlatformNames.length === 0 ||
-  wantedPlatformNames.includes(normalizePlatformName(platformName));
+  wantedPlatformCodes.length === 0 ||
+  wantedPlatformCodes.includes(normalizePlatformCode(platformCode));
 
 /** Whole numbers within a range, falling back to a default rather than to a broken screen. */
 function parseBoundedNumber(
@@ -543,15 +543,15 @@ export function parseStationBoardConfig(search: string): StationBoardConfig | nu
   const displayMode = parameters.get("display");
   if (displayMode !== "1" && displayMode !== "stop" && displayMode !== "platform") return null;
 
-  const platformNames = (parameters.get("platform") ?? "")
+  const platformCodes = (parameters.get("platform") ?? "")
     .split(",")
-    .map((name) => normalizePlatformName(name))
+    .map((name) => normalizePlatformCode(name))
     .filter(Boolean);
   const detail = parameters.get("detail");
 
   return {
     mode: displayMode === "platform" ? "platform" : "stop",
-    platformNames,
+    platformCodes,
     rowCount: parseBoundedNumber(parameters.get("rows"), 8, 3, 20),
     grouping: parameters.get("group") === "platform" ? "platform" : "none",
     detail: detail === "via" || detail === "note" || detail === "off" ? detail : "note",
@@ -565,4 +565,4 @@ export const isStationBoardMode = stationBoardConfig !== null;
 
 /** How a board names the platforms it covers, for its own heading. */
 export const getPlatformLabel = (config: StationBoardConfig): string =>
-  config.platformNames.length > 0 ? config.platformNames.join(" + ").toUpperCase() : "?";
+  config.platformCodes.length > 0 ? config.platformCodes.join(" + ").toUpperCase() : "?";

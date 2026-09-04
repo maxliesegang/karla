@@ -73,7 +73,7 @@ export type KvvDeparture = {
   destination: string;
   minutesUntilDeparture: number;
   delayMinutes?: number;
-  platformName: string;
+  platformCode: string;
   platformKind?: PlatformKind;
   status: DepartureStatus;
   scheduledDepartureTime: string;
@@ -345,7 +345,7 @@ function parseDeparture(entry: Record<string, unknown>): KvvDeparture | null {
     // `platform` is the bare code the platform is signed with; `pointType` is the word the feed
     // puts in front of it. They are carried apart so the code stays the identity a board groups
     // and a URL matches on, and the word stays the operator's rather than the app's.
-    platformName: readOptionalString(entry.platform) ?? "",
+    platformCode: readOptionalString(entry.platform) ?? "",
     platformKind: parsePlatformKind(readOptionalString(entry.pointType)),
     status: parseDepartureStatus(tripStatus, stopStatus, delayMinutes),
     scheduledDepartureTime,
@@ -520,6 +520,9 @@ function parseTripCalls(
     nameWO: entry.nameWO,
     name: entry.stopName,
     platformName: entry.platformName ?? entry.platform,
+    // The row states the bare code where the sequence words it, and both are carried: the word is
+    // what a diagram prints, the code is what a departure row can be matched against.
+    platform: entry.platform,
     stopID: entry.stopID,
   };
   return [
@@ -567,7 +570,8 @@ function parseTripCall(
     // The locality is stated beside the name rather than folded into it: which municipality a
     // `Bahnhof` belongs to is what the views outside it have to add back.
     placeName: readOptionalString(entry.place),
-    platformName: readOptionalString(entry.platformName),
+    platformLabel: readOptionalString(entry.platformName),
+    platformCode: readOptionalString(ref?.platform) ?? readOptionalString(entry.platform),
     providerId: readOptionalString(ref?.id) ?? readOptionalString(entry.stopID),
     isCurrentStop: isCurrentStop || undefined,
     latitude: coordinates?.latitude,

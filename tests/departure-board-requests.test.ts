@@ -3,8 +3,11 @@ import test from "node:test";
 import { KvvTransitSource } from "../src/data/transit-source.ts";
 import type { KvvEfaClient } from "../src/data/kvv-efa-client.ts";
 import type { KvvDeparture, KvvDepartureBoard } from "../src/data/kvv-efa-parsers.ts";
+import { kvvStopMappingByLocalStopId } from "../src/data/kvv-stop-mappings.ts";
 
 const STOP_ID = "europaplatz";
+/** These tests are about what is asked for, not how many rows: the stop states its own count. */
+const STOP_ROW_LIMIT = kvvStopMappingByLocalStopId[STOP_ID].departureLimit ?? 20;
 
 /** Records what the provider was actually asked for, which is the whole point of these requests. */
 function createRecordingSource() {
@@ -73,7 +76,7 @@ function departure(
     transportMode: "lightRail",
     destination: `${routeDirectionId} Ziel`,
     minutesUntilDeparture: 10,
-    platformName: "1",
+    platformCode: "1",
     status: "realtime",
     scheduledDepartureTime,
   };
@@ -132,7 +135,7 @@ test("a covered stop board batches sparse directions and keeps only live rows in
   assert.deepEqual(
     requests.map(({ lineIds, limit }) => ({ lineIds, limit })),
     [
-      { lineIds: undefined, limit: 20 },
+      { lineIds: undefined, limit: STOP_ROW_LIMIT },
       { lineIds: [directionB, directionC], limit: 4 },
       { lineIds: [directionC], limit: 2 },
     ],
@@ -208,7 +211,7 @@ test("a full second answer that still starves a direction earns a third pass", a
   assert.deepEqual(
     requests.map(({ lineIds, limit }) => ({ lineIds, limit })),
     [
-      { lineIds: undefined, limit: 20 },
+      { lineIds: undefined, limit: STOP_ROW_LIMIT },
       { lineIds: [directionB, directionC, directionD], limit: 6 },
       { lineIds: [directionC, directionD], limit: 4 },
       { lineIds: [directionD], limit: 2 },
@@ -357,14 +360,14 @@ test("only a view that draws the trips pays for the calling sequences", async ()
   // A departure board states what leaves this stop and is read without them.
   await source.getDepartureBoard(STOP_ID);
   assert.deepEqual(requests, [
-    { providerStopId: requests[0].providerStopId, includeTripCalls: false, limit: 20 },
+    { providerStopId: requests[0].providerStopId, includeTripCalls: false, limit: STOP_ROW_LIMIT },
   ]);
 
   // Opening a line wants the whole trip, which the board in hand does not carry.
   await source.getDepartureBoard(STOP_ID, { includeTripCalls: true });
   assert.equal(requests.length, 2);
   assert.equal(requests[1].includeTripCalls, true);
-  assert.equal(requests[1].limit, 20);
+  assert.equal(requests[1].limit, STOP_ROW_LIMIT);
 
   // The detailed board states everything the lightweight one does, so it answers for it.
   await source.getDepartureBoard(STOP_ID);
@@ -379,7 +382,7 @@ test("a board that carries the calls answers a reader that only wanted the rows"
 
   assert.deepEqual(
     requests.map(({ includeTripCalls, limit }) => ({ includeTripCalls, limit })),
-    [{ includeTripCalls: true, limit: 20 }],
+    [{ includeTripCalls: true, limit: STOP_ROW_LIMIT }],
   );
 });
 
@@ -581,4 +584,14 @@ test("a board that describes the whole stop names the directions it knows there"
   // stop has none, and a reading that took it for evidence would keep filtering out what it missed.
   const filtered = await source.getDepartureBoard(STOP_ID, { lineIds: [directionA] });
   assert.equal(filtered.servingLines, undefined);
+});
+
+test("a stop whose board is shared between boarding places asks for more of it", async () => {
+  const { source, requests } = createRecordingSource();
+
+  // Europaplatz answers one board for four places to stand, and publishes its street trips twice —
+  // once at either of them. Twenty rows are three or four per place, which is not a board.
+  await source.getDepartureBoard(STOP_ID);
+  assert.equal(requests[0].limit, 40);
+  assert.ok(STOP_ROW_LIMIT > 20);
 });

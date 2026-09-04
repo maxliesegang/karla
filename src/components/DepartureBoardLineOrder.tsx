@@ -6,16 +6,22 @@ import {
   getDepartureAccessibilityLabel,
   getCountdownReading,
   getDepartureTimeReading,
+  isDeparturePinned,
   isDepartureSelected,
   type DepartureTimeReading,
 } from "../lib/departure-presentation";
 import {
   findSharedPlatformKind,
-  findSharedPlatformName,
-  formatPlatformName,
-  formatSpokenPlatformName,
+  findSharedPlatformCode,
+  formatPlatformLabel,
+  formatSpokenPlatformLabel,
 } from "../lib/platform-naming";
 import type { StopServiceCorridor, StopServiceCorridorLineGroup } from "../lib/stop-corridors";
+import {
+  findSharedBoardingPlace,
+  getBoardingPlaceLabel,
+  type StopBoardingPlaces,
+} from "../lib/boarding-places";
 import {
   getCorridorTermini,
   getShownCorridorPlaces,
@@ -80,14 +86,14 @@ type CorridorDepartureNote = {
 
 function getCorridorDepartureNote(
   departure: Departure,
-  sharedPlatformName: string | undefined,
+  sharedPlatformCode: string | undefined,
   /** Whether the trips of this direction end in different places, which is the only time they say. */
   showsDestination: boolean,
 ): CorridorDepartureNote {
   const parts: string[] = [];
   if (showsDestination) parts.push(departure.destination);
-  if (!sharedPlatformName && departure.platformName) {
-    parts.push(formatPlatformName(departure.platformName, departure.platformKind));
+  if (!sharedPlatformCode && departure.platformCode) {
+    parts.push(formatPlatformLabel(departure.platformCode, departure.platformKind));
   }
   // The countdown already says "entfällt" in the largest type on the chip; nothing repeats it.
   const warnings =
@@ -176,8 +182,10 @@ function CorridorDepartureChip({
 function getCorridorSpokenLabel(
   corridor: StopServiceCorridor,
   lineId: string,
-  sharedPlatformName: string | undefined,
+  sharedPlatformCode: string | undefined,
   sharedPlatformKind: PlatformKind | undefined,
+  /** Which part of the stop these trips leave from, where the stop is more than one place. */
+  boardingPlaceLabel: string | undefined,
 ): string {
   // The way's own places are for the eye; what is heard is the direction and the ends past it.
   const termini = getCorridorTermini(corridor.places);
@@ -185,10 +193,11 @@ function getCorridorSpokenLabel(
   const onwardPlaces = (directionIndex >= 0 ? termini.slice(directionIndex + 1) : [])
     .map((place) => `, weiter bis ${place.label}`)
     .join("");
-  const platform = sharedPlatformName
-    ? `, ab ${formatSpokenPlatformName(sharedPlatformName, sharedPlatformKind)}`
+  const platform = sharedPlatformCode
+    ? `, ab ${formatSpokenPlatformLabel(sharedPlatformCode, sharedPlatformKind)}`
     : "";
-  return `Linie ${lineId} Richtung ${corridor.directionLabel}${onwardPlaces}${platform}`;
+  const place = boardingPlaceLabel ? `, Bereich ${boardingPlaceLabel}` : "";
+  return `Linie ${lineId} Richtung ${corridor.directionLabel}${onwardPlaces}${place}${platform}`;
 }
 
 /** The direction is one line: the way's own places fit beside its ends or stand down. */
@@ -308,11 +317,14 @@ function DirectionChain({
 function CorridorGroup({
   corridor,
   lineId,
+  boardingPlaces,
   columns,
   renderChip,
 }: {
   corridor: StopServiceCorridor;
   lineId: string;
+  /** The places this stop is, so a direction can say which of them it leaves from. */
+  boardingPlaces: StopBoardingPlaces;
   /** How many countdown columns the whole board is laid out in, which every strip fills. */
   columns: number;
   renderChip: (departure: Departure, note: CorridorDepartureNote, isLead: boolean) => ReactNode;
@@ -324,10 +336,18 @@ function CorridorGroup({
   const termini = getCorridorTermini(corridor.places);
   const wayPlaceCount = corridor.places.length - termini.length;
   const { headingRef, measureRef, standDownCount } = useWayPlacesFit(corridor, wayPlaceCount);
-  const sharedPlatformName = findSharedPlatformName(corridor.departures);
+  const sharedPlatformCode = findSharedPlatformCode(corridor.departures);
   const sharedPlatformKind = findSharedPlatformKind(corridor.departures);
-  const sharedPlatformLabel = sharedPlatformName
-    ? formatPlatformName(sharedPlatformName, sharedPlatformKind)
+  const sharedPlatformLabel = sharedPlatformCode
+    ? formatPlatformLabel(sharedPlatformCode, sharedPlatformKind)
+    : undefined;
+  // At Marktplatz the two directions of the S1 leave from two different tunnels, which is the one
+  // thing a rider picking a direction most needs and the one thing the direction cannot say. Only
+  // where every trip of the direction agrees on it, and only where the stop has places to tell
+  // apart at all.
+  const sharedBoardingPlace = findSharedBoardingPlace(boardingPlaces, corridor.departures);
+  const boardingPlaceLabel = sharedBoardingPlace
+    ? getBoardingPlaceLabel(sharedBoardingPlace)
     : undefined;
   const sharesLinienweg =
     corridor.hasObservedSharedRoute && termini.length <= 1 && corridor.destinations.length > 1;
@@ -336,7 +356,13 @@ function CorridorGroup({
   return (
     <section
       className="departure-board-corridor"
-      aria-label={getCorridorSpokenLabel(corridor, lineId, sharedPlatformName, sharedPlatformKind)}
+      aria-label={getCorridorSpokenLabel(
+        corridor,
+        lineId,
+        sharedPlatformCode,
+        sharedPlatformKind,
+        boardingPlaceLabel,
+      )}
     >
       <h3 ref={headingRef}>
         {/* The way out of this stop, on the one line the direction fills: the places these trips
@@ -364,11 +390,16 @@ function CorridorGroup({
             />
           </span>
         )}
-        {(sharedPlatformLabel || sharesLinienweg) && (
+        {(sharedPlatformLabel || sharesLinienweg || boardingPlaceLabel) && (
           <span className="departure-board-corridor-captions">
             {/* Only trips that part need saying so: a chain of places already reads as one route
                 that some trips stay on longer than others. */}
             {sharesLinienweg && <small>gemeinsamer Linienweg</small>}
+            {boardingPlaceLabel && (
+              <small className="departure-board-corridor-place" aria-hidden="true">
+                {boardingPlaceLabel}
+              </small>
+            )}
             {sharedPlatformLabel && (
               <small className="departure-board-corridor-platform" aria-hidden="true">
                 {sharedPlatformLabel}
@@ -383,7 +414,7 @@ function CorridorGroup({
             departure,
             getCorridorDepartureNote(
               departure,
-              sharedPlatformName,
+              sharedPlatformCode,
               corridor.destinations.length > 1,
             ),
             index === 0,
@@ -414,11 +445,13 @@ function CorridorGroup({
 function LineGroup({
   group,
   stopId,
+  boardingPlaces,
   columns,
   renderChip,
 }: {
   group: StopServiceCorridorLineGroup;
   stopId: string;
+  boardingPlaces: StopBoardingPlaces;
   columns: number;
   renderChip: (departure: Departure, note: CorridorDepartureNote, isLead: boolean) => ReactNode;
 }) {
@@ -444,6 +477,7 @@ function LineGroup({
           key={corridor.id}
           corridor={corridor}
           lineId={group.id}
+          boardingPlaces={boardingPlaces}
           columns={columns}
           renderChip={renderChip}
         />
@@ -460,15 +494,19 @@ function LineGroup({
 export function DepartureBoardLineOrder({
   groups,
   stopId,
+  boardingPlaces,
   lineSelection,
-  selectedDepartureId,
+  selectedDeparture,
   feedNow,
 }: {
   groups: readonly StopServiceCorridorLineGroup[];
   stopId: string;
+  /** The places this stop is, so each direction can say which of them it leaves from. */
+  boardingPlaces: StopBoardingPlaces;
   /** The lines in view, whose every trip this stop lists reads as the selection. */
   lineSelection: LineSelection | undefined;
-  selectedDepartureId: string | undefined;
+  /** The trip the address pins, which reads as selected on every row that is that vehicle. */
+  selectedDeparture: Departure | undefined;
   feedNow: number;
 }) {
   // The line reading's own row: the same trip, addressed the same way as a row, printed as the
@@ -481,8 +519,8 @@ export function DepartureBoardLineOrder({
       stopId={stopId}
       lineSelection={lineSelection}
       isLead={isLead}
-      isSelected={isDepartureSelected(departure, selectedDepartureId, lineSelection)}
-      isPinned={selectedDepartureId === departure.id}
+      isSelected={isDepartureSelected(departure, selectedDeparture, lineSelection)}
+      isPinned={isDeparturePinned(departure, selectedDeparture)}
       feedNow={feedNow}
     />
   );
@@ -506,6 +544,7 @@ export function DepartureBoardLineOrder({
           key={group.id}
           group={group}
           stopId={stopId}
+          boardingPlaces={boardingPlaces}
           columns={corridorColumns}
           renderChip={renderChip}
         />

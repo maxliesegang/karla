@@ -5,16 +5,16 @@ import type { Departure } from "../src/data/transit-types.ts";
 import { groupDeparturesByPlatform } from "../src/lib/departure-order.ts";
 import {
   findSharedPlatformKind,
-  formatPlatformName,
+  formatPlatformLabel,
   formatSpokenPlatformHeading,
-  formatSpokenPlatformName,
+  formatSpokenPlatformLabel,
   getPlatformHeadingParts,
   getPlatformWord,
 } from "../src/lib/platform-naming.ts";
 
 // `routing.ts` reads the address at import time, so it is loaded after a window exists.
 Object.defineProperty(globalThis, "window", { value: { location: { search: "" } } });
-const { normalizePlatformName } = await import("../src/routing.ts");
+const { normalizePlatformCode } = await import("../src/routing.ts");
 
 /**
  * The words here are the operator's. `XSLT_DM_REQUEST` states a `pointType` beside every platform
@@ -28,8 +28,8 @@ const createDeparture = (overrides: Partial<Departure> = {}): Departure => ({
   transportMode: "lightRail",
   destination: "Bad Herrenalb",
   minutesUntilDeparture: 4,
-  platformName: "1",
-  boardingStopId: "europaplatz",
+  platformCode: "1",
+  boardingLocalStopId: "europaplatz",
   status: "realtime",
   scheduledDepartureTime: "2026-08-24T14:34:00+02:00",
   ...overrides,
@@ -46,27 +46,27 @@ const createFeedDeparture = (platform: string, pointType?: string) => ({
 });
 
 test("names a platform with the feed's own word", () => {
-  assert.equal(formatPlatformName("24", "track"), "Gleis 24");
-  assert.equal(formatPlatformName("A", "stand"), "Bstg. A");
+  assert.equal(formatPlatformLabel("24", "track"), "Gleis 24");
+  assert.equal(formatPlatformLabel("A", "stand"), "Bstg. A");
 });
 
 test("falls back to the generic word only where the feed states no kind", () => {
-  assert.equal(formatPlatformName("7", undefined), "Steig 7");
-  assert.equal(formatPlatformName("", undefined), "Steig ?");
+  assert.equal(formatPlatformLabel("7", undefined), "Steig 7");
+  assert.equal(formatPlatformLabel("", undefined), "Steig ?");
   // A column that prints the code as its glyph captions it only when there is a word to caption it.
   assert.equal(getPlatformWord("stand"), "Bstg.");
   assert.equal(getPlatformWord(undefined), undefined);
 });
 
 test("speaks the abbreviation as a word, and an unnamed platform as unknown", () => {
-  assert.equal(formatSpokenPlatformName("A", "stand"), "Bussteig A");
-  assert.equal(formatSpokenPlatformName("1(U)", "track"), "Gleis 1(U)");
-  assert.equal(formatSpokenPlatformName("", undefined), "Steig unbekannt");
+  assert.equal(formatSpokenPlatformLabel("A", "stand"), "Bussteig A");
+  assert.equal(formatSpokenPlatformLabel("1(U)", "track"), "Gleis 1(U)");
+  assert.equal(formatSpokenPlatformLabel("", undefined), "Steig unbekannt");
 });
 
 test("a heading uses a word only where every departure under it supports one", () => {
   const track = createDeparture({ platformKind: "track" });
-  const stand = createDeparture({ id: "bus", platformName: "A", platformKind: "stand" });
+  const stand = createDeparture({ id: "bus", platformCode: "A", platformKind: "stand" });
 
   assert.equal(
     findSharedPlatformKind([track, createDeparture({ id: "second", platformKind: "track" })]),
@@ -79,23 +79,23 @@ test("a heading uses a word only where every departure under it supports one", (
 
 test("gives each platform group the word its own departures agree on", () => {
   const groups = groupDeparturesByPlatform([
-    createDeparture({ id: "tram", platformName: "1", platformKind: "track" }),
-    createDeparture({ id: "bus", platformName: "A", platformKind: "stand" }),
+    createDeparture({ id: "tram", platformCode: "1", platformKind: "track" }),
+    createDeparture({ id: "bus", platformCode: "A", platformKind: "stand" }),
   ]);
 
   assert.deepEqual(
-    groups.map((group) => formatPlatformName(group.platformName, group.platformKind)),
+    groups.map((group) => formatPlatformLabel(group.platformCode, group.platformKind)),
     ["Gleis 1", "Bstg. A"],
   );
 });
 
 test("uses the generic word when reports disagree about one platform", () => {
   const [group] = groupDeparturesByPlatform([
-    createDeparture({ id: "tram", platformName: "1", platformKind: "track" }),
-    createDeparture({ id: "unstated", platformName: "1" }),
+    createDeparture({ id: "tram", platformCode: "1", platformKind: "track" }),
+    createDeparture({ id: "unstated", platformCode: "1" }),
   ]);
 
-  assert.equal(formatPlatformName(group.platformName, group.platformKind), "Steig 1");
+  assert.equal(formatPlatformLabel(group.platformCode, group.platformKind), "Steig 1");
 });
 
 test("reads the word from the feed and keeps the bare code as the platform's identity", () => {
@@ -113,7 +113,7 @@ test("reads the word from the feed and keeps the bare code as the platform's ide
   );
 
   assert.deepEqual(
-    board.departures.map((departure) => [departure.platformName, departure.platformKind]),
+    board.departures.map((departure) => [departure.platformCode, departure.platformKind]),
     [
       ["1(U)", "track"],
       ["A", "stand"],
@@ -121,7 +121,7 @@ test("reads the word from the feed and keeps the bare code as the platform's ide
     ],
   );
   // The word is never folded into the code: `?platform=1u` still matches the underground platform.
-  assert.equal(normalizePlatformName(board.departures[0].platformName), "1u");
+  assert.equal(normalizePlatformCode(board.departures[0].platformCode), "1u");
 });
 
 test("sets a group heading as a captioned code, and says so where the feed named no platform", () => {

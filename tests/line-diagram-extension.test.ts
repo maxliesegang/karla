@@ -47,6 +47,42 @@ test("a drawn chain is never narrowed by the run it is extended with", () => {
   ]);
 });
 
+test("separate published calls at one stop are merged by occurrence", () => {
+  const marktplatz = (stopName: string): TripCall => ({ stopName, localStopId: "marktplatz" });
+  const route = [
+    ...calls("d"),
+    marktplatz("Marktplatz (Kaiserstraße U)"),
+    marktplatz("Marktplatz (Pyramide U)"),
+    ...calls("b", "a"),
+  ];
+
+  assert.deepEqual(extendLineDiagramCalls(route, route), route);
+});
+
+test("a repeated call the two chains name identically still lines up with its own occurrence", () => {
+  // Europaplatz publishes its two street platforms under one stop point and one name: line 4 to
+  // Oberreut is `Gleis 3` at 08:58 and `Gleis 5` at 08:59, a minute of driving apart. Nothing on
+  // the calls tells them apart, and the platform is a fact about this trip rather than the line —
+  // another trip of the same line may use two others. Matched on anything printed, the drawn call
+  // anchors to the wrong occurrence and the run's second one is inserted beside it, so the stop is
+  // drawn twice under one platform. Which time round it is holds for both chains, and is enough.
+  const europaplatz = (platformLabel: string): TripCall => ({
+    stopName: "Europaplatz",
+    placeName: "Karlsruhe",
+    localStopId: "europaplatz",
+    platformLabel,
+  });
+  const drawn = [europaplatz("Gleis 5"), ...calls("muehlburger-tor")];
+  const farthest = [
+    ...calls("karlstor"),
+    europaplatz("Gleis 3"),
+    europaplatz("Gleis 5"),
+    ...calls("muehlburger-tor", "schillerstrasse"),
+  ];
+
+  assert.deepEqual(extendLineDiagramCalls(drawn, farthest), farthest);
+});
+
 test("without a run observed far enough there is nothing to extend with", () => {
   assert.deepEqual(extendLineDiagramCalls(calls("c", "b"), undefined), [...calls("c", "b")]);
   assert.deepEqual(extendLineDiagramCalls(calls("c", "b"), []), [...calls("c", "b")]);

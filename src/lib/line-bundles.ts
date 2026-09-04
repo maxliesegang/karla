@@ -1,7 +1,12 @@
 import type { Departure, TransportMode, TripCall } from "../data/transit-types";
 import { compareLineIds, getLineFamilyId, isSameLineFamily } from "./line-families";
 import { findStopCorridorPattern, type StopCorridorPatterns } from "./stop-corridor-patterns";
-import { getCallSequenceKey, getCallsPastIndex, getCommonCallPrefix } from "./trip-calls";
+import {
+  getCallSequenceKey,
+  getCallsPastIndex,
+  getCommonCallPrefix,
+  getCommonCallPrefixAlignment,
+} from "./trip-calls";
 
 /**
  * Reading two lines as one along the stretch they share.
@@ -304,7 +309,12 @@ function keepLongestSharedRoutes(
 ): readonly (readonly TripCall[])[] {
   const kept: (readonly TripCall[])[] = [];
   for (const route of [...routes].sort((first, second) => second.length - first.length)) {
-    if (kept.some((existing) => getCommonCallPrefix([route, existing]).length === route.length)) {
+    if (
+      kept.some(
+        (existing) =>
+          getCommonCallPrefixAlignment([route, existing]).consumedCallCounts[0] === route.length,
+      )
+    ) {
       continue;
     }
     kept.push(route);
@@ -368,21 +378,27 @@ export function getLineBundleTrunk(
   );
   if (riderIndexes.some((index) => index < 0)) return undefined;
 
-  const ahead = getCommonCallPrefix(
+  // A line may state two consecutive platforms of one stop where another states one. Align those
+  // repeated calls as a run: both remain visible on the trunk, but they do not shift every later
+  // stop out of comparison and create a false fork beyond them.
+  const ahead = getCommonCallPrefixAlignment(
     chains.map(({ calls }, index) => calls.slice(riderIndexes[index] + 1)),
   );
-  const behind = getCommonCallPrefix(
+  const behind = getCommonCallPrefixAlignment(
     chains.map(({ calls }, index) => [...calls.slice(0, riderIndexes[index])].reverse()),
   );
-  const calls = [...[...behind].reverse(), chains[0].calls[riderIndexes[0]], ...ahead];
+  const calls = [...[...behind.calls].reverse(), chains[0].calls[riderIndexes[0]], ...ahead.calls];
   if (calls.length < 2) return undefined;
 
   // Two passes rather than one: whether a line is the pair's short working is only knowable once
   // every chain has been measured, and it is the statement a rider most needs at this end.
   const continuesAhead = chains.map(
-    (chain, index) => chain.calls.length - riderIndexes[index] - 1 > ahead.length,
+    (chain, index) =>
+      chain.calls.length - riderIndexes[index] - 1 > ahead.consumedCallCounts[index],
   );
-  const continuesBehind = riderIndexes.map((riderIndex) => riderIndex > behind.length);
+  const continuesBehind = riderIndexes.map(
+    (riderIndex, index) => riderIndex > behind.consumedCallCounts[index],
+  );
   const junctionAhead = calls[calls.length - 1];
   const junctionBehind = calls[0];
   const branches: LineBundleBranch[] = [];
@@ -394,7 +410,10 @@ export function getLineBundleTrunk(
         destination: chain.destination,
         continues: continuesAhead[index],
         calls: continuesAhead[index]
-          ? [junctionAhead, ...chain.calls.slice(riderIndexes[index] + 1 + ahead.length)]
+          ? [
+              junctionAhead,
+              ...chain.calls.slice(riderIndexes[index] + 1 + ahead.consumedCallCounts[index]),
+            ]
           : [],
       })),
     );
@@ -407,7 +426,10 @@ export function getLineBundleTrunk(
         destination: chain.calls[0].stopName,
         continues: continuesBehind[index],
         calls: continuesBehind[index]
-          ? [...chain.calls.slice(0, riderIndexes[index] - behind.length), junctionBehind]
+          ? [
+              ...chain.calls.slice(0, riderIndexes[index] - behind.consumedCallCounts[index]),
+              junctionBehind,
+            ]
           : [],
       })),
     );
@@ -428,12 +450,20 @@ export function chooseLineBundleChain(
   candidates: readonly LineBundleChain[],
   riderStopIds: readonly string[],
 ): LineBundleChain | undefined {
-  let best: { chain: LineBundleChain; trunkLength: number } | undefined;
+  let best: { chain: LineBundleChain; trunkLength: number; chainLength: number } | undefined;
   for (const candidate of candidates) {
     const trunk = getLineBundleTrunk([primary, candidate], riderStopIds);
     if (!trunk) continue;
-    if (!best || trunk.calls.length > best.trunkLength) {
-      best = { chain: candidate, trunkLength: trunk.calls.length };
+    if (
+      !best ||
+      trunk.calls.length > best.trunkLength ||
+      (trunk.calls.length === best.trunkLength && candidate.calls.length > best.chainLength)
+    ) {
+      best = {
+        chain: candidate,
+        trunkLength: trunk.calls.length,
+        chainLength: candidate.calls.length,
+      };
     }
   }
   return best?.chain;
@@ -475,6 +505,26 @@ export const getDrawableLineBundleBranches = (
   direction: "ahead" | "behind",
 ): readonly LineBundleBranch[] =>
   branches.filter((branch) => branch.direction === direction && branch.calls.length > 1);
+
+/**
+ * The distinct ends named by the lines leaving one end of a bundled corridor.
+ *
+ * A shared destination is said once. Where the lines part, each different destination is kept in
+ * line order so the heading can show the fork without pretending the bundle has one terminus.
+ * The fallback is the end of the drawn trunk, used on the side where the corridor does not fork.
+ */
+export function getLineBundleTermini(
+  branches: readonly LineBundleBranch[],
+  direction: "ahead" | "behind",
+  fallback: string,
+): readonly string[] {
+  const names = branches
+    .filter((branch) => branch.direction === direction)
+    .map(({ destination }) => destination.trim())
+    .filter(Boolean);
+  const distinctNames = [...new Set(names)];
+  return distinctNames.length > 0 ? distinctNames : fallback ? [fallback] : [];
+}
 
 /** Adding or dropping one sibling: the reading it leads to, and what the control says it does. */
 export type LineBundleControl = {

@@ -23,21 +23,21 @@ const spokenWordByPlatformKind: Record<PlatformKind, string> = {
 const GENERIC_PLATFORM_WORD = "Steig";
 
 /** The printed name of a platform, for example `Gleis 24`, `Bstg. A`, or `Steig 7`. */
-export function formatPlatformName(
-  platformName: string,
+export function formatPlatformLabel(
+  platformCode: string,
   platformKind: PlatformKind | undefined,
   unknownPlatformLabel = "?",
 ): string {
   const word = platformKind ? wordByPlatformKind[platformKind] : GENERIC_PLATFORM_WORD;
-  return `${word} ${platformName || unknownPlatformLabel}`;
+  return `${word} ${platformCode || unknownPlatformLabel}`;
 }
 
 /** The same name spoken, with the abbreviation written out and no bare `?` to read aloud. */
-export const formatSpokenPlatformName = (
-  platformName: string,
+export const formatSpokenPlatformLabel = (
+  platformCode: string,
   platformKind: PlatformKind | undefined,
 ): string =>
-  `${platformKind ? spokenWordByPlatformKind[platformKind] : GENERIC_PLATFORM_WORD} ${platformName || "unbekannt"}`;
+  `${platformKind ? spokenWordByPlatformKind[platformKind] : GENERIC_PLATFORM_WORD} ${platformCode || "unbekannt"}`;
 
 /** The word alone, for a column where the code is the glyph being read and the word is a caption. */
 export const getPlatformWord = (platformKind: PlatformKind | undefined): string | undefined =>
@@ -62,8 +62,8 @@ export function findSharedPlatformKind(departures: readonly Departure[]): Platfo
  * one direction agree, the heading carries it once and the trips underneath say nothing about it;
  * where they part, the platform is a fact about each trip and belongs on the trip.
  */
-export function findSharedPlatformName(departures: readonly Departure[]): string | undefined {
-  const names = new Set(departures.map((departure) => departure.platformName || ""));
+export function findSharedPlatformCode(departures: readonly Departure[]): string | undefined {
+  const names = new Set(departures.map((departure) => departure.platformCode || ""));
   const [name] = [...names];
   return names.size === 1 && name ? name : undefined;
 }
@@ -81,19 +81,19 @@ export type PlatformHeadingParts = { word?: string; code: string };
 export const UNNAMED_PLATFORM_LABEL = "Ohne Steigangabe";
 
 export function getPlatformHeadingParts(
-  platformName: string,
+  platformCode: string,
   platformKind: PlatformKind | undefined,
 ): PlatformHeadingParts {
-  if (!platformName) return { code: UNNAMED_PLATFORM_LABEL };
+  if (!platformCode) return { code: UNNAMED_PLATFORM_LABEL };
   return {
     word: platformKind ? wordByPlatformKind[platformKind] : GENERIC_PLATFORM_WORD,
-    code: platformName,
+    code: platformCode,
   };
 }
 
 /** The same heading spoken: the abbreviation written out, and no bare `?` read aloud. */
 export const formatSpokenPlatformHeading = (
-  platformName: string,
+  platformCode: string,
   platformKind: PlatformKind | undefined,
 ): string =>
-  platformName ? formatSpokenPlatformName(platformName, platformKind) : UNNAMED_PLATFORM_LABEL;
+  platformCode ? formatSpokenPlatformLabel(platformCode, platformKind) : UNNAMED_PLATFORM_LABEL;

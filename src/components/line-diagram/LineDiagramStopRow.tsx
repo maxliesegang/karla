@@ -3,13 +3,8 @@ import type { LineDiagramStop } from "../../lib/line-diagram";
 import { getInterchangeLabel } from "../../lib/line-diagram";
 import { getTripCallTimeReading } from "../../lib/departure-presentation";
 import { classNames } from "../../lib/class-names";
-import type { CoveredStopSpan } from "./layout";
 
 const COMPACT_INTERCHANGE_PREVIEW_LIMIT = 2;
-/** Markers are capped because they signal covered stops; the spoken label carries the exact count. */
-const COVERED_STOP_MARKER_LIMIT = 3;
-
-const formatCoveredStopCount = (count: number) => `${count} ${count === 1 ? "Halt" : "Halte"}`;
 
 function InterchangeTokens({ interchanges }: { interchanges: LineDiagramStop["interchanges"] }) {
   return interchanges.map((interchangeLine) => (
@@ -22,11 +17,10 @@ function InterchangeTokens({ interchanges }: { interchanges: LineDiagramStop["in
 function LineDiagramStopRowView({
   diagramStop,
   index,
-  currentStopIndex,
+  isCurrent,
   vehicleLabel,
   isFirst,
   isLast,
-  coveredStopSpan,
   isSelectedTrip,
   isAlighting,
   isTripPositionAnchor,
@@ -35,13 +29,12 @@ function LineDiagramStopRowView({
 }: {
   diagramStop: LineDiagramStop;
   index: number;
-  currentStopIndex: number;
+  /** This row is one occurrence of the stop the rider has open. */
+  isCurrent: boolean;
   /** What the marks standing on this row are, spoken. Empty where none is. */
   vehicleLabel: string;
   isFirst: boolean;
   isLast: boolean;
-  /** Set on a terminus once the diagram scrolls: the strip it reserves for the span it covers. */
-  coveredStopSpan: CoveredStopSpan | null;
   isSelectedTrip: boolean;
   /** This row is the Ausstieg the rider marked. */
   isAlighting: boolean;
@@ -52,8 +45,7 @@ function LineDiagramStopRowView({
   /** The feed's clock, which is what the call times are read against. */
   feedNow: number;
 }) {
-  const { stopName, placeName, interchanges, stopId } = diagramStop;
-  const isCurrent = index === currentStopIndex;
+  const { stopName, placeName, platformLabel, interchanges, stopId } = diagramStop;
   // Only a chosen trip has times to state. Without one the diagram describes the whole line, and
   // the times of whichever trip happens to be drawn would read as the line's own.
   const callTime = isSelectedTrip
@@ -62,8 +54,9 @@ function LineDiagramStopRowView({
   const label = [
     // Spoken as one address, so a stop out of town is never read as the one of the same name here.
     placeName ? `${stopName}, ${placeName}` : stopName,
+    ...(platformLabel ? [platformLabel] : []),
     ...(callTime ? [callTime.accessibilityLabel] : []),
-    ...(isCurrent ? [isSelectedTrip ? "Einstieg" : "aktueller Halt"] : []),
+    ...(isCurrent ? [isSelectedTrip ? "Fahrt hier ausgewählt" : "aktueller Halt"] : []),
     ...(isAlighting ? ["dein Ausstieg"] : []),
     ...(vehicleLabel ? [vehicleLabel] : []),
   ].join(", ");
@@ -80,8 +73,6 @@ function LineDiagramStopRowView({
         isAlighting && "line-diagram-alighting",
         isFirst && "terminus-start",
         isLast && "terminus-end",
-        coveredStopSpan && "has-covered-stop-span",
-        coveredStopSpan && coveredStopSpan.count > 0 && "has-covered-stops",
       )}
       data-current-stop={isCurrent || undefined}
       data-trip-position-anchor={isTripPositionAnchor || undefined}
@@ -105,11 +96,17 @@ function LineDiagramStopRowView({
         <span className="line-diagram-stop-name">
           {placeName && <small className="line-diagram-stop-place">{placeName}</small>}
           <strong>{stopName}</strong>
+          {/* Two rows of one stop: which of them this is. Spoken in the row's label above. */}
+          {platformLabel && (
+            <small className="line-diagram-stop-platform" aria-hidden="true">
+              {platformLabel}
+            </small>
+          )}
           {/* The one thing that moves when the rider walks along the line, which is why it is
               named: it travels from the row they were on to the row they tapped. */}
           {isCurrent && (
             <small className="line-diagram-current-note">
-              {isSelectedTrip ? "Einstieg" : "Aktueller Halt"}
+              {isSelectedTrip ? "Ausgewählt" : "Aktueller Halt"}
             </small>
           )}
           {isAlighting && <small className="line-diagram-alighting-note">Ausstieg</small>}
@@ -164,33 +161,6 @@ function LineDiagramStopRowView({
             </span>
           )}
         </>
-      )}
-
-      {/* The pinned terminus stands in for the stops behind it rather than pointing at them: the
-          track carries on past the node, and every stop out of reach puts a dot on it. The strip is
-          reserved for as long as the diagram scrolls, so filling and emptying it never moves a row
-          under the reader — and never feeds a height back into the count that measures it. */}
-      {coveredStopSpan && (
-        <span
-          className="line-diagram-covered-stop-span"
-          role={coveredStopSpan.count > 0 ? "note" : undefined}
-          aria-label={
-            coveredStopSpan.count > 0
-              ? `${formatCoveredStopCount(coveredStopSpan.count)} ${
-                  coveredStopSpan.direction === "above" ? "oberhalb" : "unterhalb"
-                }`
-              : undefined
-          }
-        >
-          <span className="line-diagram-covered-stop-span-track" aria-hidden="true">
-            {Array.from(
-              { length: Math.min(coveredStopSpan.count, COVERED_STOP_MARKER_LIMIT) },
-              (_, markerIndex) => (
-                <i key={markerIndex} />
-              ),
-            )}
-          </span>
-        </span>
       )}
     </div>
   );

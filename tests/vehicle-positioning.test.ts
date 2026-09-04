@@ -15,8 +15,8 @@ function departure(id: string, calls: readonly TripCall[]): Departure {
     transportMode: "tram",
     destination: "D",
     minutesUntilDeparture: 0,
-    platformName: "1",
-    boardingStopId: "a",
+    platformCode: "1",
+    boardingLocalStopId: "a",
     status: "realtime",
     scheduledDepartureTime: new Date(start).toISOString(),
     tripCalls: calls,
@@ -70,6 +70,19 @@ test("does not traverse a duplicated first stop before leaving it", () => {
   assert.equal(running?.fromStopId, "a");
   assert.equal(running?.toStopId, "b");
   assert.ok(running && running.progress > 0);
+});
+
+test("traverses two genuinely timed calls at the same stop as separate platforms", () => {
+  const trip = departure("position-same-stop-platforms", [
+    call("a", 0),
+    call("a", 2),
+    call("b", 4),
+  ]);
+
+  const crossing = getSmoothTripPlacement(trip, start + 60_000);
+  assert.equal(crossing?.fromStopId, "a");
+  assert.equal(crossing?.toStopId, "a");
+  assert.ok(crossing && crossing.progress > 0.49 && crossing.progress < 0.51);
 });
 
 test("places a large forward correction instead of animating an unobserved journey", () => {

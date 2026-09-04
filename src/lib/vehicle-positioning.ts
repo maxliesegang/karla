@@ -1,5 +1,5 @@
-import type { Departure } from "../data/transit-types";
-import { statesRunEnd, statesRunStart } from "./trip-calls";
+import type { Departure, TripCall } from "../data/transit-types";
+import { collapseTurnaroundCalls, statesRunEnd, statesRunStart } from "./trip-calls";
 import { getVehicleTripKey } from "./trips";
 
 /**
@@ -91,9 +91,10 @@ const ROW_DEPARTURE_PRECISION_MS = 60_000;
  *
  * The lead is measured against the departure as the feed times it, delay included, so it is the
  * real stand rather than the timetable's. It is long enough to cover an ordinary turn end to end:
- * line 3 turns at Forststraße on eleven scheduled minutes, and a turn that long — or one stretched
- * further because the run taking the vehicle over is running late — falls outside the window a
- * turnaround pairing is read within (`lib/line-turnarounds.ts`). Held at six minutes the diagram
+ * line 3 turns at Forststraße on eleven scheduled minutes, and a turn that long is drawn from this
+ * lead alone wherever no pairing was found for it — a reading that has caught only one run starting
+ * at that terminus cannot measure the headway a pairing is bounded by, and falls back on a window
+ * shorter than the turn (`lib/line-turnarounds.ts`). Held at six minutes the diagram
  * showed nothing at all standing at the terminus for the middle of every such turn, while a rider
  * on the platform was looking straight at the tram. A trip the feed monitors and times out of a
  * stop it is due away from within nine minutes is standing there, and that is drawn without
@@ -133,6 +134,8 @@ type TimedCall = {
   departure: number;
   /** The departure was stated at this call, rather than copied from another monitored call. */
   departureIsExplicit: boolean;
+  /** The board row repeated beside a detailed sequence's copy of this same call. */
+  isPublishedCurrentCall: boolean;
 };
 
 /** Shifts in milliseconds: one pair per calling point, one number for each end of the call. */
@@ -151,24 +154,29 @@ type ScheduledCall = {
   statedShift?: CallShift;
   /** The one call this departure was actually read at, whose row is the freshest fact in hand. */
   isBoardingCall: boolean;
+  /** Explicit provider marker distinguishing a duplicate board call from real same-stop travel. */
+  isPublishedCurrentCall: boolean;
 };
 
 /**
  * The call the board row itself describes: the one the producing board marked, or failing that the
  * one that resolves to the stop the row was read at.
  */
-function findBoardingCallIndex(departure: Departure): number {
-  const calls = departure.tripCalls ?? [];
+function findBoardingCallIndex(departure: Departure, calls: readonly TripCall[]): number {
   const marked = calls.findIndex((call) => call.isCurrentStop);
   return marked >= 0
     ? marked
-    : calls.findIndex((call) => call.localStopId === departure.boardingStopId);
+    : calls.findIndex((call) => call.localStopId === departure.boardingLocalStopId);
 }
 
 /** Calls that can carry a mark: a known stop, a known row in the diagram, and a known time. */
 function getScheduledCalls(departure: Departure): ScheduledCall[] {
-  const boardingIndex = findBoardingCallIndex(departure);
-  return (departure.tripCalls ?? []).flatMap((call, index) => {
+  // Only a repeated call explicitly marked as a run boundary is one physical stand reported twice.
+  // Other consecutive calls of the same local stop can be real travel between platforms, and the
+  // diagram draws that link, so the vehicle timeline must preserve it as well.
+  const calls = collapseTurnaroundCalls(departure.tripCalls ?? []);
+  const boardingIndex = findBoardingCallIndex(departure, calls);
+  return calls.flatMap((call, index) => {
     if (!call.localStopId) return [];
     const arrival = toInstant(call.scheduledArrivalTime);
     const departureTime = toInstant(call.scheduledDepartureTime);
@@ -194,6 +202,7 @@ function getScheduledCalls(departure: Departure): ScheduledCall[] {
                 departure: (departureDelay ?? arrivalDelay ?? 0) * 60_000,
               },
         isBoardingCall: index === boardingIndex,
+        isPublishedCurrentCall: call.isCurrentStop === true,
       },
     ];
   });
@@ -333,14 +342,15 @@ function getTimedCalls(
     const callDeparture = Math.max(arrival, call.scheduledDeparture + shifts[index].departure);
     earliest = callDeparture;
     const previous = timed[timed.length - 1];
-    if (previous?.stopId === call.stopId) {
-      // A detailed sequence and the board row can describe the same physical stop twice. Keep
-      // the first arrival and last departure so a turning terminus still retains its dwell, but
-      // never make the duplicate platform observation into a link the diagram could traverse.
+    const isDuplicateBoardCall =
+      previous?.stopId === call.stopId &&
+      (previous.isPublishedCurrentCall || call.isPublishedCurrentCall);
+    if (isDuplicateBoardCall) {
       previous.arrival = Math.min(previous.arrival, arrival);
       previous.departure = Math.max(previous.departure, callDeparture);
       previous.departureIsExplicit ||=
         call.statedShift !== undefined || (rowShift !== undefined && index === boardingIndex);
+      previous.isPublishedCurrentCall ||= call.isPublishedCurrentCall;
     } else {
       timed.push({
         stopId: call.stopId,
@@ -348,6 +358,7 @@ function getTimedCalls(
         departure: callDeparture,
         departureIsExplicit:
           call.statedShift !== undefined || (rowShift !== undefined && index === boardingIndex),
+        isPublishedCurrentCall: call.isPublishedCurrentCall,
       });
     }
   }

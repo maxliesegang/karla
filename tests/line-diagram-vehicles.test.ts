@@ -53,8 +53,8 @@ test("moves continuously across every visible row when an observed trip skips a 
     transportMode: "tram",
     destination: "C",
     minutesUntilDeparture: 0,
-    platformName: "1",
-    boardingStopId: "a",
+    platformCode: "1",
+    boardingLocalStopId: "a",
     status: "realtime",
     scheduledDepartureTime: new Date(start).toISOString(),
     tripCalls: [call("a", 0), call("c", 2)],
@@ -97,8 +97,8 @@ test("keeps the freshest board's reading of a vehicle, not the first board's", (
     transportMode: "tram",
     destination: "C",
     minutesUntilDeparture: 0,
-    platformName: "1",
-    boardingStopId: "a",
+    platformCode: "1",
+    boardingLocalStopId: "a",
     status: "realtime",
     scheduledDepartureTime: new Date(start).toISOString(),
     tripCalls: [call("a", 0), call("b", 2), call("c", 4)],
@@ -137,8 +137,8 @@ test("draws joined portions as one counted mark until the terminating portion en
     transportMode: "tram",
     destination,
     minutesUntilDeparture: 0,
-    platformName: "1",
-    boardingStopId: "a",
+    platformCode: "1",
+    boardingLocalStopId: "a",
     status: "realtime",
     scheduledDepartureTime: new Date(start).toISOString(),
     tripCalls,
@@ -199,8 +199,8 @@ test("keeps inconsistent joined-portion positions separate", () => {
     transportMode: "tram" as const,
     destination,
     minutesUntilDeparture: 0,
-    platformName: "1",
-    boardingStopId: "a",
+    platformCode: "1",
+    boardingLocalStopId: "a",
     status: "realtime" as const,
     scheduledDepartureTime: new Date(start).toISOString(),
     tripCalls,
@@ -224,14 +224,14 @@ test("keeps inconsistent joined-portion positions separate", () => {
   assert.ok(vehicles.every(({ joinedDepartures }) => joinedDepartures.length === 1));
 });
 
-test("draws a terminus stated on both of its platforms as one row", () => {
+test("draws both published platform calls at the same stop", () => {
   // What a turning trip publishes at its last stop: timed into the platform it arrives on, and
   // again out of the one it leaves from, both resolving to the same stop.
   const tripCalls = [call("a", 0), call("b", 2), call("c", 4), call("c", 6)];
   const diagramStops = buildLineDiagramStops(network, line, tripCalls, null);
   assert.deepEqual(
     diagramStops.map(({ stopId }) => stopId),
-    ["a", "b", "c"],
+    ["a", "b", "c", "c"],
   );
 
   const departure: Departure = {
@@ -241,14 +241,14 @@ test("draws a terminus stated on both of its platforms as one row", () => {
     transportMode: "tram",
     destination: "C",
     minutesUntilDeparture: 0,
-    platformName: "1",
-    boardingStopId: "a",
+    platformCode: "1",
+    boardingLocalStopId: "a",
     status: "realtime",
     scheduledDepartureTime: new Date(start).toISOString(),
     tripCalls,
   };
 
-  // The last link a rider can be carried along is B–C, and it is the diagram's last row pair.
+  // The carried link still ends at the first C call; the second is the separately published stand.
   const [vehicle] = getLineDiagramVehicles(
     diagramStops,
     [departure],
@@ -257,6 +257,17 @@ test("draws a terminus stated on both of its platforms as one row", () => {
     start + 3 * 60_000,
   );
   assert.ok(getVehicleRowCoordinate(vehicle) > 1 && getVehicleRowCoordinate(vehicle) < 2);
+
+  const [betweenPlatforms] = getLineDiagramVehicles(
+    diagramStops,
+    [departure],
+    [],
+    departure,
+    start + 5 * 60_000,
+  );
+  assert.ok(
+    getVehicleRowCoordinate(betweenPlatforms) > 2 && getVehicleRowCoordinate(betweenPlatforms) < 3,
+  );
 });
 
 test("a chain names its own coordinates, and a row speaks for every mark behind it", () => {
@@ -270,8 +281,8 @@ test("a chain names its own coordinates, and a row speaks for every mark behind 
     transportMode: "tram",
     destination: "C",
     minutesUntilDeparture: 0,
-    platformName: "1",
-    boardingStopId: "a",
+    platformCode: "1",
+    boardingLocalStopId: "a",
     status: "realtime",
     scheduledDepartureTime: new Date(start).toISOString(),
     tripCalls: [call("a", 0), call("b", 1)],
@@ -314,8 +325,8 @@ test("carries every trip's own destination on its mark, joined portions included
     transportMode: "tram",
     destination: "Rüppurr Tulpenstraße",
     minutesUntilDeparture: 0,
-    platformName: "1",
-    boardingStopId: "a",
+    platformCode: "1",
+    boardingLocalStopId: "a",
     status: "realtime",
     scheduledDepartureTime: new Date(start).toISOString(),
     tripCalls: [call("a", 0), call("b", 1), call("c", 2)],
@@ -341,8 +352,8 @@ test("speaks a mark standing at a terminus as the departure or the arrival it is
     transportMode: "tram",
     destination: "B",
     minutesUntilDeparture: 0,
-    platformName: "1",
-    boardingStopId: "a",
+    platformCode: "1",
+    boardingLocalStopId: "a",
     status: "realtime",
     scheduledDepartureTime: new Date(start).toISOString(),
     tripCalls: run([call("a", 0), call("b", 2)]),
@@ -398,8 +409,8 @@ test("places a mark on the nearer of two rows a chain names the same stop at", (
     transportMode: "tram",
     destination: "D",
     minutesUntilDeparture: 0,
-    platformName: "1",
-    boardingStopId: "a",
+    platformCode: "1",
+    boardingLocalStopId: "a",
     status: "realtime",
     scheduledDepartureTime: new Date(start).toISOString(),
     tripCalls: chain,

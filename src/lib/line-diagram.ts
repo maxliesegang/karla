@@ -6,7 +6,13 @@ import { getInterchangesAtStop, type InterchangeIndex } from "./interchanges";
 import type { JoinedTripPortionPair } from "./joined-trip-portions";
 import { isSameLineFamily } from "./line-families";
 import { isSelectedLine, type LineSelection } from "./line-bundles";
-import { getCallKey, getTripCallInstant, statesRunEnd } from "./trip-calls";
+import {
+  alignSameRouteCalls,
+  collapseTurnaroundCalls,
+  getCallKey,
+  getTripCallInstant,
+  statesRunEnd,
+} from "./trip-calls";
 import {
   createSoonestPassageComparator,
   getTripPlacement,
@@ -23,6 +29,12 @@ export type LineDiagramStop = {
   stopName: string;
   /** The municipality, stated only where the stop name does not name one by itself. */
   placeName?: string;
+  /**
+   * Which platform of the stop this row is, stated only where the row above or below it is the
+   * same stop — a route that reaches one stop twice, where the name alone says nothing about which
+   * of the two a rider is looking at.
+   */
+  platformLabel?: string;
   interchanges: readonly TransitLine[];
   stopId: string;
   tripCall: TripCall;
@@ -130,22 +142,6 @@ function isOnSharedLink(
   return sharedEndIndex >= 0 && linkIndex >= 0 && linkIndex < sharedEndIndex;
 }
 
-/**
- * One row per stop of the route, where the sequence states a stop twice in a row.
- *
- * A stop complex is published as its stop points, and a trip that turns back at one is timed into
- * the platform it arrives on and out of the platform it leaves from — currently line 1 on its
- * Heide diversion, arriving at Neureut-Heide Gleis 1 and standing again at Gleis 2 two minutes
- * later. Those are one call of the route, and drawn as two they are a stop the line appears to
- * serve twice, with a final link whose two ends are the same row and which therefore carries no
- * mark at all. The call the vehicle reaches the stop at is the one kept, which is the same rule
- * `getCallsAfterStop` reads a route onwards by.
- */
-const collapseRepeatedCalls = (tripCalls: readonly TripCall[]): readonly TripCall[] =>
-  tripCalls.filter(
-    (call, index) => index === 0 || getCallKey(tripCalls[index - 1]) !== getCallKey(call),
-  );
-
 export function buildLineDiagramStops(
   network: TransitNetwork,
   line: TransitLine,
@@ -153,17 +149,28 @@ export function buildLineDiagramStops(
   /** `null` beside a departure board, where the row has no width to state changes in. */
   interchangeIndex: InterchangeIndex | null,
 ): LineDiagramStop[] {
-  const tripCalls = collapseRepeatedCalls(calls);
+  // A turnaround is one call reported twice; every other repeat is a stop the route really does
+  // reach twice, and drawing it once would take a link a rider rides off the diagram.
+  const tripCalls = collapseTurnaroundCalls(calls);
   const homePlaceName = findHomePlaceName(tripCalls);
-  const stops = tripCalls.map((tripCall) => {
+  const callKeys = tripCalls.map(getCallKey);
+  const stops = tripCalls.map((tripCall, index) => {
     const stopId =
       tripCall.localStopId ??
       findStopByName(network, tripCall.stopName)?.id ??
       createStopSlug(tripCall.stopName);
+    // Two rows of one stop, one under the other, are the diagram's least readable moment: at
+    // Marktplatz the two names part them, at Europaplatz nothing does — the same name, the same
+    // stop point, and a hundred metres of Kaiserstraße between them. The platform is what parts
+    // them on the ground, so it is what parts them here, and only here: printed on every row it
+    // would be a column of noise down a line that calls at each of its stops once.
+    const isRepeatedStop =
+      callKeys[index - 1] === callKeys[index] || callKeys[index + 1] === callKeys[index];
 
     return {
       stopName: tripCall.stopName,
       placeName: getStopPlaceQualifier(tripCall, homePlaceName),
+      platformLabel: isRepeatedStop ? tripCall.platformLabel : undefined,
       interchanges: interchangeIndex
         ? getInterchangesAtStop(
             interchangeIndex,
@@ -196,28 +203,24 @@ export function extendLineDiagramCalls(
   farthestCalls: readonly TripCall[] | undefined,
 ): readonly TripCall[] {
   if (!farthestCalls?.length || drawnCalls.length === 0) return drawnCalls;
-  const farthestIndexByKey = new Map(
-    farthestCalls.map((call, index) => [getCallKey(call), index] as const),
-  );
+  // The two readings are aligned call by call rather than matched through their stops: a stop the
+  // route reaches twice would otherwise anchor both of its calls to whichever came first.
+  const anchors = alignSameRouteCalls(drawnCalls, farthestCalls);
+  if (anchors.length === 0) return drawnCalls;
+
   const merged: TripCall[] = [];
+  let drawnCursor = 0;
   let farthestCursor = 0;
-  let drawnOnly: TripCall[] = [];
-  for (const call of drawnCalls) {
-    const farthestIndex = farthestIndexByKey.get(getCallKey(call));
-    if (farthestIndex === undefined) {
-      drawnOnly.push(call);
-      continue;
-    }
-    merged.push(...farthestCalls.slice(farthestCursor, farthestIndex));
-    merged.push(...drawnOnly, call);
-    drawnOnly = [];
-    // A drawn chain may pass one of its own stops twice, and the run has seen the line once
-    // through: the second pass is a call of the reading, but it must not walk the run's cursor
-    // back with it, or what the run had left to give would be given twice.
-    if (farthestIndex >= farthestCursor) farthestCursor = farthestIndex + 1;
+  for (const [drawnAnchor, farthestAnchor] of anchors) {
+    merged.push(
+      ...farthestCalls.slice(farthestCursor, farthestAnchor),
+      ...drawnCalls.slice(drawnCursor, drawnAnchor),
+      drawnCalls[drawnAnchor],
+    );
+    drawnCursor = drawnAnchor + 1;
+    farthestCursor = farthestAnchor + 1;
   }
-  if (merged.length === 0) return drawnCalls;
-  return [...merged, ...drawnOnly, ...farthestCalls.slice(farthestCursor)];
+  return [...merged, ...drawnCalls.slice(drawnCursor), ...farthestCalls.slice(farthestCursor)];
 }
 
 /**
@@ -630,19 +633,36 @@ const callsAtStop = (departure: Departure, lineId: string, stopIds: readonly str
  * naming a stop point of the same complex, which is not a row of this chain at all. The rider
  * tapped a row of this diagram, so the address always names one.
  *
- * The boarding stop point answers the case the address cannot: a stop-complex page listing a
- * departure that physically leaves from one of its other points, where the chain names the point
- * and the address names the complex. That is a stop the rider arrived at rather than walked to, so
+ * The boarding stop answers the case the address cannot: a stop-complex page listing a
+ * departure that physically leaves from one of its other points, where the chain names that point's
+ * own local stop and the address names the complex. That is a stop the rider arrived at rather than walked to, so
  * there is no note travelling anywhere and nothing to blink.
  */
 export function getCurrentStopIndex(
   diagramStops: readonly LineDiagramStop[],
   stopId: string,
-  boardingStopPointId: string | undefined,
+  /** Local, because the rows are: a provider stop point id matches no `stopId` of this chain. */
+  boardingLocalStopId: string | undefined,
 ): number {
   const addressed = diagramStops.findIndex((diagramStop) => diagramStop.stopId === stopId);
-  if (addressed >= 0 || !boardingStopPointId) return addressed;
-  return diagramStops.findIndex((diagramStop) => diagramStop.stopId === boardingStopPointId);
+  if (addressed >= 0 || !boardingLocalStopId) return addressed;
+  return diagramStops.findIndex((diagramStop) => diagramStop.stopId === boardingLocalStopId);
+}
+
+/**
+ * Whether one diagram row is an occurrence of the stop the rider has open.
+ *
+ * The address names a unified stop rather than one occurrence in a particular trip. If the route
+ * reaches that stop twice, both rows are therefore current. The first occurrence remains the
+ * placement anchor returned above; this only answers how every row is presented.
+ */
+export function isCurrentLineDiagramStop(
+  diagramStops: readonly LineDiagramStop[],
+  currentStopIndex: number,
+  rowIndex: number,
+): boolean {
+  const currentStopId = diagramStops[currentStopIndex]?.stopId;
+  return currentStopId !== undefined && diagramStops[rowIndex]?.stopId === currentStopId;
 }
 
 /**

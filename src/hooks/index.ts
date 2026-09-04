@@ -5,6 +5,8 @@
  * (or `"../hooks"`) without knowing which module a hook lives in.
  */
 export { useAppRoute } from "./route";
+export { useStopBoardingPlaces } from "./boarding-places";
+export { useBoardingPlaceSections, type BoardingPlaceSections } from "./boarding-place-sections";
 export {
   useLocatableStops,
   useTransitNetwork,

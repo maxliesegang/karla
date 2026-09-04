@@ -10,7 +10,7 @@ import {
   type StopServiceCorridorPlace,
 } from "./stop-corridor-way";
 import { compareGermanNames } from "./text";
-import { getCallKey, getCommonCallPrefix } from "./trip-calls";
+import { findFirstCallBeyondStop, getCallKey, getCommonCallPrefix } from "./trip-calls";
 
 /** Trips that leave the current stop over the same first scheduled link. */
 export type StopServiceCorridor = {
@@ -161,7 +161,9 @@ export function getStopServiceCorridorLineGroups(
   for (const departure of departures) {
     const lineId = getLineFamilyId(departure.lineId);
     const match = findStopCorridorPattern(patterns, departure);
-    const firstObservedStop = match?.calls[0];
+    const firstObservedStop = match
+      ? findFirstCallBeyondStop(match.calls, patterns.stopId)
+      : undefined;
     // A trip whose route is not known yet joins the other trips showing the same headsign rather
     // than standing alone: keyed by the departure, one unresolved trip was one row of its own, and
     // a row that appears and disappears as trips resolve is worse than a row named by a headsign.

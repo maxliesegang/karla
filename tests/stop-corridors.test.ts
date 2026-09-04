@@ -12,8 +12,8 @@ function departure(
     lineId: "2",
     transportMode: "tram",
     minutesUntilDeparture: 4,
-    platformName: "1",
-    boardingStopId: "europaplatz",
+    platformCode: "1",
+    boardingLocalStopId: "europaplatz",
     status: "realtime",
     scheduledDepartureTime: "2026-08-24T12:04:00+02:00",
     ...overrides,
@@ -519,7 +519,7 @@ test("a place another line serves is prominent though the route calls there once
       id: "bus",
       lineId: "216",
       destination: "Malsch",
-      boardingStopId: "muggensturm",
+      boardingLocalStopId: "muggensturm",
       tripCalls: [
         {
           stopName: "Muggensturm",
@@ -578,7 +578,7 @@ test("states three places, the most relevant of the way's own beside the end", (
       id: "bus",
       lineId: "216",
       destination: "Malsch",
-      boardingStopId: "muggensturm",
+      boardingLocalStopId: "muggensturm",
       tripCalls: [
         {
           stopName: "Muggensturm",
@@ -1026,8 +1026,8 @@ test("a trip that turns back is not parted from the service that runs on through
   // A terminating trip is reported at the platform it arrives on and again at the one it leaves
   // from, which is one call of the route stated twice: at Gottesauer Platz the S2's Reitschulschlag
   // working reads `Reitschulschlag > Reitschulschlag` where its Spöck service reads
-  // `Reitschulschlag > Büchig`. Left as two calls the short working stops being a prefix of the
-  // through route, and the pair reads as one nameless corridor pointing at the place they part.
+  // `Reitschulschlag > Büchig`. Both calls must remain published while the topology comparison
+  // still recognizes that this is the short working of the through route.
   const live = [
     departure({ id: "spoeck", lineId: "S2", destination: "Spöck", tripId: "spoeck" }),
     departure({ id: "short", lineId: "S2", destination: "Reitschulschlag", tripId: "short" }),
@@ -1053,7 +1053,7 @@ test("a trip that turns back is not parted from the service that runs on through
     departure({
       ...live[1],
       // The reversal: the same stop again, on the platform the vehicle leaves from.
-      tripCalls: [...shared, { ...shared[1], platformName: "Gleis 3" }],
+      tripCalls: [...shared, { ...shared[1], platformLabel: "Gleis 3" }],
     }),
   ];
 

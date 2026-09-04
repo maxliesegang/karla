@@ -4,17 +4,35 @@
  *
  * One local id is one page, not one stop point. Where a place has a tunnel platform and a street
  * platform, EFA answers both from either id — a board requested for `7000037` and one requested for
- * `7001004` come back with the same departures at Europaplatz, `useProxFootSearch` off. So the two
- * are one entry here, requested by the id below, and the level a departure leaves from is read off
- * the row itself: the feed signs the tunnel platforms `1(U)`, `2(U)` against the street's `3`–`6`,
- * and the board groups by that.
+ * `7001004` come back with the same departures at Europaplatz, row for row, whether
+ * `useProxFootSearch` is `0` or left off entirely. There is no parameter that separates them, so a
+ * second page for the second id would be the same board under another address; the two are one
+ * entry here, requested by the id below, and the board is split where it is read
+ * (`lib/boarding-places.ts`).
+ *
+ * What that split may *not* be read from is the platform code. The tunnel signs itself `1(U)`,
+ * `2(U)` against the street's `3`–`6`, which looks like the whole answer until Europaplatz's four
+ * street platforms turn out to be two boarding places 110 m apart: line 4 to Oberreut calls at
+ * `Gleis 3` at 08:58 and at `Gleis 5` at 08:59, one vehicle, one stop point, two places to stand.
+ * The stop point states the level; only the trips themselves state the rest.
  *
  * Verified against https://projekte.kvv-efa.de/sl3-alone/XSLT_STOPFINDER_REQUEST on 21/22 August
- * 2026; the merged boards re-verified against XSLT_DM_REQUEST on 28 August 2026.
+ * 2026; the merged boards re-verified against XSLT_DM_REQUEST on 28 August 2026, and the double
+ * calls at Marktplatz and Europaplatz against XML_TRIPSTOPTIMES_REQUEST on 4 September 2026.
  */
 export type KvvStopMapping = {
   /** EFA stop id queried for departures. */
   providerStopId: string;
+  /**
+   * How many rows to ask this stop's board for, where the default is not enough.
+   *
+   * The default is the whole bandwidth budget and is right for a stop with one boarding place. A
+   * place that spans several shares those rows between them — Europaplatz answered 40 rows as 30
+   * street and 10 tunnel, and its street trips are each published twice, once at either boarding
+   * place — so a rider walking to one of them reads a handful of rows about it. Stated per stop
+   * rather than raised for everything: the extra rows are only owed where the board is shared.
+   */
+  departureLimit?: number;
   /**
    * The place's other EFA stop points, which are this same local stop.
    *
@@ -29,9 +47,13 @@ export type KvvStopMapping = {
 
 export const kvvStopMappingByLocalStopId: Record<string, KvvStopMapping> = {
   "muehlburger-tor": { providerStopId: "7000039" },
-  europaplatz: { providerStopId: "7000037", otherProviderStopIds: ["7001004"] },
+  // Four boarding places: the tunnel, the two street pairs the trams call at in turn, and the bus
+  // bay. See the module note above for why the street pair cannot be read off the platform code.
+  europaplatz: { providerStopId: "7000037", otherProviderStopIds: ["7001004"], departureLimit: 40 },
   // The Kaiserstraße tunnel platform and, on the north–south axis beneath the pyramid, `7001011`.
-  marktplatz: { providerStopId: "7001003", otherProviderStopIds: ["7001011"] },
+  // Two boarding places, and a trip calls at both: the S1 to Hochstetten is published at Pyramide
+  // `4(U)` and again at Kaiserstraße `1(U)`, which is a walk between tunnels and not a repeat.
+  marktplatz: { providerStopId: "7001003", otherProviderStopIds: ["7001011"], departureLimit: 40 },
   kronenplatz: { providerStopId: "7001002", otherProviderStopIds: ["7000080"] },
   "durlacher-tor": { providerStopId: "7001001", otherProviderStopIds: ["7000003"] },
   karlstor: { providerStopId: "7000061" },
@@ -41,7 +63,11 @@ export const kvvStopMappingByLocalStopId: Record<string, KvvStopMapping> = {
   albtalbahnhof: { providerStopId: "7001201" },
   // The station's own stop point, not the Vorplatz: `7000089` answers with the Vorplatz tram stop
   // alone, while `7000090` answers with both, which is what a rider at the Hauptbahnhof is asking.
-  hauptbahnhof: { providerStopId: "7000090", otherProviderStopIds: ["7000089"] },
+  hauptbahnhof: {
+    providerStopId: "7000090",
+    otherProviderStopIds: ["7000089"],
+    departureLimit: 40,
+  },
   "ettlinger-tor": { providerStopId: "7001012", otherProviderStopIds: ["7000071"] },
   kongresszentrum: { providerStopId: "7001013", otherProviderStopIds: ["7000072"] },
   augartenstrasse: { providerStopId: "7000074" },

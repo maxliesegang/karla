@@ -12,19 +12,22 @@ import { useTransientScrollbar } from "../hooks";
 import { classNames } from "../lib/class-names";
 import {
   getLineBundleBranchKey,
+  getLineBundleTermini,
   type LineBundleBranch,
   type LineBundleOffer,
 } from "../lib/line-bundles";
+import { isCurrentLineDiagramStop } from "../lib/line-diagram";
 import { isSameLineFamily } from "../lib/line-families";
 import { LineDiagramStopRow } from "./line-diagram/LineDiagramStopRow";
 import { LineDiagramVehicleLayer } from "./line-diagram/LineDiagramVehicleLayer";
 import { LineDiagramBranch } from "./line-diagram/LineDiagramBranch";
 import { LineDiagramBundleControls } from "./line-diagram/LineDiagramBundleControls";
+import { LineDiagramLineSigns } from "./line-diagram/LineDiagramLineSigns";
 import { EMPTY_BRANCH_VEHICLES } from "./line-diagram/bundle";
 import {
-  useCoveredStopState,
   useCurrentStopMove,
   useStopPlacement,
+  useTopTerminusSummary,
   useRequestedTripPosition,
   useVehicleLayerGeometry,
 } from "./line-diagram/layout";
@@ -125,6 +128,7 @@ export function LineDiagramPanel({
   const {
     departure,
     fork,
+    branches,
     lineById,
     bundleControls,
     diagramStops,
@@ -141,7 +145,6 @@ export function LineDiagramPanel({
     statusLabel,
     tripPositionHint,
     termini,
-    hasTermini,
   } = useLineDiagramReading({
     line,
     bundledLines,
@@ -158,6 +161,23 @@ export function LineDiagramPanel({
     rideNextCall,
   });
   const { branchesAhead, branchesBehind, junctionAhead, junctionBehind, hasFork } = fork;
+  const displayedLines = [line, ...(bundledLines ?? [])];
+  const aheadTermini = getLineBundleTermini(branches, "ahead", termini.firstTerminus);
+  const behindTermini = getLineBundleTermini(branches, "behind", termini.lastTerminus);
+  const hasHeadingTermini = aheadTermini.length > 0 && behindTermini.length > 0;
+  const renderTermini = (names: readonly string[]) => (
+    <span
+      className={classNames("line-diagram-termini", names.length > 1 && "branched")}
+      role="group"
+      aria-label={names.join(" oder ")}
+    >
+      {names.map((name) => (
+        <span key={name} aria-hidden="true">
+          {name}
+        </span>
+      ))}
+    </span>
+  );
   // In the ride the row's tap is the one choice a rider on board still has: which stop they get off
   // at. Everywhere else a row is a stop of the line being read, so it moves the reading along that
   // line: the line — and the trip pinned on it, where there is one — stays chosen, and what changes
@@ -180,14 +200,14 @@ export function LineDiagramPanel({
           },
     [departure, isRide, line.id, onToggleAlighting],
   );
-  // A forked diagram has no single pair of ends: its top rows are the legs' termini, and the trunk
-  // rows that would be pinned are ordinary stops the lines happen to part at. Standing in for the
-  // stops out of view is the one thing those pinned rows do, so where there is a fork they do not.
-  const coveredStops = useCoveredStopState({
+  // The real terminus remains in the measured list. This independent summary supplies destination
+  // context only after that row has left the scrollport, and only where there is one top end.
+  const showTopTerminusSummary = useTopTerminusSummary({
     scrollContainerRef,
-    isStacked: isStacked || hasFork,
-    stopCount: diagramStops.length,
+    enabled: !isStacked && !hasFork && diagramStops.length > 0,
+    coordinateKey: vehicleCoordinateKey,
   });
+  const topTerminusLabel = departure?.destination ?? diagramStops[0]?.stopName;
   // One leg. Its vehicles are this line's alone: the trunk carries the bundled lines as far as they
   // run together, and past the junction a vehicle is on exactly one leg's links.
   const renderBranch = (branch: LineBundleBranch, index: number) => {
@@ -232,7 +252,6 @@ export function LineDiagramPanel({
     stopListRef,
     coordinateKey: vehicleCoordinateKey,
   });
-
   // A line opened at a stop stands on that stop; a trip pinned on it stands on where that trip
   // actually is. Walking to another stop of the line moves neither — see `useStopPlacement`. A ride
   // starts at its status card and moves to the diagram only through the explicit position control.
@@ -272,26 +291,36 @@ export function LineDiagramPanel({
             line while a trip is pinned. */}
         {!isRide && (
           <>
-            {departure ? (
-              <button
-                type="button"
-                className="line-diagram-sign"
-                onClick={() => navigateTo(routePaths.line(line.id, stop.id))}
-                aria-label={`Fahrt Richtung ${departure.destination} nicht mehr hervorheben, ganze Linie ${line.id} zeigen`}
-              >
-                {line.id}
-              </button>
-            ) : (
-              <span className="line-diagram-sign">{line.id}</span>
-            )}
+            <LineDiagramLineSigns
+              lines={displayedLines}
+              onClearTrip={
+                departure
+                  ? () =>
+                      navigateTo(
+                        routePaths.line(
+                          line.id,
+                          stop.id,
+                          (bundledLines ?? []).map(({ id }) => id),
+                        ),
+                      )
+                  : undefined
+              }
+              clearTripLabel={
+                departure
+                  ? `Fahrt Richtung ${departure.destination} nicht mehr hervorheben, Linien ${displayedLines
+                      .map(({ id }) => id)
+                      .join(", ")} zeigen`
+                  : undefined
+              }
+            />
             <h1 className={departure ? "trip-destination" : undefined}>
               {departure ? (
                 departure.destination
-              ) : hasTermini ? (
+              ) : hasHeadingTermini ? (
                 <>
-                  <span>{termini.firstTerminus}</span>
+                  {renderTermini(aheadTermini)}
                   <i aria-hidden="true">↔</i>
-                  <span>{termini.lastTerminus}</span>
+                  {renderTermini(behindTermini)}
                 </>
               ) : (
                 line.name
@@ -348,8 +377,18 @@ export function LineDiagramPanel({
       )}
 
       <div ref={scrollContainerRef} className="line-diagram-stops">
-        {/* Same condition as the covered-stop spans: only a diagram that scrolls has stops its
-            pinned ends stand in for, and only then do they cover the marks travelling past. */}
+        <div
+          className={classNames(
+            "line-diagram-top-terminus-summary",
+            showTopTerminusSummary && "shown",
+          )}
+          aria-hidden={!showTopTerminusSummary}
+        >
+          <span>
+            <small>Richtung</small>
+            <strong>{topTerminusLabel}</strong>
+          </span>
+        </div>
         {/* The fork, at the end the line runs towards. Each leg is one bundled line past the stop
             they part at, drawn on its own chain and carrying its own vehicles; the trunk below
             names the junction once, and the legs run into it. */}
@@ -371,7 +410,6 @@ export function LineDiagramPanel({
         <div
           ref={stopListRef}
           className="line-diagram-stop-list"
-          data-covers-hidden-stops={(!isStacked && coveredStops.isScrollable) || undefined}
           data-current-stop-move={currentStopMove}
         >
           {diagramStops.map((diagramStop, index) => (
@@ -379,20 +417,10 @@ export function LineDiagramPanel({
               key={`${diagramStop.stopName}-${index}`}
               diagramStop={diagramStop}
               index={index}
-              currentStopIndex={currentStopIndex}
+              isCurrent={isCurrentLineDiagramStop(diagramStops, currentStopIndex, index)}
               vehicleLabel={vehicleLabelByRowIndex.get(index) ?? ""}
               isFirst={index === 0 && branchesAhead.length === 0}
               isLast={index === diagramStops.length - 1 && branchesBehind.length === 0}
-              coveredStopSpan={
-                !isStacked &&
-                coveredStops.isScrollable &&
-                (index === 0 || index === diagramStops.length - 1)
-                  ? {
-                      count: index === 0 ? coveredStops.aboveCount : coveredStops.belowCount,
-                      direction: index === 0 ? "above" : "below",
-                    }
-                  : null
-              }
               isSelectedTrip={Boolean(departure)}
               isAlighting={Boolean(alightingStopId) && diagramStop.stopId === alightingStopId}
               isTripPositionAnchor={index === tripPositionStopIndex}

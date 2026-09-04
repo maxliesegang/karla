@@ -123,7 +123,7 @@ XSLT_DM_REQUEST
 | `itdDateTimeDepArr` | `dep`, `arr` | Select departures or arrivals. |
 | `limit` | positive integer | Limits the returned events exactly — **but only when sent before the mode macros**. See "Row cap". |
 | `depSequence` | integer ≥ 2 | The same cap, honoured in any position. This is the main bandwidth control. |
-| `useProxFootSearch` | `0` | Read this stop only. Without it the board may spend rows on neighbouring stops. |
+| `useProxFootSearch` | `0` | Off is already the default: omitting it is row-for-row identical to `0` (Europaplatz, Marktplatz, Hauptbahnhof, Mühlburger Tor, 4 September 2026). It is sent to pin that, because `1`/`on` **does** take effect once the mode macros are present, and then a stop board becomes a district one — a Marktplatz board came back with rows from Europaplatz, Karlstor, Kronenplatz, Ettlinger Tor, Kapellenstraße and Linkenheimer Tor. Without the macros, `1` is ignored. |
 | `line` | `servingLine.stateless`, repeatable | Restrict the board to those line-directions. See below. |
 | `coordOutputFormat` | `WGS84[DD.ddddd]` | Return usable stop coordinates. |
 
@@ -424,6 +424,46 @@ On those rows the feed contradicts itself: `countdown` follows `dateTime + delay
 `realDateTime`, so no reading agrees with both. KARLA follows the prediction (rule 2), leaving its
 countdown a minute above the platform display on about one row in twenty.
 
+### What a turnaround leaves in the feed
+
+Nothing joins the run that ends at a terminus to the run that starts there; the join in
+`src/lib/line-turnarounds.ts` is inferred. `scripts/probe-turnarounds.ts` polled six termini live on
+the evening of 4 September 2026, and the published timetable for that Friday was read alongside it
+to cover the hours the probe did not see. What the two together establish is mostly a limit.
+
+**The published times pin a turn only modulo the headway.** A terminus is scheduled so that its
+arrivals and departures repeat on the same interval, so if an arrival turns out as the departure
+`g` minutes later, it is equally consistent with the whole timetable that it turns out as the one
+`g + headway` minutes later, with one more vehicle in the fleet standing one more turn. Both
+readings close the cycle exactly. Line 1 midday runs Wolfartsweier Nord to Neureut-Heide in 32.6
+minutes and back in 33.5, turns at Neureut-Heide in 3.9, and repeats every 10: the remaining
+layover at Wolfartsweier Nord is 0 minutes on 7 vehicles or 10 minutes on 8, and nothing published
+distinguishes them. No reading of the feed can settle this. Only counting the vehicles can, or
+watching the platform.
+
+**A published gap of zero is the case where that matters.** Where the feed times an arrival and a
+departure at the same second the minimal reading is physically impossible, so the real turn is one
+headway or more. This is common and is not a data error:
+
+| Terminus | Line | Headway, day / evening | Published turn, day / evening |
+| --- | --- | --- | --- |
+| Rintheim | 3 | 10 / 20 min | 9 min / 0 |
+| Wolfartsweier Nord | 1 | 10 / 20 min | 0 / 7 min |
+| Neureut-Heide | 1 | 10 / 20 min | 3 min / 11 min |
+
+**The turn is a property of the line at the terminus in one service period, not of the terminus.**
+Every terminus above states one turn all through the day and a different one in the evening, so a
+pairing that learns a turn has to learn it per period rather than once.
+
+**Whether an unstarted run carries the arriving vehicle's lateness is untested.** A run that has
+not left states `delay: 0` for as long as it is on the board, and that reading cannot be attributed:
+it is what a correctly-predicted departure states, and also what an unmonitored one states. Telling
+them apart needs a case where the vehicle that will run the departure is known to be late, which
+needs the pairing this would be evidence for. Nothing observed rules propagation in or out.
+
+**Platform held across every pair observed**, but each terminus in the sample has one platform, so
+this says nothing yet about the multi-track termini where it would decide something.
+
 ### Parameters that did not provide useful DM filtering
 
 The live form exposes accessibility controls:
@@ -458,6 +498,23 @@ may affect journey calculation, but it is not a reliable departure-monitor filte
 `useAllStops=0` versus `useAllStops=1` made no difference for the tested Europaplatz stop-complex
 ID: both returned the surface and underground provider stops. Use the actual IDs returned on each
 event rather than assuming this option controls complex membership.
+
+There is no parameter that narrows a stop-complex board to one of its stop points. `7000037` and
+`7001004` answer with the same Europaplatz rows — street and tunnel together — in either direction,
+and the same holds for Marktplatz's two tunnels. A board covering several places to stand is
+therefore split where it is read (`src/lib/boarding-places.ts`), never in the request.
+
+Two further things such a board does that a single-platform one does not, both verified on
+4 September 2026:
+
+- **It shares one row cap between the places.** Europaplatz at `depSequence=40` answered 30 street
+  rows and 10 tunnel rows; Marktplatz answered 30 Kaiserstraße and 10 Pyramide. Twenty rows are
+  three or four per place, which is why `kvv-stop-mappings.ts` raises the cap for these stops.
+- **It publishes one vehicle twice where a trip calls at two of the places in turn.** Line 4 to
+  Oberreut (`RealtimeTripId de:kvv:00004_:.kvv-21-4-E.5.T0.1054.s26`) appears at `Gleis 3` at 08:58
+  and at `Gleis 5` at 08:59, and its `XML_TRIPSTOPTIMES_REQUEST` sequence states both calls under
+  the one stop id `7000037`. `trainNum` is absent on trams, so `keepOneRowPerRun` does not fold
+  them — and it should not: they are two places a rider may be standing at.
 
 `itdLPxx_template`, `itdLPxx_snippet`, `sessionID`, `requestID`, and similar fields are HTML client
 plumbing and are unnecessary for a direct JSON board.

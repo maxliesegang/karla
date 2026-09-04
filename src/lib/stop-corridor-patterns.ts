@@ -3,7 +3,12 @@ import { isExceptionalOperationNote } from "../data/operational-exceptions";
 import { getLineFamilyId } from "./line-families";
 import { getBaseName } from "./stop-naming";
 import type { PlaceLineFamilies, PlaceSighting } from "./stop-corridor-way";
-import { getCallKey, getCallSequenceKey, getCallsAfterStop } from "./trip-calls";
+import {
+  findFirstCallBeyondStop,
+  getCallKey,
+  getCallSequenceKey,
+  getCallsAfterStop,
+} from "./trip-calls";
 
 /**
  * What a stop has learned about where its trips go, and about the places its lines pass.
@@ -186,7 +191,7 @@ export function updateStopCorridorPatterns(
     // observed direction. Only the first outgoing link is learned here: the direction identity is
     // evidence that trips leave this way, not evidence for their unobserved route further ahead.
     const lineDirectionKey = getLineDirectionKey(departure);
-    const firstCall = calls[0];
+    const firstCall = findFirstCallBeyondStop(calls, stopId);
     if (lineDirectionKey && firstCall) {
       lineDirections.learn(lineDirectionKey, getCallKey(firstCall), [firstCall], tripKey);
     }
@@ -358,7 +363,7 @@ function findBoardPlaceName(departures: readonly Departure[], stopId: string): s
     const call = (departure.tripCalls ?? []).find(
       (candidate) =>
         candidate.localStopId === stopId ||
-        (departure.boardingStopId === stopId && candidate.isCurrentStop),
+        (departure.boardingLocalStopId === stopId && candidate.isCurrentStop),
     );
     if (call?.placeName) return getBaseName(call.placeName);
   }

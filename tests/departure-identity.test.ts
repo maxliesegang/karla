@@ -16,7 +16,7 @@ const createDeparture = (overrides: Partial<KvvDeparture> = {}): KvvDeparture =>
     transportMode: "tram",
     destination: "Karlsruhe Tullastraße",
     minutesUntilDeparture: 44,
-    platformName: "2",
+    platformCode: "2",
     status: "realtime",
     scheduledDepartureTime: "2026-08-24T18:50:00.000Z",
     ...overrides,

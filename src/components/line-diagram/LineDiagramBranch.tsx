@@ -130,11 +130,10 @@ export function LineDiagramBranch({
               key={`${diagramStop.stopName}-${index}`}
               diagramStop={diagramStop}
               index={index}
-              currentStopIndex={-1}
+              isCurrent={false}
               vehicleLabel={vehicleLabelByRowIndex.get(index) ?? ""}
               isFirst={index === 0}
               isLast={index === diagramStops.length - 1}
-              coveredStopSpan={null}
               isSelectedTrip={Boolean(selectedDeparture)}
               isAlighting={false}
               isTripPositionAnchor={index === tripPositionStopIndex}

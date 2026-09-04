@@ -118,6 +118,10 @@ export class KvvEfaClient {
       name_dm: stopPointId,
       mode: "direct",
       useRealtime: "1",
+      // Off is already the endpoint's default — omitting this is row for row the same board. It is
+      // sent to pin that, because the mode macros below are what make the form options apply, and
+      // with them a `1` turns a stop board into a district one: a Marktplatz board came back with
+      // rows from Europaplatz, Karlstor, Kronenplatz and four more. See `docs/kvv-efa-api.md`.
       useProxFootSearch: "0",
       itdDateTimeDepArr: "dep",
       ...toRowLimitParameters(options.limit ?? DEFAULT_DEPARTURE_LIMIT),

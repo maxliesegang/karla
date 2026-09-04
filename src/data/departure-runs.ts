@@ -28,7 +28,7 @@ export function findRunKey(departure: Departure): string | undefined {
     departure.trainNumber,
     departure.lineId,
     departure.destination,
-    departure.platformName,
+    departure.platformCode,
     departure.scheduledDepartureTime,
   ].join("|");
 }
@@ -109,6 +109,6 @@ export function createRunCollector(base: readonly Departure[]) {
  */
 export function createDepartureId(departure: KvvDeparture, stopId: string): string {
   const tripIdentity =
-    departure.tripId ?? `${departure.lineId}-${departure.platformName}-${departure.destination}`;
+    departure.tripId ?? `${departure.lineId}-${departure.platformCode}-${departure.destination}`;
   return `${stopId}-${tripIdentity}-${departure.scheduledDepartureTime}`;
 }

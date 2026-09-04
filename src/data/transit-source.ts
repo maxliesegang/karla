@@ -20,6 +20,7 @@ import {
   type DirectionCoverage,
 } from "./direction-coverage";
 import { createDepartureId, keepOneRowPerRun } from "./departure-runs";
+import { kvvStopMappingByLocalStopId } from "./kvv-stop-mappings";
 import { SharedRequests } from "./request-sharing";
 import { DYNAMIC_STOP_ID_PATTERN, StopRegistry, hashProviderStopId } from "./stop-registry";
 import { sortDeparturesByExpectedTime } from "../lib/departure-order";
@@ -123,7 +124,7 @@ const LINE_BOARD_CACHE_VARIANT = "line";
  * stop. A view that needs to see further asks for one line rather than for more rows — filtered,
  * the same twenty reach some forty minutes of that line.
  */
-const BOARD_DEPARTURE_LIMIT = 20;
+const DEFAULT_DEPARTURE_LIMIT = 20;
 /** The one key the whole-network notice board is shared under; there is only ever the one read. */
 const SERVICE_NOTICE_REQUEST_KEY = "service-notices";
 /** How many local and remote matches a typed query is answered with. */
@@ -471,7 +472,7 @@ export class KvvTransitSource implements TransitSource {
     try {
       const board = await this.client.fetchDepartureBoard(providerId, {
         includeTripCalls,
-        limit: BOARD_DEPARTURE_LIMIT,
+        limit: kvvStopMappingByLocalStopId[stopId]?.departureLimit ?? DEFAULT_DEPARTURE_LIMIT,
         ...(lineIds?.length ? { lineIds } : {}),
       });
       // A filtered board saw only the lines it asked about, so it must never be recorded as the
@@ -572,9 +573,11 @@ export class KvvTransitSource implements TransitSource {
       destination: departure.destination,
       minutesUntilDeparture: departure.minutesUntilDeparture,
       delayMinutes: departure.delayMinutes,
-      platformName: departure.platformName,
+      platformCode: departure.platformCode,
       platformKind: departure.platformKind,
-      boardingStopId: departureStopId,
+      boardingLocalStopId: departureStopId,
+      boardingProviderStopPointId: departure.stopPointId,
+      boardingProviderStopPointName: departure.stopPointName,
       status: departure.status,
       scheduledDepartureTime: departure.scheduledDepartureTime,
       predictedDepartureTime: departure.predictedDepartureTime,

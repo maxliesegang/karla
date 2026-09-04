@@ -1158,6 +1158,61 @@ button.brand:active .brand-mark,
   color: var(--accent-ink);
 }
 
+/* The places of a stop, as a way to move through the board rather than a way to shrink it. A tap
+   walks the board to that place's own section, and the place whose heading is stuck at the top is
+   marked on the buttons as it goes. Only ever rendered in the platform order, where the board has
+   sections to walk to, and only where it holds more than one of them, so an ordinary stop looks
+   exactly as it did. */
+.departure-board-place-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px var(--row-inset) 0;
+}
+.departure-board-place-bar button {
+  padding: 5px 10px;
+  border: 1px solid var(--rule);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.departure-board-place-bar button.selected {
+  border-color: transparent;
+  background: var(--surface-3);
+  color: var(--ink);
+}
+
+/* The place a rider walks to, standing over the platforms they find when they get there. Set above
+   the platform signposts and away from them, because it is the choice made first: at Europaplatz
+   `Gleis 3` and `Gleis 5` are a hundred metres apart, and the codes alone say nothing about that. */
+.departure-board-boarding-place > h2 {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  margin: 16px 0 0;
+  padding: 6px var(--row-inset);
+  background: var(--surface-2, var(--surface-3));
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  line-height: 1.1;
+  text-transform: uppercase;
+  animation: board-heading-enter 0.26s ease-out both;
+}
+.departure-board-boarding-place:first-child > h2 {
+  margin-top: 2px;
+}
+/* Under a place of its own, a platform signpost is the second heading and stops sticking: two
+   bands holding the top of the scrollport would leave the rows less room than they say anything. */
+.departure-board-boarding-place .departure-board-platform-group h2 {
+  position: static;
+}
+
 /* A platform heading is a signpost, not a title: a band the eye can find while walking, with the
    code set as the glyph a rider matches against the sign in front of them and the operator's word
    as its caption. It was a line of small grey capitals before, which read as a label on the row
@@ -1412,6 +1467,15 @@ button.brand:active .brand-mark,
   padding: 1px 5px;
   background: var(--surface-3);
   color: var(--ink);
+  font-weight: 700;
+}
+/* Which part of the stop the direction leaves from, where the stop is more than one place. It
+   stands beside the platform tag and reads quieter than it: the platform is where to stand, this
+   is which way to walk first, and a rider reads them in that order. */
+.departure-board-corridor-place {
+  padding: 1px 5px;
+  border: 1px solid var(--rule);
+  color: var(--ink-soft);
   font-weight: 700;
 }
 .departure-board-corridor-strip {
@@ -1986,31 +2050,53 @@ button.brand:active .brand-mark,
   background: transparent;
   color: var(--ink);
 }
+.line-diagram-signs {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+button.line-diagram-signs {
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
 .line-diagram-sign {
   display: grid;
-  border: 0;
   place-items: center;
   min-width: clamp(50px, 4.4vw, 62px);
   padding: 5px 10px;
   border-radius: var(--radius-s);
-  background: var(--line-color);
-  color: var(--line-text);
+  background: var(--line-sign-color, var(--line-color));
+  color: var(--line-sign-text, var(--line-text));
   font-size: clamp(23px, 2.1vw, 30px);
   font-weight: 820;
   line-height: 1.1;
   letter-spacing: -0.05em;
 }
+.line-diagram-sign.additional {
+  min-width: 0;
+  padding: 5px 7px;
+  border-radius: 7px;
+  font-size: clamp(12px, 1.15vw, 15px);
+  letter-spacing: -0.03em;
+}
 /* The sign doubles as the way back to the whole line while a trip is pinned; it only lifts when
    there is something above this view to step up to. */
-button.line-diagram-sign {
+.line-diagram-signs.interactive {
   cursor: pointer;
-  transition:
-    box-shadow 0.12s ease,
-    filter 0.12s ease;
 }
-button.line-diagram-sign:hover,
-button.line-diagram-sign:focus-visible {
+.line-diagram-signs.interactive .line-diagram-sign {
+  transition: filter 0.12s ease;
+}
+.line-diagram-signs.interactive:hover .line-diagram-sign,
+.line-diagram-signs.interactive:focus-visible .line-diagram-sign {
   filter: brightness(1.08);
+}
+.line-diagram-signs.interactive:focus-visible {
+  outline: 0;
+}
+.line-diagram-signs.interactive:focus-visible .line-diagram-sign:first-child {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--line-color) 35%, transparent);
 }
 .line-diagram-header h1 {
@@ -2032,6 +2118,20 @@ button.line-diagram-sign:focus-visible {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.line-diagram-termini {
+  display: grid;
+  gap: 1px;
+}
+.line-diagram-termini > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.line-diagram-termini.branched {
+  padding-left: 9px;
+  border-left: 2px solid color-mix(in srgb, var(--line-color) 48%, var(--line-strong));
+  line-height: 1.1;
 }
 .line-diagram-header h1 i {
   flex: 0 0 auto;
@@ -2076,6 +2176,51 @@ button.line-diagram-sign:focus-visible {
   margin-top: 4px;
   overflow-y: auto;
   overscroll-behavior: contain;
+  scroll-padding-top: 48px;
+}
+.line-diagram-top-terminus-summary {
+  position: sticky;
+  z-index: 10;
+  top: 0;
+  height: 0;
+  display: flex;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.14s ease;
+}
+.line-diagram-top-terminus-summary.shown {
+  opacity: 1;
+}
+.line-diagram-top-terminus-summary > span {
+  width: 100%;
+  min-height: 44px;
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 9px var(--line-diagram-row-inset) 9px
+    calc(
+      var(--line-diagram-row-inset) +
+      var(--line-diagram-name-x) +
+      var(--line-diagram-column-gap)
+    );
+  border-bottom: 1px solid var(--line);
+  border-radius: 0 0 10px 10px;
+  background: var(--surface-2);
+  box-shadow: 0 10px 14px -16px var(--ink-soft);
+}
+.line-diagram-top-terminus-summary small {
+  flex: 0 0 auto;
+  color: var(--ink-soft);
+  font-size: 10px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+.line-diagram-top-terminus-summary strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 14px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .line-diagram-stop-list {
   position: relative;
@@ -2127,96 +2272,13 @@ button.line-diagram-sign:focus-visible {
 }
 .line-diagram-stop.terminus-start,
 .line-diagram-stop.terminus-end {
-  position: sticky;
-  /* An end row sitting where its own stop is stays part of the diagram: a mark on the first or last
-     link is at that stop, and the opaque surface must not swallow it — on a narrow screen, where
-     these rows are never pinned at all, it would swallow it permanently. Only once the row has
-     travelled away from its stop and is covering others does it outrank the layer, which the rule
-     further down does. */
-  z-index: 6;
   background: var(--surface-2);
 }
 .line-diagram-stop.terminus-start {
-  top: 0;
-  border-radius: 0 0 10px 10px;
-  box-shadow: 0 1px var(--line);
+  border-radius: 10px;
 }
 .line-diagram-stop.terminus-end {
-  bottom: 0;
-  border-radius: 10px 10px 0 0;
-  box-shadow: 0 -1px var(--line);
-}
-.line-diagram-stop.terminus-start.has-covered-stops {
-  box-shadow:
-    0 1px var(--line),
-    0 10px 14px -16px var(--ink-soft);
-}
-.line-diagram-stop.terminus-end.has-covered-stops {
-  box-shadow:
-    0 -1px var(--line),
-    0 -10px 14px -16px var(--ink-soft);
-}
-/* A terminus pinned over stops is no longer standing where its own stop is. Everything the vehicle
-   layer is allowed to lift onto a terminus — a mark standing at the end of its run, one opened, one
-   under the pointer — is lifted to be seen *on that stop*, so while the surface has travelled away
-   from it the lift has nothing left to mean: the mark would be drawn on a band of the diagram that
-   is not where the mark is. So a covering terminus outranks the whole layer, and only a terminus
-   sitting where it belongs is stood on. */
-.line-diagram-stop.terminus-start.has-covered-stops,
-.line-diagram-stop.terminus-end.has-covered-stops {
-  z-index: 10;
-}
-/* A pinned terminus reserves a strip on the side it covers, and the track simply carries on into
-   it. The strip is there for as long as the diagram scrolls — an empty one is just more line — so
-   stops passing behind the row fill and empty it without ever moving the rows below. */
-.line-diagram-stop.has-covered-stop-span {
-  grid-template-rows: auto auto auto;
-}
-.line-diagram-covered-stop-span {
-  position: relative;
-  grid-column: 1 / -1;
-  height: 22px;
-}
-.line-diagram-stop.terminus-start .line-diagram-covered-stop-span {
-  grid-row: 3;
-}
-.line-diagram-stop.terminus-end .line-diagram-covered-stop-span {
-  grid-row: 1;
-}
-/* The end terminus covers what lies below it, so its strip is the row's first line and the stop
-   itself moves down to make room. */
-.line-diagram-stop.terminus-end.has-covered-stop-span .line-diagram-stop-action {
-  grid-row: 2;
-}
-.line-diagram-stop.terminus-end.has-covered-stop-span .line-diagram-track {
-  grid-row: 2 / 4;
-}
-.line-diagram-stop.terminus-end.has-covered-stop-span .line-diagram-interchanges-full,
-.line-diagram-stop.terminus-end.has-covered-stop-span .line-diagram-interchanges-compact {
-  grid-row: 3;
-}
-.line-diagram-covered-stop-span-track {
-  position: absolute;
-  top: -8px;
-  bottom: -8px;
-  left: var(--line-diagram-track-x);
-  width: 6px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  transform: translateX(-50%);
-  background: var(--line-color);
-}
-/* Deliberately not a stop node: a compressed span carries small marks cut into the line, where a
-   stop the rider can reach carries a ringed circle beside its name. */
-.line-diagram-covered-stop-span-track i {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: var(--line-text);
-  opacity: 0.8;
+  border-radius: 10px;
 }
 .line-diagram-stop.terminus-start:hover,
 .line-diagram-stop.terminus-start.current,
@@ -3246,6 +3308,18 @@ button.line-diagram-bundle-option:focus-visible {
   white-space: nowrap;
 }
 
+/* Which platform of a stop this row is, printed only where the row above or below it is the same
+   stop. Set as the name's quiet second half rather than as a tag: it is not a choice being made,
+   it is what stops two identical names reading as one stop drawn twice by mistake. */
+.line-diagram-stop-name small.line-diagram-stop-platform {
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 /* A selected trip's own times: the calls still ahead read first, the ones it has already made
    stay legible but step back. Nothing is hidden — a passed stop is still part of the trip. */
 .line-diagram-call-time {
@@ -4264,14 +4338,6 @@ button.line-diagram-bundle-option:focus-visible {
     height: auto;
     display: block;
   }
-  /* The line diagram joins the document scroll on narrow screens. Keeping its end rows sticky here
-     would let the lower terminus float over the departure panel that follows the diagram. */
-  .app-shell:not(.station-board-mode) .line-diagram-stop.terminus-start,
-  .app-shell:not(.station-board-mode) .line-diagram-stop.terminus-end {
-    position: relative;
-    border-radius: 10px;
-    box-shadow: none;
-  }
   .app-shell:not(.station-board-mode) .not-found {
     min-height: 70vh;
   }
@@ -4319,10 +4385,11 @@ button.line-diagram-bundle-option:focus-visible {
       0 1px 0 #10201f14,
       0 10px 20px -18px #10201f80;
   }
-  /* A grouped reading's heading — a platform in one order, a line in the other — pins inside its own
-     scrollport on a wide screen; stacked, its scrollport is the document, so it stops under the bar
-     rather than sliding behind it. */
+  /* A grouped reading's heading — a place, a platform in one order, a line in the other — pins
+     inside its own scrollport on a wide screen; stacked, its scrollport is the document, so it
+     stops under the bar rather than sliding behind it. */
   .app-shell:not(.station-board-mode) .departure-board-platform-group h2,
+  .app-shell:not(.station-board-mode) .departure-board-boarding-place > h2,
   .app-shell:not(.station-board-mode) .departure-board-line-group > h2 {
     top: var(--bar-height);
     z-index: 6;
@@ -4331,6 +4398,12 @@ button.line-diagram-bundle-option:focus-visible {
   .app-shell:not(.station-board-mode) .departure-board-line-group,
   .app-shell:not(.station-board-mode) .departure-board-panel {
     scroll-margin-top: calc(var(--bar-height) + 12px);
+  }
+  /* A place's section lands exactly on the line its heading pins at — no cushion — because that
+     line is also where the place bar reads the board as having arrived: walking to a place and
+     being marked as it are the same number, and the stylesheet carries it once. */
+  .app-shell:not(.station-board-mode) .departure-board-boarding-place {
+    scroll-margin-top: var(--bar-height);
   }
   .app-header {
     height: var(--bar-height);

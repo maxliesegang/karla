@@ -71,7 +71,7 @@ export function useLineDiagramFork({
   drawnCalls,
   destination,
   riderStopIds,
-  stopTripDepartures,
+  candidateDepartures,
 }: {
   lineId: string;
   bundledLines: readonly TransitLine[];
@@ -80,8 +80,8 @@ export function useLineDiagramFork({
   /** The headsign the drawn trip carries, which is the word its own split is stated in. */
   destination: string | undefined;
   riderStopIds: readonly string[];
-  /** This stop's whole-trip readings: where a sibling's drawn trip is chosen from. */
-  stopTripDepartures: readonly Departure[];
+  /** Whole-trip readings from which each sibling's drawn chain is chosen. */
+  candidateDepartures: readonly Departure[];
 }): LineDiagramFork {
   return useMemo(() => {
     const trunk =
@@ -90,7 +90,7 @@ export function useLineDiagramFork({
             primary: { lineId, calls: drawnCalls, destination },
             bundledLineIds: bundledLines.map(({ id }) => id),
             riderStopIds,
-            stopTripDepartures,
+            candidateDepartures,
           })
         : undefined;
     const calls = trunk?.calls ?? drawnCalls;
@@ -109,7 +109,7 @@ export function useLineDiagramFork({
       terminatingBehind: getLineBundleTerminatingLabel(branches, "behind", junctionBehind),
       hasFork: branchesAhead.length > 0 || branchesBehind.length > 0,
     };
-  }, [bundledLines, destination, drawnCalls, lineId, riderStopIds, stopTripDepartures]);
+  }, [bundledLines, candidateDepartures, destination, drawnCalls, lineId, riderStopIds]);
 }
 
 /** Each sibling's drawn trip beside the primary one, and the stretch they all have in common. */
@@ -117,15 +117,15 @@ function getObservedLineBundleTrunk({
   primary,
   bundledLineIds,
   riderStopIds,
-  stopTripDepartures,
+  candidateDepartures,
 }: {
   primary: LineBundleChain;
   bundledLineIds: readonly string[];
   riderStopIds: readonly string[];
-  stopTripDepartures: readonly Departure[];
+  candidateDepartures: readonly Departure[];
 }) {
   const chains = bundledLineIds.flatMap((bundledLineId) => {
-    const candidates = stopTripDepartures.flatMap((candidate) =>
+    const candidates = candidateDepartures.flatMap((candidate) =>
       isSameLineFamily(candidate.lineId, bundledLineId) && candidate.tripCalls?.length
         ? [
             {

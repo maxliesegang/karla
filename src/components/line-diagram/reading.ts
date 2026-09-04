@@ -8,7 +8,7 @@ import type {
   TripCall,
 } from "../../data/transit-types";
 import { getFarthestLineRun, getLineTermini } from "../../lib/stop-services";
-import { findTurnarounds, type TurnaroundIndex } from "../../lib/line-turnarounds";
+import { findTurnarounds } from "../../lib/line-turnarounds";
 import { buildInterchangeIndex } from "../../lib/interchanges";
 import { useLineVehicleDepartures } from "../../hooks";
 import {
@@ -49,19 +49,12 @@ const ROW_CLOCK_STEP_MS = 5_000;
 /** Beside each stop of the ride. Off until there is an option to turn it back on. */
 const SHOW_INTERCHANGES = false;
 /**
- * The turnaround reading. On, a vehicle at an end of its run is drawn standing there — a departure
+ * The turnaround reading. A vehicle at an end of its run is drawn standing there — a departure
  * waiting at its first stop from the lead before it is due away, extended back to the arrival it
  * turns back out of where the pairing found one — and the pairing draws that stand once rather
- * than twice. Off for now: the diagram draws only vehicles its calls place between stops, a
- * terminus stands empty between one run ending and the next setting out, and an arrival keeps
- * nothing but its own short grace.
+ * than twice.
  */
-const SHOW_TURNAROUND_VEHICLES = false;
-/** The index that hands down while the toggle above is off: a pairing with nothing in it. */
-const EMPTY_TURNAROUND_INDEX: TurnaroundIndex = {
-  turningDepartureKeyByArrivalKey: new Map(),
-  standFromByDepartureKey: new Map(),
-};
+const SHOW_TURNAROUND_VEHICLES = true;
 
 export type LineDiagramReadingInput = {
   line: TransitLine;
@@ -177,14 +170,14 @@ export function useLineDiagramReading({
   // departure because the address is the statement of it that does not blink: the board behind the
   // row is re-keyed by every step along the line, so `observedDeparture` — and the stop point it
   // names — is absent for as long as the new stop's boards take to answer. A board row does state
-  // its physical boarding stop separately, and that is what answers where a stop-complex page lists
-  // a departure leaving from one of its other points; both are the rider's stop, so both are what
+  // its own boarding stop separately, at the same local grain the calls are read at, and that is
+  // what answers where a stop-complex page lists a departure leaving from one of its other points; both are the rider's stop, so both are what
   // the line is held by. A ride is nobody's stop — the rider is on board, not waiting at one — but
   // the line it is drawn on is still a line whose stops the trip states.
-  const boardingStopPointId = observedDeparture?.boardingStopId;
+  const boardingLocalStopId = observedDeparture?.boardingLocalStopId;
   const riderStopIds = useMemo(
-    () => (boardingStopPointId ? [stop.id, boardingStopPointId] : [stop.id]),
-    [boardingStopPointId, stop.id],
+    () => (boardingLocalStopId ? [stop.id, boardingLocalStopId] : [stop.id]),
+    [boardingLocalStopId, stop.id],
   );
   // This stop's own whole-trip readings: the candidates for the drawn trip, and — where a sibling
   // is being read alongside — for the trip that sibling is drawn from.
@@ -221,15 +214,41 @@ export function useLineDiagramReading({
   // moment the hold exists for — so nothing is ever held back to `undefined`.
   if (diagramDeparture && diagramDeparture !== heldLineTrip) setHeldLineTrip(diagramDeparture);
   const drawnCalls = diagramDeparture?.tripCalls ?? EMPTY_TRIP_CALLS;
+  // A line selection with no pinned trip describes the whole observed line, whether it is being
+  // read alone or beside a sibling. Extend the primary chain before finding the shared trunk: if
+  // the next trip at this stop is a short working, using it as the bundle's outer bound would hide
+  // both the rest of this line and the sibling leg that only becomes visible beyond it.
+  const isWholeLine = !departure;
+  const drawnDiagramCalls = useMemo(() => [...drawnCalls].reverse(), [drawnCalls]);
+  const farthestRun = useMemo(
+    () => getFarthestLineRun(line, observedVehicleDepartures, drawnDiagramCalls),
+    [drawnDiagramCalls, line, observedVehicleDepartures],
+  );
+  const wholeLineDiagramCalls = useMemo(
+    () =>
+      isWholeLine
+        ? extendLineDiagramCalls(drawnDiagramCalls, farthestRun.calls)
+        : drawnDiagramCalls,
+    [drawnDiagramCalls, farthestRun.calls, isWholeLine],
+  );
+  const forkDrawnCalls = useMemo(
+    () => (isWholeLine ? [...wholeLineDiagramCalls].reverse() : drawnCalls),
+    [drawnCalls, isWholeLine, wholeLineDiagramCalls],
+  );
+  const forkDestination = isWholeLine
+    ? (forkDrawnCalls[forkDrawnCalls.length - 1]?.stopName ?? diagramDeparture?.destination)
+    : diagramDeparture?.destination;
   // The stretch a bundled reading is actually drawn over, and the legs at its ends. With no
   // sibling in the reading it is simply the drawn trip, which is the ordinary single-line diagram.
   const fork = useLineDiagramFork({
     lineId: line.id,
     bundledLines,
-    drawnCalls,
-    destination: diagramDeparture?.destination,
+    drawnCalls: forkDrawnCalls,
+    destination: forkDestination,
     riderStopIds,
-    stopTripDepartures,
+    // At the line level, every board discovered along the selected lines gets to state their
+    // dimensions. A pinned trip remains exact and is paired only with trips read at this stop.
+    candidateDepartures: isWholeLine ? observedVehicleDepartures : stopTripDepartures,
   });
   const { branchesAhead, branchesBehind } = fork;
   const tripCalls = fork.calls;
@@ -251,29 +270,18 @@ export function useLineDiagramReading({
   // Trips arrive in travel order. Read the line diagram toward the destination by placing its last
   // call at the top; vehicle placement derives its arrows from this visible order as well.
   const diagramTripCalls = useMemo(() => [...tripCalls].reverse(), [tripCalls]);
-  // A whole-line selection names the furthest run any of its observation boards has reached — and
-  // now draws it. The trip that happens to be drawn may be a short working, which is its own end
-  // and not the line's, so the chain is read out to that run: the stops past its ends come onto the
-  // diagram, and with them the vehicles running where the short working never went. A bundle
-  // remains the shared trunk actually drawn here, whose forks name their own outer ends.
+  // A single whole-line selection names the furthest run any of its observation boards has reached.
+  // A bundle names its shared trunk here; its branches carry their own observed outer ends.
   const [seenFirstTerminus, seenLastTerminus] = getLineTermini(line);
-  const farthestRun = useMemo(
-    () => getFarthestLineRun(line, observedVehicleDepartures, diagramTripCalls),
-    [diagramTripCalls, line, observedVehicleDepartures],
-  );
-  const isWholeLine = !departure && bundledLines.length === 0;
-  const diagramCalls = useMemo(
-    () =>
-      isWholeLine ? extendLineDiagramCalls(diagramTripCalls, farthestRun.calls) : diagramTripCalls,
-    [diagramTripCalls, farthestRun.calls, isWholeLine],
-  );
+  const diagramCalls = diagramTripCalls;
   const drawnTermini = {
     firstTerminus: diagramCalls[0]?.stopName ?? seenFirstTerminus,
     lastTerminus: diagramCalls[diagramCalls.length - 1]?.stopName ?? seenLastTerminus,
   };
-  const termini = isWholeLine
-    ? { firstTerminus: farthestRun.firstTerminus, lastTerminus: farthestRun.lastTerminus }
-    : drawnTermini;
+  const termini =
+    isWholeLine && bundledLines.length === 0
+      ? { firstTerminus: farthestRun.firstTerminus, lastTerminus: farthestRun.lastTerminus }
+      : drawnTermini;
   // Every board in hand contributes: the Zentrum observation sees the lines crossing the Zentrum, and
   // this line's own boards see the lines meeting it further out. Trips shared by two boards are
   // deduplicated, so the overlap costs nothing. Beside a departure board no changes are shown, so
@@ -302,11 +310,8 @@ export function useLineDiagramReading({
   );
   // Turnaround inference depends on observations, not the clock or the diagram shape. A bundled
   // reading places the same trips on its trunk and every leg, so build the index once and share it.
-  // Off while the toggle above is: an empty index pairs nothing, so neither the trunk nor a leg
-  // draws the inferred stand.
   const turnaroundIndex = useMemo(
-    () =>
-      SHOW_TURNAROUND_VEHICLES ? findTurnarounds(visibleVehicleDepartures) : EMPTY_TURNAROUND_INDEX,
+    () => findTurnarounds(visibleVehicleDepartures),
     [visibleVehicleDepartures],
   );
   const vehicles = useMemo(
@@ -361,7 +366,7 @@ export function useLineDiagramReading({
     diagramStops,
     diagramStopNames,
     // A ride is nobody's stop — the rider is on board, not waiting at one.
-    currentStopIndex: isRide ? -1 : getCurrentStopIndex(diagramStops, stop.id, boardingStopPointId),
+    currentStopIndex: isRide ? -1 : getCurrentStopIndex(diagramStops, stop.id, boardingLocalStopId),
     // The stop chain *is* the coordinate system, and a different one — another line, the other
     // direction, a variant calling elsewhere — has nothing to do with where a mark stood in the
     // last. Remounting only the marker layer places every vehicle directly in the new system, so no

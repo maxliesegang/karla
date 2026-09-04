@@ -9,19 +9,6 @@ import { scrollIntoView } from "../../lib/scroll";
  * place the diagram's class names and data attributes are queried.
  */
 
-/** The stops a pinned terminus is covering, on the side it covers them. */
-export type CoveredStopSpan = { count: number; direction: "above" | "below" };
-export type CoveredStopState = {
-  isScrollable: boolean;
-  aboveCount: number;
-  belowCount: number;
-};
-export const EMPTY_COVERED_STOP_STATE: CoveredStopState = {
-  isScrollable: false,
-  aboveCount: 0,
-  belowCount: 0,
-};
-
 export type VehicleLayerGeometry = {
   coordinateKey: string;
   stopCenterOffsets: readonly number[];
@@ -215,92 +202,72 @@ export function useRequestedTripPosition(
   });
 }
 
+/** Whether the real first row has passed above its scrollport and needs a contextual stand-in. */
+export function isTopTerminusPastViewport(rowBottom: number, viewportTop: number): boolean {
+  return rowBottom <= viewportTop + 0.5;
+}
+
 /**
- * How many stops each sticky terminus is covering, counted as the rider scrolls. A stop counts as
- * covered only once it is wholly behind the pinned row: a name still half in view is one the
- * rider can read, and claiming it is covered would overstate the span.
+ * Reveals a summary after the real top terminus leaves the internal scrollport.
+ *
+ * The summary is an overlay, never another measured stop. IntersectionObserver watches one row at
+ * the point where its visibility actually changes, replacing the old per-scroll scan of every row.
  */
-export function useCoveredStopState({
+export function useTopTerminusSummary({
   scrollContainerRef,
-  isStacked,
-  stopCount,
+  enabled,
+  coordinateKey,
 }: {
   scrollContainerRef: React.RefObject<HTMLDivElement | null>;
-  isStacked: boolean;
-  stopCount: number;
-}): CoveredStopState {
-  const [coveredStops, setCoveredStops] = useState(EMPTY_COVERED_STOP_STATE);
+  enabled: boolean;
+  /** Reconnect when the stop chain beneath the persistent panel changes. */
+  coordinateKey: string;
+}): boolean {
+  const [isShown, setIsShown] = useState(false);
 
   useLayoutEffect(() => {
     const scrollContainer = scrollContainerRef.current;
-    // A stacked layout scrolls the document, so this element has no scrollport of its own: there is
-    // nothing covered to represent, and measuring it would compare a height against itself. A count
-    // left from before the layout stacked is dropped where the row is rendered rather than cleared
-    // here, so changing layouts never costs a render just to unsay something.
-    if (!scrollContainer || isStacked) return;
+    const firstRow = scrollContainer?.querySelector<HTMLElement>(
+      '.line-diagram-stop-list > [data-line-diagram-stop-index="0"]',
+    );
+    if (!enabled || !scrollContainer || !firstRow) {
+      setIsShown(false);
+      return;
+    }
 
-    const updateCoveredStops = () => {
-      // The trunk's own rows. A forked diagram has legs of its own with their own coordinates, and
-      // counting their rows here would have a pinned terminus stand in for stops on another chain.
-      const rows = [
-        ...scrollContainer.querySelectorAll<HTMLElement>(
-          ".line-diagram-stop-list > [data-line-diagram-stop-index]",
-        ),
-      ];
-      // The reserved strips are part of what scrolls, so they would otherwise keep answering yes to
-      // the question that put them there. Ask the height the diagram would have without them.
-      const reservedSpanHeight = [
-        ...scrollContainer.querySelectorAll<HTMLElement>(".line-diagram-covered-stop-span"),
-      ].reduce((total, strip) => total + strip.offsetHeight, 0);
-      const isScrollable =
-        rows.length > 2 &&
-        scrollContainer.scrollHeight - reservedSpanHeight > scrollContainer.clientHeight + 1;
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        const rootTop = entry.rootBounds?.top;
+        setIsShown(
+          rootTop !== undefined &&
+            !entry.isIntersecting &&
+            isTopTerminusPastViewport(entry.boundingClientRect.bottom, rootTop),
+        );
+      },
+      { root: scrollContainer, threshold: 0 },
+    );
+    observer.observe(firstRow);
+    return () => observer.disconnect();
+  }, [coordinateKey, enabled, scrollContainerRef]);
 
-      let aboveCount = 0;
-      let belowCount = 0;
-      if (isScrollable) {
-        const topTerminusBottom = rows[0].getBoundingClientRect().bottom;
-        const bottomTerminusTop = rows[rows.length - 1].getBoundingClientRect().top;
-        for (const row of rows.slice(1, -1)) {
-          const { top, bottom } = row.getBoundingClientRect();
-          if (bottom <= topTerminusBottom + 0.5) aboveCount += 1;
-          else if (top >= bottomTerminusTop - 0.5) belowCount += 1;
-        }
-      }
-
-      setCoveredStops((current) =>
-        current.isScrollable === isScrollable &&
-        current.aboveCount === aboveCount &&
-        current.belowCount === belowCount
-          ? current
-          : { isScrollable, aboveCount, belowCount },
-      );
-    };
-
-    updateCoveredStops();
-    const resizeObserver = new ResizeObserver(updateCoveredStops);
-    resizeObserver.observe(scrollContainer);
-    // Scrolling is what moves stops behind the termini, and it fires far faster than the counts can
-    // change: one measurement per frame is as often as the strip can be redrawn anyway.
-    let pendingFrame = 0;
-    const onScroll = () => {
-      if (pendingFrame) return;
-      pendingFrame = requestAnimationFrame(() => {
-        pendingFrame = 0;
-        updateCoveredStops();
-      });
-    };
-    scrollContainer.addEventListener("scroll", onScroll, { passive: true });
-
-    return () => {
-      resizeObserver.disconnect();
-      scrollContainer.removeEventListener("scroll", onScroll);
-      if (pendingFrame) cancelAnimationFrame(pendingFrame);
-    };
-  }, [isStacked, scrollContainerRef, stopCount]);
-
-  return coveredStops;
+  return enabled && isShown;
 }
+
+/**
+ * The node centre in stop-list coordinates, without the visual translation applied by sticky UI.
+ *
+ * A node is anchored by its own centre: it is placed at a point on its track — the middle of an
+ * ordinary row, either end of a fork's junction — and then pulled back over that point by half its
+ * own size in each direction. That pull-back is a transform, so it never reaches layout, and the
+ * offset measured here is already the centre. Adding half the node's height to it would push every
+ * mark below the node it belongs to, by more the larger the node is: furthest at the rider's own
+ * stop, which is exactly where a mark being off the node is most visible.
+ */
+export const getMeasuredNodeCenterOffset = (
+  rowOffsetTop: number,
+  trackOffsetTop: number,
+  nodeOffsetTop: number,
+): number => rowOffsetTop + trackOffsetTop + nodeOffsetTop;
 
 /**
  * The real row centres the vehicle marks travel between, measured from the diagram's own layout.
@@ -334,13 +301,13 @@ export function useVehicleLayerGeometry({
       const track = stopRows[0]?.querySelector<HTMLElement>(".line-diagram-track");
       const nextGeometry = {
         coordinateKey,
-        // The node, not the row: a terminus reserving a covered-stop span is taller on one side, and
-        // its middle is no longer where the line actually meets the stop.
+        // The node, not the row: wrapped names and call details make the row's own centre
+        // incidental, while the node is the point the rail and marker actually meet.
         stopCenterOffsets: stopRows.map((row) => {
           const rowTrack = row.querySelector<HTMLElement>(".line-diagram-track");
           const node = rowTrack?.querySelector<HTMLElement>(".line-diagram-node");
           return rowTrack && node
-            ? row.offsetTop + rowTrack.offsetTop + node.offsetTop
+            ? getMeasuredNodeCenterOffset(row.offsetTop, rowTrack.offsetTop, node.offsetTop)
             : row.offsetTop + row.offsetHeight / 2;
         }),
         trackLeft: track?.offsetLeft ?? 0,

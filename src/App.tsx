@@ -27,6 +27,7 @@ import {
   useStopRecall,
   usePanelChange,
   useStopCorridorPatterns,
+  useStopBoardingPlaces,
   useStopTopologyBoard,
   useTransitNetwork,
   useViewShortcuts,
@@ -91,6 +92,14 @@ export default function App() {
     route.view === "stop" ? selectedStop?.id : undefined,
     stopTopologyBoard,
     stopTopologyBoards,
+  );
+  // The places this stop is, from the same readings and for the same reason: which platforms a
+  // vehicle calls at in turn is only ever stated in a calling sequence.
+  const stopBoardingPlaces = useStopBoardingPlaces(
+    route.view === "stop" ? selectedStop?.id : undefined,
+    stopTopologyBoard,
+    stopTopologyBoards,
+    selection.departureBoard,
   );
   // Which siblings this stop's corridor could be read with. Derived from what the visit has already
   // observed, so the offer appears where the evidence for it does — a rider who came through the
@@ -360,8 +369,9 @@ export default function App() {
                 network={network}
                 feedNow={feedNow}
                 lineSelection={selection.selectedLine ? selection.lineSelection : undefined}
-                selectedDepartureId={selection.selectedDeparture?.id}
+                selectedDeparture={selection.selectedDeparture}
                 corridorPatterns={stopCorridorPatterns}
+                boardingPlaces={stopBoardingPlaces}
                 isStacked={isNarrowViewport}
                 /* What KVV announced about this stop, at the board's foot. It rides the board
                    because that is the list it answers for, and it stays while one of the stop's

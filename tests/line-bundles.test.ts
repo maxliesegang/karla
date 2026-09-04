@@ -7,6 +7,7 @@ import {
   findLineBundleOffers,
   formatLineSelection,
   getLineBundleControls,
+  getLineBundleTermini,
   getLineBundleTerminatingLabel,
   getLineBundleTrunk,
   isSelectedLine,
@@ -21,8 +22,8 @@ function departure(
     lineId: "S1",
     transportMode: "lightRail",
     minutesUntilDeparture: 4,
-    platformName: "1",
-    boardingStopId: "hochstetten",
+    platformCode: "1",
+    boardingLocalStopId: "hochstetten",
     status: "realtime",
     scheduledDepartureTime: "2026-08-24T12:04:00+02:00",
     ...overrides,
@@ -82,7 +83,7 @@ test("keeps the stretch out of each end of a stop, not the longer of the two", (
     departure({
       id,
       lineId,
-      boardingStopId: "neureut",
+      boardingLocalStopId: "neureut",
       destination: stopNames[stopNames.length - 1],
       tripCalls: calls("neureut", ...stopNames),
     });
@@ -201,6 +202,48 @@ test("draws the bundle over the shared stretch and names where the lines part", 
   );
 });
 
+test("keeps the different branch termini for the bundled heading", () => {
+  const branches = getLineBundleTrunk(
+    [
+      { lineId: "S1", calls: s1.tripCalls ?? [], destination: "Bad Herrenalb" },
+      { lineId: "S11", calls: s11.tripCalls ?? [], destination: "Ittersbach" },
+    ],
+    ["hochstetten"],
+  )?.branches;
+
+  assert.deepEqual(getLineBundleTermini(branches ?? [], "ahead", "Busenbach"), [
+    "Bad Herrenalb",
+    "Ittersbach",
+  ]);
+  assert.deepEqual(getLineBundleTermini(branches ?? [], "behind", "Hochstetten"), ["Hochstetten"]);
+});
+
+test("states one terminus once when bundled lines share it", () => {
+  assert.deepEqual(
+    getLineBundleTermini(
+      [
+        {
+          lineId: "S1",
+          direction: "ahead",
+          destination: "Hochstetten",
+          continues: true,
+          calls: [],
+        },
+        {
+          lineId: "S11",
+          direction: "ahead",
+          destination: "Hochstetten",
+          continues: true,
+          calls: [],
+        },
+      ],
+      "ahead",
+      "Neureut",
+    ),
+    ["Hochstetten"],
+  );
+});
+
 test("states the short working of the pair rather than leaving it blank", () => {
   const shortWorking = departure({
     id: "s11-short",
@@ -236,14 +279,14 @@ test("measures the shared stretch outwards from the rider's own stop", () => {
     id: "north",
     lineId: "S1",
     destination: "Bad Herrenalb",
-    boardingStopId: "neureut",
+    boardingLocalStopId: "neureut",
     tripCalls: calls("hochstetten", "eggenstein", "neureut", "busenbach", "bad herrenalb"),
   });
   const southern = departure({
     id: "south",
     lineId: "S11",
     destination: "Ittersbach",
-    boardingStopId: "neureut",
+    boardingLocalStopId: "neureut",
     tripCalls: calls("spöck", "blankenloch", "neureut", "busenbach", "ittersbach"),
   });
 
@@ -280,6 +323,50 @@ test("measures the shared stretch outwards from the rider's own stop", () => {
   );
 });
 
+test("does not fork where one line states two consecutive platforms of the same stop", () => {
+  const platformCall = (stopName: string, localStopId: string): TripCall => ({
+    stopName,
+    localStopId,
+  });
+  const sharedNorth = calls("hochstetten", "europaplatz");
+  const sharedSouth = calls("ostendorfplatz", "busenbach");
+  const trunk = getLineBundleTrunk(
+    [
+      {
+        lineId: "S1",
+        calls: [
+          ...sharedNorth,
+          platformCall("Marktplatz (Kaiserstraße U)", "marktplatz"),
+          platformCall("Marktplatz (Pyramide U)", "marktplatz"),
+          ...sharedSouth,
+          ...calls("bad herrenalb"),
+        ],
+        destination: "Bad Herrenalb",
+      },
+      {
+        lineId: "S11",
+        calls: [
+          ...sharedNorth,
+          platformCall("Marktplatz (Pyramide U)", "marktplatz"),
+          ...sharedSouth,
+          ...calls("ittersbach"),
+        ],
+        destination: "Ittersbach",
+      },
+    ],
+    ["ostendorfplatz"],
+  );
+
+  assert.deepEqual(
+    trunk?.calls.map(({ localStopId }) => localStopId),
+    ["hochstetten", "europaplatz", "marktplatz", "marktplatz", "ostendorfplatz", "busenbach"],
+  );
+  assert.equal(
+    trunk?.branches.some(({ direction }) => direction === "behind"),
+    false,
+  );
+});
+
 test("keeps the lines apart where a chain does not call at the rider's stop", () => {
   assert.equal(
     getLineBundleTrunk(
@@ -310,6 +397,27 @@ test("draws the sibling trip that runs with this one furthest, not the opposite 
   );
 
   assert.equal(chosen?.calls.length, s11.tripCalls?.length);
+});
+
+test("uses the sibling's furthest observed end when candidates share the same trunk", () => {
+  const short = {
+    lineId: "S11",
+    calls: calls(...TRUNK, "langensteinbach"),
+    destination: "Langensteinbach",
+  };
+  const full = {
+    lineId: "S11",
+    calls: calls(...TRUNK, "langensteinbach", "ittersbach"),
+    destination: "Ittersbach",
+  };
+
+  const chosen = chooseLineBundleChain(
+    { lineId: "S1", calls: s1.tripCalls ?? [], destination: "Bad Herrenalb" },
+    [short, full],
+    ["hochstetten"],
+  );
+
+  assert.equal(chosen, full);
 });
 
 test("reads and writes the bundle address, and drops a repeated line from it", () => {

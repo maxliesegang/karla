@@ -23,8 +23,8 @@ function departure(id: string, lineId: string, calls: readonly TripCall[]): Depa
     transportMode: "tram",
     destination: calls[calls.length - 1].stopName,
     minutesUntilDeparture: 0,
-    platformName: "1",
-    boardingStopId: calls[0].localStopId ?? "a",
+    platformCode: "1",
+    boardingLocalStopId: calls[0].localStopId ?? "a",
     status: "realtime",
     scheduledDepartureTime: calls[0].scheduledDepartureTime ?? new Date(start).toISOString(),
     tripCalls: runCalls,
@@ -125,18 +125,122 @@ test("a turn timed at the arrival's own instant is not handed on to the next dep
   );
 });
 
-test("never pairs across a line, a stop, or a stand longer than a turnaround", () => {
+test("never pairs across a line, a stop, or a departure that has already gone", () => {
   const arriving = departure("in", "2", [call("a", 0), call("c", 8)]);
   const otherLine = departure("other-line", "5", [call("c", 11), call("a", 19)]);
   const otherStop = departure("other-stop", "2", [call("b", 11), call("a", 19)]);
-  const tooLate = departure("too-late", "2", [call("c", 19), call("a", 27)]);
   // A departure before the arrival is due in is the working ahead of it, not the one it becomes.
   const before = departure("before", "2", [call("c", 6), call("a", 14)]);
 
-  const index = findTurnarounds([arriving, otherLine, otherStop, tooLate, before]);
+  const index = findTurnarounds([arriving, otherLine, otherStop, before]);
 
   assert.equal(index.turningDepartureKeyByArrivalKey.size, 0);
   assert.equal(index.standFromByDepartureKey.size, 0);
+});
+
+test("never pairs across a whole headway of the line's own service", () => {
+  // Three departures ten minutes apart: the line runs a ten-minute service out of C, so a stand of
+  // twelve minutes is the *next* vehicle's turn and this arrival's own has not been read at all.
+  // Pairing it anyway is how a terminus drifts a working further along with every arrival.
+  const arriving = departure("in", "3", [call("a", -8), call("b", -4), call("c", 0)]);
+  const starts = [12, 22, 32].map((minute) =>
+    departure(`out-${minute}`, "3", [
+      call("c", minute),
+      call("b", minute + 4),
+      call("a", minute + 8),
+    ]),
+  );
+
+  const index = findTurnarounds([arriving, ...starts]);
+
+  assert.equal(index.turningDepartureKeyByArrivalKey.size, 0);
+  assert.equal(index.standFromByDepartureKey.size, 0);
+});
+
+test("pairs a turn longer than the tightest takt where the line's own headway allows it", () => {
+  // Line 1 stands eleven minutes at Neureut-Heide on a twenty-minute evening service. A window
+  // fixed at the tightest takt in the network could never see that turn; the line's own headway
+  // says a vehicle standing eleven minutes is still standing well short of the one behind it.
+  const arriving = departure("in-heide", "1", [call("a", -20), call("b", -10), call("c", 0)]);
+  const starts = [11, 31, 51].map((minute) =>
+    departure(`out-${minute}`, "1", [
+      call("c", minute),
+      call("b", minute + 10),
+      call("a", minute + 20),
+    ]),
+  );
+
+  const { turningDepartureKeyByArrivalKey, standFromByDepartureKey } = findTurnarounds([
+    arriving,
+    ...starts,
+  ]);
+
+  assert.deepEqual([...turningDepartureKeyByArrivalKey], [["in-heide@today", "out-11@today"]]);
+  assert.equal(standFromByDepartureKey.get("out-11@today"), start);
+});
+
+test("never stands a vehicle for most of a sparse evening headway", () => {
+  // A terminus running every twenty-five minutes would otherwise let a pairing claim a stand of
+  // nearly that long, which is a great deal to infer from two trips that share only a place. The
+  // stand is capped well above the longest turn measured on the network and well below the gap.
+  const starts = [0, 25, 50].map((minute) =>
+    departure(`out-${minute}`, "4", [
+      call("c", minute),
+      call("b", minute + 6),
+      call("a", minute + 12),
+    ]),
+  );
+  const tooLongBefore = departure("in-21", "4", [call("a", -33), call("b", -27), call("c", -21)]);
+  const withinCap = departure("in-19", "4", [call("a", -31), call("b", -25), call("c", -19)]);
+
+  assert.equal(
+    findTurnarounds([tooLongBefore, ...starts]).standFromByDepartureKey.size,
+    0,
+    "twenty-one minutes standing is past what this will claim",
+  );
+  assert.deepEqual(
+    [...findTurnarounds([withinCap, ...starts]).turningDepartureKeyByArrivalKey],
+    [["in-19@today", "out-0@today"]],
+  );
+});
+
+test("pairs the arrivals in the order they come in rather than by the shortest stand", () => {
+  // Two trams in, two out, on a ten-minute service. Read shortest-stand-first the second arrival
+  // takes the first departure and the two pairings cross, leaving the tram that has been standing
+  // longest to be handed a departure it cannot reach. A vehicle cannot turn out ahead of one that
+  // pulled in before it.
+  const first = departure("in-first", "3", [call("a", -8), call("b", -4), call("c", 0)]);
+  const second = departure("in-second", "3", [call("a", -2), call("b", 2), call("c", 6)]);
+  const soon = departure("out-soon", "3", [call("c", 8), call("b", 12), call("a", 16)]);
+  const later = departure("out-later", "3", [call("c", 18), call("b", 22), call("a", 26)]);
+
+  const { turningDepartureKeyByArrivalKey } = findTurnarounds([first, second, soon, later]);
+
+  assert.deepEqual(
+    [...turningDepartureKeyByArrivalKey],
+    [["in-first@today", "out-soon@today"]],
+    "the tram that arrived first takes the departure in front of it, and the second waits",
+  );
+});
+
+test("pairs on the published times, so a late run does not re-pair the terminus around it", () => {
+  // The arrival is due in at 8 and running five minutes down, which puts the vehicle on the
+  // platform a minute *after* the departure it turns out as is timed away. Which working a vehicle
+  // turns into is a fact about the plan, so the pairing holds and only the stand it draws moves.
+  const arriving = departure("in-late", "2", [call("a", 0), call("b", 4), call("c", 8, 5)]);
+  const turning = departure("out-late", "2", [call("c", 12), call("b", 16), call("a", 20)]);
+
+  const { turningDepartureKeyByArrivalKey, standFromByDepartureKey } = findTurnarounds([
+    arriving,
+    turning,
+  ]);
+
+  assert.deepEqual([...turningDepartureKeyByArrivalKey], [["in-late@today", "out-late@today"]]);
+  assert.equal(
+    standFromByDepartureKey.get("out-late@today"),
+    start + 13 * 60_000,
+    "the stand begins when the vehicle is really expected in, not when the plan said",
+  );
 });
 
 test("draws a turnaround as one standing mark rather than an arrival beside a departure", () => {
@@ -352,10 +456,11 @@ test("draws no waiting mark at a terminus the vehicle has not reached yet", () =
 });
 
 test("stands a lone waiting trip at its terminus for the whole of a long turn", () => {
-  // Line 3 turns at Forststraße on eleven scheduled minutes, which is further apart than a pairing
-  // is read within — and a delay on the run taking the vehicle over stretches it further. Nothing
-  // joins these two trips, so the stand is drawn from the outgoing one's own lead, and it covers
-  // the middle of the turn the diagram used to leave empty.
+  // Line 3 turns at Forststraße on eleven scheduled minutes. One departure is all this reading has
+  // caught there, so the headway a pairing is bounded by cannot be measured and the fallback window
+  // is shorter than the turn — as it should be, since nothing here says how soon the next tram
+  // follows. Nothing joins these two trips, so the stand is drawn from the outgoing one's own lead,
+  // and it covers the middle of the turn the diagram used to leave empty.
   const arriving = departure("in-long-turn", "3", [call("a", 0), call("b", 4), call("c", 8)]);
   const waiting = departure("out-long-turn", "3", [call("c", 21), call("b", 25), call("a", 29)]);
 

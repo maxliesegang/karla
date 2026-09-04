@@ -12,13 +12,13 @@ import { getBoardAgeMs, getCountdownMinutes } from "../lib/feed-clock";
 import { groupDeparturesByPlatform } from "../lib/departure-order";
 import {
   findSharedPlatformKind,
-  formatPlatformName,
+  formatPlatformLabel,
   getPlatformWord,
 } from "../lib/platform-naming";
 import {
   getPlatformLabel,
   isPlatformMatch,
-  normalizePlatformName,
+  normalizePlatformCode,
   type StationBoardConfig,
 } from "../routing";
 import { LineBadge } from "./LineBadge";
@@ -97,7 +97,7 @@ function StationBoardRow({
           read from ten metres. A single-platform board states the word once in its heading instead. */}
       <span className="station-board-platform">
         {stationBoardConfig.mode === "stop" && platformWord && <small>{platformWord}</small>}
-        {departure.platformName || "–"}
+        {departure.platformCode || "–"}
       </span>
       {/* The modifier carries the block's name: a bare `due` would collide with the interactive
           board's own column class, which is a grid cell in a different layout entirely. Only the
@@ -128,14 +128,14 @@ export function StationBoardView({
   stationBoardConfig,
   feedNow,
 }: StationBoardViewProps) {
-  const { rowCount, platformNames, mode, minimumMinutes, grouping } = stationBoardConfig;
+  const { rowCount, platformCodes, mode, minimumMinutes, grouping } = stationBoardConfig;
 
   const platformDepartures = useMemo(
     () =>
       mode === "platform"
-        ? departures.filter((departure) => isPlatformMatch(departure.platformName, platformNames))
+        ? departures.filter((departure) => isPlatformMatch(departure.platformCode, platformCodes))
         : departures,
-    [departures, mode, platformNames],
+    [departures, mode, platformCodes],
   );
   const matchingDepartures = useMemo(
     () =>
@@ -173,9 +173,9 @@ export function StationBoardView({
   const reportedPlatformNames = useMemo(
     () =>
       groupDeparturesByPlatform(departures)
-        .filter(({ platformName }) => platformName)
+        .filter(({ platformCode }) => platformCode)
         // Named the way the heading names them, so the reading is the one to copy into the URL.
-        .map(({ platformName, platformKind }) => formatPlatformName(platformName, platformKind)),
+        .map(({ platformCode, platformKind }) => formatPlatformLabel(platformCode, platformKind)),
     [departures],
   );
   // A heading stands above every row on the board, so it may only use the word they all support;
@@ -201,7 +201,7 @@ export function StationBoardView({
           {stop.name}
           {mode === "platform" && (
             <span className="station-board-heading-platform">
-              {formatPlatformName(getPlatformLabel(stationBoardConfig), platformKind)}
+              {formatPlatformLabel(getPlatformLabel(stationBoardConfig), platformKind)}
             </span>
           )}
         </h1>
@@ -244,10 +244,10 @@ export function StationBoardView({
       )}
       {hasPlatformMismatch && (
         <p className="station-board-message">
-          {formatPlatformName(getPlatformLabel(stationBoardConfig), platformKind)} nicht im Feed
+          {formatPlatformLabel(getPlatformLabel(stationBoardConfig), platformKind)} nicht im Feed
           <small>
             Gemeldet werden: {reportedPlatformNames.join(", ") || "keine Abfahrtsorte"}
-            {reportedPlatformNames.some((name) => normalizePlatformName(name)) &&
+            {reportedPlatformNames.some((name) => normalizePlatformCode(name)) &&
               " — Konfiguration der Anzeige prüfen"}
           </small>
         </p>

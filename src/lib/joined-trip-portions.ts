@@ -21,8 +21,8 @@ const MINIMUM_SHARED_CALLS = 4;
 const getBucketKey = (departure: Departure): string =>
   JSON.stringify([
     departure.lineId,
-    departure.boardingStopId,
-    departure.platformName,
+    departure.boardingLocalStopId,
+    departure.platformCode,
     departure.scheduledDepartureTime,
   ]);
 

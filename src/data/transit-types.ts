@@ -45,7 +45,28 @@ export type TripCall = {
    * every second town has a `Bahnhof` — so a view outside that municipality has to say which one.
    */
   placeName?: string;
-  platformName?: string;
+  /**
+   * The operator's worded platform, as a calling sequence spells it (`Gleis 3`, `Bstg. A`) — the
+   * printed form, where `platformCode` is the bare one a departure row states.
+   */
+  platformLabel?: string;
+  /**
+   * The bare platform code, as a departure row spells it (`3`, `1(U)`, `A`).
+   *
+   * The sequence words this call's platform (`Gleis 3`) where a row states the code alone, so the
+   * two cannot be compared without it — and comparing them is the whole of how a boarding place is
+   * derived: which platforms of a stop a trip calls at in turn is the operator's own statement that
+   * they are different places to stand.
+   */
+  platformCode?: string;
+  /**
+   * The EFA stop point this call is published at, which is finer than the local stop.
+   *
+   * A place is one local stop however many stop points the operator numbers it across, so
+   * `localStopId` deliberately answers Marktplatz for both its tunnels. Which tunnel is a separate
+   * fact, and it is the one that says which level a rider is being sent to.
+   */
+  providerStopPointId?: string;
   /** Present when the provider stop can be resolved to one of our supported local stop pages. */
   localStopId?: string;
   /** The stop whose board produced this departure. */
@@ -96,11 +117,27 @@ export type Departure = {
   minutesUntilDeparture: number;
   /** Realtime deviation in minutes; `undefined` when the trip is not monitored. */
   delayMinutes?: number;
-  platformName: string;
+  platformCode: string;
   /** The feed's own word for that platform; `undefined` where it stated none. */
   platformKind?: PlatformKind;
-  /** The physical stop point this row departs from, which may differ from its stop-complex board. */
-  boardingStopId: string;
+  /**
+   * The local stop this row really departs from, which may differ from the board that listed it —
+   * a complex's page answers for every stop point it spans. The same grain as `TripCall.localStopId`,
+   * and the only one a chain of calls can be matched against.
+   */
+  boardingLocalStopId: string;
+  /**
+   * The EFA stop point the row is published at, and the name the feed gives it — the same pair
+   * `TripCall` carries, at the same grain.
+   *
+   * `boardingLocalStopId` is the page a rider is on, one place however many stop points it spans.
+   * This is the stop point itself, which is what tells the Kaiserstraße tunnel from the Pyramide
+   * one and the street from the level beneath it. The name is kept beside the id because the
+   * operator brackets the distinguishing part into it (`Marktplatz (Pyramide U)`) and prints that
+   * on the station's own signs, so it is the rider's word for the place and never ours.
+   */
+  boardingProviderStopPointId: string;
+  boardingProviderStopPointName: string;
   status: DepartureStatus;
   /** Scheduled departure as an ISO string, used for stable labels on displays. */
   scheduledDepartureTime: string;

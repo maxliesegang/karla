@@ -1,9 +1,36 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-const { describeCurrentStopMove, holdAddressedTrip } = await import(
-  "../src/components/line-diagram/layout.ts"
-);
+const {
+  describeCurrentStopMove,
+  getMeasuredNodeCenterOffset,
+  holdAddressedTrip,
+  isTopTerminusPastViewport,
+} = await import("../src/components/line-diagram/layout.ts");
+
+test("measures a vehicle against the centre of its stop node", () => {
+  // A node is anchored by its own centre — placed at a point on its track and then pulled back over
+  // that point by a transform, which never reaches layout. So the offset measured is already the
+  // centre, and the same point is read whatever size the node happens to be drawn at: an ordinary
+  // stop, a terminus, or the rider's own stop, which draws the largest node of the three. Counting
+  // half a node again would carry every mark below the stop it is standing at, furthest at the one
+  // stop where that is most visible.
+  assert.equal(getMeasuredNodeCenterOffset(100, 4, 24), 128);
+  assert.equal(getMeasuredNodeCenterOffset(100, 0, 24), 124);
+});
+
+test("a fork's junction node is read where the rails actually meet", () => {
+  // A junction's node sits at one end of its track rather than in the middle, by that same centre
+  // anchor, which is why the node is measured at all instead of the middle of the row.
+  assert.equal(getMeasuredNodeCenterOffset(200, 0, 0), 200);
+  assert.equal(getMeasuredNodeCenterOffset(200, 0, 34), 234);
+});
+
+test("shows the terminus summary only after the real row has wholly passed", () => {
+  assert.equal(isTopTerminusPastViewport(101, 100), false);
+  assert.equal(isTopTerminusPastViewport(100, 100), true);
+  assert.equal(isTopTerminusPastViewport(99, 100), true);
+});
 
 const place = (index: number, chainKey = "S1:A>B>C>D") => ({ index, chainKey });
 
@@ -66,7 +93,9 @@ test("a hold is never picked up by a different trip", () => {
   assert.equal(other.held, null);
 });
 
-const { chooseLineDiagramTrip, getCurrentStopIndex } = await import("../src/lib/line-diagram.ts");
+const { chooseLineDiagramTrip, getCurrentStopIndex, isCurrentLineDiagramStop } = await import(
+  "../src/lib/line-diagram.ts"
+);
 
 /** A trip of line 2, stated by the stops it calls at in travel order. */
 const trip = (id: string, destination: string, stopIds: readonly string[]) => ({
@@ -76,8 +105,8 @@ const trip = (id: string, destination: string, stopIds: readonly string[]) => ({
   transportMode: "tram" as const,
   destination,
   minutesUntilDeparture: 0,
-  platformName: "1",
-  boardingStopId: stopIds[0],
+  platformCode: "1",
+  boardingLocalStopId: stopIds[0],
   status: "scheduled" as const,
   tripCalls: stopIds.map((localStopId) => ({ stopName: localStopId.toUpperCase(), localStopId })),
 });
@@ -195,4 +224,14 @@ test("the boarding stop point answers where the address names a stop the chain d
 test("a stop off the drawn trip is no row at all", () => {
   assert.equal(getCurrentStopIndex(ROWS, "x", "y"), -1);
   assert.equal(getCurrentStopIndex(ROWS, "x", undefined), -1);
+});
+
+test("every occurrence of one unified stop shares the current state", () => {
+  const rows = [{ stopId: "d" }, { stopId: "c" }, { stopId: "c" }, { stopId: "b" }];
+  const currentStopIndex = getCurrentStopIndex(rows, "c", undefined);
+
+  assert.deepEqual(
+    rows.map((_, index) => isCurrentLineDiagramStop(rows, currentStopIndex, index)),
+    [false, true, true, false],
+  );
 });
