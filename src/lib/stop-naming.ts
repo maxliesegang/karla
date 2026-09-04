@@ -56,3 +56,12 @@ export function getStopPlaceQualifier(
   if (stopName.toLowerCase().includes(basePlaceName.toLowerCase())) return undefined;
   return basePlaceName;
 }
+
+/** A stop's full name where its place cannot be shown separately beside it. */
+export function getQualifiedStopName(
+  call: Pick<TripCall, "stopName" | "placeName">,
+  homePlaceName: string | undefined,
+): string {
+  const qualifier = getStopPlaceQualifier(call, homePlaceName);
+  return qualifier ? `${qualifier} ${call.stopName}` : call.stopName;
+}

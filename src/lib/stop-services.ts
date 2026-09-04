@@ -6,7 +6,7 @@ import type {
   TripCall,
 } from "../data/transit-types";
 import { createStopSlug } from "./stop-slug";
-import { getBaseName } from "./stop-naming";
+import { findHomePlaceName, getBaseName, getQualifiedStopName } from "./stop-naming";
 import { isSameLineFamily } from "./line-families";
 import { getCallKey, getCallSequenceKey, getCallsAfterCurrentStop } from "./trip-calls";
 
@@ -123,9 +123,13 @@ export function getFarthestLineRun(
       ? nextDiagramIndex > firstDiagramIndex
       : getCallKey(diagramCalls[0] ?? last) === getCallKey(first);
   const calls = runsTowardStart ? furthestCalls : [...furthestCalls].reverse();
+  const homePlaceName = findHomePlaceName(calls);
   return {
-    firstTerminus: calls[0].stopName,
-    lastTerminus: calls[calls.length - 1].stopName,
+    // Rows can state a stop's locality on a separate line, but this compact heading cannot. Fold
+    // it into an end whose bare stop name does not identify the place: KVV calls line 2's western
+    // end plain `Nord` inside `Knielingen`, for example, so the title must read `Knielingen Nord`.
+    firstTerminus: getQualifiedStopName(calls[0], homePlaceName),
+    lastTerminus: getQualifiedStopName(calls[calls.length - 1], homePlaceName),
     calls,
   };
 }

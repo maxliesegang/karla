@@ -122,6 +122,28 @@ test("a run observed heading the diagram's own way comes back in the diagram's o
   });
 });
 
+test("qualifies a bare terminus name with the district it belongs to", () => {
+  const lineTwo = departure({
+    id: "line-two",
+    destination: "Knielingen Nord",
+    tripCalls: [
+      { stopName: "Rheinhafen", localStopId: "rheinhafen", placeName: "Karlsruhe" },
+      { stopName: "Feierabendweg", localStopId: "feierabendweg", placeName: "Karlsruhe" },
+      { stopName: "Nord", localStopId: "knielingen-nord", placeName: "Knielingen" },
+    ],
+  });
+  const line = {
+    id: "2",
+    destinations: ["Rheinhafen", "Knielingen Nord"],
+  } as Parameters<typeof getFarthestLineRun>[0];
+
+  assert.deepEqual(getFarthestLineRun(line, [lineTwo], [...lineTwo.tripCalls!].reverse()), {
+    firstTerminus: "Knielingen Nord",
+    lastTerminus: "Rheinhafen",
+    calls: [...lineTwo.tripCalls!].reverse(),
+  });
+});
+
 test("falls back to the line's observed destinations until a complete run is in hand", () => {
   const line = {
     id: "2",
