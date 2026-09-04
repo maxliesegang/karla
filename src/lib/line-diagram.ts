@@ -44,7 +44,14 @@ export type LineDiagramVehicle = {
   departure: Departure;
   /** Both separately addressed portions while they still occupy one timed link. */
   joinedDepartures: readonly Departure[];
-  /** Render identity including every portion represented by a composite mark. */
+  /**
+   * Stable render identity for the physical mark.
+   *
+   * It deliberately survives a joined working shedding one of its published portions and an
+   * arriving run handing the terminus over to the departure it turns into. The passenger-facing
+   * portions still live in `joinedDepartures`; putting all of them in this key made React remove
+   * and re-enter a mark at exactly those continuous handovers, which looked like a vehicle blink.
+   */
   markerKey: string;
   /**
    * The link the mark is on, as two rows of *this* diagram, and how far along it the mark stands.
@@ -104,6 +111,8 @@ export type LineDiagramVehicleOptions = {
 
 type PlacedLineDiagramVehicle = {
   departure: Departure;
+  /** Render identity after continuity across a paired turnaround has been resolved. */
+  markerKey: string;
   fromIndex: number;
   toIndex: number;
   progress: number;
@@ -334,6 +343,15 @@ function placeVehicles(
   turnarounds: TurnaroundIndex,
   feedNow: number,
 ): PlacedLineDiagramVehicle[] {
+  // A turn is published as two trips but is drawn as one vehicle. Key both halves by the outgoing
+  // run: before the arrival reaches the terminus that key belongs to its approaching mark; after
+  // the handover it belongs to the standing/outgoing mark. React therefore keeps the same element
+  // and the marker neither fades out nor fades back in at the platform.
+  const turningKeyByTripKey = new Map<string, string>();
+  for (const [arrivalKey, departureKey] of turnarounds.turningDepartureKeyByArrivalKey) {
+    turningKeyByTripKey.set(arrivalKey, departureKey);
+    turningKeyByTripKey.set(departureKey, departureKey);
+  }
   const placed: PlacedLineDiagramVehicle[] = [];
   for (const candidate of [...vehicleDepartures].sort(createSoonestPassageComparator(feedNow))) {
     const placement = getTripPlacement(
@@ -348,6 +366,8 @@ function placeVehicles(
     const { fromIndex, toIndex } = link;
     placed.push({
       departure: candidate,
+      markerKey:
+        turningKeyByTripKey.get(getVehicleTripKey(candidate)) ?? getVehicleTripKey(candidate),
       fromIndex,
       toIndex,
       progress: placement.progress,
@@ -471,7 +491,15 @@ function mergeJoinedPortions(
     vehicles.push({
       departure: representative.departure,
       joinedDepartures: portions,
-      markerKey: portions.map(getVehicleTripKey).sort().join("+"),
+      // A joined working is one mark while its portions share the train. Its continuing portion is
+      // the identity that survives their split, so keep that identity while they are together as
+      // well. At the split React retains the continuing mark and only the genuinely new second
+      // mark enters; the old composite no longer vanishes and reappears under another key.
+      markerKey:
+        isTogether && joined
+          ? (placementByDeparture.get(joined.continuing)?.markerKey ??
+            getVehicleTripKey(joined.continuing))
+          : representative.markerKey,
       fromIndex: representative.fromIndex,
       toIndex: representative.toIndex,
       progress: representative.progress,

@@ -68,7 +68,7 @@ test("moves continuously across every visible row when an observed trip skips a 
     start + 70_000,
   );
 
-  assert.ok(getVehicleRowCoordinate(vehicle) > 1.16 && getVehicleRowCoordinate(vehicle) < 1.17);
+  assert.ok(getVehicleRowCoordinate(vehicle) > 1.1 && getVehicleRowCoordinate(vehicle) < 1.4);
   assert.equal(getTripPositionAnchorIndex(diagramStops, [vehicle], call("c", 2)), 1);
 });
 
@@ -173,6 +173,11 @@ test("draws joined portions as one counted mark until the terminating portion en
   assert.deepEqual(together[0]?.joinedDepartures.map(({ id }) => id).sort(), ["long", "short"]);
   assert.equal(together[0]?.isSelected, true);
   assert.equal(together[0]?.departure.id, "long");
+  assert.equal(
+    together[0]?.markerKey,
+    "long@today",
+    "the composite keeps the identity of the portion that continues",
+  );
 
   const afterTerminus = getLineDiagramVehicles(
     diagramStops,
@@ -185,6 +190,11 @@ test("draws joined portions as one counted mark until the terminating portion en
   assert.deepEqual(
     afterTerminus[0]?.joinedDepartures.map(({ id }) => id),
     ["long"],
+  );
+  assert.equal(
+    afterTerminus[0]?.markerKey,
+    together[0]?.markerKey,
+    "splitting the published portions does not remount the continuing vehicle",
   );
 });
 

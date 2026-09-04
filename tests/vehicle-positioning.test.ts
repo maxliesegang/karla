@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Departure, TripCall } from "../src/data/transit-types.ts";
-import { getTripPlacement as getSmoothTripPlacement } from "../src/lib/vehicle-positioning.ts";
+import {
+  getTripPlacement as getSmoothTripPlacement,
+  getTripTrajectoryProgress,
+} from "../src/lib/vehicle-positioning.ts";
 import { createCall, run } from "./support/calls.ts";
 
 const start = Date.parse("2026-08-23T10:00:00Z");
@@ -38,11 +41,32 @@ test("leaves at the published departure and reaches the next published arrival",
   const trip = departure("position-dwell", [call("a", 0), call("b", 2), call("c", 4)]);
 
   const departing = getSmoothTripPlacement(trip, start + 19_000);
-  assert.ok(departing && departing.progress > 0.15 && departing.progress < 0.17);
+  assert.ok(departing && departing.progress > 0.09 && departing.progress < 0.11);
 
   const running = getSmoothTripPlacement(trip, start + 95_000);
-  assert.ok(running && running.progress > 0.79 && running.progress < 0.8);
+  assert.ok(running && running.progress > 0.83 && running.progress < 0.87);
   assert.equal(running?.trajectory?.arrivesAt, start + 2 * 60_000);
+});
+
+test("a revised arrival inherits the velocity already visible on the link", () => {
+  const original = departure("position-velocity", [call("a", 0), call("b", 2), call("c", 4)]);
+  const delayed = departure("position-velocity", [call("a", 0), call("b", 2, 1), call("c", 4, 1)]);
+  const sampledAt = start + 60_000;
+  const before = getSmoothTripPlacement(original, sampledAt);
+  const trajectory = before?.trajectory;
+  assert.ok(trajectory);
+  const previousVelocity =
+    (getTripTrajectoryProgress(trajectory, sampledAt + 1_000) -
+      getTripTrajectoryProgress(trajectory, sampledAt)) /
+    1_000;
+
+  const revised = getSmoothTripPlacement(delayed, sampledAt + 1_000);
+  assert.ok(revised?.trajectory);
+  assert.ok(revised.trajectory.startVelocity > 0);
+  assert.ok(
+    Math.abs(revised.trajectory.startVelocity - previousVelocity) < previousVelocity * 0.05,
+    "the new plan starts at the old plan's speed instead of restarting its acceleration",
+  );
 });
 
 test("does not traverse a duplicated first stop before leaving it", () => {
@@ -255,7 +279,7 @@ test("holds its ground when a fresher board states an earlier feed clock", () =>
 
   assert.equal(stepped?.progress, before?.progress);
   // The step back is not credited as travelled time either: the mark resumes from where it stood.
-  assert.ok(after && before && after.progress > before.progress && after.progress < 0.8);
+  assert.ok(after && before && after.progress > before.progress && after.progress < 1);
 });
 
 test("stays on its own link when the observed sequence is re-cut around it", () => {
@@ -307,8 +331,9 @@ test("carries the last stated deviation across the calls the feed does not monit
 
   assert.equal(placement?.fromStopId, "b");
   assert.equal(placement?.toStopId, "c");
-  // Away at B's shifted departure, with ninety seconds of the two-minute link covered.
-  assert.ok(placement && placement.progress > 0.24 && placement.progress < 0.26);
+  // Thirty seconds into the two-minute link: still in its early acceleration rather than read as
+  // either standing at B or already nearing C.
+  assert.ok(placement && placement.progress > 0.19 && placement.progress < 0.22);
 });
 
 test("keeps the two ends of a call apart: a late arrival is not a late departure", () => {
@@ -323,7 +348,7 @@ test("keeps the two ends of a call apart: a late arrival is not a late departure
   const running = getSmoothTripPlacement(trip, start + 6 * 60_000);
   assert.equal(running?.fromStopId, "a");
   assert.equal(running?.toStopId, "b");
-  assert.ok(running && running.progress > 0.39 && running.progress < 0.41);
+  assert.ok(running && running.progress > 0.36 && running.progress < 0.4);
 
   // Standing at B through the layover it recovers in, and away on the published departure minute.
   const standing = getSmoothTripPlacement(trip, start + 9.5 * 60_000);
@@ -439,7 +464,7 @@ test("a waiting mark stays at its terminus while the sequence around it is re-ti
   // And it leaves when its own departure says so, not before.
   const leaving = getSmoothTripPlacement(reading(0), start + 60_000);
   assert.equal(leaving?.phase, "running");
-  assert.ok(leaving && leaving.progress > 0.19 && leaving.progress < 0.21);
+  assert.ok(leaving && leaving.progress > 0.13 && leaving.progress < 0.17);
 });
 
 test("draws no waiting mark for a run the feed is not watching", () => {

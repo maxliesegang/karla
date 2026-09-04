@@ -44,9 +44,9 @@ export type TripPlacement = {
   /**
    * The current link's motion as one appointment with its next stop.
    *
-   * The renderer starts one linear animation from `startProgress` at `startsAt` and reaches the
-   * next stop at `arrivesAt`. The plan is stable while time passes; only a new feed reading or the
-   * handover to the following link replaces it.
+   * The renderer follows one acceleration–cruise–braking plan from `startProgress` at `startsAt`
+   * and reaches the next stop at `arrivesAt`. The plan is stable while time passes; only a new feed
+   * reading or the handover to the following link replaces it.
    */
   trajectory?: TripSegmentTrajectory;
 };
@@ -58,6 +58,14 @@ export type TripSegmentTrajectory = {
   startProgress: number;
   startsAt: number;
   arrivesAt: number;
+  /** Progress per millisecond at the start of this plan. Preserved when a prediction is revised. */
+  startVelocity: number;
+  /** Progress per millisecond through the long, steady middle of the link. */
+  cruiseVelocity: number;
+  /** End of the gentle change from `startVelocity` to `cruiseVelocity`. */
+  acceleratesUntil: number;
+  /** Beginning of the gentle change from `cruiseVelocity` to rest at the next stop. */
+  brakesFrom: number;
   /** Feed-clock instant at which the accompanying placement was evaluated. */
   sampledAt: number;
 };
@@ -71,6 +79,8 @@ const TRIP_MOTION_CAPACITY = 256;
  * close to a call, it is standing at that call rather than running away from it.
  */
 const SETTLED_TOLERANCE = 0.005;
+/** Share of a link's available running time used to change speed at either end. */
+const SEGMENT_SPEED_RAMP_SHARE = 0.15;
 /**
  * How far apart two accounts of one departure must be before the newer one is information.
  *
@@ -512,9 +522,9 @@ function findCallPosition(
     const standingEnd = getStandingEnd(here);
     if (feedNow <= standingEnd) return { position: index, phase: "running" };
 
-    // The timetable gives the best speed estimate in hand. Keeping this linear makes the mark spend
-    // the whole available running time on the link; CSS supplies the visual easing between clock
-    // ticks without making it race through the middle of the link.
+    // The timetable gives the best average speed estimate in hand. This locates the timed link;
+    // `getSegmentForPosition` evaluates the shared motion curve within it so the domain and browser
+    // agree about the gentle acceleration and braking around that average.
     const run = next.arrival - standingEnd;
     return {
       position: index + (run > 0 ? clampUnit((feedNow - standingEnd) / run) : 1),
@@ -534,6 +544,10 @@ type SegmentAnchor = {
   startProgress: number;
   startsAt: number;
   arrivesAt: number;
+  startVelocity: number;
+  cruiseVelocity: number;
+  acceleratesUntil: number;
+  brakesFrom: number;
 };
 
 type TripMotion = {
@@ -575,14 +589,62 @@ const getTimelineKey = (calls: readonly TimedCall[]) =>
     )
     .join("|");
 
-const getSegmentProgress = (segment: SegmentAnchor, feedNow: number): number => {
+type MotionCurve = Pick<
+  SegmentAnchor,
+  | "startProgress"
+  | "startsAt"
+  | "arrivesAt"
+  | "startVelocity"
+  | "cruiseVelocity"
+  | "acceleratesUntil"
+  | "brakesFrom"
+>;
+
+const getSegmentProgress = (segment: MotionCurve, feedNow: number): number => {
   if (feedNow <= segment.startsAt) return segment.startProgress;
   if (feedNow >= segment.arrivesAt) return 1;
-  const duration = segment.arrivesAt - segment.startsAt;
-  return duration <= 0
-    ? 1
-    : segment.startProgress +
-        (1 - segment.startProgress) * ((feedNow - segment.startsAt) / duration);
+  if (feedNow < segment.acceleratesUntil) {
+    const elapsed = feedNow - segment.startsAt;
+    const ramp = segment.acceleratesUntil - segment.startsAt;
+    const acceleration = ramp > 0 ? (segment.cruiseVelocity - segment.startVelocity) / ramp : 0;
+    return clampUnit(
+      segment.startProgress +
+        segment.startVelocity * elapsed +
+        0.5 * acceleration * elapsed * elapsed,
+    );
+  }
+  if (feedNow <= segment.brakesFrom) {
+    const ramp = segment.acceleratesUntil - segment.startsAt;
+    const rampDistance = 0.5 * (segment.startVelocity + segment.cruiseVelocity) * ramp;
+    return clampUnit(
+      segment.startProgress +
+        rampDistance +
+        segment.cruiseVelocity * (feedNow - segment.acceleratesUntil),
+    );
+  }
+  const remaining = segment.arrivesAt - feedNow;
+  const braking = segment.arrivesAt - segment.brakesFrom;
+  return clampUnit(1 - (0.5 * segment.cruiseVelocity * remaining * remaining) / braking);
+};
+
+/** The shared domain/browser reading of one acceleration–cruise–braking trajectory. */
+export const getTripTrajectoryProgress = (
+  trajectory: TripSegmentTrajectory,
+  feedNow: number,
+): number => getSegmentProgress(trajectory, feedNow);
+
+const getSegmentVelocity = (segment: SegmentAnchor, feedNow: number): number => {
+  if (feedNow < segment.startsAt || feedNow >= segment.arrivesAt) return 0;
+  if (feedNow < segment.acceleratesUntil) {
+    const ramp = segment.acceleratesUntil - segment.startsAt;
+    return ramp <= 0
+      ? segment.cruiseVelocity
+      : segment.startVelocity +
+          (segment.cruiseVelocity - segment.startVelocity) * ((feedNow - segment.startsAt) / ramp);
+  }
+  if (feedNow <= segment.brakesFrom) return segment.cruiseVelocity;
+  const braking = segment.arrivesAt - segment.brakesFrom;
+  return braking <= 0 ? 0 : segment.cruiseVelocity * ((segment.arrivesAt - feedNow) / braking);
 };
 
 function findSegmentIndex(calls: readonly TimedCall[], segment: SegmentAnchor): number {
@@ -592,16 +654,54 @@ function findSegmentIndex(calls: readonly TimedCall[], segment: SegmentAnchor): 
   );
 }
 
+function createMotionSegment(
+  fromStopId: string,
+  toStopId: string,
+  startProgress: number,
+  startsAt: number,
+  arrivesAt: number,
+  requestedStartVelocity = 0,
+): SegmentAnchor {
+  const duration = Math.max(0, arrivesAt - startsAt);
+  const distance = Math.max(0, 1 - startProgress);
+  if (duration <= 0 || distance <= 0) {
+    return {
+      fromStopId,
+      toStopId,
+      startProgress,
+      startsAt,
+      arrivesAt,
+      startVelocity: 0,
+      cruiseVelocity: 0,
+      acceleratesUntil: startsAt,
+      brakesFrom: arrivesAt,
+    };
+  }
+  const ramp = duration * SEGMENT_SPEED_RAMP_SHARE;
+  // The inherited velocity has to leave enough distance for the ramp and final braking phase. A
+  // very late revision can otherwise ask the polynomial to run backwards in order to arrive.
+  // Keep half the remaining ground for the cruise and braking phases. Allowing the inherited
+  // speed to consume all of it during the first ramp made a heavily delayed vehicle reach the
+  // stop early and then sit at 100% until the revised arrival.
+  const startVelocity = Math.min(Math.max(0, requestedStartVelocity), distance / ramp);
+  const cruiseVelocity = (distance - 0.5 * ramp * startVelocity) / (duration - ramp);
+  return {
+    fromStopId,
+    toStopId,
+    startProgress,
+    startsAt,
+    arrivesAt,
+    startVelocity,
+    cruiseVelocity,
+    acceleratesUntil: startsAt + ramp,
+    brakesFrom: arrivesAt - ramp,
+  };
+}
+
 function createScheduledSegment(calls: readonly TimedCall[], index: number): SegmentAnchor {
   const here = calls[index];
   const next = calls[index + 1];
-  return {
-    fromStopId: here.stopId,
-    toStopId: next.stopId,
-    startProgress: 0,
-    startsAt: getStandingEnd(here),
-    arrivesAt: next.arrival,
-  };
+  return createMotionSegment(here.stopId, next.stopId, 0, getStandingEnd(here), next.arrival);
 }
 
 function createRemainingSegment(
@@ -609,15 +709,18 @@ function createRemainingSegment(
   index: number,
   progress: number,
   feedNow: number,
+  startVelocity = 0,
 ): SegmentAnchor {
   const scheduled = createScheduledSegment(calls, index);
-  return {
-    ...scheduled,
-    startProgress: progress,
-    startsAt: feedNow,
+  return createMotionSegment(
+    scheduled.fromStopId,
+    scheduled.toStopId,
+    progress,
+    feedNow,
     // A broken or already elapsed appointment contains no motion worth inventing.
-    arrivesAt: Math.max(feedNow, scheduled.arrivesAt),
-  };
+    Math.max(feedNow, scheduled.arrivesAt),
+    startVelocity,
+  );
 }
 
 function getSegmentForPosition(
@@ -626,13 +729,26 @@ function getSegmentForPosition(
   feedNow: number,
 ): { index: number; segment: SegmentAnchor; progress: number } {
   const index = Math.min(calls.length - 2, Math.max(0, Math.floor(position.position)));
-  const progress = clampUnit(position.position - index);
   const scheduled = createScheduledSegment(calls, index);
+  // `findCallPosition` identifies the timed link. Once it has, read progress from the same motion
+  // curve the browser will paint rather than from a second, linear interpolation. Otherwise the
+  // first sight of a vehicle and the following animation disagree about where that clock places it.
+  const readProgress = clampUnit(position.position - index);
+  const progress =
+    readProgress > SETTLED_TOLERANCE && readProgress < 1 - SETTLED_TOLERANCE
+      ? getSegmentProgress(scheduled, feedNow)
+      : readProgress;
   return {
     index,
     segment:
       progress > SETTLED_TOLERANCE && progress < 1 - SETTLED_TOLERANCE
-        ? createRemainingSegment(calls, index, progress, feedNow)
+        ? createRemainingSegment(
+            calls,
+            index,
+            progress,
+            feedNow,
+            getSegmentVelocity(scheduled, feedNow),
+          )
         : scheduled,
     progress,
   };
@@ -651,6 +767,10 @@ function placementFromSegment(
           startProgress: segment.startProgress,
           startsAt: segment.startsAt,
           arrivesAt: segment.arrivesAt,
+          startVelocity: segment.startVelocity,
+          cruiseVelocity: segment.cruiseVelocity,
+          acceleratesUntil: segment.acceleratesUntil,
+          brakesFrom: segment.brakesFrom,
           sampledAt: feedNow,
         }
       : undefined;
@@ -695,7 +815,11 @@ function reconcileWithDrawnMark(
   const placed: DrawnMotion = { ...asRead, motion: "placed" };
   const previousIndex = findSegmentIndex(calls, previous.segment);
   const previousProgress = getSegmentProgress(previous.segment, feedNow);
-  const hasReachedStop = previousProgress >= 1 - SETTLED_TOLERANCE;
+  const previousVelocity = getSegmentVelocity(previous.segment, feedNow);
+  // The braking curve deliberately spends its last moments very close to the stop. Proximity is
+  // not arrival: treating 99.5% as attained let a refresh bypass forward-only reconciliation and
+  // place the mark backwards during precisely the gentle approach this curve introduces.
+  const hasReachedStop = feedNow >= previous.segment.arrivesAt;
   const continuing = (segment: SegmentAnchor): DrawnMotion => ({
     segment,
     phase: "running",
@@ -739,7 +863,9 @@ function reconcileWithDrawnMark(
     // The arrival moved: cancel the old appointment and spend the new remaining time from the exact
     // ground already covered.
     if (!hasReachedStop) {
-      return continuing(createRemainingSegment(calls, read.index, previousProgress, feedNow));
+      return continuing(
+        createRemainingSegment(calls, read.index, previousProgress, feedNow, previousVelocity),
+      );
     }
     // The old appointment has reached the stop but a carried delay now puts the interpolation
     // behind it. Hold the attained stop until the revised reading catches up; never reverse.
@@ -758,7 +884,9 @@ function reconcileWithDrawnMark(
   // still standing at that stop is already answered above: it can only say so about `read.index`,
   // and this is the branch where the mark is on some other link.)
   if (previousIndex >= 0 && !hasReachedStop && calls[previousIndex + 1].arrival > feedNow) {
-    return continuing(createRemainingSegment(calls, previousIndex, previousProgress, feedNow));
+    return continuing(
+      createRemainingSegment(calls, previousIndex, previousProgress, feedNow, previousVelocity),
+    );
   }
   // A genuinely different account of the vehicle's link is a placement, never animated across stops
   // the vehicle was not observed traversing.
@@ -819,7 +947,13 @@ export function getTripPlacement(
     const progress = getSegmentProgress(previous.segment, feedNow);
     const segment =
       progress < 1 - SETTLED_TOLERANCE
-        ? createRemainingSegment(calls, previousIndex, progress, feedNow)
+        ? createRemainingSegment(
+            calls,
+            previousIndex,
+            progress,
+            feedNow,
+            getSegmentVelocity(previous.segment, feedNow),
+          )
         : previous.segment;
     const shown = placementFromSegment(segment, feedNow, "running", "travelled");
     // `readAt` deliberately stays where it was: this reading placed nothing, and the grace a held

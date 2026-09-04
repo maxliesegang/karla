@@ -265,6 +265,15 @@ test("draws a turnaround as one standing mark rather than an arrival beside a de
   const arriving = departure("in", "2", [call("a", 0), call("b", 4), call("c", 8)]);
   const turning = departure("out", "2", [call("c", 14), call("b", 18), call("a", 22)]);
 
+  const [approaching] = getLineDiagramVehicles(
+    diagramStops,
+    [arriving, turning],
+    [],
+    undefined,
+    start + 7 * 60_000,
+  );
+  assert.equal(approaching.departure.id, "in");
+
   // Nine minutes in: the arrival is due at C and the departure has six minutes to wait.
   const vehicles = getLineDiagramVehicles(
     diagramStops,
@@ -276,6 +285,11 @@ test("draws a turnaround as one standing mark rather than an arrival beside a de
 
   assert.equal(vehicles.length, 1);
   assert.equal(vehicles[0].departure.id, "out");
+  assert.equal(
+    vehicles[0].markerKey,
+    approaching.markerKey,
+    "the arriving mark keeps its identity when the outbound run takes it over",
+  );
   assert.equal(vehicles[0].phase, "beforeStart");
   assert.equal(vehicles[0].directionArrow, "↑");
   const terminusIndex = diagramStops.findIndex(({ stopId }) => stopId === "c");

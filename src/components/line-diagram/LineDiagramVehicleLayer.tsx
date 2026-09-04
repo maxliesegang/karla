@@ -2,6 +2,7 @@ import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import type { TransitLine } from "../../data/transit-types";
 import { getVehicleRowCoordinate, type LineDiagramVehicle } from "../../lib/line-diagram";
+import { getTripTrajectoryProgress } from "../../lib/vehicle-positioning";
 import { classNames } from "../../lib/class-names";
 import { assignStableVehicleLanes } from "../../lib/vehicle-lanes";
 import type { VehicleLayerGeometry } from "./layout";
@@ -143,35 +144,56 @@ function LineDiagramVehicleLayerView({
 
   const getVehicleAnimationFrames = (
     vehicle: LineDiagramVehicle,
-    fromProgress: number,
-    duration: number,
+    trajectory: NonNullable<LineDiagramVehicle["trajectory"]>,
+    animationStartsAt: number,
     paintedTransform?: string,
   ): Keyframe[] => {
+    const duration = trajectory.arrivesAt - animationStartsAt;
+    if (duration <= 0) return [];
     const rowSpan = vehicle.toIndex - vehicle.fromIndex;
-    const correctionProgress =
-      paintedTransform && duration > 0
-        ? fromProgress + (1 - fromProgress) * Math.min(1, TRAJECTORY_CORRECTION_MS / duration)
-        : fromProgress;
-    const boundaries = [
-      correctionProgress,
-      ...geometry.stopCenterOffsets
-        .map((_, rowIndex) => (rowIndex - vehicle.fromIndex) / rowSpan)
-        .filter((progress) => progress > correctionProgress && progress < 1),
-      1,
+    const fromProgress = getTripTrajectoryProgress(trajectory, animationStartsAt);
+    const boundaryProgresses = geometry.stopCenterOffsets
+      .map((_, rowIndex) => (rowIndex - vehicle.fromIndex) / rowSpan)
+      .filter((progress) => progress > fromProgress && progress < 1);
+    const findPassageTime = (targetProgress: number) => {
+      let before = animationStartsAt;
+      let after = trajectory.arrivesAt;
+      // The curve is monotonic. A short binary search is both cheaper than per-frame JS animation
+      // and accurate enough that a skipped-stop marker crosses each visible row on its own clock.
+      for (let pass = 0; pass < 24; pass += 1) {
+        const middle = (before + after) / 2;
+        if (getTripTrajectoryProgress(trajectory, middle) < targetProgress) before = middle;
+        else after = middle;
+      }
+      return (before + after) / 2;
+    };
+    const correctionEndsAt = paintedTransform
+      ? Math.min(trajectory.arrivesAt, animationStartsAt + TRAJECTORY_CORRECTION_MS)
+      : animationStartsAt;
+    const rampSamples = (from: number, to: number) =>
+      Array.from({ length: 5 }, (_, index) => from + ((to - from) * (index + 1)) / 6);
+    const times = [
+      animationStartsAt,
+      correctionEndsAt,
+      ...rampSamples(trajectory.startsAt, trajectory.acceleratesUntil),
+      trajectory.acceleratesUntil,
+      trajectory.brakesFrom,
+      ...rampSamples(trajectory.brakesFrom, trajectory.arrivesAt),
+      ...boundaryProgresses.map(findPassageTime),
+      trajectory.arrivesAt,
     ]
-      // Sorted before the duplicates are dropped: a mark running up the diagram produces its row
-      // boundaries in descending order, and dropping duplicates first would depend on which way
-      // the mark happens to be going.
+      .filter((instant) => instant >= animationStartsAt && instant <= trajectory.arrivesAt)
       .sort((left, right) => left - right)
-      .filter((progress, index, all) => index === 0 || progress !== all[index - 1]);
-    return [fromProgress, ...boundaries].flatMap((progress, index) => {
+      .filter((instant, index, all) => index === 0 || instant !== all[index - 1]);
+    return times.flatMap((instant, index) => {
+      const progress = getTripTrajectoryProgress(trajectory, instant);
       const transform =
         index === 0 && paintedTransform ? paintedTransform : getVehicleTransform(vehicle, progress);
       return transform
         ? [
             {
               transform,
-              offset: (progress - fromProgress) / (1 - fromProgress),
+              offset: (instant - animationStartsAt) / duration,
             },
           ]
         : [];
@@ -227,6 +249,10 @@ function LineDiagramVehicleLayerView({
         trajectory.startProgress,
         trajectory.startsAt,
         trajectory.arrivesAt,
+        trajectory.startVelocity,
+        trajectory.cruiseVelocity,
+        trajectory.acceleratesUntil,
+        trajectory.brakesFrom,
         plannedFromTransform,
         toTransform,
         geometrySignature,
@@ -251,7 +277,8 @@ function LineDiagramVehicleLayerView({
       active?.animation.cancel();
 
       const waitingMs = Math.max(0, trajectory.startsAt - trajectory.sampledAt);
-      const movingFrom = waitingMs > 0 ? trajectory.startProgress : vehicle.progress;
+      const animationStartsAt = waitingMs > 0 ? trajectory.startsAt : trajectory.sampledAt;
+      const movingFrom = getTripTrajectoryProgress(trajectory, animationStartsAt);
       const movingFromTransform = getVehicleTransform(vehicle, movingFrom);
       if (!movingFromTransform) continue;
       const movingDuration =
@@ -262,8 +289,8 @@ function LineDiagramVehicleLayerView({
       const animation = element.animate(
         getVehicleAnimationFrames(
           vehicle,
-          movingFrom,
-          movingDuration,
+          trajectory,
+          animationStartsAt,
           paintedTransform && paintedTransform !== "none" ? paintedTransform : undefined,
         ),
         {
