@@ -179,11 +179,11 @@ export function StopSearch({
           className="stop-search-results"
           id={listId}
           role="listbox"
-          aria-label={hasRecentStops ? "Zuletzt gelesen" : "Suchergebnisse"}
+          aria-label={hasRecentStops ? "Zuletzt besucht" : "Suchergebnisse"}
         >
           {hasRecentStops && (
             <li className="stop-search-group" role="presentation">
-              Zuletzt gelesen
+              Zuletzt besucht
             </li>
           )}
           {visibleResults.map((option, index) => (

@@ -3,6 +3,8 @@ import test from "node:test";
 import type { Departure, TripCall } from "../src/data/transit-types.ts";
 import {
   getFarthestLineRun,
+  getFarthestRunTermini,
+  getLineTermini,
   findNextCompatibleDeparture,
   findStopByName,
   hasCompatibleStopPattern,
@@ -155,6 +157,57 @@ test("falls back to the line's observed destinations until a complete run is in 
     lastTerminus: "Knielingen Nord",
     calls: undefined,
   });
+});
+
+test("reads a line's extent off the furthest run observed for it", () => {
+  // The board's rows sign their short workings, and the destinations follow the signs — so the
+  // two most frequent ones name less of the line than the one whole run the posts have seen.
+  const short = departure({
+    id: "short",
+    destination: "Rheinhafen über Kühler Krug",
+    tripCalls: calls("Kühler Krug", "Rheinhafen"),
+  });
+  const full = departure({
+    id: "full",
+    destination: "Rheinhafen",
+    tripCalls: [
+      { stopName: "Nord", localStopId: "knielingen-nord", placeName: "Knielingen" },
+      { stopName: "Feierabendweg", localStopId: "feierabendweg", placeName: "Karlsruhe" },
+      { stopName: "Rheinhafen", localStopId: "rheinhafen", placeName: "Karlsruhe" },
+    ],
+  });
+
+  assert.deepEqual(getFarthestRunTermini("2", [short, full]), ["Knielingen Nord", "Rheinhafen"]);
+  // The pair the observation states stands in for the whole view wherever the line's ends are
+  // asked for, before the signs' short workings are read.
+  const observedLine = {
+    id: "2",
+    destinations: ["Knielingen Nord", "Rheinhafen über Kühler Krug"],
+    farthestRunTermini: getFarthestRunTermini("2", [short, full]),
+  } as Parameters<typeof getLineTermini>[0];
+  assert.deepEqual(getLineTermini(observedLine), ["Knielingen Nord", "Rheinhafen"]);
+});
+
+test("a run that turns on itself names one place and no extent", () => {
+  const loop = departure({
+    id: "loop",
+    destination: "Stupferich",
+    tripCalls: calls("Turmberg", "Dürrbachstraße", "Rathaus", "Turmberg"),
+  });
+
+  assert.equal(getFarthestRunTermini("23", [loop]), undefined);
+  // The destinations still say which place the loop serves.
+  assert.deepEqual(
+    getLineTermini({
+      id: "23",
+      destinations: ["Stupferich"],
+    } as Parameters<typeof getLineTermini>[0]),
+    ["Stupferich"],
+  );
+});
+
+test("no run observed far enough leaves the extent to the destinations", () => {
+  assert.equal(getFarthestRunTermini("2", []), undefined);
 });
 
 /**

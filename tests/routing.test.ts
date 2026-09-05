@@ -8,7 +8,6 @@ const {
   getParentSelectionPath,
   getSelectionPath,
   getViewStartKey,
-  isHomeView,
   parseRoute,
   routePaths,
 } = await import("../src/routing.ts");
@@ -20,26 +19,24 @@ test("published notices have a dedicated canonical route", () => {
   assert.equal(parseRoute("#/notices").view, "notices");
 });
 
-test("the Zentrum is the canonical home, and nearby has its own route", () => {
-  assert.equal(routePaths.home(), "/center");
-  assert.equal(parseRoute("").view, "zentrum");
+test("the home has its own route, and nearby has one too", () => {
+  assert.equal(routePaths.home(), "/");
+  assert.equal(parseRoute("").view, "home");
+  assert.equal(parseRoute("#/").view, "home");
   assert.equal(routePaths.nearby(), "/nearby");
   assert.equal(parseRoute("#/nearby").view, "nearby");
 });
 
-test("the app opens on the stop last read, and on the home for a rider with no history", () => {
-  assert.equal(getLandingPath("marktplatz"), "/stop/marktplatz");
-  assert.equal(getLandingPath(undefined), "/center");
-  assert.equal(getLandingPath(""), "/center");
+test("the settings page has its own address, and steps back up to the home", () => {
+  assert.equal(routePaths.settings(), "/settings");
+  assert.equal(parseRoute("#/settings").view, "settings");
+  assert.equal(getParentSelectionPath({ view: "settings", stopId: "europaplatz" }), "/");
 });
 
-test("only the tabbed roots use the home layout", () => {
-  assert.equal(isHomeView("zentrum"), true);
-  assert.equal(isHomeView("network"), true);
-  assert.equal(isHomeView("stop"), false);
-  assert.equal(isHomeView("line"), false);
-  assert.equal(isHomeView("nearby"), false);
-  assert.equal(isHomeView("notices"), false);
+test("the app opens on the stop last read, and on the home for a rider with no history", () => {
+  assert.equal(getLandingPath("marktplatz"), "/stop/marktplatz");
+  assert.equal(getLandingPath(undefined), "/");
+  assert.equal(getLandingPath(""), "/");
 });
 
 test("keeps S1 and S11 as separate line addresses", () => {
@@ -201,12 +198,13 @@ test("step up drops exactly one level of the address, and never reads live data 
     getParentSelectionPath({ view: "stop", stopId: "europaplatz", lineId: "S11" }),
     "/stop/europaplatz",
   );
-  assert.equal(getParentSelectionPath({ view: "stop", stopId: "europaplatz" }), "/center");
-  // The two home roots are the top; the views nested under it step back up to it.
-  assert.equal(getParentSelectionPath({ view: "zentrum", stopId: "europaplatz" }), undefined);
-  assert.equal(getParentSelectionPath({ view: "network", stopId: "europaplatz" }), undefined);
-  assert.equal(getParentSelectionPath({ view: "notices", stopId: "europaplatz" }), "/center");
-  assert.equal(getParentSelectionPath({ view: "nearby", stopId: "europaplatz" }), "/center");
+  assert.equal(getParentSelectionPath({ view: "stop", stopId: "europaplatz" }), "/");
+  // The home page is the top; every page above the chain steps back up to it.
+  assert.equal(getParentSelectionPath({ view: "zentrum", stopId: "europaplatz" }), "/");
+  assert.equal(getParentSelectionPath({ view: "network", stopId: "europaplatz" }), "/");
+  assert.equal(getParentSelectionPath({ view: "notices", stopId: "europaplatz" }), "/");
+  assert.equal(getParentSelectionPath({ view: "nearby", stopId: "europaplatz" }), "/");
+  assert.equal(getParentSelectionPath({ view: "home", stopId: "europaplatz" }), undefined);
 });
 
 test("a ride steps back to where it was begun, not to a stop the vehicle is running towards", () => {
@@ -236,6 +234,16 @@ test("a ride steps back to where it was begun, not to a stop the vehicle is runn
       tripId: TRIP,
       isRide: true,
     }),
-    "/center",
+    "/",
   );
+});
+
+test("the network page is one page, and a former scope address still opens it", () => {
+  assert.equal(routePaths.network(), "/network");
+  assert.equal(parseRoute("#/network").view, "network");
+  assert.equal(parseRoute("#/network/").view, "network");
+  // The two scopes the page was once read in are gone with the control that named them; an old
+  // link lands on the page the address always meant.
+  assert.equal(parseRoute("#/network/city").view, "network");
+  assert.equal(parseRoute("#/network/region").view, "network");
 });

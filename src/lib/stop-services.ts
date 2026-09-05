@@ -62,7 +62,66 @@ export function findNextCompatibleDeparture(
 
 /** The two ends a line runs between as seen from one stop, or one end where it only leaves one way. */
 export function getLineTermini(line: TransitLine): string[] {
+  if (line.farthestRunTermini?.length) return [...line.farthestRunTermini];
   return [...new Set(line.destinations)].slice(0, 2);
+}
+
+/**
+ * The furthest run observed for one line among these departures, as its calls.
+ *
+ * Reach is the run's own length — the number of distinct calls — which is what makes a whole run
+ * beat the short workings beside it, whatever order the boards were read in.
+ */
+export function findFarthestLineRunCalls(
+  lineId: string,
+  departures: readonly Departure[],
+): readonly TripCall[] | undefined {
+  let furthestCalls: readonly TripCall[] | undefined;
+  let furthestReach = 0;
+  for (const departure of departures) {
+    if (!isSameLineFamily(departure.lineId, lineId) || !departure.tripCalls?.length) continue;
+    const reach = new Set(departure.tripCalls.map(getCallKey)).size;
+    if (reach > furthestReach) {
+      furthestCalls = departure.tripCalls;
+      furthestReach = reach;
+    }
+  }
+  return furthestCalls;
+}
+
+/** The ends of one run, qualified the way a compact heading has to state them. */
+function getRunTermini(calls: readonly TripCall[]): {
+  firstTerminus: string;
+  lastTerminus: string;
+} {
+  // Rows can state a stop's locality on a separate line, but a heading cannot. Fold it into an end
+  // whose bare stop name does not identify the place: KVV calls line 2's western end plain `Nord`
+  // inside `Knielingen`, for example, so the heading must read `Knielingen Nord`.
+  const homePlaceName = findHomePlaceName(calls);
+  return {
+    firstTerminus: getQualifiedStopName(calls[0], homePlaceName),
+    lastTerminus: getQualifiedStopName(calls[calls.length - 1], homePlaceName),
+  };
+}
+
+/**
+ * The two ends the line was seen running between at its furthest, as a line list reads them.
+ *
+ * The same observation `getFarthestLineRun` draws a whole-line view out of, read once for the
+ * list instead of per view: the furthest run observed for the line states where it actually runs,
+ * where its destinations — the words on the vehicle's front, with the short workings among them —
+ * only suggest it. `undefined` where no run was observed far enough, and where the furthest run
+ * turns on itself: a loop's two ends are one place, and the line's destinations still say which
+ * one it serves.
+ */
+export function getFarthestRunTermini(
+  lineId: string,
+  departures: readonly Departure[],
+): readonly string[] | undefined {
+  const calls = findFarthestLineRunCalls(lineId, departures);
+  if (!calls || calls.length < 2) return undefined;
+  const { firstTerminus, lastTerminus } = getRunTermini(calls);
+  return firstTerminus === lastTerminus ? undefined : [firstTerminus, lastTerminus];
 }
 
 /** The furthest run observed for a line, as a whole-line reading of it needs it. */
@@ -91,16 +150,7 @@ export function getFarthestLineRun(
   departures: readonly Departure[],
   diagramCalls: readonly TripCall[],
 ): FarthestLineRun {
-  let furthestCalls: readonly TripCall[] | undefined;
-  let furthestReach = 0;
-  for (const departure of departures) {
-    if (!isSameLineFamily(departure.lineId, line.id) || !departure.tripCalls?.length) continue;
-    const reach = new Set(departure.tripCalls.map(getCallKey)).size;
-    if (reach > furthestReach) {
-      furthestCalls = departure.tripCalls;
-      furthestReach = reach;
-    }
-  }
+  const furthestCalls = findFarthestLineRunCalls(line.id, departures);
 
   if (!furthestCalls || furthestCalls.length < 2) {
     const [firstTerminus, lastTerminus] = getLineTermini(line);
@@ -123,13 +173,5 @@ export function getFarthestLineRun(
       ? nextDiagramIndex > firstDiagramIndex
       : getCallKey(diagramCalls[0] ?? last) === getCallKey(first);
   const calls = runsTowardStart ? furthestCalls : [...furthestCalls].reverse();
-  const homePlaceName = findHomePlaceName(calls);
-  return {
-    // Rows can state a stop's locality on a separate line, but this compact heading cannot. Fold
-    // it into an end whose bare stop name does not identify the place: KVV calls line 2's western
-    // end plain `Nord` inside `Knielingen`, for example, so the title must read `Knielingen Nord`.
-    firstTerminus: getQualifiedStopName(calls[0], homePlaceName),
-    lastTerminus: getQualifiedStopName(calls[calls.length - 1], homePlaceName),
-    calls,
-  };
+  return { ...getRunTermini(calls), calls };
 }

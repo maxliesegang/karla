@@ -12,7 +12,7 @@ import {
 } from "../lib/departure-board-collection";
 import { createSortedKey } from "../lib/collections";
 import { createDepartureBoardsLoader } from "./departure-board";
-import { useKeyedLoad, type KeyedLoadOptions } from "./keyed-load";
+import { createFreshEntryLoad, useKeyedLoad, type KeyedLoadOptions } from "./keyed-load";
 
 /**
  * The cadence for the boards that place a line's vehicles.
@@ -26,10 +26,12 @@ export const LINE_OBSERVATION_REFRESH_MS = 90_000;
  * The cadence for the posts the Zentrum list is read from.
  *
  * This used to be ninety seconds, which was the cadence of a view that read its vehicle marks from
- * these boards. It no longer does — a diagram takes its own filtered boards along the line, and a
- * rider's own stop fetches its own board — so what is actually left resting on this observation is
- * which stops have service, which lines call there, where the stops are, and the signs a badge is
- * drawn from. None of that is a countdown, and none of it becomes wrong in ninety seconds.
+ * these boards. The line diagram takes its own filtered boards along the line, a rider's own stop
+ * fetches its own board, and the Zentrum map places its marks from the runs' own re-reads
+ * (`useZentrumVehicles`) — these boards only name which runs exist — so what rests on this
+ * observation is which stops have service, which lines call there, where the stops are, and the
+ * signs a badge is drawn from. None of that is a countdown, and none of it becomes wrong in ninety
+ * seconds.
  *
  * Five minutes, then, because a stop that stops being served or a line that stops running is worth
  * noticing inside the visit that follows it, and because these boards are a hundred kilobytes each
@@ -97,6 +99,12 @@ export function useDepartureBoardCollection(
    * run and not seeing it at all. Empty reads the whole stop, as the Zentrum observation does.
    */
   lineIds: readonly string[] = EMPTY_LINE_IDS,
+  /**
+   * How stale the runs' own re-reads may be. A line's boards are read as rows, and the runs out on
+   * it are read as calls on a clock of their own; the boards name which runs exist, the calls are
+   * what places the vehicles. With none named, the runs keep the boards' freshness.
+   */
+  tripMaxAgeMs?: number,
 ): DepartureBoardCollection {
   const stopKey = createSortedKey(stopIds);
   const lineKey = createSortedKey(lineIds);
@@ -108,10 +116,21 @@ export function useDepartureBoardCollection(
   // An observation of the whole stop carries its trips, because the trips are what the network is
   // read from; a reading of one line takes its rows here and its runs from the trip endpoint (see
   // `createDepartureBoardsLoader`). A board another view fetched within this cadence answers
-  // instead of a request of its own.
+  // instead of a request of its own. The runs' entry read looks past the trip cache all the same:
+  // the boards name which runs exist and the runs are what place the marks, so a diagram's first
+  // paint is placed from whatever reading the previous visit left unless the source is asked for a
+  // fresh one — and the reading that would correct it arrives a minute later, after the rider has
+  // started watching. After the entry read, the runs keep the caller's tolerance.
   const load = useMemo(
-    () => createDepartureBoardsLoader({ includeTripCalls: true, maxAgeMs: refreshMs }),
-    [refreshMs],
+    () =>
+      createFreshEntryLoad((key, isEntryRead) =>
+        createDepartureBoardsLoader({
+          includeTripCalls: true,
+          maxAgeMs: refreshMs,
+          tripMaxAgeMs: isEntryRead ? 0 : tripMaxAgeMs,
+        })(key),
+      ),
+    [refreshMs, tripMaxAgeMs],
   );
   const loaded = useKeyedLoad(stopKey ? key : null, load, loadOptions);
   const orderedStopIds = stopKey ? stopKey.split(",") : [];

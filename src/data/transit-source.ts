@@ -35,6 +35,15 @@ export type LineDepartureBoardsRequest = {
   /** The provider's per-direction ids. Required: this reading is only ever one line's. */
   lineIds: readonly string[];
   maxAgeMs?: number;
+  /**
+   * How stale the runs' own re-reads may be, where it is named apart from `maxAgeMs`.
+   *
+   * The boards state which runs exist; the calls a diagram places vehicles from are the runs' own
+   * readings, and the feed revises those about every thirty-five seconds — so a line may ask its
+   * runs for a fresher tolerance than the boards that name them, at a fraction of a board's
+   * transfer. Unnamed, the runs keep the boards' freshness.
+   */
+  tripMaxAgeMs?: number;
 };
 export { createDepartureId };
 
@@ -300,7 +309,7 @@ export class KvvTransitSource implements TransitSource {
 
   async getLineDepartureBoards(
     stopIds: readonly string[],
-    { lineIds, maxAgeMs }: LineDepartureBoardsRequest,
+    { lineIds, maxAgeMs, tripMaxAgeMs = maxAgeMs }: LineDepartureBoardsRequest,
   ): Promise<DepartureBoard[]> {
     // The rows first, and only the rows. A board filtered to named directions cannot hold another
     // line, so it needs none of the mode macros — and without them it answers without the calling
@@ -318,7 +327,7 @@ export class KvvTransitSource implements TransitSource {
     const sequenceByRow = new Map<string, Departure>();
     await Promise.all(
       getDistinctVehicleTrips(rows.filter((row) => isRunUnderWay(row, rows))).map(async (row) => {
-        const reading = await this.getTrip(row.id, maxAgeMs).catch(() => undefined);
+        const reading = await this.getTrip(row.id, tripMaxAgeMs).catch(() => undefined);
         if (reading) sequenceByRow.set(getVehicleTripKey(row), reading.trip);
       }),
     );

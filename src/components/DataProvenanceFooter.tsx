@@ -44,6 +44,10 @@ export function DataProvenanceFooter({
     );
   }
 
+  // The home reads no board at all, and a footer that says "wird geladen …" for a reading that was
+  // never asked for is the one thing provenance may not do: it states a condition that is not true.
+  // The source is still named — that promise is kept in every state — and nothing more is claimed.
+  const hasReadingInView = departureBoard !== undefined || departureBoards !== undefined;
   const relevantDepartureBoards = departureBoards ?? (departureBoard ? [departureBoard] : []);
   const isLoading =
     departureBoard === null || (departureBoards !== undefined && departureBoards.length === 0);
@@ -54,15 +58,20 @@ export function DataProvenanceFooter({
     .filter((board) => board.dataStatus === "live")
     .sort((a, b) => Date.parse(a.feedUpdatedAt) - Date.parse(b.feedUpdatedAt))[0];
 
-  const statusLabel =
-    coverage?.status === "loading"
+  const statusLabel = !hasReadingInView
+    ? "Live-Abfahrten"
+    : coverage?.status === "loading"
       ? "wird geladen …"
       : coverage?.status === "unavailable" && oldestLiveBoard
         ? `nicht erreichbar · letzter Stand ${formatClockTime(oldestLiveBoard.feedUpdatedAt)}`
         : coverage?.status === "unavailable"
           ? "nicht erreichbar"
           : coverage?.status === "partial" && oldestLiveBoard
-            ? `teilweise erreichbar · ältester Stand ${formatClockTime(oldestLiveBoard.feedUpdatedAt)}`
+            ? // How much of the Zentrum this reading rests on, in the one place that answers for
+              // where the reading came from. It used to be a clause of the plan's own caption, in
+              // warning ink, at the end of a sentence describing which mode the plan was in — a
+              // caveat about the *source* filed under the drawing rather than under the source.
+              `teilweise erreichbar · aus ${coverage.liveBoardCount} von ${coverage.expectedBoardCount} Haltestellen · ältester Stand ${formatClockTime(oldestLiveBoard.feedUpdatedAt)}`
             : isLoading
               ? "wird geladen …"
               : unavailableDepartureBoard && !oldestLiveBoard

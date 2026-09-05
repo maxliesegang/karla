@@ -93,6 +93,28 @@ export class StopRegistry {
     longitude,
     preferredId,
   }: StopRegistration): TransitStop {
+    // A provider stop has one local identity. Searches return authored stops too, and an old shared
+    // link may still carry the dynamic id that stop had before it was authored. In both cases the
+    // fixed local stop wins: letting `preferredId` mint an alias would make the page use one id
+    // while its parsed trip calls use another, so topology could no longer locate the current stop.
+    const authoredId = localStopIdByProviderId.get(providerId);
+    const authored = authoredId ? this.authoredStopsById.get(authoredId) : undefined;
+    if (authored) return authored;
+
+    // The same invariant applies outside the authored network. A provider may spell a stop
+    // differently between search results and trip calls; once registered, that must enrich the
+    // existing stop rather than create a second route for the same physical place.
+    const registeredId = this.dynamicStopIdByProviderId.get(providerId);
+    const registered = registeredId ? this.dynamicStops.get(registeredId) : undefined;
+    if (registered) {
+      if (registered.latitude === undefined && latitude !== undefined) {
+        const enriched = { ...registered, latitude, longitude };
+        this.dynamicStops.set(registered.id, enriched);
+        return enriched;
+      }
+      return registered;
+    }
+
     const id = preferredId ?? `${createStopSlug(name)}--${hashProviderStopId(providerId)}`;
     // A stop outside the core is shown with the municipality beside its name, which is the second
     // name a rider knows it by — the same slot a local stop states a colloquial name in.

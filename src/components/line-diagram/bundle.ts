@@ -20,6 +20,7 @@ import {
   buildLineDiagramStops,
   getLineDiagramVehicleDepartures,
   getLineDiagramVehicles,
+  getShownLineDiagramVehicles,
   type LineDiagramVehicle,
 } from "../../lib/line-diagram";
 
@@ -195,6 +196,7 @@ export function useLineBundleBranchVehicles({
   feedNow,
   turnaroundIndex,
   showWaitingVehicles = true,
+  areOtherTripsShown = true,
   trunkVehicles,
 }: {
   branches: readonly LineBundleBranch[];
@@ -207,6 +209,8 @@ export function useLineBundleBranchVehicles({
   turnaroundIndex: TurnaroundIndex;
   /** See `getLineDiagramVehicles`: whether a trip still waiting to set out carries a mark. */
   showWaitingVehicles?: boolean;
+  /** See `getShownLineDiagramVehicles`: whether the legs draw the line's other vehicles too. */
+  areOtherTripsShown?: boolean;
   trunkVehicles: readonly LineDiagramVehicle[];
 }): {
   vehiclesByBranchKey: ReadonlyMap<string, readonly LineDiagramVehicle[]>;
@@ -230,18 +234,22 @@ export function useLineBundleBranchVehicles({
       );
       byKey.set(
         getLineBundleBranchKey(branch),
-        getLineDiagramVehicles(
-          branchStops,
-          branchDepartures,
-          joinedTripPairs,
-          selectedDeparture,
-          feedNow,
-          { turnaroundIndex, showWaitingVehicles },
+        getShownLineDiagramVehicles(
+          getLineDiagramVehicles(
+            branchStops,
+            branchDepartures,
+            joinedTripPairs,
+            selectedDeparture,
+            feedNow,
+            { turnaroundIndex, showWaitingVehicles },
+          ),
+          areOtherTripsShown,
         ),
       );
     }
     return byKey;
   }, [
+    areOtherTripsShown,
     branches,
     feedNow,
     joinedTripPairs,

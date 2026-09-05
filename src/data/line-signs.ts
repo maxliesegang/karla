@@ -276,6 +276,16 @@ const verifiedColorByLineId = new Map(
   ),
 );
 
+/**
+ * The colour KVV's own feed prints a line in, where the feed states one.
+ *
+ * `E` is deliberately absent: it is the one short name the feed gives two different services, so it
+ * has no colour until a mode is read with it -- which `getVerifiedColor` below does, and this
+ * mode-free reading cannot. Callers use this to ask whether the operator signs two lines alike.
+ */
+export const getVerifiedLineColor = (lineId: string): string | undefined =>
+  lineId === "E" ? undefined : verifiedColorByLineId.get(lineId);
+
 const getVerifiedColor = (lineId: string, mode: TransportMode): string | undefined => {
   if (lineId === "E") {
     if (mode === "tram") return "#ff0000";
@@ -316,6 +326,7 @@ export function createLineSign(lineId: string, mode: TransportMode): TransitLine
   return {
     id: lineId,
     name: `${labelByTransportMode[mode]} ${lineId}`,
+    transportMode: mode,
     color,
     textColor: getAccessibleTextColor(color),
     destinations: [],

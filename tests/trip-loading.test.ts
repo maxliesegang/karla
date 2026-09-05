@@ -742,6 +742,74 @@ test("a line's stops are read as rows, and each trip's calls are fetched once fo
   );
 });
 
+test("a line's runs are re-read at their own tolerance, apart from the boards that name them", async (t) => {
+  // The boards state which runs exist; the calls a diagram places vehicles from are the runs' own
+  // readings, and the feed revises those about every thirty-five seconds. So a line names its runs
+  // a fresher tolerance than the boards, and the boards' slower cadence answers the cheaper half
+  // of the reading from memory while the marks move.
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-08-26T07:29:45.000Z") });
+  const rawTrip = parseTripResponse(tripPayload, locator);
+  let tripRequests = 0;
+  let boardRequests = 0;
+  const client = {
+    fetchDepartureBoard: async (stopPointId: string): Promise<KvvDepartureBoard> => {
+      boardRequests += 1;
+      return {
+        stopPointId,
+        stopName: stopPointId,
+        serverTime: "2026-08-26T07:29:45",
+        servingLines: [],
+        departures: [
+          {
+            stopPointId,
+            stopPointName: stopPointId,
+            tripId: "de:kvv:00S04_:.trip",
+            lineId: "S4",
+            routeDirectionId: "kvv:22304:E:H:s26",
+            transportMode: "tram",
+            destination: "Hochstetten",
+            minutesUntilDeparture: 2,
+            status: "realtime",
+            scheduledDepartureTime: "2026-08-26T07:30:00.000Z",
+            tripLocator: locator,
+          },
+        ],
+      };
+    },
+    fetchTrip: async (): Promise<KvvTrip> => {
+      tripRequests += 1;
+      return rawTrip;
+    },
+  } as unknown as KvvEfaClient;
+  const source = new KvvTransitSource(client);
+  const lineIds = ["kvv:22304:E:H:s26"];
+
+  await source.getLineDepartureBoards(["europaplatz"], {
+    lineIds,
+    maxAgeMs: 90_000,
+    tripMaxAgeMs: 60_000,
+  });
+  assert.equal(boardRequests, 1);
+  assert.equal(tripRequests, 1);
+
+  // A minute on, the boards' reading is still inside its tolerance; the runs' is not.
+  t.mock.timers.tick(60_000);
+  await source.getLineDepartureBoards(["europaplatz"], {
+    lineIds,
+    maxAgeMs: 90_000,
+    tripMaxAgeMs: 60_000,
+  });
+  assert.equal(boardRequests, 1);
+  assert.equal(tripRequests, 2);
+
+  // Unnamed, the runs' reading keeps the boards': the coupling is what stands unless a caller
+  // names it apart.
+  t.mock.timers.tick(60_000);
+  await source.getLineDepartureBoards(["europaplatz"], { lineIds, maxAgeMs: 90_000 });
+  assert.equal(boardRequests, 2);
+  assert.equal(tripRequests, 2);
+});
+
 test("a trip whose sequence cannot be read still keeps the row it was found on", async () => {
   // A reading that failed is not evidence that the run is not there: the row stands, and the next
   // round asks again. Losing it would take a vehicle off the diagram for a lost packet.

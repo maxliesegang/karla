@@ -19,7 +19,9 @@ npm run dev
 Routing is hash-based, so every view is a shareable deep link. Three entry points and one selection
 chain, each level refining the one above it:
 
-- `#/center` — the stops served in the Zentrum
+- `#/center` — the Zentrum's plan: one drawing of what is running through it
+- `#/center/line/2` — that plan following one line, with the rest of the band receded
+- `#/center/full`, `#/center/full/line/2` — the same plan read at the size of the screen
 - `#/network/city`, `#/network/region` — the line index
 - `#/nearby` — the six nearest observed stops after a location reading
 - `#/notices` — KVV's published notices relevant to the KARLA network
@@ -90,6 +92,12 @@ since the same run is listed at every stop it has yet to leave. Each run actuall
 read once instead, which is the difference between 34.5 MB and 2.2 MB for one round of S4. The board
 a rider reads is untouched by this: it is read whole, and the operator's mode filter hands it the
 sequences whether or not they were asked for.
+
+The two halves also read apart in time. The boards stay on the line's ninety-second observation
+cadence, while the runs' readings are re-read on a tolerance of their own (`LINE_TRIP_MAX_AGE_MS`),
+a minute to a minute and a half — the diagram places vehicles from the runs' calls, and the feed
+revises those about every thirty-five seconds. What a rider reads beside a row is still the board
+row's; the one trip that reads faster is the ride itself, on the thirty-second board cadence.
 
 Beside a plain board, one detailed reading is reused for 30 minutes to learn which visible trips
 share a first corridor. What those readings say is accumulated for the visit

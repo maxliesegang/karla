@@ -79,7 +79,14 @@ export type ResolvedSelectionChain = {
   isStopFailed: boolean;
   /** Reads the stop's provider resolution again after a failed one. */
   retryStop: () => void;
+  /**
+   * Reads the stop's board again, whatever its last reading was. The board in view stands while the
+   * reading is under way and is simply replaced by it; this is what a pull to refresh asks for.
+   */
+  refreshBoard: () => void;
   departureBoard: DepartureBoard | null;
+  /** How many readings of the board have answered, however each of them answered. */
+  boardReadingCount: number;
   departures: readonly Departure[];
   selectedLine: TransitLine | undefined;
   /**
@@ -134,7 +141,7 @@ export function useSelectionChain(
   observationBoards: readonly DepartureBoard[] = [],
 ): ResolvedSelectionChain {
   const observedLine = network ? findLineForRoute(network.lines, route.lineId) : undefined;
-  const stopId = route.stopId || observedLine?.zentrumStopIds[0] || DEFAULT_STOP_ID;
+  const addressedStopId = route.stopId || observedLine?.zentrumStopIds[0] || DEFAULT_STOP_ID;
   // A failed provider read is retried by bumping the nonce: the load re-runs for the same key, so
   // whatever the last attempt settled on stays visible until the new one answers.
   const [stopReloadNonce, setStopReloadNonce] = useState(0);
@@ -142,9 +149,16 @@ export function useSelectionChain(
     stop: selectedStop,
     loading: isStopLoading,
     failed: isStopFailed,
-  } = useTransitStop(network, route.view === "stop" ? stopId : undefined, {
+  } = useTransitStop(network, route.view === "stop" ? addressedStopId : undefined, {
     reloadNonce: stopReloadNonce,
   });
+  // An address is a seed, not the stop's identity. A former dynamic link may resolve to a stable
+  // authored stop; every reading after resolution and the canonical address use that answer so a
+  // board and its trip calls can never describe the same place under different ids.
+  const stopId = selectedStop?.id ?? addressedStopId;
+  // The board a rider can ask to be read again by pulling it down. The nonce re-runs the same
+  // reading rather than starting a new one, so the board in view stands until the answer arrives.
+  const [boardReloadNonce, setBoardReloadNonce] = useState(0);
 
   // Wait for the stable network to resolve the stop before touching the live provider: a deep link
   // to an unknown stop should render locally instead of causing a pointless board request.
@@ -152,10 +166,12 @@ export function useSelectionChain(
   // the plain board never reached is not a shorter list but a line missing from the answer to "what
   // runs from here?", and it is chosen deliberately — the other two orders keep the light board.
   const departureBoardOrder = useDepartureBoardOrder();
-  const departureBoard = useDepartureBoard(
+  const departureBoardReading = useDepartureBoard(
     selectedStop ? stopId : undefined,
     NEEDS_BOARD_TRIP_CALLS ? "calls" : departureBoardOrder === "line" ? "covered" : "plain",
+    boardReloadNonce,
   );
+  const departureBoard = departureBoardReading.board;
   const departures = departureBoard?.departures ?? EMPTY_DEPARTURES;
   // A trip named beside a stop is that stop's own entry: its countdown, platform and calling point
   // are the ones the board states, so another board's copy of the same trip is not interchangeable.
@@ -322,7 +338,9 @@ export function useSelectionChain(
     isStopLoading,
     isStopFailed,
     retryStop: () => setStopReloadNonce((nonce) => nonce + 1),
+    refreshBoard: () => setBoardReloadNonce((nonce) => nonce + 1),
     departureBoard,
+    boardReadingCount: departureBoardReading.readingCount,
     departures,
     selectedLine,
     bundledLines,

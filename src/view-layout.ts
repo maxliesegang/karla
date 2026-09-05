@@ -12,11 +12,9 @@
  */
 import {
   getParentSelectionPath,
-  isHomeView,
   routePaths,
   type ActiveView,
   type AppRoute,
-  type HomeView,
   type RouteView,
 } from "./routing";
 
@@ -30,10 +28,11 @@ export const isStationBoardStopView = (view: RouteView, isStationBoardMode: bool
 /**
  * Whether anything in view is actually read from the observation cycle, which is what decides the
  * cadence it runs at. Beside a departure board or a line diagram it only lends line signs, stop
- * positions and interchanges, which hold for hours.
+ * positions and interchanges, which hold for hours. The home reads none of it: it names the other
+ * pages and asks nothing of the network. The settings read none of it either.
  */
 export const readsObservedNetwork = (view: ActiveView): boolean =>
-  isHomeView(view) || view === "nearby";
+  view === "zentrum" || view === "network" || view === "nearby";
 
 /** The levels of the resolved chain the layout is read from — never the raw address. */
 export type ResolvedViewSelection = {
@@ -58,8 +57,8 @@ export type ViewLayoutInput = {
 export type ViewLayout = {
   /** The panel the shell shows: a stop with a line resolving at it is the line view. */
   activeView: ActiveView;
-  /** The home root in view, where one is — `undefined` is every view that is not the home. */
-  homeView: HomeView | undefined;
+  /** The home page in view, the one that names the other pages. */
+  isHomeView: boolean;
   isLineInView: boolean;
   /** The ride: a trip read on its own, with the board set aside and the whole width the diagram's. */
   isRideInView: boolean;
@@ -96,8 +95,8 @@ export type ViewLayout = {
  * an entrance and undo it. So a trip of the same line is the same key, a different line is not, and
  * the ride is a thing of its own because it is the trip rather than the line that is being read.
  *
- * The home is likewise one key across its tabs: the search field and what is typed into it live in
- * that panel, and re-mounting it to animate a tab would empty it mid-word.
+ * The home is keyed as itself and nothing more: it is one page, and the pages it names are views of
+ * their own with keys of their own.
  */
 export type PanelKeys = {
   /** What the primary panel is showing, or would be showing where it is mounted at all. */
@@ -115,9 +114,7 @@ function getPanelKeys(
     ? `ride:${selection.tripId ?? ""}`
     : activeView === "line"
       ? `line:${selection.lineId ?? ""}`
-      : isHomeView(activeView)
-        ? "home"
-        : activeView;
+      : activeView;
   return { primaryKey, boardKey: `stop:${selection.stopId}` };
 }
 
@@ -128,11 +125,12 @@ export function getViewLayout({
   nearbyReturnStopId,
 }: ViewLayoutInput): ViewLayout {
   const activeView: ActiveView = route.view === "stop" && selection.lineId ? "line" : route.view;
-  const homeView = isHomeView(activeView) ? activeView : undefined;
+  const isHomeView = activeView === "home";
   const isLineInView = activeView === "line";
   const isRideInView = isLineInView && selection.isRide && selection.hasSelectedDeparture;
-  const isStandaloneView =
-    homeView !== undefined || activeView === "nearby" || activeView === "notices";
+  // Every view but the stop and its line stands on its own: it has no stop beneath it, and so no
+  // board beside it.
+  const isStandaloneView = activeView !== "stop" && !isLineInView;
   const isStationBoardView = isStationBoardStopView(route.view, isStationBoardMode);
   const isStopBoardOnly = activeView === "stop" && !isStationBoardView;
   // The ride takes the board out of the view as soon as the address names it, so a ride still
@@ -145,7 +143,7 @@ export function getViewLayout({
 
   return {
     activeView,
-    homeView,
+    isHomeView,
     isLineInView,
     isRideInView,
     isStandaloneView,
@@ -172,9 +170,10 @@ function getBackPath(
   isRideInView: boolean,
   nearbyReturnStopId: string | undefined,
 ): string | undefined {
-  // The nearby list is a correction to one page, so it returns to the page it corrected.
+  // The nearby list is a correction to one page, so it returns to the page it corrected — and to
+  // the home when it was opened from nothing to correct.
   if (route.view === "nearby") {
-    return nearbyReturnStopId ? routePaths.stop(nearbyReturnStopId) : routePaths.zentrum();
+    return nearbyReturnStopId ? routePaths.stop(nearbyReturnStopId) : routePaths.home();
   }
   return getParentSelectionPath({
     view: route.view,
@@ -210,7 +209,10 @@ export function getDashboardClassNames(layout: ViewLayout): (string | false)[] {
     "dashboard",
     layout.isSinglePanel && "single-panel",
     layout.isLineInView && "line-view",
-    layout.homeView !== undefined && "home-view",
+    layout.isHomeView && "home-view",
+    // The plan is the one view whose panel is a drawing rather than a column of words: it is
+    // handed the panel's whole box, and on a phone the whole screen.
+    layout.activeView === "zentrum" && "zentrum-view",
     layout.isStopBoardOnly && "stop-view",
     layout.isStationBoardView && "station-board-only",
   ];

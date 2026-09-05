@@ -31,6 +31,15 @@ const loadLineStopBoard = (key: string) => {
 };
 
 /**
+ * What a batched reading is asked for: what one board is asked for, plus — on a line's reading
+ * only — how stale the runs' own re-reads may be. A whole-stop reading carries its runs inside the
+ * boards, and a single board has no runs of its own, so there the field has no one to speak to.
+ */
+type DepartureBoardsRequest = DepartureBoardRequest & {
+  tripMaxAgeMs?: number;
+};
+
+/**
  * Several stops at once, keyed by the joined ids `useKeyedLoad` addresses them under, optionally
  * with a line filter after a `|`.
  *
@@ -41,13 +50,14 @@ const loadLineStopBoard = (key: string) => {
  * fifteen times to learn it once. `getLineDepartureBoards` reads the rows and then the trips —
  * see `transit-source.ts`, where both halves and their dating live.
  */
-export const createDepartureBoardsLoader = (request: DepartureBoardRequest) => (key: string) => {
+export const createDepartureBoardsLoader = (request: DepartureBoardsRequest) => (key: string) => {
   const { stopKey, lineKey } = parseStopLineKey(key);
   const stopIds = stopKey.split(",");
   if (lineKey) {
     return transitSource.getLineDepartureBoards(stopIds, {
       lineIds: lineKey.split(","),
       maxAgeMs: request.maxAgeMs,
+      tripMaxAgeMs: request.tripMaxAgeMs,
     });
   }
   return Promise.all(stopIds.map(createDepartureBoardLoader(request)));
@@ -164,6 +174,22 @@ function useRetainedDepartureBoard(
 }
 
 /**
+ * The board a view shows, and how many readings of it have answered.
+ */
+export type DepartureBoardReading = {
+  board: DepartureBoard | null;
+  /**
+   * How many readings of the board have answered, however each of them answered. A refresh asked
+   * for by a pull is settled by its reading having answered at all — a fresh board takes the old
+   * one's place, a failed one is stated by the board's age — and never by a particular kind of
+   * answer coming back, which is why this counts answers rather than reading their contents.
+   */
+  readingCount: number;
+};
+
+const UNANSWERED_BOARD_READING: DepartureBoardReading = { board: null, readingCount: 0 };
+
+/**
  * Loads and periodically refreshes one stop's board, keeping the last good board while reloading.
  *
  * The variant is the view naming the reading it needs, and the three are very differently sized
@@ -183,16 +209,30 @@ function useRetainedDepartureBoard(
 export function useDepartureBoard(
   stopId: string | undefined,
   variant: DepartureBoardVariant = DEFAULT_DEPARTURE_BOARD_VARIANT,
-): DepartureBoard | null {
+  /**
+   * Bumped by a caller's explicit "ask again" — a pull to refresh. The board already read stays on
+   * screen until the new reading answers, and the backoff the cadence had earned is forgiven: a
+   * rider asking again is the evidence the feed is worth asking.
+   */
+  reloadNonce?: number,
+): DepartureBoardReading {
   // Keyed per variant, so choosing the line order asks for its board now rather than at whatever is
   // left of the thirty-second cadence — and so the answer to one reading is never kept as another's.
-  const loaded =
-    useKeyedLoad(
-      stopId ? `${stopId}|${variant}` : null,
-      loadDepartureBoardVariant,
-      SINGLE_BOARD_LOAD_OPTIONS,
-    ) ?? null;
-  return useRetainedDepartureBoard(stopId, loaded);
+  // Counted as the raw answer, before the "nothing has resolved" reading is flattened into `null`,
+  // so an answer that resolves to nothing still counts against the one before it.
+  const loaded = useKeyedLoad(stopId ? `${stopId}|${variant}` : null, loadDepartureBoardVariant, {
+    ...SINGLE_BOARD_LOAD_OPTIONS,
+    reloadNonce,
+  });
+  const board = useRetainedDepartureBoard(stopId, loaded ?? null);
+  const [reading, setReading] = useState<{
+    loaded: DepartureBoard | undefined | null;
+    counted: DepartureBoardReading;
+  }>({ loaded: null, counted: UNANSWERED_BOARD_READING });
+  if (reading.loaded === loaded) return reading.counted;
+  const counted = { board, readingCount: reading.counted.readingCount + 1 };
+  setReading({ loaded, counted });
+  return counted;
 }
 
 /**

@@ -12,6 +12,7 @@ npm run lint
 npm run format         # biome format --write . — the formatter is the style authority
 npm test               # tests and build both pass before handing off a change
 npm run refresh:stops  # regenerates src/data/generated from the operator's published data
+npm run solve:zentrum  # measures the Zentrum plan against the feed, and solves for a truer one
 ```
 
 `dist` is built and deployed by GitHub Actions on push to `main`; don't commit it.
@@ -38,8 +39,8 @@ npm run refresh:stops  # regenerates src/data/generated from the operator's publ
 One concept, one name, everywhere it appears — the Zentrum is `zentrum` in code even where its
 published URL segment is still `/center`.
 
-- **Components.** `*View` is a whole route view, one per `RouteView` (`ZentrumView`, `NetworkView`,
-  `NearbyStopsView`, `ServiceNoticesView`, `StationBoardView`). `*Panel` is a half of the dashboard
+- **Components.** `*View` is a whole route view, one per `RouteView` (`ZentrumView`,
+  `NetworkView`, `NearbyStopsView`, `ServiceNoticesView`, `SettingsView`, `StationBoardView`). `*Panel` is a half of the dashboard
   or a section inside a view (`DepartureBoardPanel`, `LineDiagramPanel`, `RideStatusPanel`,
   `ServiceNoticePanel`). Everything else is named for what it is: badge, chip, row, list, tabs, menu.
   A component exported from a file the file is not named after belongs in its own file.
@@ -62,7 +63,11 @@ published URL segment is still `/center`.
   for one line, not for more rows. Hidden pages neither poll nor tick.
 - **A line is read as rows, then as runs.** Each run out on the line is read once from the trip
   endpoint, not once per stop it has yet to call (`getLineDepartureBoards`). Whole-stop boards are
-  the other reading and stay as they are.
+  the other reading and stay as they are. The two halves keep their own clocks: the boards name
+  which runs exist and stay on the line observation cadence; the runs' readings are re-read at the
+  line's trip tolerance (`LINE_TRIP_MAX_AGE_MS`), because the marks are placed from the runs' calls.
+  The Zentrum vehicle map reads the vehicles it draws the same way: the posts name which runs exist
+  on their slow cadence, and the runs drawn are re-read behind them (`useZentrumVehicles`).
 - **A route is a seed, never an answer.** The provider states where a line goes
   (`XML_STOPSEQCOORD_REQUEST`, one request per line-direction, kept for the session). It decides
   which stops are *read* and never what is drawn: a stop of the route nothing calls at today

@@ -88,6 +88,11 @@ export type LineDiagramVehicle = {
   phase: TripPlacementPhase;
   /** Whether the mark travelled to this position or was put here — see `TripPlacement.motion`. */
   motion: TripPlacementMotion;
+  /**
+   * How far a placement put the mark from where it was drawn, in links of the trip's own calls —
+   * what lets the mark be corrected over rather than snapped. See `TripPlacement.placedAfterLinks`.
+   */
+  placedAfterLinks?: number;
   /** One stable animation to the next stop, replaced only when its timing changes. */
   trajectory?: TripSegmentTrajectory;
   /** Any other trip on the line while one is being followed — tinted so the ride stands out. */
@@ -123,6 +128,7 @@ type PlacedLineDiagramVehicle = {
   directionArrow: "↑" | "↓";
   phase: TripPlacementPhase;
   motion: TripPlacementMotion;
+  placedAfterLinks?: number;
   trajectory?: TripSegmentTrajectory;
   realtimeQuality: number;
 };
@@ -380,6 +386,7 @@ function placeVehicles(
       directionArrow: toIndex > fromIndex ? "↓" : "↑",
       phase: placement.phase,
       motion: placement.motion,
+      placedAfterLinks: placement.placedAfterLinks,
       trajectory: placement.trajectory,
       realtimeQuality: getRealtimeQuality(candidate),
     });
@@ -509,6 +516,7 @@ function mergeJoinedPortions(
       destinationLabel: getDestinationLabel(portions),
       phase: representative.phase,
       motion: representative.motion,
+      placedAfterLinks: representative.placedAfterLinks,
       trajectory: representative.trajectory,
       isOtherTrip: Boolean(selectedDeparture) && !isSelected,
       isSelected,
@@ -544,6 +552,22 @@ export function getLineDiagramVehicles(
     showWaitingVehicles,
   );
   return mergeJoinedPortions(drawn, joinedPairs, selectedDeparture);
+}
+
+/**
+ * The vehicles of a reading the rider is shown, after their own choice about the others.
+ *
+ * "Other trips" is only ever said beside a followed one: the marks carrying another run than the
+ * rider's are dropped when they would rather read the line alone. A joined working is not two
+ * other trips — it is the one train the rider is on, and it keeps both of its portions whole.
+ * Without a followed trip no vehicle is the rider's, so there are no others and the reading draws
+ * the line's vehicles as they stand.
+ */
+export function getShownLineDiagramVehicles(
+  vehicles: readonly LineDiagramVehicle[],
+  areOtherTripsShown: boolean,
+): readonly LineDiagramVehicle[] {
+  return areOtherTripsShown ? vehicles : vehicles.filter((vehicle) => !vehicle.isOtherTrip);
 }
 
 /**

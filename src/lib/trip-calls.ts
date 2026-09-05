@@ -361,6 +361,23 @@ const isExceptionalStatus = (status: DepartureStatus): boolean =>
   status === "cancelled" || status === "diverted";
 
 /**
+ * Several rows, each completed by the trip read for it where one has been read.
+ *
+ * A reading arrives when it arrives: the first ones land seconds after the rows do, and a row the
+ * source could not read is answered by no reading at all. The row is what the boards already
+ * stated, and a reading that has not landed is no reason to take a vehicle off a map, so each row
+ * stands and is completed in place where its reading allows.
+ */
+export function mergeTripSequences(
+  rows: readonly Departure[],
+  tripReadings: readonly Departure[],
+): readonly Departure[] {
+  if (tripReadings.length === 0) return rows;
+  const readingByRowId = new Map(tripReadings.map((reading) => [reading.id, reading]));
+  return rows.map((row) => mergeTripSequence(row, readingByRowId.get(row.id)));
+}
+
+/**
  * One published departure fact, completed by a trip read separately from it.
  *
  * The stop row stays the departure: its countdown, platform and delay are the freshest statement of

@@ -33,7 +33,10 @@ const getCallDistance = (placement: { fromStopId: string; progress: number }) =>
 const placementOnly = (placement: ReturnType<typeof getSmoothTripPlacement>) => {
   if (!placement) return placement;
   const position = { ...placement };
+  // The animation metadata a drawing reads the placement with: where the mark stands is what
+  // these assertions are about, not how it may be animated there.
   delete position.trajectory;
+  delete position.placedAfterLinks;
   return position;
 };
 
@@ -132,6 +135,32 @@ test("places a large forward correction instead of animating an unobserved journ
   assert.equal(after?.fromStopId, "c");
   assert.equal(after?.motion, "placed");
   assert.ok(before && after && getCallDistance(after) > getCallDistance(before));
+  // And it says how far it put the mark — well past a link, so the drawing snaps it rather than
+  // drawing a journey no vehicle was observed making.
+  assert.ok(after && (after.placedAfterLinks ?? 0) > 1);
+});
+
+test("a placement that barely moved the mark is stated as one a drawing may correct", () => {
+  // The row-correction shape: the mark is drawn a little way down its first link, and the row read
+  // now says the vehicle has not left its stop yet. The placement moves the mark back to that stop
+  // — a fraction of a link — which is a correction over, not a journey to state, so the placement
+  // says how far it moved the mark and no further claim than that.
+  const calls = [call("a", 0), call("b", 2), call("c", 4)];
+  const drawn = getSmoothTripPlacement(departure("position-travel-small", calls), start + 30_000);
+  assert.ok(drawn && drawn.fromStopId === "a" && drawn.progress > 0.1);
+  // A first paint is placed from nothing: there is no drawn mark to measure the move against.
+  assert.equal(drawn?.placedAfterLinks, undefined);
+
+  const held = {
+    ...departure("position-travel-small", calls),
+    predictedDepartureTime: new Date(start + 2 * 60_000).toISOString(),
+    delayMinutes: 2,
+  };
+  const placed = getSmoothTripPlacement(held, start + 31_000);
+
+  assert.equal(placed?.motion, "placed");
+  assert.equal(placed?.fromStopId, "a");
+  assert.ok(placed && placed.placedAfterLinks !== undefined && placed.placedAfterLinks <= 1);
 });
 
 test("a backward revision re-times the link instead of moving the mark back", () => {

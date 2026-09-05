@@ -62,6 +62,20 @@ body {
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
+/* Present to the document and to a screen reader, absent from the drawing. Used where a page's
+   heading would otherwise be the same word the navigation above it already prints, and for a
+   control's own state where the thing it controls is the statement of that state. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  border: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 button {
   font: inherit;
   color: inherit;
@@ -345,23 +359,66 @@ button.brand:active .brand-mark,
 }
 
 /* ---------- Home entry ---------- */
-/* Search, then the stops already read, then the two reference roots: the order the questions are
-   asked. It never scrolls — the panel below it is the long part of the view. */
+/* One band per question, in the order a rider asks them: how to reach a stop, the stops already
+   one tap away, the pages. It never scrolls — the home is the one view with no long reading under
+   it, so it is written to be read whole.
+
+   One measure, centred. The readings elsewhere are full width because a board and a diagram are
+   made of rows that use it; a landing is made of sentences and controls, and a field stretched
+   across a desktop reads as a form rather than as the way in. */
 .home-entry {
+  width: min(720px, 100%);
   flex: 0 0 auto;
-  width: min(760px, 100%);
   display: flex;
   flex-direction: column;
-  gap: 14px;
-  margin: 0 auto;
+  gap: clamp(16px, 2.2vw, 26px);
+  margin: 0 auto clamp(10px, 1.2vw, 16px);
 }
-.recent-stops h2 {
-  margin: 0 0 6px;
-  color: var(--ink-soft);
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
+/* The two ways to name a stop, side by side while both fit: the field takes the room, the locate
+   action takes what it needs. */
+.home-entry-find {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+/* On the home the field is the page's first action rather than one control among several, so it
+   drops the width cap it wears in tighter places and grows with the column. */
+.home-entry-find .stop-search {
+  flex: 1 1 260px;
+  max-width: none;
+}
+.home-entry-find .stop-search input {
+  height: 50px;
+}
+/* The locate control as an action of the page: the accent fill it never takes in the bar, where it
+   sits on the accent. */
+.home-nearby-action {
+  min-height: 50px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 25px;
+  background: var(--shell-accent);
+  color: var(--shell-ink);
+  font: inherit;
+  font-size: 15px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.home-nearby-action:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.home-nearby-action svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.7;
+  stroke-linecap: round;
 }
 .nearby-stops-view {
   width: min(760px, 100%);
@@ -438,38 +495,108 @@ button.brand:active .brand-mark,
   color: var(--ink-soft);
   font-size: 18px;
 }
+/* A band of its own under the field, labelled: beside a search field a row of stop names could be
+   suggestions, favourites or stops nearby, and the label is what says which. */
+.recent-stops {
+  min-width: 0;
+}
+.recent-stops h2 {
+  margin-bottom: 8px;
+}
+/* One row at every width: the stops are a shortcut strip, not a shelf — a second band costs the
+   pages below a row each. Where four names overflow the measure, the row rides off the edge and
+   the thumb — or a sideways swipe where there is no thumb — travels it. */
 .recent-stops ul {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.recent-stops ul::-webkit-scrollbar {
+  display: none;
+}
+.recent-stops li {
+  flex: 0 0 auto;
+}
+/* The stops are the loud row of the home: a rider who has been here before is answered by one of
+   these, and everything else on the page is for the visit where none of them is the answer. */
+.recent-stops a {
+  min-height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 16px;
+  border: 1px solid color-mix(in srgb, var(--shell-accent) 26%, var(--line));
+  border-radius: 23px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 16px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.recent-stops a:hover {
+  border-color: var(--shell-accent);
+}
+.recent-stops a b {
+  color: var(--accent-ink);
+  font-size: 17px;
+}
+
+/* ---------- Home menu ---------- */
+/* The pages, as an index rather than a switch: each one named with the line that says what it is,
+   quiet beside the stops above because a rider who knows where they are going has already been
+   answered up there. Two columns wherever two fit, one where they do not — the cards decide that
+   themselves rather than at a width the stylesheet had to guess at. */
+.home-menu h2 {
+  margin-bottom: 8px;
+}
+.home-menu ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.recent-stops button {
-  min-height: 40px;
+.home-menu a {
+  height: 100%;
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 14px;
+  gap: 12px;
+  padding: 12px 16px;
   border: 1px solid var(--line);
-  border-radius: 20px;
+  border-radius: var(--radius-m);
   background: var(--surface);
   color: var(--ink);
-  font: inherit;
-  font-size: 15px;
-  font-weight: 700;
-  cursor: pointer;
+  text-decoration: none;
 }
-.recent-stops button:hover {
+.home-menu a:hover {
   border-color: var(--line-strong);
 }
-.recent-stops button b {
+.home-menu a > span {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.home-menu strong {
+  font-size: 15px;
+  font-weight: 750;
+}
+.home-menu small {
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.35;
+}
+.home-menu a b {
+  margin-left: auto;
   color: var(--ink-soft);
   font-size: 17px;
-}
-.home-entry .home-tabs {
-  margin-bottom: 0;
 }
 
 /* ---------- Home tabs ---------- */
@@ -528,23 +655,6 @@ button.brand:active .brand-mark,
 /* A press acknowledges itself on the label, since the surface under it is already in motion. */
 .segmented-control button:active {
   transform: scale(0.97);
-}
-.home-tabs {
-  --segment-radius: 17px;
-  align-self: center;
-  grid-auto-columns: minmax(96px, 1fr);
-  margin-bottom: clamp(14px, 1.6vw, 20px);
-  border: 0;
-  border-radius: 20px;
-}
-.home-tabs .segmented-control-thumb {
-  box-shadow: 0 1px 5px #10201f18;
-}
-.home-tabs button {
-  min-height: 36px;
-  padding: 0 18px;
-  border-radius: 20px;
-  font-weight: 750;
 }
 /* The diagram inside packs itself against the width it was actually given, which is a different
    number in every layout the same viewport can produce: a line beside a board, a ride on its own,
@@ -663,6 +773,7 @@ button.brand:active .brand-mark,
 .panel-heading {
   flex: 0 0 auto;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
@@ -1027,77 +1138,551 @@ button.brand:active .brand-mark,
   background: var(--warning-bg);
 }
 
-/* ---------- Zentrum ----------
-   One list, by name. That is what makes the panel hold still: it is no longer ranked by an
-   observation recounted every thirty seconds, so nothing moves under the finger reaching for it,
-   and a tunnel stop lands beside the street stop it shares a name with. A row, not a card — with
-   the names carrying the order, thirty borders and thirty chevrons were the only thing left
-   competing with the line badges. */
-/* The fade lives on the wrapper, not on the scroller: a mask applies to everything the scroll
-   container paints, its own scrollbar included, so masking `.zentrum-stops` faded the bottom of the
-   bar away with the rows. An overlay in the same colour as the panel keeps the old property of
-   being invisible where there is nothing to fade — over a short list it is panel colour on panel
-   colour. */
-.zentrum-stops-scroll {
+/* ---------- Settings view ---------- */
+/* One row per choice, read the way the board reads a departure: the question in ink, the answer it
+   carries in the line under it, and the control at the end where a row puts what it answers with.
+   The rows keep to the notice view's measure — a page of prose, not a page of plan. */
+.settings-view {
+  width: min(920px, 100%);
+  min-height: 0;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  margin: 0 auto;
+}
+.settings-view .settings-list {
+  margin: 14px 0 0;
+  padding: 0;
+  list-style: none;
+  overflow-y: auto;
+}
+.settings-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 4px;
+  border-bottom: 1px solid var(--line);
+}
+.settings-row-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.settings-row-text strong {
+  font-size: 15px;
+  font-weight: 750;
+}
+.settings-row-text small {
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.35;
+}
+.settings-footnote {
+  margin: 10px 4px 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+
+/* The Zentrum is a stable drawing surface under an observed reading. Its geometry names places;
+   only the coloured traversals claim that a line is currently using the connection.
+
+   One drawing, not four readings of one: following a line is a selection on it, so the mode
+   control that used to stand over the plan is gone — and so is the page's written head. The plan
+   *is* the page: a name and a sentence above it cost the drawing a band of every screen to say
+   what the tab the reader pressed already said, so the drawing starts at the top of the panel and
+   takes every row under it. What the drawing cannot say of itself is still said, at its foot, by
+   the caption. */
+.zentrum-schematic {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+/* The drawing is given the panel's whole box: a plan is read by area, and the padding a column of
+   words needs to sit off the panel edge is area the drawing spends on nothing. Its own scrollport
+   already draws the border the page reads as the plan's edge. */
+.dashboard.zentrum-view .primary-panel {
+  padding: clamp(8px, 0.8vw, 12px);
+}
+/* The page's one line above the drawing, saying the plan is still being built. A single slim band:
+   a page under construction says so once, and the drawing keeps the panel's every row under it. */
+.zentrum-view-progress {
+  margin: 0;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: 13px;
+  line-height: 1.45;
+}
+.zentrum-view-progress strong {
+  color: var(--ink);
+}
+/* Read at the size of the screen.
+
+   Not an overlay: the shell keeps its three rows and the plan is simply given the one the page was
+   spending on chrome — the bar. Nothing is stacked over anything, so nothing behind it is left
+   focusable, no scroll has to be locked, and the provenance footer keeps standing where it always
+   does. Nothing about the drawing itself changes — the same section, the same scrollport, the same
+   toolbar — so the zoom, the scroll position and a running mark's animation all survive the step in
+   and the step back out. */
+.app-shell.zentrum-fullscreen .app-header {
+  display: none;
+}
+.app-shell.zentrum-fullscreen .dashboard {
+  border-radius: var(--radius-l);
+}
+.app-shell.zentrum-fullscreen .dashboard.zentrum-view .primary-panel {
+  padding: 6px;
+}
+/* The way back out is the one control on the band that changes the whole page, so it is the one
+   that is filled rather than outlined. */
+.zentrum-schematic[data-fullscreen="true"] .zentrum-schematic-expand {
+  border-color: var(--ink);
+  background: var(--ink);
+  color: var(--surface);
+}
+
+/* The drawing and the one thing that reads *of* it while it is open: an opened vehicle stands over
+   the plan rather than under it, because as a sibling below it moved the controls every time one
+   appeared, which on a phone was the toolbar leaving the screen under the reader's thumb. The
+   caption, whose place is constant, keeps its own row in the flow instead. */
+.zentrum-schematic-stage {
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
   display: flex;
 }
-.zentrum-stops-scroll::after {
-  content: "";
-  position: absolute;
-  right: 0;
-  bottom: 0;
-  left: 0;
-  height: 24px;
-  background: linear-gradient(to bottom, transparent, var(--surface-2));
-  pointer-events: none;
-}
-.zentrum-stops {
+.zentrum-schematic-scroll {
   flex: 1 1 auto;
+  min-width: 0;
   min-height: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-  align-content: start;
-  gap: 2px 20px;
-  margin-top: 18px;
-  overflow-y: auto;
+  overflow: auto;
   overscroll-behavior: contain;
+  /* A flex line so the plan can be sized against this box's height as well as its width — which is
+     what fitting the whole Zentrum means, rather than fitting as much of it as the width allowed
+     and letting the rest fall out of the bottom. Where the panel gives this box no height of its
+     own, as the narrow layout does, the height constraint is simply indefinite and the plan falls
+     back to the width, which is the same reading one dimension smaller. */
+  display: flex;
+  border: 1px solid var(--line);
+  border-radius: clamp(14px, 1.6vw, 20px);
+  background:
+    radial-gradient(
+      circle at 50% 0%,
+      color-mix(in srgb, var(--accent) 6%, transparent),
+      transparent 48%
+    ),
+    color-mix(in srgb, var(--surface) 72%, transparent);
 }
-.zentrum-stops button {
-  display: grid;
-  gap: 3px;
-  align-content: center;
-  min-height: 46px;
-  padding: 5px 8px;
-  border: 0;
-  border-radius: var(--radius-s);
-  background: transparent;
-  text-align: left;
+/* The plan starts at whichever of the box's two dimensions runs out first, so the whole Zentrum is
+   on screen before anything is scrolled, and the zoom control grows it from there. The dots and
+   marks are sized as a share of the canvas within bounds — big enough to hit on a phone, and never
+   so big that a 3× zoom hides the plan behind its own furniture. Labels stop growing early on
+   purpose: that is what makes zooming in pull the names apart instead of enlarging the collision. */
+.zentrum-schematic-canvas {
+  position: relative;
+  flex: 0 0 auto;
+  margin: auto;
+  container-type: inline-size;
+  /* The width is measured and set on the element, because the fit has to hold the plan's ratio
+     exactly: a box clamped to a different ratio letterboxes the corridors inside their SVG while
+     the marks above them stretch with the box, and the two stop meeting. */
+  /* The aspect ratio is the schematic's own viewBox: a ratio that disagreed with it would place
+     every node beside the corridor it stands on. Zoom is applied to both sides of the fit. */
+}
+.zentrum-schematic-canvas svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.zentrum-schematic-corridor {
+  stroke: var(--line-strong);
+  stroke-width: 11;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  opacity: 0.32;
+}
+/* One lane is laid exactly one lane's width from its neighbour, so lines sharing a corridor stand
+   in one band instead of apart. `--zentrum-schematic-track-width` is set on the drawing by the view,
+   from the layout that spaced the lanes; never restate it here. Paint runs casing, seam, colour:
+   the halo below only ever surfaces around the outside of a band, and the seam -- laid at the full
+   lane width the colours are painted short of -- shows as a fine ink rule between neighbouring
+   lanes, so lanes that touch still read as two. */
+.zentrum-schematic-network-track-casing,
+.zentrum-schematic-network-track-seam,
+.zentrum-schematic-network-track-color {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.zentrum-schematic-network-track-casing {
+  stroke: var(--surface);
+  stroke-width: calc(var(--zentrum-schematic-track-width) + 3);
+  opacity: 0.96;
+}
+.zentrum-schematic-network-track-seam {
+  stroke: color-mix(in srgb, var(--ink) 84%, transparent);
+  stroke-width: var(--zentrum-schematic-track-width);
+}
+.zentrum-schematic-network-track-color {
+  stroke-width: calc(var(--zentrum-schematic-track-width) * 0.7);
+}
+/* The vehicle reading lights the stretch a vehicle is still to run, and leaves what lies behind
+   the vehicles in the drawing's own structure grey — same band, same casing, no colour, and at
+   the lane's full width, which buries the lane's own seam again: the band behind the vehicles
+   reads as one quiet grey rather than as ruled lanes. */
+.zentrum-schematic-network-track-color[data-has-vehicles="false"] {
+  stroke: var(--line-strong);
+  stroke-width: var(--zentrum-schematic-track-width);
+}
+/* Following a line recedes the rest of the band rather than removing it: what a rider is reading is
+   one line's way *through* the Zentrum, and a plan emptied of everything else would no longer say
+   through what. */
+.zentrum-schematic-network-track-color[data-dimmed="true"],
+.zentrum-schematic-vehicle[data-dimmed="true"] {
+  opacity: 0.22;
+}
+.zentrum-schematic-vehicle[data-dimmed="true"]:hover,
+.zentrum-schematic-vehicle[data-dimmed="true"]:focus-visible,
+.zentrum-schematic-vehicle[data-dimmed="true"][data-selected="true"] {
+  opacity: 1;
+}
+/* Every line is drawn in its lane, always, so the corridor beneath is the quiet ground the band
+   stands on rather than a line of its own. */
+.zentrum-schematic-corridor {
+  stroke-width: 14;
+  opacity: 0.2;
+}
+/* The stop mark: one fine rule laid across the lines calling there, the tick every printed transit
+   plan marks a station with. It is drawn over the band rather than under it, and it is thin enough
+   that it never hides a colour for longer than its own width -- which is what lets the network stay
+   the thing a reader sees first. The casing beneath it is the page's own colour, so the rule reads
+   as clearly over eight colours as over one; both are stated in lane widths, because the mark's job
+   is to cross the band and the band is measured in lanes. */
+.zentrum-schematic-stop-mark-casing,
+.zentrum-schematic-stop-mark {
+  /* Decoration across the band. The stop's own button, which is what a reader points at and what
+     reads the stop out, still lies above it. */
+  pointer-events: none;
+  fill: none;
+  stroke-linecap: round;
+}
+.zentrum-schematic-stop-mark-casing {
+  stroke: var(--surface);
+  stroke-width: calc(var(--zentrum-schematic-track-width) * 0.85);
+  opacity: 0.85;
+}
+.zentrum-schematic-stop-mark {
+  stroke: var(--ink);
+  stroke-width: calc(var(--zentrum-schematic-track-width) * 0.4);
+}
+.zentrum-schematic-stop {
+  z-index: 3;
+}
+/* A mark's whole position is one transform, stated inline: the corridor it rides at the progress
+   its placement evaluated, centred on itself. The moving part is animated by the browser from the
+   placement's own trajectory (see ZentrumView), so no transition sits under it -- a replan and a
+   handover are placements of their own, not journeys a transition would glide across. */
+.zentrum-schematic-vehicle {
+  position: absolute;
+  z-index: 4;
+  width: clamp(13px, 1.7cqw, 24px);
+  height: clamp(13px, 1.7cqw, 24px);
+  padding: 0;
+  border: 3px solid var(--surface);
+  border-radius: 50%;
+  background: var(--zentrum-line-color);
+  box-shadow: 0 2px 7px #10201f52;
+  pointer-events: auto;
   cursor: pointer;
 }
-.zentrum-stops button:hover {
-  background: var(--surface);
-  box-shadow: 0 2px 8px #16302e0f;
+.zentrum-schematic-vehicle:hover,
+.zentrum-schematic-vehicle:focus-visible,
+.zentrum-schematic-vehicle[data-selected="true"] {
+  z-index: 5;
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
 }
-/* The name wraps rather than truncates: what an ellipsis eats first is the `(U)` that tells the
-   tunnel stop from the street stop of the same name. */
-.zentrum-stop-name {
-  min-width: 0;
-  font-size: 15px;
-  font-weight: 700;
-  letter-spacing: -0.015em;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
+.zentrum-schematic-vehicle i {
+  position: absolute;
+  inset: 30%;
+  border-top: clamp(1.5px, 0.2cqw, 2.5px) solid var(--zentrum-vehicle-ink);
+  border-right: clamp(1.5px, 0.2cqw, 2.5px) solid var(--zentrum-vehicle-ink);
+  transform: rotate(calc(var(--zentrum-vehicle-angle) + 45deg));
 }
-/* Lines stay complete but subordinate: a compact second row leaves the stop name the full row width. */
-.zentrum-stop-lines {
+/* Over the foot of the plan, not under it. */
+.zentrum-vehicle-detail {
+  position: absolute;
+  z-index: 4;
+  right: 10px;
+  bottom: 10px;
+  left: 10px;
+  max-width: 420px;
+  display: grid;
+  box-shadow: 0 6px 20px #10201f22;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-m);
+  background: var(--surface-2);
+}
+.zentrum-vehicle-detail > div {
   min-width: 0;
   display: flex;
-  flex-wrap: wrap;
-  gap: 3px;
-  justify-content: flex-start;
+  flex-direction: column;
+  gap: 1px;
+}
+.zentrum-vehicle-detail > div > span {
+  color: var(--ink-soft);
+  font-size: 10px;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.zentrum-vehicle-detail strong {
+  font-size: 14px;
+  line-height: 1.2;
+}
+.zentrum-vehicle-detail p {
+  margin: 3px 0 0;
+  color: var(--ink-soft);
+  font-size: 11px;
+  line-height: 1.3;
+}
+.zentrum-vehicle-detail-close {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink-soft);
+  font: inherit;
+  font-size: 21px;
+  line-height: 1;
+  cursor: pointer;
+}
+.zentrum-vehicle-detail-close:hover,
+.zentrum-vehicle-detail-close:focus-visible {
+  background: var(--surface);
+  color: var(--ink);
+}
+.zentrum-schematic-stop {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 3px;
+  border: 0;
+  border-radius: var(--radius-s);
+  /* No plate under a name: twenty-five opaque tiles were covering the corridors the plan is for.
+     The name is set lighter and carries a halo of the panel's own colour instead, which lifts it
+     off a corridor it crosses without hiding what runs underneath. The plate returns on hover and
+     focus, where one name is deliberately being read and the rest can afford to be behind it. */
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: clamp(8px, 0.9cqw, 11.5px);
+  font-weight: 650;
+  line-height: 1.12;
+  text-align: left;
+  /* Names wrap rather than run: the plan puts three of Europaplatz's places within two grid steps
+     of each other, and a label that stayed on one line would cross both its neighbours. */
+  white-space: normal;
+  text-wrap: balance;
+  cursor: pointer;
+  transition:
+    opacity 180ms ease,
+    background 180ms ease,
+    transform 180ms ease;
+}
+.zentrum-schematic-stop span {
+  max-width: 92px;
+  text-shadow:
+    0 0 3px var(--surface),
+    0 0 3px var(--surface),
+    0 0 5px var(--surface);
+}
+/* A through-stop keeps its name until the plan is large enough to hold every one of them, and
+   gives it back the moment it is pointed at, focused, or on a chosen line. The dot never goes:
+   what is unprinted here is still read out by the button that carries it. */
+.zentrum-schematic-stop[data-named="false"] span {
+  display: none;
+}
+.zentrum-schematic-stop[data-named="false"]:hover span,
+.zentrum-schematic-stop[data-named="false"]:focus-visible span {
+  display: block;
+}
+.zentrum-schematic-stop:hover,
+.zentrum-schematic-stop:focus-visible {
+  z-index: 3;
+  background: var(--surface);
+  box-shadow: 0 3px 10px #10201f26;
+}
+.zentrum-schematic-stop:hover span,
+.zentrum-schematic-stop:focus-visible span {
+  text-shadow: none;
+}
+.zentrum-schematic-stop[data-muted="true"] {
+  opacity: 0.3;
+}
+/* The stop is marked once, by the rule the drawing lays across its lines. What the button carries
+   is the room that mark takes: the thing a finger lands on, and the thing the name is spaced from.
+   It draws nothing of its own -- a dot over the rule would be a second mark for one stop, and at a
+   junction it would be a white disc over the corner the lines turn through. */
+.zentrum-schematic-stop i {
+  flex: 0 0 auto;
+  width: var(--zentrum-stop-dot);
+  height: var(--zentrum-stop-dot);
+}
+/* Every label hangs off its stop, and the mark is what the coordinate names — so the offsets are
+   stated in the mark's own size rather than in the pixels it happened to be. */
+.zentrum-schematic-stop {
+  --zentrum-stop-dot: clamp(5px, 0.65cqw, 9px);
+}
+.zentrum-schematic-stop.below {
+  transform: translate(-50%, calc(var(--zentrum-stop-dot) / -2 - 2px));
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+.zentrum-schematic-stop.above {
+  transform: translate(-50%, calc(-100% + var(--zentrum-stop-dot) / 2 + 2px));
+  flex-direction: column-reverse;
+  align-items: center;
+  text-align: center;
+}
+.zentrum-schematic-stop.left {
+  transform: translate(calc(-100% + var(--zentrum-stop-dot) / 2 + 3px), -50%);
+  flex-direction: row-reverse;
+  text-align: right;
+}
+.zentrum-schematic-stop.right {
+  transform: translate(calc(var(--zentrum-stop-dot) / -2 - 3px), -50%);
+}
+/* One band of controls under the plan rather than four stacked ones: the zoom at the end a thumb
+   reaches, the legend along the rest of it. The legend is the filter too, so following a line is
+   one gesture in one place. */
+.zentrum-schematic-toolbar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+.zentrum-schematic-zoom {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.zentrum-schematic-zoom button {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 15px;
+  line-height: 1;
+  cursor: pointer;
+}
+.zentrum-schematic-zoom button:hover:enabled,
+.zentrum-schematic-zoom button:focus-visible {
+  background: var(--surface-2);
+}
+.zentrum-schematic-zoom button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+/* The size the plan is read at, set off from the two that step the size it is drawn at: it is a
+   different question, and it is the one control on the band that changes the whole page. */
+.zentrum-schematic-expand {
+  margin-right: 2px;
+  font-size: 13px !important;
+}
+/* Twenty badges wrapping to three rows was a legend costing more of a phone than the drawing it
+   explains; one scrolling row keeps them all reachable and the band one line high. */
+.zentrum-schematic-lines {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 4px;
+  align-items: center;
+  padding-bottom: 2px;
+  overflow-x: auto;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+}
+.zentrum-schematic-lines::-webkit-scrollbar {
+  display: none;
+}
+.zentrum-schematic-lines > * {
+  flex: 0 0 auto;
+}
+/* The way back out of a line, beside the lines: the plan's own address has one more level than the
+   plan does, and this is the level being dropped. */
+.zentrum-schematic-lines-reset {
+  min-height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 13px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 750;
+  cursor: pointer;
+}
+.zentrum-schematic-lines-reset:hover,
+.zentrum-schematic-lines-reset:focus-visible {
+  background: var(--surface-2);
+}
+.zentrum-schematic-lines button {
+  display: inline-flex;
+  padding: 2px;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
+.zentrum-schematic-lines button.selected {
+  border-color: var(--ink);
+}
+.zentrum-schematic-lines[data-has-selection="true"] button:not(.selected) {
+  opacity: 0.48;
+}
+/* What cannot be read off the drawing — that the marks are estimates, and which stretches are the
+    ones still ahead — said between the drawing and the controls, right-aligned to the plan's own
+    edge. A chip with a surface of its own rather than shadowed text, and in the flow rather than
+    over the plan: its place is constant, and the plan's foot is where a phone keeps the stop names
+    a reader steers by. Which lines are drawn is the legend under it; where the reading came from is
+    the page's provenance footer. */
+.zentrum-schematic-caption {
+  flex: 0 0 auto;
+  align-self: flex-end;
+  margin: 0;
+  padding: 3px 10px;
+  border: 1px solid var(--line);
+  border-radius: 13px;
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: 11px;
+  line-height: 1.25;
+  text-align: right;
 }
 
 /* ---------- Departures ---------- */
@@ -1732,6 +2317,52 @@ button.brand:active .brand-mark,
 .departure-board-list > .panel-empty {
   margin-inline: var(--row-inset);
 }
+
+/* ---------- Pull to refresh ----------
+   A board is asked again by pulling it down past its first row. The strip grows above the rows
+   while the finger holds it and states what the pull is about to do — the same honest prose the
+   board states everything else — and holds one mark's worth of height while the reading answers.
+   It is drawn by `usePullToRefresh` through the DOM, so a finger moving down a board re-renders
+   nothing; these rules only give the states it names their shape. */
+.departure-board-pull {
+  position: relative;
+  flex: 0 0 auto;
+  height: 0;
+  overflow: hidden;
+  transition: height 0.22s cubic-bezier(0.22, 0.75, 0.2, 1);
+}
+/* While the finger holds the strip it follows the finger directly; the easing is only for the
+   settle back after a release. */
+.departure-board-pull.is-pulling {
+  transition: none;
+}
+.departure-board-pull-inner {
+  position: absolute;
+  inset-inline: 0;
+  bottom: 0;
+  /* The rest the strip holds while a refresh is under way: the height the trigger leaves it at
+     (`PULL_TO_REFRESH_TRIGGER_PX`), so letting go past the mark hands over without a jump. */
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.departure-board-pull-label {
+  display: none;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 650;
+}
+.departure-board-pull.is-pulling:not(.is-armed) [data-pull="hint"] {
+  display: block;
+}
+.departure-board-pull.is-armed:not(.is-refreshing) [data-pull="ready"] {
+  display: block;
+}
+.departure-board-pull.is-refreshing [data-pull="busy"] {
+  display: block;
+}
+
 .departure {
   position: relative;
   width: 100%;
@@ -3362,13 +3993,6 @@ button.line-diagram-bundle-option:focus-visible {
 }
 
 /* ---------- Stop view ---------- */
-.stop-title {
-  min-width: 0;
-}
-.stop-title h1 {
-  font-size: clamp(28px, 2.6vw, 38px);
-}
-
 /* The way to the whole line, which is what the line reading offers over the other two.
    The band names the line on the left and offers the way to it on the right: the words and the mark
    that open it travel together as one pressable phrase, rather than sitting a hand's width apart
@@ -3431,7 +4055,11 @@ button.line-diagram-bundle-option:focus-visible {
   font-size: 20px;
 }
 
-/* ---------- Network ---------- */
+/* ---------- Network ----------
+   The line index, read in the modes the network is made of: a band per mode, the rows of that
+   mode under it. One flat list of two hundred lines was an index only in the sense that it was
+   ordered — the mode is how a rider looks for a line ("which tram", "which bus"), and the
+   heading is what says the list is complete, one count per band. */
 .network-view {
   width: min(1440px, 100%);
   height: 100%;
@@ -3441,11 +4069,18 @@ button.line-diagram-bundle-option:focus-visible {
   flex: 1;
   margin: 0 auto;
 }
-.network-scope-control {
+/* The bands as navigation over the page's own sections: the button of the band whose heading is
+   stuck at the top is the lit one, and tapping one walks the page to that band. It sits between
+   the page's heading and the list, so on a wide screen it is always in view; stacked, it pins
+   itself under the bar instead. */
+.network-band-nav {
   --segment-radius: 7px;
+  align-self: flex-start;
+  width: min(100%, 380px);
+  margin-top: 14px;
   border-radius: 10px;
 }
-.network-scope-control button {
+.network-band-nav button {
   min-height: 34px;
   padding: 0 16px;
   border-radius: 7px;
@@ -3454,21 +4089,68 @@ button.line-diagram-bundle-option:focus-visible {
 .network-lines {
   flex: 1;
   min-height: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  align-content: start;
-  gap: 0 18px;
-  margin-top: 20px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  margin-top: 14px;
   overflow-y: auto;
   overscroll-behavior: contain;
 }
-.network-lines > button {
+.network-line-group {
+  flex: 0 0 auto;
+}
+/* The band stands still while its rows travel: mid-group the heading is the only thing saying
+   which part of the list the eye is in. It is painted on the panel's own surface, so a row
+   passing under it disappears rather than showing through, and closes on the same hairline the
+   rows close on — the rule is what keeps the row passing behind from reading as the group's
+   first. */
+.network-group-heading {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+  margin: 0;
+  padding: 12px 5px 9px;
+  background: var(--surface-2);
+  box-shadow: 0 1px 0 var(--line);
+}
+/* First band sits straight under the page's heading; later ones keep a breath above the rows
+   they close — and the row before a band closes on the band's own hairline, not on two. */
+.network-line-group + .network-line-group .network-group-heading {
+  padding-top: 4px;
+}
+.network-line-group:not(:last-child) .network-group-lines > button:last-child {
+  border-bottom: 0;
+}
+.network-group-heading span {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--accent-ink);
+}
+.network-group-heading small {
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 700;
+}
+.network-group-lines {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  /* A row reads at its ease with room to spare: three across the index's own measure, and the
+     step down as the panel narrows rather than a fourth column squeezing every termini label. */
+  grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+  align-content: start;
+  gap: 0 18px;
+}
+.network-group-lines > button {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
   min-height: 56px;
-  padding: 9px 5px;
+  padding: 10px 10px;
   border: 0;
   border-bottom: 1px solid var(--line);
   border-radius: 0;
@@ -3476,7 +4158,7 @@ button.line-diagram-bundle-option:focus-visible {
   text-align: left;
   cursor: pointer;
 }
-.network-lines > button:hover,
+.network-group-lines > button:hover,
 .stop-lines button:hover {
   background: var(--surface);
   box-shadow: none;
@@ -3499,7 +4181,7 @@ button.line-diagram-bundle-option:focus-visible {
   color: var(--ink-soft);
   font-style: normal;
 }
-.network-lines > button > b {
+.network-group-lines > button > b {
   color: var(--accent-ink);
   font-size: 20px;
 }
@@ -3757,13 +4439,16 @@ button.line-diagram-bundle-option:focus-visible {
 /* ---------- Stop search ---------- */
 /* It stood on the coloured bar and was sized to fit beside three other controls. At the top of the
    home it is the view's first question, so it takes the width and a target a thumb can hit. */
+/* Capped where a field stops being useful: what is not spent on the field is spent on the stops
+   beside it. */
 .stop-search {
   position: relative;
-  width: 100%;
+  flex: 1 1 220px;
+  max-width: 360px;
 }
 .stop-search input {
   width: 100%;
-  height: 48px;
+  height: 44px;
   padding: 0 18px;
   border: 1px solid var(--line-strong);
   border-radius: 24px;
@@ -3869,11 +4554,6 @@ button.line-diagram-bundle-option:focus-visible {
 .departure-countdown strong.cancelled {
   font-size: clamp(15px, 1.2vw, 19px);
   font-weight: 750;
-}
-
-/* ---------- Network ---------- */
-.network-lines > button {
-  grid-template-columns: auto minmax(0, 1fr) auto;
 }
 
 /* ---------- The ride ----------
@@ -4307,24 +4987,17 @@ button.line-diagram-bundle-option:focus-visible {
   }
   .app-shell:not(.station-board-mode) .departure-board-list,
   .app-shell:not(.station-board-mode) .line-diagram-stops,
-  .app-shell:not(.station-board-mode) .zentrum-stops,
   .app-shell:not(.station-board-mode) .network-lines {
     flex: none;
     min-height: 0;
     overflow: visible;
-  }
-  /* Stacked, the rules reach a short way past the words and stop inside the panel's own padding:
+  } /* Stacked, the rules reach a short way past the words and stop inside the panel's own padding:
      there is no second panel here to run a hairline to, and the edge they would run to is a rounded
      card over the glass, not a divider. Only the reach changes — the words still land on the
      panel's margin, under the stop's name, because the list steps out by exactly what the rows put
      back. Short of the safe area at every phone rotation, too. */
   .app-shell:not(.station-board-mode) .departure-board-list {
     --row-inset: 10px;
-  }
-  /* No scrollport here, so no scroll edge to fade — the mask would dim the last row instead. */
-  .app-shell:not(.station-board-mode) .zentrum-stops {
-    -webkit-mask-image: none;
-    mask-image: none;
   }
   /* The bridge reaches a panel divider that a stacked layout does not have. */
   .app-shell:not(.station-board-mode) .departure::before {
@@ -4333,10 +5006,45 @@ button.line-diagram-bundle-option:focus-visible {
   .app-shell:not(.station-board-mode) .departure.selected {
     box-shadow: inset 4px 0 var(--shell-accent);
   }
-  .app-shell:not(.station-board-mode) .line-diagram,
+  .app-shell:not(.station-board-mode) .line-diagram {
+    height: auto;
+    display: block;
+  }
+  /* The plan keeps the one-screen shell a phone drops for the stacked views.
+
+     Stacked views scroll the document because two scrollports above one another trap the thumb —
+     but the Zentrum is a single panel holding one drawing, and that drawing is its own scrollport
+     already. Letting the document grow instead would leave the plan sized against nothing: a
+     drawing fitted into an indefinite height falls back to the width and the map ends up a band
+     across the middle of a page that scrolls past it. So this view is a screen: bar, plan, source
+     line, and the plan takes every row between them. Full screen is the same page with the bar's
+     row handed over too. */
+  .app-shell:not(.station-board-mode):has(> .dashboard.zentrum-view) {
+    height: 100dvh;
+    min-height: 0;
+    display: grid;
+    overflow: hidden;
+  }
+  .app-shell:not(.station-board-mode) .dashboard.zentrum-view,
+  .app-shell:not(.station-board-mode) .dashboard.zentrum-view .primary-panel {
+    overflow: hidden;
+  }
+  /* Stacked, the dashboard is a column and its halves are as tall as what is in them -- which is
+     what every other view here wants, and the one thing this one cannot have: a drawing fitted
+     into a panel that only asks for its content's height gets no height to fit into, falls back to
+     the width, and leaves the plan a band across the top of a screenful of nothing. So the plan's
+     panel takes the row the shell measured for it. */
+  .app-shell:not(.station-board-mode) .dashboard.zentrum-view .primary-panel {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  /* Stacked, the band navigation is the surface that pins: the bar names the page, the navigation
+     names the band, and the band headings slide under both. Its height is one value because the
+     headings below it and the bands a button lands on measure against it too. */
   .app-shell:not(.station-board-mode) .network-view {
     height: auto;
     display: block;
+    --network-band-nav-height: 44px;
   }
   .app-shell:not(.station-board-mode) .not-found {
     min-height: 70vh;
@@ -4386,18 +5094,43 @@ button.line-diagram-bundle-option:focus-visible {
       0 10px 20px -18px #10201f80;
   }
   /* A grouped reading's heading — a place, a platform in one order, a line in the other — pins
-     inside its own scrollport on a wide screen; stacked, its scrollport is the document, so it
-     stops under the bar rather than sliding behind it. */
+      inside its own scrollport on a wide screen; stacked, its scrollport is the document, so it
+      stops under the bar rather than sliding behind it. */
   .app-shell:not(.station-board-mode) .departure-board-platform-group h2,
   .app-shell:not(.station-board-mode) .departure-board-boarding-place > h2,
   .app-shell:not(.station-board-mode) .departure-board-line-group > h2 {
     top: var(--bar-height);
     z-index: 6;
   }
+  /* The band navigation pins under the bar, and the network's band headings pin under it — the
+     navigation is the page's own table of contents, so it stays one thumb's reach away while the
+     bands scroll, and a heading arriving at the top arrives beneath it. It bleeds to the panel's
+     edges so a row cannot slip past it at either side. */
+  .app-shell:not(.station-board-mode) .network-band-nav {
+    position: sticky;
+    top: var(--bar-height);
+    z-index: 7;
+    height: var(--network-band-nav-height);
+    width: auto;
+    margin-inline: calc(-16px - env(safe-area-inset-left)) calc(-16px - env(safe-area-inset-right));
+    padding-inline: calc(16px + env(safe-area-inset-left)) calc(16px + env(safe-area-inset-right));
+    background: var(--surface-2);
+    box-shadow: 0 1px 0 var(--line);
+  }
+  .app-shell:not(.station-board-mode) .network-group-heading {
+    top: calc(var(--bar-height) + var(--network-band-nav-height));
+    z-index: 6;
+  }
   .app-shell:not(.station-board-mode) .departure-board-platform-group,
   .app-shell:not(.station-board-mode) .departure-board-line-group,
   .app-shell:not(.station-board-mode) .departure-board-panel {
     scroll-margin-top: calc(var(--bar-height) + 12px);
+  }
+  /* A band's section lands exactly on the line its heading pins at — no cushion — because that
+     line is also where the navigation reads the page as having arrived: walking to a band and
+     being marked as it are the same number, and the stylesheet carries it once. */
+  .app-shell:not(.station-board-mode) .network-line-group {
+    scroll-margin-top: calc(var(--bar-height) + var(--network-band-nav-height));
   }
   /* A place's section lands exactly on the line its heading pins at — no cushion — because that
      line is also where the place bar reads the board as having arrived: walking to a place and
@@ -4480,9 +5213,9 @@ button.line-diagram-bundle-option:focus-visible {
      middle of the screen with paper down both sides, at the one rotation where a stop name has the
      least room to be read in. There is no second panel to hold a measure against here, so there is
      no measure — the view runs to the panel's own padding, safe area included, at every rotation. */
-  .app-shell:not(.station-board-mode) .home-entry,
   .app-shell:not(.station-board-mode) .nearby-stops-view,
   .app-shell:not(.station-board-mode) .service-notices-view,
+  .app-shell:not(.station-board-mode) .settings-view,
   .app-shell:not(.station-board-mode) .network-view,
   .app-shell:not(.station-board-mode) .ride-status,
   .dashboard.stop-view .departure-board-panel {
@@ -4491,12 +5224,8 @@ button.line-diagram-bundle-option:focus-visible {
   .app-shell:not(.station-board-mode) .line-diagram {
     --line-diagram-measure: 100%;
   }
-  .network-lines,
-  .zentrum-stops {
+  .network-group-lines {
     grid-template-columns: 1fr;
-  }
-  .home-tabs {
-    margin-bottom: 20px;
   }
 
   .app-shell.station-board-mode {
@@ -4539,18 +5268,19 @@ button.line-diagram-bundle-option:focus-visible {
     width: 44px;
     height: 44px;
   }
-  .home-tabs {
-    width: 100%;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  /* The locate action takes the line under the field rather than a corner of it. */
+  .home-entry-find .stop-search {
+    flex: 1 1 100%;
   }
-  .home-tabs button {
-    padding-inline: 10px;
+  .home-nearby-action {
+    width: 100%;
+    justify-content: center;
+  }
+  .home-menu a {
+    padding-inline: 14px;
   }
   h1 {
     font-size: 25px;
-  }
-  .stop-title h1 {
-    font-size: 30px;
   }
   .departure-board-heading {
     gap: 8px;

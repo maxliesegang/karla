@@ -154,10 +154,19 @@ export type Departure = {
 export type TransitLine = {
   id: LineId;
   name: string;
+  /** The mode the line was seen running under, which a list of lines is grouped and scoped by. */
+  transportMode?: TransportMode;
   color: string;
   textColor: string;
   /** The ends the line was seen running between, most frequent first. */
   destinations: readonly string[];
+  /**
+   * The two ends of the furthest run observed for the line, spoken the way a compact heading states
+   * them (`Knielingen Nord`, not the bare `Nord` the feed names the stop). Where no run was observed
+   * far enough — or where the furthest run turns on itself, which names one place and no extent —
+   * this is absent, and the ends the destinations name stand in.
+   */
+  farthestRunTermini?: readonly string[];
   zentrumStopIds: readonly string[];
 };
 

@@ -2,16 +2,27 @@ import { useEffect, useRef, useState } from "react";
 import type { NearbyStopsController } from "../hooks";
 import { navigateTo, routePaths } from "../routing";
 
-/** Locates only on request, then opens the closest useful stop. */
+/**
+ * Locates only on request, then opens the closest useful stop.
+ *
+ * Two places want this one control and want it to look like where it stands: a glyph-sized chip in
+ * the bar, where it is one of several things a view carries, and a full action on the home, where
+ * "the stop I am standing at" is one of the three ways the page answers its only question. The
+ * behaviour is the same in both — the variant decides its surface and how much of its label it
+ * prints, and nothing else.
+ */
 export function NearbyStopButton({
   controller,
   currentPageStopId,
   onShowAlternatives,
+  variant = "bar",
 }: {
   controller: NearbyStopsController;
   /** Set only on a plain stop page, not on a line or ride nested beneath it. */
   currentPageStopId?: string;
   onShowAlternatives: () => void;
+  /** Where it stands: the shell's bar, or the home page itself. */
+  variant?: "bar" | "page";
 }) {
   const isRequestedRef = useRef(false);
   const hasReachedLocatedStopRef = useRef(false);
@@ -51,10 +62,12 @@ export function NearbyStopButton({
           ? controller.message
           : "Nächste Haltestelle";
 
+  const isPageAction = variant === "page";
+
   return (
     <button
       type="button"
-      className="header-action nearby-stop-button"
+      className={isPageAction ? "home-nearby-action" : "header-action nearby-stop-button"}
       aria-label={label}
       title={label}
       disabled={
@@ -75,7 +88,16 @@ export function NearbyStopButton({
         <circle cx="10" cy="10" r="3.25" />
         <path d="M10 2.25v2M10 15.75v2M2.25 10h2M15.75 10h2" />
       </svg>
-      <span>{canCorrectLocation ? "Andere" : "Nähe"}</span>
+      {/* The bar has room for a word; the page has room for the question the word stands for. */}
+      <span>
+        {isPageAction
+          ? canCorrectLocation
+            ? "Andere Haltestelle"
+            : "Haltestelle in der Nähe"
+          : canCorrectLocation
+            ? "Andere"
+            : "Nähe"}
+      </span>
     </button>
   );
 }

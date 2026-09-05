@@ -10,7 +10,7 @@ import type {
 import { getFarthestLineRun, getLineTermini } from "../../lib/stop-services";
 import { findTurnarounds } from "../../lib/line-turnarounds";
 import { buildInterchangeIndex } from "../../lib/interchanges";
-import { useLineVehicleDepartures } from "../../hooks";
+import { useAppSettings, useLineVehicleDepartures } from "../../hooks";
 import {
   getLineDiagramStatusLabel,
   getSelectedTripPositionHint,
@@ -24,6 +24,7 @@ import {
   getLineDiagramCoordinateKey,
   getLineDiagramVehicleDepartures,
   getLineDiagramVehicles,
+  getShownLineDiagramVehicles,
   getTripPositionAnchorIndex,
   getVehicleLabelsByRowIndex,
 } from "../../lib/line-diagram";
@@ -95,6 +96,8 @@ export function useLineDiagramReading({
   isRide,
   rideNextCall,
 }: LineDiagramReadingInput) {
+  // The rider's own choice about the line's other vehicles, read where the drawing is derived.
+  const { isShowingOtherLineTrips } = useAppSettings();
   // Everything below draws the addressed trip, whether or not a board can answer for it this
   // instant. The one thing that must not wait for the boards is which stop is the rider's: they
   // chose it by tapping a row of this diagram, and it is the only thing their tap changed.
@@ -316,15 +319,26 @@ export function useLineDiagramReading({
   );
   const vehicles = useMemo(
     () =>
-      getLineDiagramVehicles(
-        diagramStops,
-        visibleVehicleDepartures,
-        joinedTripPairs,
-        departure,
-        feedNow,
-        { turnaroundIndex, showWaitingVehicles: SHOW_TURNAROUND_VEHICLES },
+      getShownLineDiagramVehicles(
+        getLineDiagramVehicles(
+          diagramStops,
+          visibleVehicleDepartures,
+          joinedTripPairs,
+          departure,
+          feedNow,
+          { turnaroundIndex, showWaitingVehicles: SHOW_TURNAROUND_VEHICLES },
+        ),
+        isShowingOtherLineTrips,
       ),
-    [diagramStops, visibleVehicleDepartures, joinedTripPairs, departure, feedNow, turnaroundIndex],
+    [
+      diagramStops,
+      visibleVehicleDepartures,
+      joinedTripPairs,
+      departure,
+      feedNow,
+      turnaroundIndex,
+      isShowingOtherLineTrips,
+    ],
   );
   const vehicleLabelByRowIndex = useMemo(() => getVehicleLabelsByRowIndex(vehicles), [vehicles]);
   const { vehiclesByBranchKey, transferKeysByBranchKey } = useLineBundleBranchVehicles({
@@ -337,6 +351,7 @@ export function useLineDiagramReading({
     feedNow,
     turnaroundIndex,
     showWaitingVehicles: SHOW_TURNAROUND_VEHICLES,
+    areOtherTripsShown: isShowingOtherLineTrips,
     trunkVehicles: vehicles,
   });
   const bundledLineIds = useMemo(() => bundledLines.map(({ id }) => id), [bundledLines]);

@@ -99,21 +99,45 @@ test("arriving from elsewhere changes both halves, and a refresh changes neither
   assert.equal(describePanelChange(line, layoutFor("#/stop/marktplatz/line/2")), "none");
 });
 
-test("the home keeps one key across its tabs, so its search field survives the switch", () => {
-  assert.equal(layoutFor("#/center").primaryKey, layoutFor("#/network/city").primaryKey);
-  assert.equal(layoutFor("#/center").homeView, "zentrum");
-  assert.equal(layoutFor("#/stop/marktplatz").homeView, undefined);
+test("the home is its own page, and the three pages it names stand on their own", () => {
+  const home = layoutFor("#/");
+  assert.equal(home.activeView, "home");
+  assert.equal(home.isHomeView, true);
+  assert.equal(home.isStandaloneView, true);
+  assert.equal(home.hasPrimaryPanel, true);
+  assert.equal(home.hasDepartureBoard, false);
+  assert.equal(home.isSinglePanel, true);
+
+  for (const hash of ["#/center", "#/network/city"]) {
+    const page = layoutFor(hash);
+    assert.equal(page.isHomeView, false, hash);
+    assert.equal(page.isStandaloneView, true, hash);
+    assert.equal(page.hasDepartureBoard, false, hash);
+    assert.equal(page.hasPrimaryPanel, true, hash);
+  }
+  // Separate pages are separate things in the panel: each re-enters on its own.
+  assert.notEqual(layoutFor("#/center").primaryKey, layoutFor("#/network/city").primaryKey);
+});
+
+test("the settings stand on their own, read no network, and step back up to the home", () => {
+  const settings = layoutFor("#/settings");
+  assert.equal(settings.activeView, "settings");
+  assert.equal(settings.isStandaloneView, true);
+  assert.equal(settings.hasPrimaryPanel, true);
+  assert.equal(settings.hasDepartureBoard, false);
+  assert.equal(settings.backPath, "/");
+  assert.equal(readsObservedNetwork("settings"), false);
 });
 
 test("step up drops one level, and the nearby list returns to the page it corrected", () => {
   assert.equal(layoutFor("#/stop/marktplatz/line/2").backPath, "/stop/marktplatz");
-  assert.equal(layoutFor("#/stop/marktplatz").backPath, "/center");
-  assert.equal(layoutFor("#/center").backPath, undefined);
+  assert.equal(layoutFor("#/stop/marktplatz").backPath, "/");
+  assert.equal(layoutFor("#/center").backPath, "/");
   assert.equal(
     layoutFor("#/nearby", {}, { nearbyReturnStopId: "marktplatz" }).backPath,
     "/stop/marktplatz",
   );
-  assert.equal(layoutFor("#/nearby").backPath, "/center");
+  assert.equal(layoutFor("#/nearby").backPath, "/");
 });
 
 test("an unattended station board is the stop view alone, and reads nothing else", () => {
@@ -126,6 +150,7 @@ test("an unattended station board is the stop view alone, and reads nothing else
 });
 
 test("the observation cycle is only read from where a view actually shows it", () => {
+  assert.equal(readsObservedNetwork("home"), false);
   assert.equal(readsObservedNetwork("zentrum"), true);
   assert.equal(readsObservedNetwork("network"), true);
   assert.equal(readsObservedNetwork("nearby"), true);

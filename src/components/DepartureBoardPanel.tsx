@@ -44,8 +44,10 @@ import {
   type StopBoardingPlaces,
 } from "../lib/boarding-places";
 import {
+  useAppSettings,
   useBoardingPlaceSections,
   useDepartureBoardOrder,
+  usePullToRefresh,
   useTransientScrollbar,
   writeDepartureBoardOrder,
 } from "../hooks";
@@ -58,12 +60,6 @@ import type { StopCorridorPatterns } from "../lib/stop-corridor-patterns";
 import { getStopServiceCorridorLineGroups } from "../lib/stop-corridors";
 import { DepartureBoardLineOrder } from "./DepartureBoardLineOrder";
 import { isSameVehicleTrip } from "../lib/trips";
-
-/**
- * A stacked layout scrolls the document, so the board has to end somewhere a thumb can reach
- * past. A panel of its own scrolls itself and simply shows what the feed answered.
- */
-const STACKED_DEPARTURE_LIMIT = 8;
 
 type DepartureBoardPanelProps = {
   panelRef?: Ref<HTMLElement>;
@@ -98,6 +94,16 @@ type DepartureBoardPanelProps = {
   boardingPlaces: StopBoardingPlaces;
   /** A stacked layout caps the list; a panel of its own shows the whole board and scrolls it. */
   isStacked?: boolean;
+  /**
+   * How many readings of the board have answered, however each of them answered. The pull to
+   * refresh settles by this, not by the board's age: a reading that failed is an answer too.
+   */
+  boardReadingCount?: number;
+  /**
+   * Reads the board again, asked for by pulling it down past its first row. The board in hand stays
+   * on screen while the reading is under way; the strip that carries the gesture says so.
+   */
+  onRefresh?: () => void;
   /**
    * The stop's own menu, rendered at this board's foot rather than beside it: both of its halves —
    * the Linien toggle and what KVV announced about this stop — answer questions about the board
@@ -383,6 +389,8 @@ export function DepartureBoardPanel({
   corridorPatterns,
   boardingPlaces,
   isStacked = false,
+  boardReadingCount = 0,
+  onRefresh,
   bottomMenu,
 }: DepartureBoardPanelProps) {
   // The shell keys this panel by stop, so another board arrives as a fresh glance rather than a
@@ -393,6 +401,18 @@ export function DepartureBoardPanel({
   const departureOrder = useDepartureBoardOrder();
   const departureListRef = useRef<HTMLDivElement>(null);
   useTransientScrollbar(departureListRef);
+  const pullIndicatorRef = useRef<HTMLDivElement>(null);
+  // The pull to refresh reads its gesture on the list and pulls from whichever scrollport holds the
+  // board — the document while stacked, the list itself on a wide screen. A pull means nothing
+  // until a board has been read: what is pulled down is the reading in hand, not an empty list.
+  usePullToRefresh({
+    listRef: departureListRef,
+    indicatorRef: pullIndicatorRef,
+    isPageScrollport: isStacked,
+    onRefresh: onRefresh ?? (() => {}),
+    readingCount: boardReadingCount,
+    isEnabled: Boolean(onRefresh) && departureBoard !== null,
+  });
   const isGroupedByPlatform = departureOrder === "platform";
   const isGroupedByLine = departureOrder === "line";
   // The places as navigation, not a filter: the board always holds every place, the bar says where
@@ -402,11 +422,14 @@ export function DepartureBoardPanel({
     isEnabled: isGroupedByPlatform,
     isPageScrollport: isStacked,
   });
+  // Where the stacked board ends before "mehr anzeigen" gathers the rest: the rider's own choice,
+  // read from the same preference the settings name, not a constant of this panel.
+  const stackedDepartureLimit = useAppSettings().stackedDepartureLimit;
   const visibleDepartures = useMemo(
-    () => (!isStacked || isExpanded ? departures : departures.slice(0, STACKED_DEPARTURE_LIMIT)),
-    [departures, isExpanded, isStacked],
+    () => (!isStacked || isExpanded ? departures : departures.slice(0, stackedDepartureLimit)),
+    [departures, isExpanded, isStacked, stackedDepartureLimit],
   );
-  const collapsedCount = isStacked ? Math.max(0, departures.length - STACKED_DEPARTURE_LIMIT) : 0;
+  const collapsedCount = isStacked ? Math.max(0, departures.length - stackedDepartureLimit) : 0;
   // Grouping the departures already on screen rather than the whole board: either way the board
   // shows the next few departures, and a cap that changed with the order would be a second board.
   const boardingPlaceGroups = useMemo(
@@ -492,6 +515,23 @@ export function DepartureBoardPanel({
         />
       )}
 
+      {/* The pull to refresh: a strip above the rows that grows with the finger and states what the
+          pull is about to do, in the same prose the board states everything else. It sits outside
+          the list so no scroll carries it away — it is there only while a finger holds it. */}
+      <div ref={pullIndicatorRef} className="departure-board-pull" role="status">
+        <div className="departure-board-pull-inner">
+          <span className="departure-board-pull-label" data-pull="hint">
+            Zum Aktualisieren ziehen
+          </span>
+          <span className="departure-board-pull-label" data-pull="ready">
+            Loslassen zum Aktualisieren
+          </span>
+          <span className="departure-board-pull-label" data-pull="busy">
+            Abfahrten werden aktualisiert …
+          </span>
+        </div>
+      </div>
+
       <div
         ref={departureListRef}
         className="departure-board-list"
@@ -544,7 +584,7 @@ export function DepartureBoardPanel({
             aria-expanded={isExpanded}
             aria-label={
               isExpanded
-                ? `Liste auf ${STACKED_DEPARTURE_LIMIT} Abfahrten verkürzen`
+                ? `Liste auf ${stackedDepartureLimit} Abfahrten verkürzen`
                 : `${collapsedCount} weitere Abfahrten anzeigen`
             }
             onClick={() => setIsExpanded(!isExpanded)}

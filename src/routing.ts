@@ -2,11 +2,11 @@
  * Hash routing. Deep links have to survive static hosting, so every view is addressable through the
  * fragment alone (`#/center`, `#/stop/marktplatz`, `#/stop/europaplatz/line/2`).
  *
- * Two tabbed roots on the KARLA home — the Zentrum and the line index — and one nested
- * selection chain: a stop, a line calling at it, one trip of that line. Each level refines the one
- * above it and is dropped back to it on its own, so a trip that has departed or a line that has
- * stopped running narrows the address instead of invalidating it. Nothing here addresses a trip
- * without the line it belongs to: a trip lives minutes, a line at a stop is the durable choice.
+ * One home page that names the other pages, and one nested selection chain: a stop, a line calling
+ * at it, one trip of that line. Each level refines the one above it and is dropped back to it on
+ * its own, so a trip that has departed or a line that has stopped running narrows the address
+ * instead of invalidating it. Nothing here addresses a trip without the line it belongs to: a trip
+ * lives minutes, a line at a stop is the durable choice.
  */
 import { getLineFamilyId } from "./lib/line-families";
 import {
@@ -17,21 +17,13 @@ import {
 } from "./lib/line-bundles";
 import type { Departure } from "./data/transit-types";
 
-export type RouteView = "zentrum" | "stop" | "network" | "nearby" | "notices";
+export type RouteView = "home" | "zentrum" | "stop" | "network" | "nearby" | "notices" | "settings";
 
 /**
  * The panel the shell actually shows. A stop with a line selected refines the stop view into the
  * line diagram, which is a view of its own to render but never an address of its own.
  */
 export type ActiveView = RouteView | "line";
-export const HOME_VIEWS = ["zentrum", "network"] as const;
-export type HomeView = (typeof HOME_VIEWS)[number];
-export type NetworkScope = "city" | "region";
-
-/** The roots sharing the home navigation and its single-panel layout. */
-export function isHomeView(view: ActiveView): view is HomeView {
-  return HOME_VIEWS.some((homeView) => homeView === view);
-}
 
 export const DEFAULT_STOP_ID = "europaplatz";
 const DEFAULT_LINE_ID = "2";
@@ -74,6 +66,25 @@ export type AppRoute = {
    * reading and a sibling that stops running drops out of it on its own.
    */
   bundledLineIds: readonly string[];
+  /**
+   * The line the Zentrum's plan is following — `#/center/line/2`.
+   *
+   * A level of its own rather than a reuse of `lineId`, because it refines a different thing: the
+   * chain's line is a line *at a stop*, resolved against that stop's board, while this one is a
+   * line highlighted on a drawing of the whole Zentrum and is answerable by the drawing alone.
+   * It is in the address for the reason every other reading is — the reading a rider arrives at is
+   * the reading they can share, and it survives a reload and a step back.
+   */
+  zentrumLineId: string;
+  /**
+   * The plan read at the size of the screen — `#/center/full`.
+   *
+   * A schematic of twenty-five stops wants the viewport, and in the panel it shares with a header,
+   * a search field and the tabs it does not get it. Addressed rather than held in the view, because
+   * it is the largest state change the page has: the back gesture is what a reader expects to close
+   * it, and that only works if entering it was somewhere they went.
+   */
+  isZentrumFullscreen: boolean;
   /** EFA trip identity of the selected trip of that line; older dated identifiers still resolve. */
   tripId?: string;
   /**
@@ -97,16 +108,16 @@ export type AppRoute = {
    * up says so by leading to the home rather than somewhere invented.
    */
   originStopId?: string;
-  networkScope: NetworkScope;
 };
 
 const defaultRoute: AppRoute = {
-  view: "zentrum",
+  view: "home",
   stopId: DEFAULT_STOP_ID,
   lineId: "",
   bundledLineIds: [],
+  zentrumLineId: "",
+  isZentrumFullscreen: false,
   isRide: false,
-  networkScope: "city",
 };
 
 /**
@@ -221,17 +232,30 @@ export function parseRoute(hash: string): AppRoute {
       };
     }
     case "network":
-      return {
-        ...defaultRoute,
-        view: "network",
-        networkScope: rest[0] === "region" ? "region" : "city",
-      };
+      // The line index is one page of the whole observed network. The two scopes it was once read
+      // in (`/network/city`, `/network/region`) are gone with the control that named them, and an
+      // old link simply opens the page.
+      return { ...defaultRoute, view: "network" };
     case "nearby":
       return { ...defaultRoute, view: "nearby" };
     case "notices":
       return { ...defaultRoute, view: "notices" };
-    case "center":
-      return { ...defaultRoute, view: "zentrum" };
+    case "settings":
+      return { ...defaultRoute, view: "settings" };
+    case "center": {
+      // The plan's two sizes. The followed line reads the same after either, because it refines
+      // the plan and not its size. The former `/center/stops` stop index is gone — the plan is
+      // the Zentrum's page — so an old link simply lands on the plan.
+      const [qualifier, ...tail] = rest;
+      const isZentrumFullscreen = qualifier === "full";
+      const lineSegments = isZentrumFullscreen ? tail : rest;
+      return {
+        ...defaultRoute,
+        view: "zentrum",
+        isZentrumFullscreen,
+        zentrumLineId: lineSegments[0] === "line" ? decodePathSegment(lineSegments[1]) : "",
+      };
+    }
     case "stop":
       return parseStopRoute(rest);
     default:
@@ -246,11 +270,17 @@ export function parseRoute(hash: string): AppRoute {
  * while the code around it calls the place by the one name the rest of the app uses.
  */
 export const routePaths = {
-  home: () => routePaths.zentrum(),
-  zentrum: () => "/center",
-  network: (scope: NetworkScope) => `/network/${scope}`,
+  home: () => "/",
+  /**
+   * The Zentrum's plan: the line it is following where the rider has chosen one, at the size they
+   * are reading it at.
+   */
+  zentrum: (lineId?: string, isFullscreen = false) =>
+    `/center${isFullscreen ? "/full" : ""}${lineId ? `/line/${encodePathSegment(lineId)}` : ""}`,
+  network: () => "/network",
   nearby: () => "/nearby",
   notices: () => "/notices",
+  settings: () => "/settings",
   stop: (stopId: string) => `/stop/${stopId}`,
   line: (lineId: string, stopId?: string, bundledLineIds: readonly string[] = []) => {
     const id = getLinePathSegment(lineId, bundledLineIds);
@@ -276,7 +306,8 @@ export const routePaths = {
 /**
  * Where the app opens.
  *
- * The stop the rider last read, and the Zentrum when there is none. A rider opening KARLA is nearly
+ * The stop the rider last read, and the home when there is none — the page that names the other
+ * pages and asks nothing of the network. A rider opening KARLA is nearly
  * always standing at one of the two or three stops they use, and that stop is already known without
  * asking anyone anything: it needs no permission, answers offline, and was chosen by the rider
  * rather than inferred. The bare address used to open the nearby view, which meant every rider with
@@ -355,9 +386,9 @@ export function getParentSelectionPath({
   isRide = false,
   originStopId,
 }: SelectionAddress & { view: RouteView }): string | undefined {
-  // The home's own roots are the top: Zentrum and the line index are two faces of one view, and a
-  // step up out of a tab into its sibling would be a step sideways drawn as an arrow back.
-  if (isHomeView(view)) return undefined;
+  // The home page is the top of everything: every page above the chain steps back up to it, and a
+  // step up out of one page into its sibling would be a step sideways drawn as an arrow back.
+  if (view === "home") return undefined;
   if (view !== "stop") return routePaths.home();
   if (isRide) {
     if (!originStopId) return routePaths.home();

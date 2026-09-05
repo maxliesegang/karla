@@ -1,0 +1,297 @@
+{
+  "capturedAt": "2026-09-05T05:40:04.429Z",
+  "nodes": [
+    {
+      "id": "albtalbahnhof",
+      "latitude": 48.993862,
+      "longitude": 8.396077,
+      "samples": 211
+    },
+    {
+      "id": "arbeitsagentur",
+      "latitude": 49.003245,
+      "longitude": 8.386384,
+      "samples": 145
+    },
+    {
+      "id": "augartenstrasse",
+      "latitude": 48.99896,
+      "longitude": 8.40356,
+      "samples": 186
+    },
+    {
+      "id": "barbarossaplatz",
+      "latitude": 48.9949,
+      "longitude": 8.389896,
+      "samples": 139
+    },
+    {
+      "id": "durlacher-tor",
+      "latitude": 49.009244,
+      "longitude": 8.41778,
+      "samples": 470
+    },
+    {
+      "id": "ebertstrasse",
+      "latitude": 48.994528,
+      "longitude": 8.395152,
+      "samples": 415
+    },
+    {
+      "id": "ettlinger-tor",
+      "latitude": 49.005484,
+      "longitude": 8.403416,
+      "samples": 337
+    },
+    {
+      "id": "europaplatz",
+      "latitude": 49.010021,
+      "longitude": 8.394487,
+      "samples": 951
+    },
+    {
+      "id": "gottesauer-platz",
+      "latitude": 49.007405,
+      "longitude": 8.425281,
+      "samples": 178
+    },
+    {
+      "id": "hauptbahnhof",
+      "latitude": 48.99441,
+      "longitude": 8.399455,
+      "samples": 717
+    },
+    {
+      "id": "karl-wilhelm-platz",
+      "latitude": 49.011388,
+      "longitude": 8.423413,
+      "samples": 248
+    },
+    {
+      "id": "karlstor",
+      "latitude": 49.005184,
+      "longitude": 8.394622,
+      "samples": 326
+    },
+    {
+      "id": "kolpingplatz",
+      "latitude": 48.997735,
+      "longitude": 8.393804,
+      "samples": 212
+    },
+    {
+      "id": "kongresszentrum",
+      "latitude": 49.002885,
+      "longitude": 8.403218,
+      "samples": 186
+    },
+    {
+      "id": "kronenplatz",
+      "latitude": 49.009285,
+      "longitude": 8.410899,
+      "samples": 178
+    },
+    {
+      "id": "marktplatz",
+      "latitude": 49.009609,
+      "longitude": 8.403156,
+      "samples": 444
+    },
+    {
+      "id": "mathystrasse",
+      "latitude": 49.002172,
+      "longitude": 8.394325,
+      "samples": 175
+    },
+    {
+      "id": "muehlburger-tor",
+      "latitude": 49.010617,
+      "longitude": 8.382764,
+      "samples": 508
+    },
+    {
+      "id": "ostendstrasse",
+      "latitude": 49.005137,
+      "longitude": 8.41601,
+      "samples": 42
+    },
+    {
+      "id": "poststrasse",
+      "latitude": 48.995247,
+      "longitude": 8.403964,
+      "samples": 553
+    },
+    {
+      "id": "rueppurrer-tor",
+      "latitude": 49.005643,
+      "longitude": 8.410369,
+      "samples": 326
+    },
+    {
+      "id": "tivoli",
+      "latitude": 48.996762,
+      "longitude": 8.410692,
+      "samples": 338
+    },
+    {
+      "id": "welfenstrasse",
+      "latitude": 48.995236,
+      "longitude": 8.38554,
+      "samples": 129
+    },
+    {
+      "id": "werderstrasse",
+      "latitude": 49.000151,
+      "longitude": 8.410603,
+      "samples": 179
+    },
+    {
+      "id": "zkm",
+      "latitude": 48.99899,
+      "longitude": 8.385944,
+      "samples": 142
+    }
+  ],
+  "edges": [
+    {
+      "from": "albtalbahnhof",
+      "to": "hauptbahnhof",
+      "lineIds": ["E", "S1", "S4", "S5", "S7", "S8", "S11", "S51"]
+    },
+    {
+      "from": "arbeitsagentur",
+      "to": "zkm",
+      "lineIds": ["6"]
+    },
+    {
+      "from": "augartenstrasse",
+      "to": "kongresszentrum",
+      "lineIds": ["E", "S1", "S4", "S5", "S7", "S8", "S11", "S51"]
+    },
+    {
+      "from": "augartenstrasse",
+      "to": "poststrasse",
+      "lineIds": ["E", "S1", "S4", "S5", "S7", "S8", "S11", "S51"]
+    },
+    {
+      "from": "barbarossaplatz",
+      "to": "ebertstrasse",
+      "lineIds": ["6"]
+    },
+    {
+      "from": "barbarossaplatz",
+      "to": "welfenstrasse",
+      "lineIds": ["6"]
+    },
+    {
+      "from": "durlacher-tor",
+      "to": "gottesauer-platz",
+      "lineIds": ["1", "S2", "S4", "S5", "S8", "S51"]
+    },
+    {
+      "from": "durlacher-tor",
+      "to": "karl-wilhelm-platz",
+      "lineIds": ["3", "4"]
+    },
+    {
+      "from": "durlacher-tor",
+      "to": "kronenplatz",
+      "lineIds": ["1", "S2", "S4", "S5", "S8", "S51"]
+    },
+    {
+      "from": "durlacher-tor",
+      "to": "rueppurrer-tor",
+      "lineIds": ["3", "4"]
+    },
+    {
+      "from": "ebertstrasse",
+      "to": "hauptbahnhof",
+      "lineIds": ["3", "6"]
+    },
+    {
+      "from": "ebertstrasse",
+      "to": "kolpingplatz",
+      "lineIds": ["3"]
+    },
+    {
+      "from": "ettlinger-tor",
+      "to": "karlstor",
+      "lineIds": ["4", "5", "E"]
+    },
+    {
+      "from": "ettlinger-tor",
+      "to": "kongresszentrum",
+      "lineIds": ["E", "S1", "S4", "S5", "S7", "S8", "S11", "S51"]
+    },
+    {
+      "from": "ettlinger-tor",
+      "to": "marktplatz",
+      "lineIds": ["E", "S1", "S4", "S5", "S7", "S8", "S11", "S51"]
+    },
+    {
+      "from": "ettlinger-tor",
+      "to": "rueppurrer-tor",
+      "lineIds": ["4", "5", "E"]
+    },
+    {
+      "from": "europaplatz",
+      "to": "karlstor",
+      "lineIds": ["3", "4", "5", "E"]
+    },
+    {
+      "from": "europaplatz",
+      "to": "marktplatz",
+      "lineIds": ["1", "S1", "S2", "S5", "S11", "S51"]
+    },
+    {
+      "from": "europaplatz",
+      "to": "muehlburger-tor",
+      "lineIds": ["1", "3", "4", "E", "S1", "S2", "S5", "S11", "S51"]
+    },
+    {
+      "from": "hauptbahnhof",
+      "to": "poststrasse",
+      "lineIds": ["3", "6", "E", "S1", "S4", "S5", "S7", "S8", "S11", "S51"]
+    },
+    {
+      "from": "karlstor",
+      "to": "mathystrasse",
+      "lineIds": ["3"]
+    },
+    {
+      "from": "kolpingplatz",
+      "to": "mathystrasse",
+      "lineIds": ["3"]
+    },
+    {
+      "from": "kronenplatz",
+      "to": "marktplatz",
+      "lineIds": ["1", "S2", "S4", "S5", "S8", "S51"]
+    },
+    {
+      "from": "ostendstrasse",
+      "to": "rueppurrer-tor",
+      "lineIds": ["5", "E"]
+    },
+    {
+      "from": "poststrasse",
+      "to": "tivoli",
+      "lineIds": ["3", "6"]
+    },
+    {
+      "from": "rueppurrer-tor",
+      "to": "werderstrasse",
+      "lineIds": ["3"]
+    },
+    {
+      "from": "tivoli",
+      "to": "werderstrasse",
+      "lineIds": ["3", "E"]
+    },
+    {
+      "from": "welfenstrasse",
+      "to": "zkm",
+      "lineIds": ["6"]
+    }
+  ]
+}

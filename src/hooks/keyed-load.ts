@@ -10,6 +10,27 @@ import {
 
 type LoadedValue<T> = { key: string; value: T | undefined };
 
+/**
+ * Wraps a load so its first run for a caller looks past the source's cache.
+ *
+ * A view's first paint is where a stale answer costs the most: a mark placed on entry is placed
+ * from a reading the previous visit left behind, and the reading that corrects it arrives a minute
+ * or more later — after the rider has started watching, which is when a correction reads as a
+ * jump. So the first read asks the source for a fresh answer, and the correction it would
+ * otherwise have brought lands before there is anything to correct; every run after it keeps the
+ * tolerance the key states.
+ */
+export function createFreshEntryLoad<T>(
+  load: (key: string, isEntryRead: boolean) => Promise<T>,
+): (key: string) => Promise<T> {
+  let hasEntryRead = false;
+  return (key) => {
+    const isEntryRead = !hasEntryRead;
+    hasEntryRead = true;
+    return load(key, isEntryRead);
+  };
+}
+
 export type KeyedLoadOptions<T> = {
   refreshMs?: number;
   /**

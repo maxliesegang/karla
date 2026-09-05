@@ -1,27 +1,29 @@
-import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { memo, useLayoutEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import type { TransitLine } from "../../data/transit-types";
 import { getVehicleRowCoordinate, type LineDiagramVehicle } from "../../lib/line-diagram";
-import { getTripTrajectoryProgress } from "../../lib/vehicle-positioning";
 import { classNames } from "../../lib/class-names";
 import { assignStableVehicleLanes } from "../../lib/vehicle-lanes";
+import { useVehicleTrajectoryAnimations } from "../../hooks";
 import type { VehicleLayerGeometry } from "./layout";
 
 /**
  * The marks, drawn in one layer over the stop list.
  *
- * A mark moves on one segment-long Web Animation whose duration ends at the next expected arrival.
- * It must not move because the diagram under it changed height — and it does, unprompted: a pinned
- * terminus grows a strip for covered stops as the rider scrolls. Geometry changes therefore cancel
- * and recreate the same domain trajectory in the newly measured coordinate system.
+ * A mark moves on one segment-long Web Animation whose duration ends at the next expected arrival;
+ * `useVehicleTrajectoryAnimations` owns how the animation is kept, and this layer owns only where
+ * its coordinates are: transforms that follow the rows rather than one straight between the two
+ * ends, and a geometry signature that re-measures when the rows move. It must not move because the
+ * diagram under it changed height — and it does, unprompted: a pinned terminus grows a strip for
+ * covered stops as the rider scrolls. Geometry changes therefore cancel and recreate the same
+ * domain trajectory in the newly measured coordinate system, without carrying the old paint.
  *
- * The same distinction is made about the mark's own position, and the mark itself states which it
- * is (`TripPlacement.motion`). Travel is animated; a placement — a first measurement, a trip that
- * came back after a gap, a reading that found the vehicle somewhere the mark could not have reached
- * — is painted where it belongs with no transition. This layer deliberately does not try to work
- * that out for itself by watching coordinates jump: the two are indistinguishable from here, since
- * a mark making up several minutes and a mark being repositioned move the same distance in the same
- * tick, and only the module that placed it knows which happened.
+ * The distinction about the mark's own position — travel animated, a placement painted where it
+ * belongs — is the placement's to state (`TripPlacement.motion`), and the shared hook reads it
+ * from the mark. This layer deliberately does not try to work that out for itself by watching
+ * coordinates jump: the two are indistinguishable from here, since a mark making up several
+ * minutes and a mark being repositioned move the same distance in the same tick, and only the
+ * module that placed it knows which happened.
  *
  * A mark also answers one question about itself: where its trip is going. It is asked by pointing
  * at the mark, and on a device with no pointer by tapping it, and the mark answers by opening into
@@ -33,8 +35,6 @@ import type { VehicleLayerGeometry } from "./layout";
  * The placement reading inside an opened mark, enabled while vehicle placement is being debugged.
  */
 const SHOW_VEHICLE_DEBUG_LABEL = false;
-/** A revised prediction meets the painted marker over this short visual correction. */
-const TRAJECTORY_CORRECTION_MS = 3_000;
 /**
  * Debug reading of where a mark stands, for whoever is looking for a placement bug: the row the
  * placement has it at — the stand of a turnaround included — the link and share of it while it
@@ -78,17 +78,6 @@ function LineDiagramVehicleLayerView({
   branchTransferKeys?: ReadonlySet<string>;
 }) {
   const layerRef = useRef<HTMLDivElement>(null);
-  const animationsRef = useRef(
-    new Map<
-      string,
-      {
-        signature: string;
-        geometrySignature: string;
-        motion: LineDiagramVehicle["motion"];
-        animation: Animation;
-      }
-    >(),
-  );
   const [laneState, setLaneState] = useState(() => ({
     source: vehicles,
     layout: assignStableVehicleLanes(vehicles, new Map()),
@@ -142,64 +131,6 @@ function LineDiagramVehicleLayerView({
     return `translate3d(${getVehicleLeftOffset(vehicle)}, ${topOffset}px, 0) translate(calc(-1 * var(--line-diagram-vehicle-anchor)), -50%)`;
   };
 
-  const getVehicleAnimationFrames = (
-    vehicle: LineDiagramVehicle,
-    trajectory: NonNullable<LineDiagramVehicle["trajectory"]>,
-    animationStartsAt: number,
-    paintedTransform?: string,
-  ): Keyframe[] => {
-    const duration = trajectory.arrivesAt - animationStartsAt;
-    if (duration <= 0) return [];
-    const rowSpan = vehicle.toIndex - vehicle.fromIndex;
-    const fromProgress = getTripTrajectoryProgress(trajectory, animationStartsAt);
-    const boundaryProgresses = geometry.stopCenterOffsets
-      .map((_, rowIndex) => (rowIndex - vehicle.fromIndex) / rowSpan)
-      .filter((progress) => progress > fromProgress && progress < 1);
-    const findPassageTime = (targetProgress: number) => {
-      let before = animationStartsAt;
-      let after = trajectory.arrivesAt;
-      // The curve is monotonic. A short binary search is both cheaper than per-frame JS animation
-      // and accurate enough that a skipped-stop marker crosses each visible row on its own clock.
-      for (let pass = 0; pass < 24; pass += 1) {
-        const middle = (before + after) / 2;
-        if (getTripTrajectoryProgress(trajectory, middle) < targetProgress) before = middle;
-        else after = middle;
-      }
-      return (before + after) / 2;
-    };
-    const correctionEndsAt = paintedTransform
-      ? Math.min(trajectory.arrivesAt, animationStartsAt + TRAJECTORY_CORRECTION_MS)
-      : animationStartsAt;
-    const rampSamples = (from: number, to: number) =>
-      Array.from({ length: 5 }, (_, index) => from + ((to - from) * (index + 1)) / 6);
-    const times = [
-      animationStartsAt,
-      correctionEndsAt,
-      ...rampSamples(trajectory.startsAt, trajectory.acceleratesUntil),
-      trajectory.acceleratesUntil,
-      trajectory.brakesFrom,
-      ...rampSamples(trajectory.brakesFrom, trajectory.arrivesAt),
-      ...boundaryProgresses.map(findPassageTime),
-      trajectory.arrivesAt,
-    ]
-      .filter((instant) => instant >= animationStartsAt && instant <= trajectory.arrivesAt)
-      .sort((left, right) => left - right)
-      .filter((instant, index, all) => index === 0 || instant !== all[index - 1]);
-    return times.flatMap((instant, index) => {
-      const progress = getTripTrajectoryProgress(trajectory, instant);
-      const transform =
-        index === 0 && paintedTransform ? paintedTransform : getVehicleTransform(vehicle, progress);
-      return transform
-        ? [
-            {
-              transform,
-              offset: (instant - animationStartsAt) / duration,
-            },
-          ]
-        : [];
-    });
-  };
-
   let laneLayout = laneState.layout;
   if (laneState.source !== vehicles) {
     laneLayout = assignStableVehicleLanes(vehicles, laneState.layout.assignments);
@@ -217,110 +148,34 @@ function LineDiagramVehicleLayerView({
   // A segment is one browser animation, not a succession of one-second CSS transitions. A feed
   // revision changes the trajectory signature, so the old animation is cancelled and the
   // remaining distance starts from the exact progress the domain model sampled at that refresh.
-  useLayoutEffect(() => {
-    const layer = layerRef.current;
-    if (!layer) return;
-    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    // One statement of the coordinate system every mark of this pass is planned in. Built once:
-    // it is the same for all of them, and a diagram of forty rows would otherwise re-join those
-    // offsets into a string for every mark on it, every second.
-    const geometrySignature = [geometry.trackLeft, geometry.stopCenterOffsets.join(",")].join(":");
-    const liveKeys = new Set<string>();
-    for (const { vehicle } of drawnMarks) {
-      liveKeys.add(vehicle.markerKey);
-      const element = layer.querySelector<HTMLElement>(
-        `[data-marker-key="${CSS.escape(vehicle.markerKey)}"]`,
-      );
-      if (!element) continue;
-      const trajectory = vehicle.trajectory;
-      const fromTransform = getVehicleTransform(vehicle);
-      const toTransform = getVehicleTransform(vehicle, 1);
-      if (reduceMotion || !trajectory || !fromTransform || !toTransform) {
-        animationsRef.current.get(vehicle.markerKey)?.animation.cancel();
-        animationsRef.current.delete(vehicle.markerKey);
-        continue;
-      }
-      const plannedFromTransform = getVehicleTransform(vehicle, trajectory.startProgress);
-      if (!plannedFromTransform) continue;
-      const signature = [
-        vehicle.fromIndex,
-        vehicle.toIndex,
-        vehicle.laneIndex,
-        trajectory.startProgress,
-        trajectory.startsAt,
-        trajectory.arrivesAt,
-        trajectory.startVelocity,
-        trajectory.cruiseVelocity,
-        trajectory.acceleratesUntil,
-        trajectory.brakesFrom,
-        plannedFromTransform,
-        toTransform,
-        geometrySignature,
-      ].join(":");
-      const active = animationsRef.current.get(vehicle.markerKey);
-      if (
-        active?.signature === signature &&
-        (vehicle.motion !== "placed" || active.motion === "placed")
-      )
-        continue;
-      // Replanning should continue from what the rider is actually looking at. The domain sample
-      // and the compositor normally agree, but a refresh can land between their clocks. Capturing
-      // the presentation before cancellation removes that small but conspicuous discontinuity.
-      // A placement is deliberately different: the reading found the vehicle somewhere else, so
-      // carrying the old paint into the new animation would invent a journey between those places.
-      // Geometry changes are different: the rows themselves moved, so the mark must stay attached
-      // to them rather than visibly travelling through a layout change.
-      const paintedTransform =
-        vehicle.motion !== "placed" && active && active.geometrySignature === geometrySignature
-          ? getComputedStyle(element).transform
-          : undefined;
-      active?.animation.cancel();
-
-      const waitingMs = Math.max(0, trajectory.startsAt - trajectory.sampledAt);
-      const animationStartsAt = waitingMs > 0 ? trajectory.startsAt : trajectory.sampledAt;
-      const movingFrom = getTripTrajectoryProgress(trajectory, animationStartsAt);
-      const movingFromTransform = getVehicleTransform(vehicle, movingFrom);
-      if (!movingFromTransform) continue;
-      const movingDuration =
-        waitingMs > 0
-          ? trajectory.arrivesAt - trajectory.startsAt
-          : trajectory.arrivesAt - trajectory.sampledAt;
-      if (movingDuration <= 0 || movingFrom >= 1) continue;
-      const animation = element.animate(
-        getVehicleAnimationFrames(
-          vehicle,
-          trajectory,
-          animationStartsAt,
-          paintedTransform && paintedTransform !== "none" ? paintedTransform : undefined,
-        ),
+  // One statement of the coordinate system every mark of this pass is planned in: it is the same
+  // for all of them, and a diagram of forty rows would otherwise re-join those offsets into a
+  // string for every mark on it, every second.
+  const geometrySignature = [geometry.trackLeft, geometry.stopCenterOffsets.join(",")].join(":");
+  useVehicleTrajectoryAnimations({
+    container: layerRef,
+    marks: drawnMarks.flatMap(({ vehicle }) => {
+      if (!vehicle.trajectory) return [];
+      return [
         {
-          delay: waitingMs,
-          duration: movingDuration,
-          easing: "linear",
-          fill: "both",
+          ...vehicle,
+          trajectory: vehicle.trajectory,
+          key: vehicle.markerKey,
+          linkKey: `${vehicle.fromIndex}:${vehicle.toIndex}:${vehicle.laneIndex}`,
         },
-      );
-      animationsRef.current.set(vehicle.markerKey, {
-        signature,
-        geometrySignature,
-        motion: vehicle.motion,
-        animation,
-      });
-    }
-    for (const [markerKey, active] of animationsRef.current) {
-      if (liveKeys.has(markerKey)) continue;
-      active.animation.cancel();
-      animationsRef.current.delete(markerKey);
-    }
-  });
-
-  useEffect(
-    () => () => {
-      for (const { animation } of animationsRef.current.values()) animation.cancel();
-      animationsRef.current.clear();
+      ];
+    }),
+    geometrySignature,
+    getTransform: (mark, progress) => getVehicleTransform(mark, progress),
+    // A mark that skips stops crosses each row it passes on its own clock, so every row boundary
+    // is a keyframe; the trajectory's own sampling narrows these to the ones still ahead.
+    getBoundaryProgresses: (mark) => {
+      const rowSpan = mark.toIndex - mark.fromIndex;
+      return rowSpan === 0
+        ? []
+        : geometry.stopCenterOffsets.map((_, rowIndex) => (rowIndex - mark.fromIndex) / rowSpan);
     },
-    [],
-  );
+  });
 
   return (
     <div ref={layerRef} className="line-diagram-vehicle-layer" aria-hidden="true">

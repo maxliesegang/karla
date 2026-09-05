@@ -42,6 +42,15 @@ export type TripPlacement = {
    */
   motion: TripPlacementMotion;
   /**
+   * How far a placement put the mark from where it was drawn, as one continuous count of the
+   * trip's own links: whole links between the two positions, the fractions at either end included.
+   * Only a placement states it, and only where the drawn mark's own segment still exists in this
+   * reading — it is the measure a drawing corrects a nearby placement over instead of snapping it,
+   * and there is nothing to correct where no mark was drawn (see
+   * `lib/vehicle-trajectory-animation.ts`).
+   */
+  placedAfterLinks?: number;
+  /**
    * The current link's motion as one appointment with its next stop.
    *
    * The renderer follows one acceleration–cruise–braking plan from `startProgress` at `startsAt`
@@ -759,6 +768,7 @@ function placementFromSegment(
   feedNow: number,
   phase: TripPlacementPhase,
   motion: TripPlacementMotion,
+  placedAfterLinks?: number,
 ): TripPlacement {
   const progress = getSegmentProgress(segment, feedNow);
   const trajectory =
@@ -780,6 +790,7 @@ function placementFromSegment(
     progress,
     phase,
     motion,
+    ...(placedAfterLinks !== undefined ? { placedAfterLinks } : {}),
     ...(trajectory ? { trajectory } : {}),
   };
 }
@@ -900,6 +911,28 @@ function rememberMotion(key: string, motion: TripMotion) {
 }
 
 /**
+ * How far a placement puts the mark from where it was drawn, as one continuous count of links.
+ *
+ * The mark's painted position is its appointment read at the same instant the placement is, so the
+ * two are comparable although one is a plan and the other a reading — and the distance is what
+ * lets a drawing tell a placement that barely moved the mark from one that put it somewhere else
+ * entirely. A segment this timeline no longer names — a sequence re-cut around the vehicle, a
+ * diverted route — cannot be measured against, and an unmeasurable placement is left to be
+ * snapped, the way an unmeasurable distance deserves.
+ */
+function getPlacementTravel(
+  calls: readonly TimedCall[],
+  previous: TripMotion,
+  position: TripCallPosition,
+  feedNow: number,
+): number | undefined {
+  const previousIndex = findSegmentIndex(calls, previous.segment);
+  if (previousIndex < 0) return undefined;
+  const previousPosition = previousIndex + getSegmentProgress(previous.segment, feedNow);
+  return Math.abs(position.position - previousPosition);
+}
+
+/**
  * The vehicle's current segment as an appointment with the next stop.
  *
  * Time passing merely evaluates the stable appointment. A refresh re-plans the remaining part of
@@ -969,7 +1002,15 @@ export function getTripPlacement(
     ? reconcileWithDrawnMark(calls, reading, read, previous, timelineKey, feedNow)
     : { segment: read.segment, phase: reading.phase, motion: "placed" };
 
-  const shown = placementFromSegment(drawn.segment, feedNow, drawn.phase, drawn.motion);
+  const shown = placementFromSegment(
+    drawn.segment,
+    feedNow,
+    drawn.phase,
+    drawn.motion,
+    drawn.motion === "placed" && previous
+      ? getPlacementTravel(calls, previous, reading, feedNow)
+      : undefined,
+  );
   rememberMotion(key, {
     timelineKey,
     segment: drawn.segment,

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { TransitStop } from "../data/transit-types";
+import { useAppSettings } from "./app-settings";
 import {
   findRecentStops,
   rememberStopVisit,
@@ -15,7 +16,9 @@ import { getLandingPath, hasRouteAddress, replaceCurrentRoute } from "../routing
  * rider back to their usual stop as they browse. The list beside it does keep up, because a stop
  * read in this session is exactly the one a rider is most likely to want back. Recording happens
  * only for a stop that actually resolved, so a board that never loaded is never remembered as
- * somewhere they were.
+ * somewhere they were — and only while the rider has left the app remembering stops at all, which
+ * is one of the settings; with it off the list reads as a first visit's does, and no visit adds to
+ * what is kept.
  */
 export function useStopRecall(visitedStop: TransitStop | undefined): {
   /** Where the app opens when it was given no address. Decided once, so browsing cannot move it. */
@@ -23,7 +26,10 @@ export function useStopRecall(visitedStop: TransitStop | undefined): {
   /** The stops to offer as a shortcut, most recent first, the one in view left out. */
   recentStops: readonly RecentStop[];
 } {
-  const [landingStopId] = useState(() => findRecentStops()[0]?.stopId);
+  const settings = useAppSettings();
+  const [landingStopId] = useState(() =>
+    settings.landing === "recent-stop" ? findRecentStops()[0]?.stopId : undefined,
+  );
   const [recentStops, setRecentStops] = useState(findRecentStops);
   const visitedStopId = visitedStop?.id;
   const visitedStopName = visitedStop?.name;
@@ -32,6 +38,7 @@ export function useStopRecall(visitedStop: TransitStop | undefined): {
   // and waiting a paint to move it to the front would show the rider a list they have just left.
   const [visited] = recentStops;
   if (
+    settings.isRememberingStops &&
     visitedStopId &&
     (visited?.stopId !== visitedStopId || visited.stopName !== visitedStopName)
   ) {
@@ -40,14 +47,18 @@ export function useStopRecall(visitedStop: TransitStop | undefined): {
 
   // Storage is the external system this synchronises with, and writing it is all the effect does.
   useEffect(() => {
-    if (visitedStopId) rememberStopVisit(visitedStopId, visitedStopName);
-  }, [visitedStopId, visitedStopName]);
+    if (visitedStopId && settings.isRememberingStops)
+      rememberStopVisit(visitedStopId, visitedStopName);
+  }, [visitedStopId, visitedStopName, settings.isRememberingStops]);
 
   return {
     recentStopId: landingStopId,
     recentStops: useMemo(
-      () => recentStops.filter((visit) => visit.stopName && visit.stopId !== visitedStopId),
-      [recentStops, visitedStopId],
+      () =>
+        settings.isRememberingStops
+          ? recentStops.filter((visit) => visit.stopName && visit.stopId !== visitedStopId)
+          : [],
+      [recentStops, visitedStopId, settings.isRememberingStops],
     ),
   };
 }

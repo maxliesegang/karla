@@ -22,6 +22,7 @@ import {
   LINE_OBSERVATION_REFRESH_MS,
   useDepartureBoardCollection,
 } from "./departure-board-collection";
+import { LINE_TRIP_MAX_AGE_MS } from "./trip-departures";
 
 const NO_OBSERVATIONS: LineObservations = new Map();
 const EMPTY_STOP_IDS: readonly string[] = [];
@@ -208,6 +209,7 @@ export function useLineObservation({
     observationStopIds,
     LINE_OBSERVATION_REFRESH_MS,
     filterDirectionIds,
+    LINE_TRIP_MAX_AGE_MS,
   );
 
   const observations = useMemo(

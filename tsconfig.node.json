@@ -13,16 +13,35 @@
        with. Nothing is emitted here, so the specifier the script actually uses is the one to check. */
     "allowImportingTsExtensions": true
   },
-  /* The four modules the feed probe reads the provider through. Listed rather than globbed: this
-     is the whole dependency closure of `KvvEfaClient`, and it is closed on purpose — a script that
-     talks to the provider must not pull the app's DOM-bound code into a Node project. If this list
-     has to grow, the module being added is the thing to look at. */
+  /* The app modules the probes read, listed rather than globbed and closed on purpose: a script
+     that talks to the provider must not pull the app's DOM-bound code into a Node project. If this
+     list has to grow, the module being added is the thing to look at — every entry below is a pure
+     module a probe compares the feed against, and nothing here may reach a component or a hook.
+
+     The first four are the dependency closure of `KvvEfaClient`. The rest are the Zentrum's
+     authored drawing surface and the reading built on it, which `probe:zentrum` checks the feed
+     against — it has to make the app's own reading, not a second implementation of it. */
   "include": [
     "vite.config.ts",
     "scripts",
     "src/data/kvv-efa-client.ts",
     "src/data/kvv-efa-parsers.ts",
     "src/data/operational-exceptions.ts",
-    "src/data/transit-types.ts"
+    "src/data/transit-types.ts",
+    "src/data/kvv-stop-mappings.ts",
+    "src/data/stop-registry.ts",
+    "src/data/generated/kvv-stop-catalog.ts",
+    "src/data/zentrum-stops.ts",
+    "src/data/line-signs.ts",
+    "src/lib/line-families.ts",
+    "src/lib/stop-slug.ts",
+    "src/lib/trip-calls.ts",
+    "src/lib/trips.ts",
+    "src/lib/vehicle-positioning.ts",
+    "src/lib/zentrum-schematic.ts",
+    "src/lib/zentrum-schematic-plan.ts",
+    "src/lib/zentrum-schematic-lanes.ts",
+    "src/lib/zentrum-schematic-paths.ts",
+    "src/lib/zentrum-schematic-stops.ts"
   ]
 }

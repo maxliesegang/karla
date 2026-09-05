@@ -964,7 +964,7 @@ identities.
 KARLA already receives stop coordinates and trip sequences from detailed departure boards. These
 geometry endpoints add little value today:
 
-- The Zentrum view is deliberately a list, not a map.
+- The Zentrum plan is a fixed schematic, laid out offline; only what is drawn on it is observed.
 - Detailed board calls already support the ride and line diagram.
 - A line should be learned from current observed trips, not from a planned route object.
 
@@ -1030,8 +1030,11 @@ Any new use of these APIs must preserve the following boundaries:
 4. A plain board stays lightweight and polls only while visible; the shared core observation drops
    to an idle cadence on views that only borrow its line signs, stop positions and interchanges
    (`isObservedNetworkInView` in `src/view-layout.ts`).
-5. Batched complete sequences stay on observation/topology cadences; a selected trip is fetched
-   alone from its locator while other same-line vehicles remain bounded batch observations.
+5. Batched whole-stop sequences stay on observation/topology cadences. A line's boards and its
+   runs are two readings on two clocks: the boards name which runs exist and keep the line
+   observation cadence; the runs are re-read alone from their locators at the line's trip
+   tolerance (`tripMaxAgeMs`, named apart from the boards'), because a diagram places vehicles
+   from the runs' calls. The trip a rider is sitting in reads on the board's cadence.
 6. No departure response is written to the service-worker cache.
 7. Feed time anchors countdowns and freshness.
 8. Failed refreshes retain the last successful reading with its real timestamp.

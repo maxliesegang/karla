@@ -33,9 +33,9 @@ import {
  * a rider is actually on goes on being read on the board's own cadence, one request for one
  * vehicle. Measured against the feed, a trip's stated deviation moves about every thirty-five
  * seconds; a ride held for ten minutes on a single reading is a dozen revisions out of date, and it
- * is the one vehicle on the screen the rider is inside of. Only the ride earns this: the marks on a
- * line diagram are held the same way and stay unread, because there are ten of them and nobody is
- * sitting on any of them.
+ * is the one vehicle on the screen the rider is inside of. Only the ride earns the board's cadence:
+ * the marks on a line diagram are re-read too, on the line's slower trip clock, because there are
+ * ten of them and nobody is sitting on any of them.
  *
  * What that re-reading renews is the *sequence*: the calls ahead and how the run is doing along
  * them. The row's own published time and deviation are the board's statement about this vehicle at

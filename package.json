@@ -14,7 +14,8 @@
     "preview": "vite preview",
     "lint": "eslint .",
     "format": "biome format --write .",
-    "format:check": "biome format ."
+    "format:check": "biome format .",
+    "solve:zentrum": "node --experimental-strip-types --import ./tests/register-resolver.js scripts/solve-zentrum-layout.ts"
   },
   "dependencies": {
     "react": "19.2.8",

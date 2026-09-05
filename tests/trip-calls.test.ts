@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Departure, TripCall } from "../src/data/transit-types.ts";
-import { getCallsAfterStop } from "../src/lib/trip-calls.ts";
+import { getCallsAfterStop, mergeTripSequences } from "../src/lib/trip-calls.ts";
 
 test("keeps every published call after the current stop", () => {
   const tripCalls: TripCall[] = [
@@ -33,4 +33,38 @@ test("keeps a second published call at the current physical stop", () => {
   } as Departure;
 
   assert.deepEqual(getCallsAfterStop(departure, "hauptfriedhof"), tripCalls.slice(1));
+});
+
+const row = (id: string, stopName: string): Departure =>
+  ({
+    id,
+    destination: "Hochstetten",
+    tripCalls: [{ stopName, isCurrentStop: true }],
+  }) as Departure;
+
+test("completes each row with the trip read for it and keeps the row's own facts", () => {
+  const rows = [row("a", "Europaplatz"), row("b", "Karlstor")];
+  const readings = [
+    {
+      ...row("b", "Karlstor"),
+      tripCalls: [
+        { stopName: "Karlstor", isCurrentStop: true },
+        { stopName: "Marktplatz (Kaiserstraße U)", scheduledDepartureTime: "2026-09-05T10:04:00" },
+      ],
+    },
+  ] as Departure[];
+
+  const merged = mergeTripSequences(rows, readings);
+
+  // The row without a reading stands as its board stated it, in its place.
+  assert.equal(merged[0], rows[0]);
+  assert.equal(merged[1].tripCalls?.length, 2);
+  // The stop row stays the departure fact; the trip contributes only the sequence behind it.
+  assert.equal(merged[1].destination, "Hochstetten");
+});
+
+test("rows stand when no reading has arrived", () => {
+  const rows = [row("a", "Europaplatz"), row("b", "Karlstor")];
+
+  assert.equal(mergeTripSequences(rows, []), rows);
 });

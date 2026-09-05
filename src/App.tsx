@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { ZentrumView } from "./components/ZentrumView";
+import { ZentrumView } from "./components/zentrum/ZentrumView";
 import { DataProvenanceFooter } from "./components/DataProvenanceFooter";
 import { DepartureBoardPanel } from "./components/DepartureBoardPanel";
 import { StationBoardView } from "./components/StationBoardView";
@@ -13,6 +13,7 @@ import { StopBottomMenu } from "./components/StopBottomMenu";
 import { RideStatusPanel } from "./components/RideStatusPanel";
 import { HomeEntry } from "./components/HomeEntry";
 import { ServiceNoticesView } from "./components/ServiceNoticesView";
+import { SettingsView } from "./components/SettingsView";
 import {
   useZentrumNetwork,
   useAppRoute,
@@ -224,6 +225,11 @@ export default function App() {
         "app-shell",
         isStationBoardMode && "station-board-mode",
         isRideInView && "ride-mode",
+        /* The plan read at the size of the screen. The shell keeps its three rows and simply gives
+           the middle one the bar's height as well: nothing is overlaid, nothing behind it is left
+           focusable, and the provenance footer keeps its promise to state the source in every
+           state — which an overlay covering it would have quietly broken. */
+        route.view === "zentrum" && route.isZentrumFullscreen && "zentrum-fullscreen",
       )}
       style={shellThemeStyle}
     >
@@ -261,19 +267,30 @@ export default function App() {
                  re-mounts it beside a board that has not moved, while another trip of the same line
                  and another stop on it leave it standing and let the diagram glide. */
               <section className="primary-panel" key={layout.primaryKey}>
-                {layout.homeView && (
+                {activeView === "home" && (
                   <HomeEntry
-                    activeView={layout.homeView}
                     searchInputRef={searchInputRef}
                     recentStops={recentStops}
+                    nearbyStopsController={nearbyStopsController}
+                    onShowNearbyStops={() => showNearbyStops()}
                   />
                 )}
                 {activeView === "nearby" && <NearbyStopsView controller={nearbyStopsController} />}
                 {activeView === "zentrum" && (
-                  <ZentrumView network={observedNetwork} coverage={zentrumCoverage} />
+                  <ZentrumView
+                    network={observedNetwork}
+                    coverage={zentrumCoverage}
+                    departureBoards={observationBoards}
+                    selectedLineId={route.zentrumLineId || undefined}
+                    isFullscreen={route.isZentrumFullscreen}
+                  />
                 )}
                 {activeView === "network" && (
-                  <NetworkView network={network} scope={route.networkScope} />
+                  <NetworkView
+                    network={network}
+                    coverage={zentrumCoverage}
+                    isStacked={isNarrowViewport}
+                  />
                 )}
                 {activeView === "notices" && (
                   <ServiceNoticesView
@@ -282,6 +299,7 @@ export default function App() {
                     feedNow={feedNow}
                   />
                 )}
+                {activeView === "settings" && <SettingsView />}
                 {isLineInView && selection.selectedLine && (
                   <>
                     {/* The ride's one permanent surface: what a rider on board is reading, kept above
@@ -373,6 +391,8 @@ export default function App() {
                 corridorPatterns={stopCorridorPatterns}
                 boardingPlaces={stopBoardingPlaces}
                 isStacked={isNarrowViewport}
+                boardReadingCount={selection.boardReadingCount}
+                onRefresh={selection.refreshBoard}
                 /* What KVV announced about this stop, at the board's foot. It rides the board
                    because that is the list it answers for, and it stays while one of the stop's
                    lines is in view. Its other half used to be a Linien control that scrolled the
@@ -396,11 +416,16 @@ export default function App() {
       </div>
       <DataProvenanceFooter
         showsNoticesLink={!isStationBoardMode && activeView !== "notices"}
+        /* The home asks for no reading, so it is handed none: the footer names the source and
+           states no condition, rather than reporting a load that was never started. The settings
+           stand with it — they read nothing of the network either. */
         {...(activeView === "notices"
           ? { serviceNoticeBoard: noticeBoard }
-          : isObservedNetworkInView
-            ? { departureBoards: observationBoards, coverage: zentrumCoverage }
-            : { departureBoard: selection.departureBoard })}
+          : activeView === "home" || activeView === "settings"
+            ? {}
+            : isObservedNetworkInView
+              ? { departureBoards: observationBoards, coverage: zentrumCoverage }
+              : { departureBoard: selection.departureBoard })}
       />
     </main>
   );

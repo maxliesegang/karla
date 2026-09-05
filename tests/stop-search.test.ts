@@ -203,6 +203,37 @@ test("a stop the session has already met is answered without another wait", asyn
   assert.equal(source.getKnownStop(resolved.id)?.id, resolved.id);
 });
 
+test("a provider stop with a stable local id never gains a dynamic duplicate", async () => {
+  const kongresszentrum = {
+    id: "kongresszentrum",
+    name: "Kongresszentrum",
+    latitude: 49.002532,
+    longitude: 8.403165,
+  };
+  const source = new KvvTransitSource(
+    clientWith([
+      {
+        providerId: "7001013",
+        name: "Kongresszentrum (U)",
+        placeName: "Karlsruhe",
+        latitude: 49.002532,
+        longitude: 8.403165,
+      },
+    ]),
+    { stops: [kongresszentrum], lines: [] },
+  );
+
+  // The local and provider results are the same stop, so search offers one route rather than a
+  // canonical entry beside a dynamic duplicate.
+  assert.deepEqual(await source.searchStops("Kongresszentrum"), [kongresszentrum]);
+
+  // Old shared links still resolve, but their answer is the stable identity. The selection chain
+  // writes this id back into the address and uses it for the board and its calling sequences.
+  const resolved = await source.resolveStop("kongresszentrum-u--15c5d97");
+  assert.equal(resolved?.id, "kongresszentrum");
+  assert.equal(source.getKnownStop("kongresszentrum-u--15c5d97"), undefined);
+});
+
 test("a search that matched exactly one stop is read, not dropped", () => {
   // The finder lists its points when it found several and wraps the one point in an object when it
   // found one. Reading only the list shape lost every search that succeeded outright — and that is
