@@ -5,7 +5,7 @@ import { getVehicleRowCoordinate, type LineDiagramVehicle } from "../../lib/line
 import { classNames } from "../../lib/class-names";
 import { assignStableVehicleLanes } from "../../lib/vehicle-lanes";
 import { useVehicleTrajectoryAnimations } from "../../hooks";
-import type { VehicleLayerGeometry } from "./layout";
+import { getVehicleLeftOffset, type VehicleLayerGeometry } from "./layout";
 
 /**
  * The marks, drawn in one layer over the stop list.
@@ -120,15 +120,10 @@ function LineDiagramVehicleLayerView({
       : previousStopCenter + (nextStopCenter - previousStopCenter) * segmentProgress;
   };
 
-  const getVehicleLeftOffset = (vehicle: LineDiagramVehicle) =>
-    `calc(${geometry.trackLeft}px + var(--line-diagram-vehicle-offset) ${
-      vehicle.directionArrow === "↓" ? "-" : "+"
-    } ${vehicle.laneIndex} * var(--line-diagram-vehicle-lane-step))`;
-
   const getVehicleTransform = (vehicle: LineDiagramVehicle, progress = vehicle.progress) => {
     const topOffset = getVehicleTopOffset({ ...vehicle, progress });
     if (topOffset === undefined) return undefined;
-    return `translate3d(${getVehicleLeftOffset(vehicle)}, ${topOffset}px, 0) translate(calc(-1 * var(--line-diagram-vehicle-anchor)), -50%)`;
+    return `translate3d(${getVehicleLeftOffset(geometry.trackLeft, vehicle.laneIndex, vehicle.directionArrow)}, ${topOffset}px, 0) translate(calc(0px - var(--line-diagram-vehicle-anchor)), -50%)`;
   };
 
   let laneLayout = laneState.layout;
@@ -207,7 +202,7 @@ function LineDiagramVehicleLayerView({
         // have frozen the widest tier's half-width into every narrow mark below it.
         const transform =
           getVehicleTransform(vehicle) ??
-          `translate3d(${getVehicleLeftOffset(vehicle)}, ${vehicleTopOffset}px, 0) translate(calc(-1 * var(--line-diagram-vehicle-anchor)), -50%)`;
+          `translate3d(${getVehicleLeftOffset(geometry.trackLeft, vehicle.laneIndex, vehicle.directionArrow)}, ${vehicleTopOffset}px, 0) translate(calc(0px - var(--line-diagram-vehicle-anchor)), -50%)`;
         const markerLine = lineById.get(departure.lineId);
         const debugLabel = SHOW_VEHICLE_DEBUG_LABEL
           ? getVehicleDebugLabel({ rowIndex, toIndex, progress, phase, motion }, stopNames)

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { getFeedNow } from "../lib/feed-clock";
 import type { DepartureBoard } from "../data/transit-types";
+import { isVisibleResumeEvent, type ResumeEventType } from "./refresh-backoff";
 
 const VEHICLE_TICK_MS = 1_000;
 /** Fine enough that a countdown turns over within a few seconds of the minute it belongs to. */
@@ -50,17 +51,22 @@ function useClockTick(intervalMs: number, isEnabled = true): number {
     if (!isEnabled) return;
     let timer = 0;
     let resumeTimer = 0;
-    const start = () => {
+    const start = (resumeEventType?: ResumeEventType) => {
       window.clearInterval(timer);
       setNow(Date.now());
-      if (document.visibilityState === "hidden") return;
+      if (
+        document.visibilityState === "hidden" &&
+        (!resumeEventType || !isVisibleResumeEvent(resumeEventType, document.visibilityState))
+      )
+        return;
       timer = window.setInterval(() => setNow(Date.now()), intervalMs);
     };
     // The same deferred reading of the visibility state the refresh chain uses: the state an event
     // announces can still disagree with what the document reports while the event is delivered.
-    const resume = () => {
+    const resume = (event: Event) => {
+      const eventType = event.type as ResumeEventType;
       window.clearTimeout(resumeTimer);
-      resumeTimer = window.setTimeout(start);
+      resumeTimer = window.setTimeout(() => start(eventType));
     };
 
     start();

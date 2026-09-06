@@ -67,7 +67,7 @@ export function getLineTermini(line: TransitLine): string[] {
 }
 
 /**
- * The furthest run observed for one line among these departures, as its calls.
+ * The farthest run observed for one line among these departures, as its calls.
  *
  * Reach is the run's own length — the number of distinct calls — which is what makes a whole run
  * beat the short workings beside it, whatever order the boards were read in.
@@ -76,17 +76,17 @@ export function findFarthestLineRunCalls(
   lineId: string,
   departures: readonly Departure[],
 ): readonly TripCall[] | undefined {
-  let furthestCalls: readonly TripCall[] | undefined;
-  let furthestReach = 0;
+  let farthestCalls: readonly TripCall[] | undefined;
+  let farthestReach = 0;
   for (const departure of departures) {
     if (!isSameLineFamily(departure.lineId, lineId) || !departure.tripCalls?.length) continue;
     const reach = new Set(departure.tripCalls.map(getCallKey)).size;
-    if (reach > furthestReach) {
-      furthestCalls = departure.tripCalls;
-      furthestReach = reach;
+    if (reach > farthestReach) {
+      farthestCalls = departure.tripCalls;
+      farthestReach = reach;
     }
   }
-  return furthestCalls;
+  return farthestCalls;
 }
 
 /** The ends of one run, qualified the way a compact heading has to state them. */
@@ -105,16 +105,16 @@ function getRunTermini(calls: readonly TripCall[]): {
 }
 
 /**
- * The two ends the line was seen running between at its furthest, as a line list reads them.
+ * The two ends the line was seen running between at its farthest, as a line list reads them.
  *
  * The same observation `getFarthestLineRun` draws a whole-line view out of, read once for the
- * list instead of per view: the furthest run observed for the line states where it actually runs,
+ * list instead of per view: the farthest run observed for the line states where it actually runs,
  * where its destinations — the words on the vehicle's front, with the short workings among them —
- * only suggest it. `undefined` where no run was observed far enough, and where the furthest run
+ * only suggest it. `undefined` where no run was observed far enough, and where the farthest run
  * turns on itself: a loop's two ends are one place, and the line's destinations still say which
  * one it serves.
  */
-export function getFarthestRunTermini(
+export function getFarthestLineRunTermini(
   lineId: string,
   departures: readonly Departure[],
 ): readonly string[] | undefined {
@@ -124,7 +124,7 @@ export function getFarthestRunTermini(
   return firstTerminus === lastTerminus ? undefined : [firstTerminus, lastTerminus];
 }
 
-/** The furthest run observed for a line, as a whole-line reading of it needs it. */
+/** The farthest run observed for a line, as a whole-line reading of it needs it. */
 export type FarthestLineRun = {
   firstTerminus: string;
   lastTerminus: string;
@@ -137,7 +137,7 @@ export type FarthestLineRun = {
 };
 
 /**
- * The furthest complete run observed for a line, oriented like the diagram on screen.
+ * The farthest complete run observed for a line, oriented like the diagram on screen.
  *
  * A line view is often first drawn from a short working because that is the next trip at the
  * rider's stop. That trip is a truthful shape for its own run, but its ends are not the ends of the
@@ -150,15 +150,15 @@ export function getFarthestLineRun(
   departures: readonly Departure[],
   diagramCalls: readonly TripCall[],
 ): FarthestLineRun {
-  const furthestCalls = findFarthestLineRunCalls(line.id, departures);
+  const farthestCalls = findFarthestLineRunCalls(line.id, departures);
 
-  if (!furthestCalls || furthestCalls.length < 2) {
+  if (!farthestCalls || farthestCalls.length < 2) {
     const [firstTerminus, lastTerminus] = getLineTermini(line);
     return { firstTerminus, lastTerminus, calls: undefined };
   }
-  const first = furthestCalls[0];
-  const last = furthestCalls[furthestCalls.length - 1];
-  const indexByKey = new Map(furthestCalls.map((call, index) => [getCallKey(call), index]));
+  const first = farthestCalls[0];
+  const last = farthestCalls[farthestCalls.length - 1];
+  const indexByKey = new Map(farthestCalls.map((call, index) => [getCallKey(call), index]));
   const diagramIndices = diagramCalls.flatMap((call) => {
     const index = indexByKey.get(getCallKey(call));
     return index === undefined ? [] : [index];
@@ -167,11 +167,11 @@ export function getFarthestLineRun(
   const nextDiagramIndex = diagramIndices.find((index) => index !== firstDiagramIndex);
 
   // Diagram rows run from destination back toward origin. Two shared calls say which physical end
-  // belongs at its top even when the furthest observation came from a trip in the other direction.
+  // belongs at its top even when the farthest observation came from a trip in the other direction.
   const runsTowardStart =
     firstDiagramIndex !== undefined && nextDiagramIndex !== undefined
       ? nextDiagramIndex > firstDiagramIndex
       : getCallKey(diagramCalls[0] ?? last) === getCallKey(first);
-  const calls = runsTowardStart ? furthestCalls : [...furthestCalls].reverse();
+  const calls = runsTowardStart ? farthestCalls : [...farthestCalls].reverse();
   return { ...getRunTermini(calls), calls };
 }

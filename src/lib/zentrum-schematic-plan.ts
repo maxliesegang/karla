@@ -274,7 +274,7 @@ export const getLineTrackPoint = (
   return { x: node.x + -run.y * offset, y: node.y + run.x * offset };
 };
 
-export const printPoint = ({ x, y }: SchematicPoint): string => `${x.toFixed(2)} ${y.toFixed(2)}`;
+export const formatPoint = ({ x, y }: SchematicPoint): string => `${x.toFixed(2)} ${y.toFixed(2)}`;
 
 export const subtractPoints = (left: SchematicPoint, right: SchematicPoint): SchematicPoint => ({
   x: left.x - right.x,

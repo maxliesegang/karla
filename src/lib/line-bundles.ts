@@ -50,7 +50,7 @@ export const MAX_BUNDLED_LINES = 2;
  * distinction `StopServiceCorridor.hasObservedSharedRoute` draws — and a bundle is a promise about
  * a stretch. Three calls is the shortest stretch a rider would call a common way.
  */
-export const MIN_BUNDLE_SHARED_CALLS = 3;
+export const MIN_LINE_BUNDLE_SHARED_CALLS = 3;
 
 export const createLineSelection = (
   lineId: string,
@@ -221,7 +221,7 @@ function findDrawnSharedCalls(
       if (common.length > best.length) best = common;
     }
   }
-  return best.length >= MIN_BUNDLE_SHARED_CALLS ? best : undefined;
+  return best.length >= MIN_LINE_BUNDLE_SHARED_CALLS ? best : undefined;
 }
 
 /** The distinct routes one line has been observed taking out of this stop, in full. */
@@ -302,7 +302,7 @@ export function findLineBundleOffers({
     for (const primaryRoute of primary.routes) {
       for (const candidateRoute of candidate.routes) {
         const common = getCommonCallPrefix([primaryRoute, candidateRoute]);
-        if (common.length >= MIN_BUNDLE_SHARED_CALLS) shared.push(common);
+        if (common.length >= MIN_LINE_BUNDLE_SHARED_CALLS) shared.push(common);
       }
     }
     const sharedRoutes = keepLongestSharedRoutes(shared);
@@ -466,7 +466,7 @@ export function getLineBundleTrunk(
 /**
  * Which of a sibling line's trips is drawn beside the primary one.
  *
- * The trip that runs with it furthest, not the one that leaves first: a bundled diagram is a
+ * The trip that runs with it farthest, not the one that leaves first: a bundled diagram is a
  * statement about a corridor, and the sibling's opposite direction shares none of it. A trip
  * heading the other way therefore scores nothing and is never chosen over one heading this way.
  */

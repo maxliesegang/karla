@@ -17,7 +17,7 @@ export type StopServiceCorridor = {
   id: string;
   /**
    * The place the corridor heads into — the municipality or Karlsruhe district the trips share
-   * furthest ahead. The headsign stands in where no sequence was observed, or where the place is
+   * farthest ahead. The headsign stands in where no sequence was observed, or where the place is
    * the one the rider is already standing in.
    */
   directionLabel: string;

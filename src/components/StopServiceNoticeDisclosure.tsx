@@ -6,7 +6,7 @@ import type {
   TransitStop,
 } from "../data/transit-types";
 import { getOrderedNotices } from "../lib/service-notices";
-import { ServiceNoticeList } from "./ServiceNoticePanel";
+import { ServiceNoticeList } from "./ServiceNoticeList";
 
 /**
  * What the operator published about *this* stop, kept beside the board it concerns.

@@ -74,7 +74,7 @@ export function findNoticesInNetwork(
  * notice that has not started yet says when it starts, and one that states neither says nothing
  * rather than implying a period nobody published.
  */
-export function findNoticePeriodLabel(notice: ServiceNotice, now: number): string | undefined {
+export function getNoticePeriodLabel(notice: ServiceNotice, now: number): string | undefined {
   const from = notice.validFrom ? Date.parse(notice.validFrom) : Number.NaN;
   const until = notice.validUntil ? Date.parse(notice.validUntil) : Number.NaN;
   const hasStarted = Number.isFinite(from) && from <= now;

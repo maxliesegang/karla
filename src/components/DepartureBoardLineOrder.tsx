@@ -2,7 +2,7 @@ import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode }
 import type { Departure, PlatformKind } from "../data/transit-types";
 import { classNames } from "../lib/class-names";
 import {
-  findVehicleAccessLabel,
+  getVehicleAccessLabel,
   getDepartureAccessibilityLabel,
   getCountdownReading,
   getDepartureTimeReading,
@@ -101,7 +101,7 @@ function getCorridorDepartureNote(
       ? []
       : [
           departure.status === "diverted" ? "Umleitung" : undefined,
-          findVehicleAccessLabel(departure),
+          getVehicleAccessLabel(departure),
         ].filter((warning): warning is string => Boolean(warning));
   return {
     time: getDepartureTimeReading(departure),

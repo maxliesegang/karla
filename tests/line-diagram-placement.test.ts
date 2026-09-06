@@ -3,17 +3,29 @@ import test from "node:test";
 
 const {
   describeCurrentStopMove,
+  getVehicleLeftOffset,
   getMeasuredNodeCenterOffset,
-  holdAddressedTrip,
-  isTopTerminusPastViewport,
+  retainAddressedTrip,
 } = await import("../src/components/line-diagram/layout.ts");
+
+test("writes vehicle lanes without CSS multiplication older iOS Safari rejects", () => {
+  assert.equal(getVehicleLeftOffset(52, 0, "↑"), "calc(52px + var(--line-diagram-vehicle-offset))");
+  assert.equal(
+    getVehicleLeftOffset(52, 2, "↑"),
+    "calc(52px + var(--line-diagram-vehicle-offset) + var(--line-diagram-vehicle-lane-step) + var(--line-diagram-vehicle-lane-step))",
+  );
+  assert.equal(
+    getVehicleLeftOffset(52, 2, "↓"),
+    "calc(52px + var(--line-diagram-vehicle-offset) - var(--line-diagram-vehicle-lane-step) - var(--line-diagram-vehicle-lane-step))",
+  );
+});
 
 test("measures a vehicle against the centre of its stop node", () => {
   // A node is anchored by its own centre — placed at a point on its track and then pulled back over
   // that point by a transform, which never reaches layout. So the offset measured is already the
   // centre, and the same point is read whatever size the node happens to be drawn at: an ordinary
   // stop, a terminus, or the rider's own stop, which draws the largest node of the three. Counting
-  // half a node again would carry every mark below the stop it is standing at, furthest at the one
+  // half a node again would carry every mark below the stop it is standing at, farthest at the one
   // stop where that is most visible.
   assert.equal(getMeasuredNodeCenterOffset(100, 4, 24), 128);
   assert.equal(getMeasuredNodeCenterOffset(100, 0, 24), 124);
@@ -24,12 +36,6 @@ test("a fork's junction node is read where the rails actually meet", () => {
   // anchor, which is why the node is measured at all instead of the middle of the row.
   assert.equal(getMeasuredNodeCenterOffset(200, 0, 0), 200);
   assert.equal(getMeasuredNodeCenterOffset(200, 0, 34), 234);
-});
-
-test("shows the terminus summary only after the real row has wholly passed", () => {
-  assert.equal(isTopTerminusPastViewport(101, 100), false);
-  assert.equal(isTopTerminusPastViewport(100, 100), true);
-  assert.equal(isTopTerminusPastViewport(99, 100), true);
 });
 
 const place = (index: number, chainKey = "S1:A>B>C>D") => ({ index, chainKey });
@@ -65,32 +71,32 @@ const FRESHER = { destination: "Wörth Badepark" };
 test("the diagram keeps drawing the addressed trip while the next stop's boards are read", () => {
   // Walking along the line re-keys every board behind the trip, so for a few hundred milliseconds
   // the feed can say nothing about a trip the rider has not stopped reading.
-  const held = holdAddressedTrip(null, TRIP, READING).held;
-  const loading = holdAddressedTrip(held, TRIP, undefined);
+  const retained = retainAddressedTrip(null, TRIP, READING).retained;
+  const loading = retainAddressedTrip(retained, TRIP, undefined);
   assert.equal(loading.drawn, READING);
-  assert.equal(loading.held, held);
+  assert.equal(loading.retained, retained);
 });
 
 test("a fresher reading of the same trip replaces the one being held", () => {
-  const held = holdAddressedTrip(null, TRIP, READING).held;
-  const answered = holdAddressedTrip(held, TRIP, FRESHER);
+  const retained = retainAddressedTrip(null, TRIP, READING).retained;
+  const answered = retainAddressedTrip(retained, TRIP, FRESHER);
   assert.equal(answered.drawn, FRESHER);
-  assert.deepEqual(answered.held, { tripId: TRIP, departure: FRESHER });
+  assert.deepEqual(answered.retained, { tripId: TRIP, departure: FRESHER });
 });
 
 test("the hold is dropped with the trip the address stops naming", () => {
   // Unpinning the trip leaves the whole line in view, and nothing of the trip may survive it.
-  const held = holdAddressedTrip(null, TRIP, READING).held;
-  const unpinned = holdAddressedTrip(held, undefined, undefined);
+  const retained = retainAddressedTrip(null, TRIP, READING).retained;
+  const unpinned = retainAddressedTrip(retained, undefined, undefined);
   assert.equal(unpinned.drawn, undefined);
-  assert.equal(unpinned.held, null);
+  assert.equal(unpinned.retained, null);
 });
 
 test("a hold is never picked up by a different trip", () => {
-  const held = holdAddressedTrip(null, TRIP, READING).held;
-  const other = holdAddressedTrip(held, OTHER_TRIP, undefined);
+  const retained = retainAddressedTrip(null, TRIP, READING).retained;
+  const other = retainAddressedTrip(retained, OTHER_TRIP, undefined);
   assert.equal(other.drawn, undefined);
-  assert.equal(other.held, null);
+  assert.equal(other.retained, null);
 });
 
 const { chooseLineDiagramTrip, getCurrentStopIndex, isCurrentLineDiagramStop } = await import(
@@ -124,7 +130,7 @@ const chooseAt = (
     lineId: "2",
     riderStopIds: [stopId],
     pinnedDeparture: undefined,
-    heldDeparture: held,
+    retainedDeparture: held,
     preferredDestination: undefined,
     stopTripDepartures: candidates,
     boardDepartures: candidates,
@@ -144,13 +150,13 @@ test("a stop the held trip does not call at is drawn afresh, pointing the same w
     lineId: "2",
     riderStopIds: ["b"],
     pinnedDeparture: undefined,
-    heldDeparture: trip("gone", "Wörth", ["x", "y"]),
+    retainedDeparture: trip("gone", "Wörth", ["x", "y"]),
     preferredDestination: undefined,
     stopTripDepartures: [INBOUND, SHORT_OUTBOUND, OUTBOUND],
     boardDepartures: [],
   });
   assert.equal(chosen?.destination, "Wörth");
-  // Among the trips heading that way, the one that runs furthest: drawn from a short working the
+  // Among the trips heading that way, the one that runs farthest: drawn from a short working the
   // line stops short of its own ends.
   assert.equal(chosen, OUTBOUND);
 });
@@ -160,7 +166,7 @@ test("the trip the address names draws the line, held or not", () => {
     lineId: "2",
     riderStopIds: ["c"],
     pinnedDeparture: INBOUND,
-    heldDeparture: OUTBOUND,
+    retainedDeparture: OUTBOUND,
     preferredDestination: "Wörth",
     stopTripDepartures: [OUTBOUND],
     boardDepartures: [OUTBOUND],
@@ -173,7 +179,7 @@ test("a line opened with nothing held is pointed where the rider was last headin
     lineId: "2",
     riderStopIds: ["b"],
     pinnedDeparture: undefined,
-    heldDeparture: undefined,
+    retainedDeparture: undefined,
     preferredDestination: "Durlach",
     stopTripDepartures: [OUTBOUND, INBOUND],
     boardDepartures: [],
@@ -192,7 +198,7 @@ test("without a chain to draw, the plain board still states a direction", () => 
     lineId: "2",
     riderStopIds: ["b"],
     pinnedDeparture: undefined,
-    heldDeparture: undefined,
+    retainedDeparture: undefined,
     preferredDestination: undefined,
     stopTripDepartures: [],
     boardDepartures: [boardRow],

@@ -37,7 +37,9 @@ const WGS84_COORDINATE_FORMAT = "WGS84[DD.ddddd]";
  * filter by mode *group*, not by `motType`: the train group would bring long-distance rail back
  * with the regional trains, and the bus group carries long-distance coaches along with the city
  * buses. The coaches are therefore dropped again when the answer is read
- * (`kvv-efa-parsers.ts`), which is the only place their `motType` is visible.
+ * (`kvv-efa-parsers.ts`), which is the only place their `motType` is visible — and where the lines
+ * the feed publishes from another operator's data pool (the DB's S-Bahn Rhein-Neckar at the
+ * Hauptbahnhof, sharing the Stadtbahn's group) are dropped by pool, which only that reading sees.
  *
  * They are sent only where they answer something. A board asked for named line-directions cannot
  * contain another mode at all — the filter is the narrower statement of the same thing — and the

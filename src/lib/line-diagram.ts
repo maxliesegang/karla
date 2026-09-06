@@ -202,10 +202,10 @@ export function buildLineDiagramStops(
 }
 
 /**
- * The whole line drawn out to the furthest run observed for it.
+ * The whole line drawn out to the farthest run observed for it.
  *
  * The drawn chain stays what it is — the reading in hand, the one held so the rows do not move
- * under a rider walking along the line — and the run observed furthest is read into it around it:
+ * under a rider walking along the line — and the run observed farthest is read into it around it:
  * the stops the drawn trip never reached go in past its ends, and the stops the drawn trip skipped
  * that the run calls at go in between its own. Both chains are in the diagram's own order, so
  * everything is read in where the two agree it belongs — a drawn-only call after the shared call it
@@ -560,14 +560,19 @@ export function getLineDiagramVehicles(
  * "Other trips" is only ever said beside a followed one: the marks carrying another run than the
  * rider's are dropped when they would rather read the line alone. A joined working is not two
  * other trips — it is the one train the rider is on, and it keeps both of its portions whole.
- * Without a followed trip no vehicle is the rider's, so there are no others and the reading draws
- * the line's vehicles as they stand.
+ * The same choice clears the turnaround stands: a mark still waiting to set out is one the diagram
+ * draws from the lead before its departure (`getLineDiagramVehicles`), and that is the line's
+ * other traffic as much as a mark out on the line is. The rider's own stand is the one kept —
+ * the run they follow begins there, and its standing mark is theirs.
  */
 export function getShownLineDiagramVehicles(
   vehicles: readonly LineDiagramVehicle[],
   areOtherTripsShown: boolean,
 ): readonly LineDiagramVehicle[] {
-  return areOtherTripsShown ? vehicles : vehicles.filter((vehicle) => !vehicle.isOtherTrip);
+  if (areOtherTripsShown) return vehicles;
+  return vehicles.filter(
+    (vehicle) => !vehicle.isOtherTrip && (vehicle.isSelected || vehicle.phase !== "beforeStart"),
+  );
 }
 
 /**
@@ -617,7 +622,7 @@ export function chooseLineDiagramTrip({
   lineId,
   riderStopIds,
   pinnedDeparture,
-  heldDeparture,
+  retainedDeparture,
   preferredDestination,
   stopTripDepartures,
   boardDepartures,
@@ -633,7 +638,7 @@ export function chooseLineDiagramTrip({
   /** The trip the address names, which states its own direction and needs no holding. */
   pinnedDeparture: Departure | undefined;
   /** What the line was drawn from at the last reading of this diagram. */
-  heldDeparture: Departure | undefined;
+  retainedDeparture: Departure | undefined;
   /** Where the rider was last heading on this line, as the selection chain remembers it. */
   preferredDestination: string | undefined;
   /** Whole trips read at the rider's stop: the only candidates with a chain to draw. */
@@ -642,25 +647,26 @@ export function chooseLineDiagramTrip({
   boardDepartures: readonly Departure[];
 }): Departure | undefined {
   if (pinnedDeparture) return pinnedDeparture;
-  if (heldDeparture && callsAtStop(heldDeparture, lineId, riderStopIds)) return heldDeparture;
+  if (retainedDeparture && callsAtStop(retainedDeparture, lineId, riderStopIds))
+    return retainedDeparture;
 
-  // Among the trips heading that way it is the one that runs furthest, not the one that leaves
+  // Among the trips heading that way it is the one that runs farthest, not the one that leaves
   // first: it is the best chain to start from, and the one a whole-line view is extended around to
-  // the furthest observed run (`extendLineDiagramCalls`).
-  const heading = preferredDestination ?? heldDeparture?.destination;
+  // the farthest observed run (`extendLineDiagramCalls`).
+  const heading = preferredDestination ?? retainedDeparture?.destination;
   const ofLine = (candidates: readonly Departure[]) =>
     candidates.filter((candidate) => isSameLineFamily(candidate.lineId, lineId));
-  const furthestRunning = (candidates: readonly Departure[]) =>
+  const farthestRunning = (candidates: readonly Departure[]) =>
     candidates.reduce<Departure | undefined>(
-      (furthest, candidate) =>
-        (candidate.tripCalls?.length ?? 0) > (furthest?.tripCalls?.length ?? 0)
+      (farthest, candidate) =>
+        (candidate.tripCalls?.length ?? 0) > (farthest?.tripCalls?.length ?? 0)
           ? candidate
-          : furthest,
+          : farthest,
       candidates[0],
     );
   const preferred = (candidates: readonly Departure[]) => {
     const sameWay = candidates.filter((candidate) => candidate.destination === heading);
-    return furthestRunning(sameWay.length > 0 ? sameWay : candidates);
+    return farthestRunning(sameWay.length > 0 ? sameWay : candidates);
   };
   // A row whose whole trip has been read is taken over one from the plain board even when the plain
   // board has a better-matching headsign — without a calling sequence there is no diagram at all.

@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { TripCall } from "../src/data/transit-types.ts";
-import { locateOnTripCalls, MAX_FIX_ACCURACY_METERS } from "../src/lib/ride-location.ts";
+import {
+  getRidePlacement,
+  MAX_RIDE_POSITION_FIX_ACCURACY_METERS,
+} from "../src/lib/ride-position.ts";
 import { getTripProgress } from "../src/lib/trip-progress.ts";
 
 /** Roughly 111 m of latitude per 0.001°, which keeps the fixtures readable as distances. */
@@ -26,31 +29,31 @@ const calls = [
 ];
 
 test("places a fix on the link it is running along", () => {
-  const location = locateOnTripCalls(calls, {
+  const placement = getRidePlacement(calls, {
     latitude: 49.0075,
     longitude: 8.4,
     accuracyMeters: 20,
   });
-  assert.equal(location?.nextCallIndex, 1);
-  assert.ok(Math.abs((location?.linkProgress ?? 0) - 0.75) < 0.02);
-  assert.ok((location?.metersToNextCall ?? 0) < 300);
+  assert.equal(placement?.nextCallIndex, 1);
+  assert.ok(Math.abs((placement?.linkProgress ?? 0) - 0.75) < 0.02);
+  assert.ok((placement?.metersToNextCall ?? 0) < 300);
 });
 
 test("names the following stop once the vehicle has left one behind", () => {
-  const location = locateOnTripCalls(calls, {
+  const placement = getRidePlacement(calls, {
     latitude: 49.015,
     longitude: 8.4,
     accuracyMeters: 20,
   });
-  assert.equal(location?.nextCallIndex, 2);
+  assert.equal(placement?.nextCallIndex, 2);
 });
 
 test("refuses a fix too coarse to tell one stop from the next", () => {
   assert.equal(
-    locateOnTripCalls(calls, {
+    getRidePlacement(calls, {
       latitude: 49.0075,
       longitude: 8.4,
-      accuracyMeters: MAX_FIX_ACCURACY_METERS + 1,
+      accuracyMeters: MAX_RIDE_POSITION_FIX_ACCURACY_METERS + 1,
     }),
     null,
   );
@@ -58,7 +61,7 @@ test("refuses a fix too coarse to tell one stop from the next", () => {
 
 test("refuses a fix that is nowhere near the line", () => {
   assert.equal(
-    locateOnTripCalls(calls, { latitude: 49.0075, longitude: 8.5, accuracyMeters: 20 }),
+    getRidePlacement(calls, { latitude: 49.0075, longitude: 8.5, accuracyMeters: 20 }),
     null,
   );
 });
@@ -66,7 +69,7 @@ test("refuses a fix that is nowhere near the line", () => {
 test("will not span a link across a call the feed gave no coordinates for", () => {
   const gapped = [calls[0], createCall("b", undefined, undefined, 4), calls[2]];
   assert.equal(
-    locateOnTripCalls(gapped, { latitude: 49.0075, longitude: 8.4, accuracyMeters: 20 }),
+    getRidePlacement(gapped, { latitude: 49.0075, longitude: 8.4, accuracyMeters: 20 }),
     null,
   );
 });
@@ -79,8 +82,8 @@ test("the timetable settles a line that passes the same ground twice", () => {
     createCall("d", 48.99, 8.4, 12),
   ];
   const fix = { latitude: 49.005, longitude: 8.4, accuracyMeters: 20 };
-  assert.equal(locateOnTripCalls(loop, fix, 1)?.nextCallIndex, 1);
-  assert.equal(locateOnTripCalls(loop, fix, 2)?.nextCallIndex, 2);
+  assert.equal(getRidePlacement(loop, fix, 1)?.nextCallIndex, 1);
+  assert.equal(getRidePlacement(loop, fix, 2)?.nextCallIndex, 2);
 });
 
 const feedNow = Date.parse("2026-08-29T10:03:00Z");

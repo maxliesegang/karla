@@ -49,13 +49,6 @@ const EMPTY_OFFERS: readonly LineBundleOffer[] = [];
 const ROW_CLOCK_STEP_MS = 5_000;
 /** Beside each stop of the ride. Off until there is an option to turn it back on. */
 const SHOW_INTERCHANGES = false;
-/**
- * The turnaround reading. A vehicle at an end of its run is drawn standing there — a departure
- * waiting at its first stop from the lead before it is due away, extended back to the arrival it
- * turns back out of where the pairing found one — and the pairing draws that stand once rather
- * than twice.
- */
-const SHOW_TURNAROUND_VEHICLES = true;
 
 export type LineDiagramReadingInput = {
   line: TransitLine;
@@ -189,14 +182,14 @@ export function useLineDiagramReading({
       lineDepartureBoards.find((board) => board.stopId === stop.id)?.departures ?? EMPTY_DEPARTURES,
     [lineDepartureBoards, stop.id],
   );
-  const [heldLineTrip, setHeldLineTrip] = useState<Departure | undefined>(undefined);
+  const [retainedLineTrip, setRetainedLineTrip] = useState<Departure | undefined>(undefined);
   const diagramDeparture = useMemo(
     () =>
       chooseLineDiagramTrip({
         lineId: line.id,
         riderStopIds,
         pinnedDeparture: departure,
-        heldDeparture: heldLineTrip,
+        retainedDeparture: retainedLineTrip,
         preferredDestination,
         stopTripDepartures,
         boardDepartures: departureBoard?.departures ?? EMPTY_DEPARTURES,
@@ -205,7 +198,7 @@ export function useLineDiagramReading({
       riderStopIds,
       departure,
       departureBoard,
-      heldLineTrip,
+      retainedLineTrip,
       line.id,
       preferredDestination,
       stopTripDepartures,
@@ -215,7 +208,8 @@ export function useLineDiagramReading({
   // diagram has to find it already there, or it would draw one frame of the line facing another way.
   // A moment with no board to draw from is not a reason to forget the last trip — it is exactly the
   // moment the hold exists for — so nothing is ever held back to `undefined`.
-  if (diagramDeparture && diagramDeparture !== heldLineTrip) setHeldLineTrip(diagramDeparture);
+  if (diagramDeparture && diagramDeparture !== retainedLineTrip)
+    setRetainedLineTrip(diagramDeparture);
   const drawnCalls = diagramDeparture?.tripCalls ?? EMPTY_TRIP_CALLS;
   // A line selection with no pinned trip describes the whole observed line, whether it is being
   // read alone or beside a sibling. Extend the primary chain before finding the shared trunk: if
@@ -273,7 +267,7 @@ export function useLineDiagramReading({
   // Trips arrive in travel order. Read the line diagram toward the destination by placing its last
   // call at the top; vehicle placement derives its arrows from this visible order as well.
   const diagramTripCalls = useMemo(() => [...tripCalls].reverse(), [tripCalls]);
-  // A single whole-line selection names the furthest run any of its observation boards has reached.
+  // A single whole-line selection names the farthest run any of its observation boards has reached.
   // A bundle names its shared trunk here; its branches carry their own observed outer ends.
   const [seenFirstTerminus, seenLastTerminus] = getLineTermini(line);
   const diagramCalls = diagramTripCalls;
@@ -326,7 +320,7 @@ export function useLineDiagramReading({
           joinedTripPairs,
           departure,
           feedNow,
-          { turnaroundIndex, showWaitingVehicles: SHOW_TURNAROUND_VEHICLES },
+          { turnaroundIndex },
         ),
         isShowingOtherLineTrips,
       ),
@@ -350,7 +344,6 @@ export function useLineDiagramReading({
     selectedDeparture: departure,
     feedNow,
     turnaroundIndex,
-    showWaitingVehicles: SHOW_TURNAROUND_VEHICLES,
     areOtherTripsShown: isShowingOtherLineTrips,
     trunkVehicles: vehicles,
   });

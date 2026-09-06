@@ -39,21 +39,25 @@ const landingItems: readonly SegmentedControlItem<AppLanding>[] = [
 ];
 
 const rememberingItems: readonly SegmentedControlItem<"on" | "off">[] = [
-  { value: "on", label: "An", ariaLabel: "Besuchte Haltestellen merken" },
-  { value: "off", label: "Aus", ariaLabel: "Besuchte Haltestellen nicht merken" },
+  { value: "on", label: "Merken", ariaLabel: "Besuchte Haltestellen merken" },
+  { value: "off", label: "Vergessen", ariaLabel: "Besuchte Haltestellen nicht merken" },
 ];
 
 const otherTripsItems: readonly SegmentedControlItem<"on" | "off">[] = [
-  { value: "on", label: "An", ariaLabel: "Andere Fahrten im Liniediagramm zeigen" },
-  { value: "off", label: "Aus", ariaLabel: "Andere Fahrten im Liniediagramm ausblenden" },
+  { value: "on", label: "Zeigen", ariaLabel: "Andere Fahrzeuge der Linie im Liniediagramm zeigen" },
+  {
+    value: "off",
+    label: "Verstecken",
+    ariaLabel: "Andere Fahrzeuge der Linie im Liniediagramm ausblenden",
+  },
 ];
 
 /**
  * The rider's own choices about the app, each applied the moment it is made.
  *
  * Three settings, because three are true of the app as it stands: where it opens, whether it keeps
- * the stops a rider reads, and whether the line diagram draws the line's other vehicles beside the
- * one they follow. Each is a device-local preference that the views already read — nothing here is
+ * the stops a rider reads, and whether the line diagram draws the line's other vehicles at all.
+ * Each is a device-local preference that the views already read — nothing here is
  * a new behaviour, only the place where the behaviour the app guessed at becomes a choice.
  */
 export function SettingsView() {
@@ -91,13 +95,13 @@ export function SettingsView() {
           }
         />
         <SettingsRow
-          title="Andere Fahrten"
-          description="Im Liniediagramm weitere Fahrzeuge der Linie zeigen, während du eine Fahrt begleitest"
+          title="Andere Fahrzeuge"
+          description="Im Liniediagramm andere Fahrzeuge der Linie zeigen"
           control={
             <SegmentedControl
               value={settings.isShowingOtherLineTrips ? "on" : "off"}
               items={otherTripsItems}
-              ariaLabel="Andere Fahrten zeigen"
+              ariaLabel="Andere Fahrzeuge zeigen"
               onValueChange={(value) => write({ isShowingOtherLineTrips: value === "on" })}
             />
           }

@@ -52,7 +52,7 @@ const BOARD_ROW_LIMIT = 30;
 const NEIGHBOUR_LIMIT = 3;
 /** Below this much slack the arrival's lateness has to show on the departure, if it ever does. */
 const MIN_TURN_MS = 60_000;
-/** The furthest a scheduled departure is looked at past a scheduled arrival. */
+/** The farthest a scheduled departure is looked at past a scheduled arrival. */
 const SCHEDULED_PAIRING_HORIZON_MS = 30 * 60_000;
 
 type Options = {

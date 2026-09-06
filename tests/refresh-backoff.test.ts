@@ -4,6 +4,7 @@ import {
   extendFailureStreak,
   getBackoffDelayMs,
   isAwayEvidence,
+  isVisibleResumeEvent,
   MAX_TRANSIENT_BACKOFF_MS,
   MAX_UNAVAILABLE_BACKOFF_MS,
 } from "../src/hooks/refresh-backoff.ts";
@@ -60,4 +61,12 @@ test("a window clicked back into keeps the cadence it earned", () => {
   // The page never stopped polling, so nothing about it says the feed is answering again; a resume
   // that forgave here would re-read every mounted board on every alt-tab.
   assert.equal(isAwayEvidence("focus"), false);
+});
+
+test("a page shown by iOS resumes while its reported visibility catches up", () => {
+  assert.equal(isVisibleResumeEvent("pageshow", "hidden"), true);
+  assert.equal(isVisibleResumeEvent("focus", "hidden"), true);
+  assert.equal(isVisibleResumeEvent("visibilitychange", "hidden"), false);
+  assert.equal(isVisibleResumeEvent("online", "hidden"), false);
+  assert.equal(isVisibleResumeEvent("visibilitychange", "visible"), true);
 });

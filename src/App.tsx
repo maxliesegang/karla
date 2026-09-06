@@ -198,7 +198,7 @@ export default function App() {
 
   // On board the device is the better witness of where the vehicle is, so the ride reads its own
   // position where the rider has granted one and falls back to the feed's estimate where it cannot
-  // — the whole of that decision is in `lib/ride-location.ts`.
+  // — the whole of that decision is in `lib/ride-position.ts`.
   const tripProgress =
     isRideInView && selection.selectedDeparture
       ? getTripProgress(selection.selectedDeparture.tripCalls ?? [], feedNow, {
@@ -366,7 +366,6 @@ export default function App() {
                       }
                       alightingStopId={selection.alightingStopId}
                       onToggleAlighting={isRideInView ? toggleAlighting : undefined}
-                      isStacked={isNarrowViewport}
                       tripPositionRequest={tripPositionRequest}
                       rideNextCall={tripProgress?.nextCall}
                     />

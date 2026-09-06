@@ -10,7 +10,7 @@
 
 /** How far the board follows before letting go asks for the feed again. */
 export const PULL_TO_REFRESH_TRIGGER_PX = 48;
-/** The furthest the board follows the finger; past this the pull only grows heavier. */
+/** The farthest the board follows the finger; past this the pull only grows heavier. */
 export const PULL_TO_REFRESH_MAX_PX = 96;
 /**
  * The drag length the resistance curve is scaled by: the pull that would reach two thirds of the

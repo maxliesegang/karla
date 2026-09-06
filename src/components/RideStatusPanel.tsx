@@ -1,5 +1,5 @@
 import type { Departure, TransitLine } from "../data/transit-types";
-import type { RidePositionController } from "../hooks/ride-position";
+import type { RidePositionController } from "../hooks";
 import { formatClockTime, getTripCallTimeReading } from "../lib/departure-presentation";
 import type { TripProgress } from "../lib/trip-progress";
 import { classNames } from "../lib/class-names";

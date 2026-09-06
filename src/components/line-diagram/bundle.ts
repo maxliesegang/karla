@@ -35,7 +35,7 @@ import {
  * observation the panel cannot make without remembering the frame before.
  */
 
-export const EMPTY_BRANCH_VEHICLES: readonly LineDiagramVehicle[] = [];
+export const EMPTY_LINE_BUNDLE_BRANCH_VEHICLES: readonly LineDiagramVehicle[] = [];
 const EMPTY_BRANCHES: readonly LineBundleBranch[] = [];
 const EMPTY_TRANSFER_KEYS: ReadonlyMap<string, ReadonlySet<string>> = new Map();
 

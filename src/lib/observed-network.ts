@@ -8,7 +8,7 @@ import type {
 import { createLineSign } from "../data/line-signs";
 import { compareLineIds, getLineFamilyId } from "./line-families";
 import { isZentrumStop } from "../data/zentrum-stops";
-import { getFarthestRunTermini } from "./stop-services";
+import { getFarthestLineRunTermini } from "./stop-services";
 import { addOnce, getDistinctByFrequency } from "./collections";
 import { getDistinctTimetableTrips } from "./trips";
 
@@ -115,8 +115,8 @@ export type ObservedLine = {
   /** Destinations seen on this line, most frequent first — what a rider reads on the front. */
   destinations: string[];
   /**
-   * The ends of the furthest run observed for the line, where one was — see
-   * `getFarthestRunTermini`. The line list reads its extent off this rather than off the
+   * The ends of the farthest run observed for the line, where one was — see
+   * `getFarthestLineRunTermini`. The line list reads its extent off this rather than off the
    * destinations, which the short workings among them keep from naming it.
    */
   farthestRunTermini?: readonly string[];
@@ -219,7 +219,7 @@ export function buildObservedNetwork(boards: readonly DepartureBoard[]): Observe
       id,
       transportMode: line.transportMode,
       destinations: getDistinctByFrequency(line.destinations),
-      farthestRunTermini: getFarthestRunTermini(id, line.trips),
+      farthestRunTermini: getFarthestLineRunTermini(id, line.trips),
     })),
     tripCount: trips.length,
   };
@@ -227,7 +227,7 @@ export function buildObservedNetwork(boards: readonly DepartureBoard[]): Observe
 
 /**
  * The observed lines as the rest of the app's views expect them — official sign where there is one,
- * neutral otherwise, and the ends the line was seen running between, at the furthest run where the
+ * neutral otherwise, and the ends the line was seen running between, at the farthest run where the
  * observation has seen one.
  *
  * This replaces a kept list of lines. A line that is not running is not observed, so it is not

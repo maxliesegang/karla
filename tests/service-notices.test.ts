@@ -3,7 +3,7 @@ import test from "node:test";
 import type { ServiceNotice, TransitLine } from "../src/data/transit-types.ts";
 import { parseServiceNoticeResponse } from "../src/data/kvv-efa-parsers.ts";
 import {
-  findNoticePeriodLabel,
+  getNoticePeriodLabel,
   findNoticesForStop,
   findNoticesInNetwork,
   getOrderedNotices,
@@ -153,7 +153,7 @@ test("states the part of the period a rider can still act on", () => {
   });
   const announced = createNotice({ validFrom: "2026-09-01T04:00:00.000Z" });
 
-  assert.equal(findNoticePeriodLabel(running, now), "bis 11.09.");
-  assert.equal(findNoticePeriodLabel(announced, now), "ab 01.09.");
-  assert.equal(findNoticePeriodLabel(createNotice({}), now), undefined);
+  assert.equal(getNoticePeriodLabel(running, now), "bis 11.09.");
+  assert.equal(getNoticePeriodLabel(announced, now), "ab 01.09.");
+  assert.equal(getNoticePeriodLabel(createNotice({}), now), undefined);
 });

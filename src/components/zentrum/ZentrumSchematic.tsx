@@ -19,7 +19,9 @@ const formatCount = (count: number, one: string, many: string): string =>
  * The caption at the foot of the drawing: what the marks on it are, in as few words as that takes.
  *
  * It says what cannot be read off the drawing — that the marks are estimates rather than fixes, and,
- * while a line is followed, which stretches are the ones still ahead of it. What the reader can
+ * while a line is followed and something of it is running, which stretches are the ones still ahead
+ * of it. A followed line with nothing on it is drawn whole, so what the caption says of it is that
+ * there is nothing to place rather than which stretches are lit. What the reader can
  * already see, they are not told: which lines are drawn, and how many, is the legend beneath, and
  * where the reading came from is the page's provenance footer.
  */
@@ -28,7 +30,9 @@ const getZentrumSchematicCaption = (
   vehicleCount: number,
 ): string =>
   selectedLineId
-    ? `Linie ${selectedLineId} · ${formatCount(vehicleCount, "Bahn", "Bahnen")} · Strecke voraus farbig`
+    ? vehicleCount === 0
+      ? `Linie ${selectedLineId} · derzeit keine Bahn unterwegs`
+      : `Linie ${selectedLineId} · ${formatCount(vehicleCount, "Bahn", "Bahnen")} · Strecke voraus farbig`
     : formatCount(
         vehicleCount,
         "Bahn unterwegs · Position geschätzt",
@@ -145,15 +149,8 @@ export function ZentrumSchematic({
         )}
       </div>
 
-      {/* What the drawing cannot say of itself, said between it and the controls: the marks are
-          estimates, and — while a line is followed — which stretches are the ones still ahead. It
-          stands in the flow rather than over the plan, because its place is constant and the
-          plan's foot is where a phone keeps the names a reader steers by. */}
-      <p className="zentrum-schematic-caption">
-        {getZentrumSchematicCaption(selectedLineId, followedVehicleCount)}
-      </p>
-
       <ZentrumSchematicToolbar
+        caption={getZentrumSchematicCaption(selectedLineId, followedVehicleCount)}
         lineIds={lineIds}
         getSign={getSign}
         selectedLineId={selectedLineId}

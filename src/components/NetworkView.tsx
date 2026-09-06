@@ -11,7 +11,7 @@ import { ObservationEmptyState } from "./ObservationEmptyState";
 import { getGroupedLines } from "../lib/line-families";
 import { LineTermini, getLineTerminiLabel } from "./LineTermini";
 import { SegmentedControl, type SegmentedControlItem } from "./SegmentedControl";
-import { useNetworkBandNav } from "../hooks";
+import { useNetworkBandNavigation } from "../hooks";
 
 /**
  * The list a rider scans, one heading per mode: the rail modes together first — the trams of the
@@ -63,7 +63,7 @@ export function NetworkView({
   // The bands as navigation, not a filter: the page always holds every mode, the bar says which
   // band it is being read in, and a button walks it to another.
   const linesRef = useRef<HTMLDivElement>(null);
-  const { activeBandId, getBandRef, scrollToBand } = useNetworkBandNav(linesRef, {
+  const { activeBandId, getBandRef, scrollToBand } = useNetworkBandNavigation(linesRef, {
     isEnabled: groups.length > 1,
     isPageScrollport: isStacked,
   });
@@ -81,7 +81,7 @@ export function NetworkView({
       </div>
       {groups.length > 1 && (
         <SegmentedControl
-          className="network-band-nav"
+          className="network-band-navigation"
           isNavigation
           value={activeBandId ?? groups[0].transportMode}
           items={bandItems}

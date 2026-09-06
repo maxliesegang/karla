@@ -381,7 +381,7 @@ test("keeps the lines apart where a chain does not call at the rider's stop", ()
   );
 });
 
-test("draws the sibling trip that runs with this one furthest, not the opposite direction", () => {
+test("draws the sibling trip that runs with this one farthest, not the opposite direction", () => {
   const s11Back = departure({
     id: "s11-back",
     lineId: "S11",
@@ -400,7 +400,7 @@ test("draws the sibling trip that runs with this one furthest, not the opposite 
   assert.equal(chosen?.calls.length, s11.tripCalls?.length);
 });
 
-test("uses the sibling's furthest observed end when candidates share the same trunk", () => {
+test("uses the sibling's farthest observed end when candidates share the same trunk", () => {
   const short = {
     lineId: "S11",
     calls: calls(...TRUNK, "langensteinbach"),

@@ -152,10 +152,10 @@ export function getDepartureStatusLabel(departure: Departure): string | undefine
  * wheelchair, a pram or a suitcase actually has to see. So the row prints the operator's own
  * wording for the exception and nothing at all otherwise.
  *
- * The full reading is not lost: it is spoken (`findSpokenVehicleAccess`), where it costs no space
+ * The full reading is not lost: it is spoken (`getSpokenVehicleAccess`), where it costs no space
  * and where a rider who cannot see the board has no other way to it.
  */
-export function findVehicleAccessLabel(departure: Departure): string | undefined {
+export function getVehicleAccessLabel(departure: Departure): string | undefined {
   return departure.vehicleAccess === "notStepFree" ? "nicht barrierefrei" : undefined;
 }
 
@@ -163,7 +163,7 @@ export function findVehicleAccessLabel(departure: Departure): string | undefined
  * The spoken form, which states all three: what the operator said, or nothing where it said
  * nothing. Silence is never spoken as a vehicle with steps.
  */
-function findSpokenVehicleAccess(departure: Departure): string | undefined {
+function getSpokenVehicleAccess(departure: Departure): string | undefined {
   if (departure.vehicleAccess === "stepFree") return "stufenloser Einstieg";
   if (departure.vehicleAccess === "notStepFree") return "nicht barrierefreies Fahrzeug";
   return undefined;
@@ -236,7 +236,7 @@ export function getViaSummary(departure: Departure, callCount = 3): string {
  * moment ago needs no disclaimer; one that has not refreshed for minutes needs one that cannot be
  * mistaken for a live reading.
  */
-export function findStaleBoardLabel(
+export function getStaleBoardLabel(
   departureBoard: DepartureBoard | null,
   feedNow: number,
 ): string | undefined {
@@ -326,7 +326,7 @@ export function getDepartureAccessibilityLabel(departure: Departure, feedNow?: n
     // Whether a rider can board at all outranks everything after it but the operator's own remark.
     ...(departure.status === "cancelled"
       ? []
-      : ([findSpokenVehicleAccess(departure)].filter(Boolean) as string[])),
+      : ([getSpokenVehicleAccess(departure)].filter(Boolean) as string[])),
     ...(departure.serviceNote ? [`Hinweis: ${departure.serviceNote}`] : []),
   ].join(", ");
 }

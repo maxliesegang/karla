@@ -3,6 +3,7 @@ import {
   extendFailureStreak,
   getBackoffDelayMs,
   isAwayEvidence,
+  isVisibleResumeEvent,
   type FailureStreak,
   type LoadFailureKind,
   type ResumeEventType,
@@ -78,6 +79,10 @@ export function useKeyedLoad<T>(
     let resumeTimer = 0;
     let failureStreak: FailureStreak | undefined;
     let lastLoadStartedAt = 0;
+    // A resume can start a new request while the one Safari suspended is still in flight. Only the
+    // newest request may publish or schedule the next cycle; otherwise the old response can land
+    // last and replace the reading fetched after the page became active again.
+    let loadSequence = 0;
     // Set by the event that took the page away and consumed by the one that brings it back, so a
     // return is forgiven once rather than on every focus for as long as the streak stands.
     let hasBeenAway = false;
@@ -93,30 +98,36 @@ export function useKeyedLoad<T>(
       timer = window.setTimeout(refresh, Math.max(0, delayMs));
     };
 
-    const settle = (value: T | undefined, failureKind: LoadFailureKind | undefined) => {
-      if (!active) return;
+    const settle = (
+      sequence: number,
+      value: T | undefined,
+      failureKind: LoadFailureKind | undefined,
+    ) => {
+      if (!active || sequence !== loadSequence) return;
       failureStreak = failureKind ? extendFailureStreak(failureStreak, failureKind) : undefined;
       setLoaded({ key, value });
       scheduleNext();
     };
 
     const refresh = () => {
+      const sequence = ++loadSequence;
       lastLoadStartedAt = Date.now();
       load(key).then(
-        (value) => settle(value, isFailure?.(value) ? "unavailable" : undefined),
-        () => settle(undefined, "transient"),
+        (value) => settle(sequence, value, isFailure?.(value) ? "unavailable" : undefined),
+        () => settle(sequence, undefined, "transient"),
       );
     };
 
     const resumeRefreshing = (event: Event) => {
       if (!active || refreshMs === undefined) return;
-      if (isAwayEvidence(event.type as ResumeEventType)) hasBeenAway = true;
+      const eventType = event.type as ResumeEventType;
+      if (isAwayEvidence(eventType)) hasBeenAway = true;
       // The state an event announces and the state the document reports while it is delivered do
       // not always agree, so the due reading happens one tick after the event rather than in it —
       // which is also where a page on its way out is told from one on its way back.
       window.clearTimeout(resumeTimer);
       resumeTimer = window.setTimeout(() => {
-        if (!active || document.visibilityState === "hidden") return;
+        if (!active || !isVisibleResumeEvent(eventType, document.visibilityState)) return;
         if (hasBeenAway) failureStreak = undefined;
         hasBeenAway = false;
         const dueInMs = lastLoadStartedAt + getRefreshDelayMs() - Date.now();

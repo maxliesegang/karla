@@ -11,7 +11,7 @@ import {
 import { type ZentrumSchematicStopMark } from "../../lib/zentrum-schematic-stops";
 
 /** One line pattern the drawing paints, with the sign it is painted in. */
-export type ZentrumDrawnLinePath = ZentrumSchematicDrawnPath & {
+export type ZentrumSchematicDrawnLinePath = ZentrumSchematicDrawnPath & {
   /** The sign the pattern is painted in, as the live network states the line. */
   sign: TransitLine;
 };
@@ -32,7 +32,7 @@ export const ZentrumSchematicDrawing = memo(function ZentrumSchematicDrawing({
   trackWidth,
 }: {
   edges: readonly ZentrumSchematicEdge[];
-  drawnLinePaths: readonly ZentrumDrawnLinePath[];
+  drawnLinePaths: readonly ZentrumSchematicDrawnLinePath[];
   stopMarks: readonly ZentrumSchematicStopMark[];
   /** The line being followed, which is painted at full strength while the rest of the band recedes. */
   selectedLineId?: string;
@@ -49,6 +49,13 @@ export const ZentrumSchematicDrawing = memo(function ZentrumSchematicDrawing({
   // that same width for the colours to meet. The layout is where that width is decided; the
   // stylesheet is told it here rather than keeping a second copy of it that could drift.
   const trackStyle = { "--zentrum-schematic-track-width": trackWidth } as CSSProperties;
+  // A followed line is lit stretch by stretch only while something of it is running. With nothing
+  // on the line there is no "ahead" to say, and lighting it anyway painted the whole line grey --
+  // so the one line a reader had asked the plan to show them was the one line they could not see.
+  // Then it is simply drawn in its colour, which is the answer to "where does line 1 go".
+  const hasVehiclesAhead = [...(aheadEdgeIdsByTrackId?.values() ?? [])].some(
+    (edgeIds) => edgeIds.size > 0,
+  );
   return (
     <svg
       viewBox={`${ZENTRUM_SCHEMATIC_VIEWBOX.x} ${ZENTRUM_SCHEMATIC_VIEWBOX.y} ${ZENTRUM_SCHEMATIC_VIEWBOX.width} ${ZENTRUM_SCHEMATIC_VIEWBOX.height}`}
@@ -56,16 +63,6 @@ export const ZentrumSchematicDrawing = memo(function ZentrumSchematicDrawing({
       aria-hidden="true"
       focusable="false"
     >
-      {edges.map((edge) => (
-        <line
-          key={edge.id}
-          className="zentrum-schematic-corridor"
-          x1={edge.from.x}
-          y1={edge.from.y}
-          x2={edge.to.x}
-          y2={edge.to.y}
-        />
-      ))}
       {drawnLinePaths.map((linePath) => (
         <path
           key={`casing:${linePath.id}`}
@@ -92,7 +89,7 @@ export const ZentrumSchematicDrawing = memo(function ZentrumSchematicDrawing({
         const isFollowed =
           selectedLineId !== undefined && linePath.lineIds.includes(selectedLineId);
         const isDimmed = selectedLineId !== undefined && !isFollowed;
-        const lightsAhead = isFollowed && aheadEdgeIdsByTrackId !== undefined;
+        const lightsAhead = isFollowed && hasVehiclesAhead;
         const aheadEdgeIds = aheadEdgeIdsByTrackId?.get(linePath.trackId);
         const segments = lightsAhead
           ? getZentrumSchematicLinePathSegments(linePath, edges, trackWidth)

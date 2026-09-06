@@ -13,7 +13,7 @@ import type {
   TransitNetwork,
   TripReading,
 } from "./transit-types";
-import { DepartureMemory, type CachedTrip } from "./departure-memory";
+import { DepartureMemory, type RememberedTrip } from "./departure-memory";
 import {
   DirectionCoverageCompleter,
   readDirectionCoverage,
@@ -167,7 +167,7 @@ export class KvvTransitSource implements TransitSource {
   /** Keyed by stop and variant. Every board dates itself, so how old one is needs no second field. */
   private readonly departureBoardCache = new Map<string, DepartureBoard>();
   private readonly boardRequests = new SharedRequests<DepartureBoard>();
-  private readonly tripRequests = new SharedRequests<CachedTrip | undefined>();
+  private readonly tripRequests = new SharedRequests<RememberedTrip | undefined>();
   private readonly lineRouteRequests = new SharedRequests<readonly string[] | undefined>();
   /**
    * One route per line-direction, kept for the session.
@@ -601,12 +601,12 @@ export class KvvTransitSource implements TransitSource {
   private requestTrip(
     departureId: string,
     locator: KvvTripLocator,
-  ): Promise<CachedTrip | undefined> {
+  ): Promise<RememberedTrip | undefined> {
     return this.tripRequests.share(departureId, () =>
       this.client
         .fetchTrip(locator)
         .then((trip) => {
-          const read: CachedTrip = { receivedAt: Date.now(), trip };
+          const read: RememberedTrip = { receivedAt: Date.now(), trip };
           // The fetched sequence is the fuller statement of where this run ends; the row it was
           // asked for may have carried no calls at all.
           this.departures.rememberTrip(departureId, read);

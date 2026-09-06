@@ -22,7 +22,7 @@ export function isDepartureWithin(departure: Departure, from: number, until: num
  * id exactly as before rather than by a description `createDepartureId` has already refused. Joined
  * portions share a train number but never a destination, so they are never folded into one row.
  */
-export function findRunKey(departure: Departure): string | undefined {
+export function getRunKey(departure: Departure): string | undefined {
   if (!departure.trainNumber) return undefined;
   return [
     departure.trainNumber,
@@ -47,7 +47,7 @@ export function keepOneRowPerRun(departures: readonly Departure[]): Departure[] 
   const indexByRunKey = new Map<string, number>();
   const kept: Departure[] = [];
   for (const departure of departures) {
-    const runKey = findRunKey(departure);
+    const runKey = getRunKey(departure);
     const knownIndex = runKey === undefined ? undefined : indexByRunKey.get(runKey);
     if (knownIndex === undefined) {
       if (runKey !== undefined) indexByRunKey.set(runKey, kept.length);
@@ -73,14 +73,14 @@ export function createRunCollector(base: readonly Departure[]) {
   const runKeys = new Set<string>();
   for (const departure of base) {
     departureById.set(departure.id, departure);
-    const runKey = findRunKey(departure);
+    const runKey = getRunKey(departure);
     if (runKey) runKeys.add(runKey);
   }
   return {
     departureById: departureById as ReadonlyMap<string, Departure>,
     /** Adds a departure unless the run it names has already been stated; says whether it was added. */
     add(departure: Departure): boolean {
-      const runKey = findRunKey(departure);
+      const runKey = getRunKey(departure);
       if (runKey) {
         if (runKeys.has(runKey)) return false;
         runKeys.add(runKey);

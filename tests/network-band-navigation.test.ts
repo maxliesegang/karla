@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { findNetworkBandIdInView } from "../src/lib/network-band-nav.ts";
+import { findNetworkBandIdInView } from "../src/lib/network-band-navigation.ts";
 
 /**
  * The reading line is where a band's top edge counts as having arrived — the same height the sticky

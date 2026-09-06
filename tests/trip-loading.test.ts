@@ -226,6 +226,130 @@ test("a terminus uses its valid arrival delay instead of its invalid departure p
   assert.equal(terminus.scheduledDepartureTime, undefined);
 });
 
+test("the row's own call is marked once, where the trip calls at that stop three times", () => {
+  // Waidweg's terminus loop, as line 3 really reports it: the vehicle is timed into the loop's
+  // entry point (Gleis 1) at 23:42, stands at the public Gleis 3 — the row's own 23:44 — and
+  // parks on Gleis 2 at 23:45, where the feed says the run ends (timed into, out of nothing).
+  // All three are stop point `7000306`. Marking every call at the echoed stop left the row's
+  // identity ambiguous: the `über …` beside the row named the stop itself, the mark was re-timed
+  // from the loop's entry point, and the diagram drew the terminus as three stops.
+  const waidwegLocator: KvvTripLocator = {
+    tripCode: "1125",
+    line: "kvv:21003:E:H:s26",
+    stopPointId: "7000306",
+    date: "20260905",
+    time: "2344",
+  };
+  const waidwegPayload = {
+    parameters: [{ name: "serverTime", value: "2026-09-05T23:44:45" }],
+    vehicleCallAtStop: {
+      stopID: "7000306",
+      tC: "1125",
+      time: "23:44",
+      line: "kvv:21003:E:H:s26",
+    },
+    stopSeq: [
+      {
+        nameWO: "Hammweg",
+        place: "Daxlanden",
+        platformName: "Gleis 1",
+        ref: {
+          id: "7000305",
+          platform: "1",
+          arrDateTimeSec: "20260905 23:41:18",
+          depDateTimeSec: "20260905 23:41:30",
+          arrValid: "1",
+          depValid: "1",
+        },
+      },
+      {
+        nameWO: "Waidweg",
+        place: "Daxlanden",
+        platformName: "Gleis 1",
+        ref: {
+          id: "7000306",
+          platform: "1",
+          arrDateTimeSec: "20260905 23:42:06",
+          depDateTimeSec: "20260905 23:42:30",
+          arrValid: "1",
+          depValid: "1",
+        },
+      },
+      {
+        nameWO: "Waidweg",
+        place: "Daxlanden",
+        platformName: "",
+        ref: {
+          id: "7000306",
+          platform: "3",
+          arrDateTimeSec: "20260905 23:42:48",
+          depDateTimeSec: "20260905 23:44:48",
+          arrValid: "1",
+          depValid: "1",
+        },
+      },
+      {
+        nameWO: "Waidweg",
+        place: "Daxlanden",
+        platformName: "Gleis 2",
+        ref: {
+          id: "7000306",
+          platform: "2",
+          arrDateTimeSec: "20260905 23:45:42",
+          arrValid: "1",
+          depValid: "0",
+        },
+      },
+    ],
+  };
+
+  const trip = parseTripResponse(waidwegPayload, waidwegLocator);
+  const marked = trip.tripCalls.filter(({ isCurrentStop }) => isCurrentStop);
+
+  assert.equal(marked.length, 1);
+  assert.equal(marked[0].platformCode, "3");
+  assert.equal(marked[0].scheduledDepartureTime, "2026-09-05T21:44:48.000Z");
+  // The operator signs the platform `3` and never words it; the label keeps the number, the way
+  // the board's own row is completed — the one thing that parts the stop's repeated rows.
+  assert.equal(marked[0].platformLabel, "3");
+  // The run-end call stays unmarked, so the pair the feed itself marks can still be folded.
+  assert.equal(trip.tripCalls[3].isCurrentStop, undefined);
+});
+
+test("a call the minute cannot name still marks the stop's first call", () => {
+  const waidwegLocator: KvvTripLocator = {
+    tripCode: "1125",
+    line: "kvv:21003:E:H:s26",
+    stopPointId: "7000306",
+    date: "20260905",
+    time: "2359",
+  };
+  const waidwegPayload = {
+    parameters: [{ name: "serverTime", value: "2026-09-05T23:44:45" }],
+    vehicleCallAtStop: {
+      stopID: "7000306",
+      tC: "1125",
+      time: "23:44",
+      line: "kvv:21003:E:H:s26",
+    },
+    stopSeq: [
+      {
+        nameWO: "Waidweg",
+        ref: { id: "7000306", depDateTimeSec: "20260905 23:42:30", depValid: "1" },
+      },
+      {
+        nameWO: "Waidweg",
+        ref: { id: "7000306", depDateTimeSec: "20260905 23:44:48", depValid: "1" },
+      },
+    ],
+  };
+
+  const trip = parseTripResponse(waidwegPayload, waidwegLocator);
+
+  assert.equal(trip.tripCalls.filter(({ isCurrentStop }) => isCurrentStop).length, 1);
+  assert.equal(trip.tripCalls[0].isCurrentStop, true);
+});
+
 test("HTTP 200 with an empty or mismatched trip is a provider failure", () => {
   assert.throws(
     () => parseTripResponse({ vehicleCallAtStop: {}, stopSeq: [] }, locator),

@@ -9,8 +9,8 @@ import type {
   TransitNetwork,
 } from "../data/transit-types";
 import {
-  findStaleBoardLabel,
-  findVehicleAccessLabel,
+  getStaleBoardLabel,
+  getVehicleAccessLabel,
   getCountdownReading,
   getDepartureAccessibilityLabel,
   getDepartureStatusLabel,
@@ -156,7 +156,7 @@ function DepartureRow({
   // desktop were different places. Where the ride is what the rider wants, the diagram this opens
   // carries the control that starts it.
   const timeReading = getDepartureTimeReading(departure);
-  const vehicleAccessLabel = findVehicleAccessLabel(departure);
+  const vehicleAccessLabel = getVehicleAccessLabel(departure);
   const nextCompatibleReading = nextCompatibleDeparture
     ? getCountdownReading(nextCompatibleDeparture, feedNow)
     : undefined;
@@ -452,7 +452,7 @@ export function DepartureBoardPanel({
       isGroupedByLine ? getStopServiceCorridorLineGroups(visibleDepartures, corridorPatterns) : [],
     [corridorPatterns, isGroupedByLine, visibleDepartures],
   );
-  const staleLabel = findStaleBoardLabel(departureBoard, feedNow);
+  const staleLabel = getStaleBoardLabel(departureBoard, feedNow);
   const joinedPairs = useMemo(
     () => getJoinedTripPortionPairs(completedLineDepartures),
     [completedLineDepartures],

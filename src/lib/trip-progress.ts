@@ -1,5 +1,5 @@
 import type { TripCall } from "../data/transit-types";
-import { locateOnTripCalls, type RidePositionFix } from "./ride-location";
+import { getRidePlacement, type RidePositionFix } from "./ride-position";
 import { getTripCallInstant } from "./trip-calls";
 
 /**
@@ -18,7 +18,7 @@ import { getTripCallInstant } from "./trip-calls";
  * fix is in hand it decides which call is next and how much of the link to it is left — the feed's
  * estimate says when the vehicle is *due* to have left a stop, the fix says whether it has. The
  * timetable is still what turns the remaining distance into minutes, because it is the only account
- * of how long this link takes. A fix that cannot be placed (see `lib/ride-location.ts`) changes
+ * of how long this link takes. A fix that cannot be placed (see `lib/ride-position.ts`) changes
  * nothing: the reading falls back to the feed's, and says which of the two it is.
  */
 
@@ -85,11 +85,11 @@ export function getTripProgress(
 
   const scheduledNextIndex = tripCalls.findIndex((call) => !isPast(call));
   // The trip is over when the feed says its last call is behind the vehicle; a fix cannot extend a
-  // ride past its end, so location is only consulted while the trip is still running.
-  const location =
-    fix && scheduledNextIndex >= 0 ? locateOnTripCalls(tripCalls, fix, scheduledNextIndex) : null;
+  // ride past its end, so placement is only consulted while the trip is still running.
+  const placement =
+    fix && scheduledNextIndex >= 0 ? getRidePlacement(tripCalls, fix, scheduledNextIndex) : null;
 
-  const nextIndex = location ? location.nextCallIndex : scheduledNextIndex;
+  const nextIndex = placement ? placement.nextCallIndex : scheduledNextIndex;
   const passedCallCount = nextIndex < 0 ? tripCalls.length : nextIndex;
   const nextCall = nextIndex < 0 ? undefined : tripCalls[nextIndex];
   const nextCallInstant = getTripCallInstant(nextCall);
@@ -97,10 +97,10 @@ export function getTripProgress(
     nextCallInstant === undefined
       ? undefined
       : Math.max(0, Math.round((nextCallInstant - feedNow) / 60_000));
-  const locatedMinutes = location
-    ? getMinutesFromLinkProgress(tripCalls, location.nextCallIndex, location.linkProgress)
+  const placedMinutes = placement
+    ? getMinutesFromLinkProgress(tripCalls, placement.nextCallIndex, placement.linkProgress)
     : undefined;
-  const minutesToNextCall = location ? (locatedMinutes ?? scheduledMinutes) : scheduledMinutes;
+  const minutesToNextCall = placement ? (placedMinutes ?? scheduledMinutes) : scheduledMinutes;
 
   const alightingIndex = alightingStopId
     ? tripCalls.findIndex((call) => call.localStopId === alightingStopId)
@@ -110,10 +110,10 @@ export function getTripProgress(
     alightingIndex >= 0 && !isAlightingPassed ? tripCalls[alightingIndex] : undefined;
 
   return {
-    // A located reading whose minutes had to come from the timetable is still a located reading:
+    // A placed reading whose minutes had to come from the timetable is still a placed reading:
     // which stop is next is the fact the rider reads first, and that one came from the fix.
-    source: location ? "position" : "schedule",
-    metersToNextCall: location?.metersToNextCall,
+    source: placement ? "position" : "schedule",
+    metersToNextCall: placement?.metersToNextCall,
     nextCall,
     minutesToNextCall: nextCall ? minutesToNextCall : undefined,
     passedCallCount,

@@ -178,14 +178,28 @@ type ScheduledCall = {
 };
 
 /**
- * The call the board row itself describes: the one the producing board marked, or failing that the
- * one that resolves to the stop the row was read at.
+ * The call the board row itself describes: the one the producing board marked — but only where the
+ * mark is about the stop the row was read at, and that stop's own call otherwise.
+ *
+ * A run read as rows is read once and merged into every stop's row of it
+ * (`getLineDepartureBoards`), so one reading's marker travels with copies of the row it was not
+ * read from. Taking a marked call at *another* stop as this row's boarding call re-timed the run
+ * from there: the row's own prediction, measured against another stop's departure, read as a
+ * correction and moved every call past it. The stop is the question that is actually being asked —
+ * which call of the rider's stop the row was published at — and the marker answers it only at the
+ * stop it was made for.
  */
 function findBoardingCallIndex(departure: Departure, calls: readonly TripCall[]): number {
-  const marked = calls.findIndex((call) => call.isCurrentStop);
-  return marked >= 0
-    ? marked
-    : calls.findIndex((call) => call.localStopId === departure.boardingLocalStopId);
+  const boardingStopId = departure.boardingLocalStopId;
+  const firstAtStop =
+    boardingStopId === undefined
+      ? -1
+      : calls.findIndex((call) => call.localStopId === boardingStopId);
+  if (firstAtStop < 0) return calls.findIndex((call) => call.isCurrentStop);
+  const markedAtStop = calls.findIndex(
+    (call) => call.isCurrentStop && call.localStopId === boardingStopId,
+  );
+  return markedAtStop >= 0 ? markedAtStop : firstAtStop;
 }
 
 /** Calls that can carry a mark: a known stop, a known row in the diagram, and a known time. */

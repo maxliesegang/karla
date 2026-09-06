@@ -381,7 +381,7 @@ test("orders a shared straight by the side on which its lines leave", () => {
   );
 
   // A later branch on the same side nests inside an earlier one: Karl-Wilhelm is above the
-  // eastbound line, Augartenstraße leaves below that at Marktplatz, and Karlstor leaves furthest
+  // eastbound line, Augartenstraße leaves below that at Marktplatz, and Karlstor leaves farthest
   // below at Europaplatz. No line has to cross another to reach its branch.
   assert.deepEqual(westCorridor?.trackLineIds, ["3", "1", "4", "2"]);
   assert.match(pathData.get("3") ?? "", /^M 110\.00 143\.50 /);

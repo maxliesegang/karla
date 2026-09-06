@@ -30,13 +30,13 @@ export type RidePositionFix = {
 };
 
 /** Wider than this and the fix cannot tell one link of an urban line from the next. */
-export const MAX_FIX_ACCURACY_METERS = 250;
+export const MAX_RIDE_POSITION_FIX_ACCURACY_METERS = 250;
 /** How far off the line a fix may land before it stops being evidence about this trip. */
-export const MAX_OFF_ROUTE_METERS = 400;
+export const MAX_RIDE_POSITION_OFF_ROUTE_METERS = 400;
 /** Two links this close to equally good are not distinguished by distance; the timetable decides. */
 const AMBIGUOUS_LINK_MARGIN_METERS = 120;
 
-export type RideLocation = {
+export type RidePlacement = {
   /** Index into the trip's calls of the stop the vehicle is running towards. */
   nextCallIndex: number;
   /** 0 at the call behind, 1 at the call ahead: how far along that link the fix sits. */
@@ -73,12 +73,15 @@ function projectOntoLink(from: LocalPoint, to: LocalPoint) {
  * `preferredCallIndex` is the timetable's own reading of which call is next; it settles a tie
  * between two passes over the same ground and is ignored where the fix is unambiguous.
  */
-export function locateOnTripCalls(
+export function getRidePlacement(
   calls: readonly TripCall[],
   fix: RidePositionFix,
   preferredCallIndex?: number,
-): RideLocation | null {
-  if (!Number.isFinite(fix.accuracyMeters) || fix.accuracyMeters > MAX_FIX_ACCURACY_METERS) {
+): RidePlacement | null {
+  if (
+    !Number.isFinite(fix.accuracyMeters) ||
+    fix.accuracyMeters > MAX_RIDE_POSITION_FIX_ACCURACY_METERS
+  ) {
     return null;
   }
 
@@ -90,13 +93,13 @@ export function locateOnTripCalls(
 
   // A link needs both of its ends. Where the feed omits a call's coordinates the ground on either
   // side of it is simply not covered, rather than being spanned by a link that skips a stop.
-  const candidates: RideLocation[] = [];
+  const candidates: RidePlacement[] = [];
   for (let index = 0; index < calls.length - 1; index += 1) {
     const from = points[index];
     const to = points[index + 1];
     if (!from || !to) continue;
     const { progress, length, distance } = projectOntoLink(from, to);
-    if (distance > MAX_OFF_ROUTE_METERS + fix.accuracyMeters) continue;
+    if (distance > MAX_RIDE_POSITION_OFF_ROUTE_METERS + fix.accuracyMeters) continue;
     candidates.push({
       nextCallIndex: index + 1,
       linkProgress: progress,
@@ -111,7 +114,7 @@ export function locateOnTripCalls(
   );
   if (preferredCallIndex === undefined) return nearest;
   // Among the links the fix cannot tell apart, the timetable's own place in the sequence decides.
-  const distanceFromPreferred = (candidate: RideLocation) =>
+  const distanceFromPreferred = (candidate: RidePlacement) =>
     Math.abs(candidate.nextCallIndex - preferredCallIndex);
   return candidates
     .filter(

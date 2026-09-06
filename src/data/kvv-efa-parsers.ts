@@ -185,9 +185,7 @@ export function parseDepartureBoardResponse(
       : "";
   const departureEntries = Array.isArray(payload.departureList) ? payload.departureList : [];
   const servingLines = isRecord(payload.servingLines)
-    ? readRecordList(payload.servingLines.lines).filter((line) =>
-        isLocalNetworkMode(readOptionalString(isRecord(line.mode) ? line.mode.type : undefined)),
-      )
+    ? readRecordList(payload.servingLines.lines)
     : [];
 
   return {
@@ -277,6 +275,9 @@ function findPublishedDelayMinutes(
  * Named the same way a row is (`symbol` before `number`), because the whole use of this is to
  * recognise a line by the id a departure of it would have stated — read from a different corner of
  * the same answer, and available when no departure of that line is due.
+ *
+ * Only the local network's line-directions are kept, read by the same rule a row is — every one of
+ * these is a board the coverage pass would otherwise go and query.
  */
 function parseServingLines(lines: readonly Record<string, unknown>[]): KvvServingLine[] {
   const byDirectionId = new Map<string, KvvServingLine>();
@@ -289,7 +290,12 @@ function parseServingLines(lines: readonly Record<string, unknown>[]): KvvServin
       readOptionalString(mode?.symbol) ??
       readOptionalString(mode?.number) ??
       readOptionalString(line.number);
-    if (!directionId || byDirectionId.has(directionId)) continue;
+    if (
+      !directionId ||
+      !isLocalNetworkLine(readOptionalString(mode?.type), directionId) ||
+      byDirectionId.has(directionId)
+    )
+      continue;
     byDirectionId.set(directionId, lineId ? { lineId, directionId } : { directionId });
   }
   return [...byDirectionId.values()];
@@ -300,7 +306,8 @@ function parseDeparture(entry: Record<string, unknown>): KvvDeparture | null {
   const lineId = readOptionalString(servingLine?.symbol) ?? readOptionalString(servingLine?.number);
   const destination = readOptionalString(servingLine?.direction);
   if (!servingLine || !lineId || !destination) return null;
-  if (!isLocalNetworkMode(readOptionalString(servingLine.motType))) return null;
+  const motType = readOptionalString(servingLine.motType);
+  if (!isLocalNetworkLine(motType, readOptionalString(servingLine.stateless))) return null;
 
   const delayMinutes = parseDelayMinutes(servingLine.delay);
   const tripStatus =
@@ -335,7 +342,7 @@ function parseDeparture(entry: Record<string, unknown>): KvvDeparture | null {
     trainNumber: readOptionalString(servingLine.trainNum),
     lineId,
     routeDirectionId: readOptionalString(servingLine.stateless),
-    transportMode: parseTransportMode(readOptionalString(servingLine.motType)),
+    transportMode: parseTransportMode(motType),
     destination: plainDestination,
     minutesUntilDeparture: Math.max(
       0,
@@ -433,11 +440,9 @@ export function parseTripResponse(payload: unknown, locator: KvvTripLocator): Kv
     throw new KvvEfaError(`Fahrt ${locator.tripCode}: nicht gefunden`);
   }
 
+  const rowCallIndex = findRowCallIndex(entries, locator);
   const tripCalls = entries
-    .map((entry) => {
-      const ref = isRecord(entry.ref) ? entry.ref : undefined;
-      return parseTripCall(entry, readOptionalString(ref?.id) === locator.stopPointId);
-    })
+    .map((entry, index) => parseTripCall(entry, index === rowCallIndex))
     .filter((call): call is KvvTripCall => call !== null);
   if (tripCalls.length === 0) throw new KvvEfaError(`Fahrt ${locator.tripCode}: keine Halte`);
 
@@ -454,6 +459,41 @@ export function parseTripResponse(payload: unknown, locator: KvvTripLocator): Kv
     tripCalls,
     status,
   };
+}
+
+/**
+ * The one call the row the trip was asked for is about, as its index in the answer's sequence.
+ *
+ * The echo states which stop the row was read at, and the locator states the minute the row was
+ * published for — read off the same components the row's own departure was read from
+ * (`parseTripLocator`), so the call departing in that minute is the row's. The stop alone cannot
+ * say it: a terminus loop is reported at the track the vehicle enters by, at the platform the
+ * public uses, and at the one it parks on, all under one stop id, and everything that reads the
+ * trip — the collapse of its turnaround pair, the route past the rider's stop, where its mark
+ * stands — takes the marked call first. Marking all of them made those readings disagree about
+ * where the row was: a `über …` that named the stop itself, a mark re-timed from the loop's
+ * entry point, and a terminus drawn as three stops.
+ *
+ * The wire's own `YYYYMMDD HH:MM` spelling is what is compared, so a sequence timed to the second
+ * matches the minute the row truncated it to. Where nothing does — a revision between the two
+ * readings — the first call at the echoed stop is the floor the reading falls back to.
+ */
+function findRowCallIndex(
+  entries: readonly Record<string, unknown>[],
+  locator: KvvTripLocator,
+): number {
+  const minute = `${locator.date} ${locator.time.slice(0, 2)}:${locator.time.slice(2)}`;
+  const atStop = (entry: Record<string, unknown>): boolean => {
+    const ref = isRecord(entry.ref) ? entry.ref : undefined;
+    return readOptionalString(ref?.id) === locator.stopPointId;
+  };
+  const rowCallIndex = entries.findIndex((entry) => {
+    if (!atStop(entry)) return false;
+    const ref = isRecord(entry.ref) ? entry.ref : undefined;
+    const departure = readOptionalString(ref?.depDateTimeSec ?? ref?.depDateTime);
+    return departure !== undefined && departure.startsWith(minute);
+  });
+  return rowCallIndex >= 0 ? rowCallIndex : entries.findIndex(atStop);
 }
 
 /**
@@ -565,13 +605,18 @@ function parseTripCall(
   // account to be reconciled with this one — it is the only account there is.
   const delayMinutes =
     departureDelayMinutes ?? arrivalDelayMinutes ?? (ref ? undefined : rowCall?.delayMinutes);
+  const platformCode = readOptionalString(ref?.platform) ?? readOptionalString(entry.platform);
   return {
     stopName: name,
     // The locality is stated beside the name rather than folded into it: which municipality a
     // `Bahnhof` belongs to is what the views outside it have to add back.
     placeName: readOptionalString(entry.place),
-    platformLabel: readOptionalString(entry.platformName),
-    platformCode: readOptionalString(ref?.platform) ?? readOptionalString(entry.platform),
+    // The operator names a platform where it names one and states only the code where it does not
+    // (`Waidweg` signs its third platform `3` and calls the others `Gleis 1`/`Gleis 2`). Two rows of
+    // one stop are parted by this label alone, so a call the operator numbered but never worded
+    // keeps its number — exactly as the board's own row is completed in `parseTripCalls`.
+    platformLabel: readOptionalString(entry.platformName) ?? platformCode,
+    platformCode,
     providerId: readOptionalString(ref?.id) ?? readOptionalString(entry.stopID),
     isCurrentStop: isCurrentStop || undefined,
     latitude: coordinates?.latitude,
@@ -795,6 +840,38 @@ const LOCAL_NETWORK_MOT_TYPES = new Set(["1", "4", "5", "6", "11"]);
 /** An unstated mode is unknown, not foreign: only a mode the feed states and names is left out. */
 function isLocalNetworkMode(motType: string | undefined): boolean {
   return motType === undefined || LOCAL_NETWORK_MOT_TYPES.has(motType);
+}
+
+/**
+ * The data pool the operator publishes a line under, stated as the leading segment of the line's
+ * own id (`kvv:22304:E:H:s26` is KVV's own; `ddb:92V06: :H:j26` is the DB's). This server answers
+ * for more than KVV's own network, and the pool is the only place it says whose line one is: at the
+ * Hauptbahnhof the DB-pooled S-Bahn Rhein-Neckar — S3, S6 and S9, running through to Karlsruhe
+ * since the December 2025 timetable change — shares the Stadtbahn's motType `1`, and the express
+ * trains' rail replacement (`rab:…`, SEV RE7) shares the bus group's motType `6`. Measured there on
+ * 5 September 2026: every line KVV publishes itself answers from the `kvv` pool, at this and every
+ * other stop read.
+ */
+const LOCAL_NETWORK_POOL = "kvv";
+
+/** An unstated pool is unknown, not foreign, like an unstated mode. */
+function isLocalNetworkPool(lineStatelessId: string | undefined): boolean {
+  if (lineStatelessId === undefined) return true;
+  const pool = lineStatelessId.slice(0, lineStatelessId.indexOf(":"));
+  return !lineStatelessId.includes(":") || pool === LOCAL_NETWORK_POOL;
+}
+
+/**
+ * A line is of the network KARLA reads where the feed states it so twice: its mode is one the local
+ * network runs, and its id names the operator's own pool. Either statement alone is too coarse, and
+ * a line pooled elsewhere is left out at the one place both its rows and the serving directions the
+ * coverage pass would query are read.
+ */
+function isLocalNetworkLine(
+  motType: string | undefined,
+  lineStatelessId: string | undefined,
+): boolean {
+  return isLocalNetworkMode(motType) && isLocalNetworkPool(lineStatelessId);
 }
 
 function parseTransportMode(motType: string | undefined): TransportMode {

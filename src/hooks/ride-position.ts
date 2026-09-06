@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { MAX_FIX_ACCURACY_METERS, type RidePositionFix } from "../lib/ride-location";
+import { MAX_RIDE_POSITION_FIX_ACCURACY_METERS, type RidePositionFix } from "../lib/ride-position";
 import { IS_GEOLOCATION_SUPPORTED, isPermissionDenied, useGrantedGeolocation } from "./geolocation";
 
 /**
@@ -67,7 +67,7 @@ export function useRidePosition(isEnabled: boolean): RidePositionController {
         const remaining = FIX_LIFETIME_MS - Math.max(0, Date.now() - timestamp);
         const accuracyMeters = coords.accuracy ?? Number.POSITIVE_INFINITY;
         clearTimeout(expiryRef.current);
-        if (remaining <= 0 || accuracyMeters > MAX_FIX_ACCURACY_METERS) {
+        if (remaining <= 0 || accuracyMeters > MAX_RIDE_POSITION_FIX_ACCURACY_METERS) {
           setReading({ kind: "pending" });
           return;
         }

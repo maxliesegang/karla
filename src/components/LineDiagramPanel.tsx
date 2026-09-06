@@ -23,11 +23,10 @@ import { LineDiagramVehicleLayer } from "./line-diagram/LineDiagramVehicleLayer"
 import { LineDiagramBranch } from "./line-diagram/LineDiagramBranch";
 import { LineDiagramBundleControls } from "./line-diagram/LineDiagramBundleControls";
 import { LineDiagramLineSigns } from "./line-diagram/LineDiagramLineSigns";
-import { EMPTY_BRANCH_VEHICLES } from "./line-diagram/bundle";
+import { EMPTY_LINE_BUNDLE_BRANCH_VEHICLES } from "./line-diagram/bundle";
 import {
   useCurrentStopMove,
   useStopPlacement,
-  useTopTerminusSummary,
   useRequestedTripPosition,
   useVehicleLayerGeometry,
 } from "./line-diagram/layout";
@@ -87,8 +86,6 @@ type LineDiagramPanelProps = {
    * in the ride the row's tap is reused for the one choice they do have.
    */
   onToggleAlighting?: (stopId: string) => void;
-  /** A stacked layout scrolls the document, so the diagram cannot scroll itself into position. */
-  isStacked?: boolean;
   /** Incremented by the ride status when the rider asks to see the trip on the line. */
   tripPositionRequest?: number;
   /**
@@ -117,7 +114,6 @@ export function LineDiagramPanel({
   isRide,
   alightingStopId,
   onToggleAlighting,
-  isStacked = false,
   tripPositionRequest = 0,
   rideNextCall,
 }: LineDiagramPanelProps) {
@@ -165,17 +161,24 @@ export function LineDiagramPanel({
   const aheadTermini = getLineBundleTermini(branches, "ahead", termini.firstTerminus);
   const behindTermini = getLineBundleTermini(branches, "behind", termini.lastTerminus);
   const hasHeadingTermini = aheadTermini.length > 0 && behindTermini.length > 0;
-  const renderTermini = (names: readonly string[]) => (
+  // One arrow per end, and no word for it. Which of the two ends is drawn at the top of the list is
+  // the only thing the heading has to add to the names themselves, and an arrow says it in the room
+  // a label would have taken from the names — which are what a reader actually steers by.
+  const renderHeadingEnd = (arrow: "↑" | "↓", names: readonly string[]) => (
     <span
-      className={classNames("line-diagram-termini", names.length > 1 && "branched")}
+      className="line-diagram-heading-end"
       role="group"
-      aria-label={names.join(" oder ")}
+      aria-label={`${arrow === "↑" ? "Oben" : "Unten"} Richtung ${names.join(" oder ")}`}
     >
-      {names.map((name) => (
-        <span key={name} aria-hidden="true">
-          {name}
-        </span>
-      ))}
+      <i aria-hidden="true">{arrow}</i>
+      <span
+        className={classNames("line-diagram-termini", names.length > 1 && "branched")}
+        aria-hidden="true"
+      >
+        {names.map((name) => (
+          <span key={name}>{name}</span>
+        ))}
+      </span>
     </span>
   );
   // In the ride the row's tap is the one choice a rider on board still has: which stop they get off
@@ -201,14 +204,6 @@ export function LineDiagramPanel({
           },
     [bundledLines, departure, isRide, line.id, onToggleAlighting],
   );
-  // The real terminus remains in the measured list. This independent summary supplies destination
-  // context only after that row has left the scrollport, and only where there is one top end.
-  const showTopTerminusSummary = useTopTerminusSummary({
-    scrollContainerRef,
-    enabled: !isStacked && !hasFork && diagramStops.length > 0,
-    coordinateKey: vehicleCoordinateKey,
-  });
-  const topTerminusLabel = departure?.destination ?? diagramStops[0]?.stopName;
   // One leg. Its vehicles are this line's alone: the trunk carries the bundled lines as far as they
   // run together, and past the junction a vehicle is on exactly one leg's links.
   const renderBranch = (branch: LineBundleBranch, index: number) => {
@@ -221,7 +216,10 @@ export function LineDiagramPanel({
         line={branchLine}
         network={network}
         lineById={lineById}
-        vehicles={vehiclesByBranchKey.get(getLineBundleBranchKey(branch)) ?? EMPTY_BRANCH_VEHICLES}
+        vehicles={
+          vehiclesByBranchKey.get(getLineBundleBranchKey(branch)) ??
+          EMPTY_LINE_BUNDLE_BRANCH_VEHICLES
+        }
         selectedDeparture={departure}
         junctionStopName={branch.direction === "ahead" ? junctionAhead : junctionBehind}
         /* The first leg continues the trunk's own rail; every leg beyond it is joined to the
@@ -314,14 +312,13 @@ export function LineDiagramPanel({
                   : undefined
               }
             />
-            <h1 className={departure ? "trip-destination" : undefined}>
+            <h1>
               {departure ? (
-                departure.destination
+                renderHeadingEnd("↑", [departure.destination])
               ) : hasHeadingTermini ? (
                 <>
-                  {renderTermini(aheadTermini)}
-                  <i aria-hidden="true">↔</i>
-                  {renderTermini(behindTermini)}
+                  {renderHeadingEnd("↑", aheadTermini)}
+                  {renderHeadingEnd("↓", behindTermini)}
                 </>
               ) : (
                 line.name
@@ -378,18 +375,6 @@ export function LineDiagramPanel({
       )}
 
       <div ref={scrollContainerRef} className="line-diagram-stops">
-        <div
-          className={classNames(
-            "line-diagram-top-terminus-summary",
-            showTopTerminusSummary && "shown",
-          )}
-          aria-hidden={!showTopTerminusSummary}
-        >
-          <span>
-            <small>Richtung</small>
-            <strong>{topTerminusLabel}</strong>
-          </span>
-        </div>
         {/* The fork, at the end the line runs towards. Each leg is one bundled line past the stop
             they part at, drawn on its own chain and carrying its own vehicles; the trunk below
             names the junction once, and the legs run into it. */}

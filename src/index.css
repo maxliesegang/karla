@@ -1302,19 +1302,17 @@ button.brand:active .brand-mark,
   height: 100%;
   overflow: visible;
 }
-.zentrum-schematic-corridor {
-  stroke: var(--line-strong);
-  stroke-width: 11;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  opacity: 0.32;
-}
 /* One lane is laid exactly one lane's width from its neighbour, so lines sharing a corridor stand
    in one band instead of apart. `--zentrum-schematic-track-width` is set on the drawing by the view,
    from the layout that spaced the lanes; never restate it here. Paint runs casing, seam, colour:
    the halo below only ever surfaces around the outside of a band, and the seam -- laid at the full
-   lane width the colours are painted short of -- shows as a fine ink rule between neighbouring
-   lanes, so lanes that touch still read as two. */
+   lane width the colours are painted short of -- shows as a fine gap of the page's own colour
+   between neighbouring lanes, so lanes that touch still read as two.
+
+   The seam was ink for a while, and ink is what made the plan look like a stack of stripes rather
+   than a network: eight colours on the Kaiserstraße came out banded in black, every one of them
+   darkened by the two rules pressed against it. A gap the colour of the paper separates them just
+   as plainly and leaves the colours themselves alone, which is how a printed plan does it. */
 .zentrum-schematic-network-track-casing,
 .zentrum-schematic-network-track-seam,
 .zentrum-schematic-network-track-color {
@@ -1328,11 +1326,11 @@ button.brand:active .brand-mark,
   opacity: 0.96;
 }
 .zentrum-schematic-network-track-seam {
-  stroke: color-mix(in srgb, var(--ink) 84%, transparent);
+  stroke: var(--surface);
   stroke-width: var(--zentrum-schematic-track-width);
 }
 .zentrum-schematic-network-track-color {
-  stroke-width: calc(var(--zentrum-schematic-track-width) * 0.7);
+  stroke-width: calc(var(--zentrum-schematic-track-width) * 0.84);
 }
 /* The vehicle reading lights the stretch a vehicle is still to run, and leaves what lies behind
    the vehicles in the drawing's own structure grey — same band, same casing, no colour, and at
@@ -1347,18 +1345,12 @@ button.brand:active .brand-mark,
    through what. */
 .zentrum-schematic-network-track-color[data-dimmed="true"],
 .zentrum-schematic-vehicle[data-dimmed="true"] {
-  opacity: 0.22;
+  opacity: 0.28;
 }
 .zentrum-schematic-vehicle[data-dimmed="true"]:hover,
 .zentrum-schematic-vehicle[data-dimmed="true"]:focus-visible,
 .zentrum-schematic-vehicle[data-dimmed="true"][data-selected="true"] {
   opacity: 1;
-}
-/* Every line is drawn in its lane, always, so the corridor beneath is the quiet ground the band
-   stands on rather than a line of its own. */
-.zentrum-schematic-corridor {
-  stroke-width: 14;
-  opacity: 0.2;
 }
 /* The stop mark: one fine rule laid across the lines calling there, the tick every printed transit
    plan marks a station with. It is drawn over the band rather than under it, and it is thin enough
@@ -1376,12 +1368,16 @@ button.brand:active .brand-mark,
 }
 .zentrum-schematic-stop-mark-casing {
   stroke: var(--surface);
-  stroke-width: calc(var(--zentrum-schematic-track-width) * 0.85);
-  opacity: 0.85;
+  stroke-width: calc(var(--zentrum-schematic-track-width) * 0.8);
+  /* Lightening rather than erasing: at full strength the casing cut a white notch clean through
+     every band it crossed, which on the Kaiserstraße is eight colours interrupted for one tick.
+     Two thirds is enough for the rule to hold its own over the darkest lane and little enough that
+     the colours still run under it. */
+  opacity: 0.66;
 }
 .zentrum-schematic-stop-mark {
-  stroke: var(--ink);
-  stroke-width: calc(var(--zentrum-schematic-track-width) * 0.4);
+  stroke: color-mix(in srgb, var(--ink) 76%, transparent);
+  stroke-width: calc(var(--zentrum-schematic-track-width) * 0.3);
 }
 .zentrum-schematic-stop {
   z-index: 3;
@@ -1393,13 +1389,13 @@ button.brand:active .brand-mark,
 .zentrum-schematic-vehicle {
   position: absolute;
   z-index: 4;
-  width: clamp(13px, 1.7cqw, 24px);
-  height: clamp(13px, 1.7cqw, 24px);
+  width: clamp(12px, 1.5cqw, 21px);
+  height: clamp(12px, 1.5cqw, 21px);
   padding: 0;
-  border: 3px solid var(--surface);
+  border: 2.5px solid var(--surface);
   border-radius: 50%;
   background: var(--zentrum-line-color);
-  box-shadow: 0 2px 7px #10201f52;
+  box-shadow: 0 1px 4px #10201f33;
   pointer-events: auto;
   cursor: pointer;
 }
@@ -1481,7 +1477,10 @@ button.brand:active .brand-mark,
   z-index: 2;
   display: flex;
   align-items: center;
-  gap: 5px;
+  /* Stated as a share of the canvas, like everything else the plan spaces: a gap in fixed pixels
+     is a gap that closes as the plan is zoomed in, which is the moment the names have the most
+     room and need it least. */
+  gap: clamp(4px, 0.45cqw, 8px);
   padding: 2px 3px;
   border: 0;
   border-radius: var(--radius-s);
@@ -1534,7 +1533,7 @@ button.brand:active .brand-mark,
   text-shadow: none;
 }
 .zentrum-schematic-stop[data-muted="true"] {
-  opacity: 0.3;
+  opacity: 0.42;
 }
 /* The stop is marked once, by the rule the drawing lays across its lines. What the button carries
    is the room that mark takes: the thing a finger lands on, and the thing the name is spaced from.
@@ -1576,8 +1575,9 @@ button.brand:active .brand-mark,
 .zentrum-schematic-toolbar {
   flex: 0 0 auto;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 10px;
+  gap: 6px 12px;
   min-width: 0;
 }
 .zentrum-schematic-zoom {
@@ -1616,7 +1616,7 @@ button.brand:active .brand-mark,
 /* Twenty badges wrapping to three rows was a legend costing more of a phone than the drawing it
    explains; one scrolling row keeps them all reachable and the band one line high. */
 .zentrum-schematic-lines {
-  flex: 1 1 auto;
+  flex: 1 1 240px;
   min-width: 0;
   display: flex;
   flex-wrap: nowrap;
@@ -1666,23 +1666,21 @@ button.brand:active .brand-mark,
   opacity: 0.48;
 }
 /* What cannot be read off the drawing — that the marks are estimates, and which stretches are the
-    ones still ahead — said between the drawing and the controls, right-aligned to the plan's own
-    edge. A chip with a surface of its own rather than shadowed text, and in the flow rather than
-    over the plan: its place is constant, and the plan's foot is where a phone keeps the stop names
-    a reader steers by. Which lines are drawn is the legend under it; where the reading came from is
-    the page's provenance footer. */
+    ones still ahead — said on the control band, between the legend and the zoom. Plain text on the
+    controls' own baseline rather than a pill on a row of its own: it is a note about the drawing,
+    not a control, and the row it used to take is a row the plan now gets. Which lines are drawn is
+    the legend beside it; where the reading came from is the page's provenance footer. */
 .zentrum-schematic-caption {
-  flex: 0 0 auto;
-  align-self: flex-end;
-  margin: 0;
-  padding: 3px 10px;
-  border: 1px solid var(--line);
-  border-radius: 13px;
-  background: var(--surface);
+  flex: 0 1 auto;
+  min-width: 0;
+  margin: 0 auto 0 0;
   color: var(--ink-soft);
-  font-size: 11px;
+  font-size: 11.5px;
   line-height: 1.25;
   text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ---------- Departures ---------- */
@@ -2733,24 +2731,31 @@ button.line-diagram-signs {
 .line-diagram-header h1 {
   display: flex;
   align-items: baseline;
-  gap: 9px;
+  gap: 14px;
   overflow: hidden;
   font-size: clamp(15px, 1.4vw, 20px);
   font-weight: 650;
   white-space: nowrap;
 }
-.line-diagram-header h1.trip-destination {
-  display: block;
-  text-overflow: ellipsis;
+/* One end of the line: its arrow, then the place or places that end runs to. The arrow is the whole
+   direction notation — set quiet and a shade smaller, it reads as punctuation before the name
+   rather than as a second word competing with it. */
+.line-diagram-heading-end {
+  min-width: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 5px;
+}
+.line-diagram-heading-end i {
+  flex: 0 0 auto;
+  color: var(--ink-soft);
+  font-size: 0.85em;
+  font-style: normal;
 }
 /* Each terminus is its own item so a narrow header shortens both ends rather than cutting the
    second one off mid-letter: which two places the line runs between is the whole heading. */
-.line-diagram-header h1 > span {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
 .line-diagram-termini {
+  min-width: 0;
   display: grid;
   gap: 1px;
 }
@@ -2763,12 +2768,6 @@ button.line-diagram-signs {
   padding-left: 9px;
   border-left: 2px solid color-mix(in srgb, var(--line-color) 48%, var(--line-strong));
   line-height: 1.1;
-}
-.line-diagram-header h1 i {
-  flex: 0 0 auto;
-  font-size: 0.85em;
-  font-style: normal;
-  color: var(--ink-soft);
 }
 .line-diagram-header-actions {
   position: relative;
@@ -2807,51 +2806,6 @@ button.line-diagram-signs {
   margin-top: 4px;
   overflow-y: auto;
   overscroll-behavior: contain;
-  scroll-padding-top: 48px;
-}
-.line-diagram-top-terminus-summary {
-  position: sticky;
-  z-index: 10;
-  top: 0;
-  height: 0;
-  display: flex;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.14s ease;
-}
-.line-diagram-top-terminus-summary.shown {
-  opacity: 1;
-}
-.line-diagram-top-terminus-summary > span {
-  width: 100%;
-  min-height: 44px;
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  padding: 9px var(--line-diagram-row-inset) 9px
-    calc(
-      var(--line-diagram-row-inset) +
-      var(--line-diagram-name-x) +
-      var(--line-diagram-column-gap)
-    );
-  border-bottom: 1px solid var(--line);
-  border-radius: 0 0 10px 10px;
-  background: var(--surface-2);
-  box-shadow: 0 10px 14px -16px var(--ink-soft);
-}
-.line-diagram-top-terminus-summary small {
-  flex: 0 0 auto;
-  color: var(--ink-soft);
-  font-size: 10px;
-  font-weight: 750;
-  text-transform: uppercase;
-}
-.line-diagram-top-terminus-summary strong {
-  min-width: 0;
-  overflow: hidden;
-  font-size: 14px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .line-diagram-stop-list {
   position: relative;
@@ -4073,14 +4027,14 @@ button.line-diagram-bundle-option:focus-visible {
    stuck at the top is the lit one, and tapping one walks the page to that band. It sits between
    the page's heading and the list, so on a wide screen it is always in view; stacked, it pins
    itself under the bar instead. */
-.network-band-nav {
+.network-band-navigation {
   --segment-radius: 7px;
   align-self: flex-start;
   width: min(100%, 380px);
   margin-top: 14px;
   border-radius: 10px;
 }
-.network-band-nav button {
+.network-band-navigation button {
   min-height: 34px;
   padding: 0 16px;
   border-radius: 7px;
@@ -4346,7 +4300,7 @@ button.line-diagram-bundle-option:focus-visible {
 }
 
 /* ---------- Invalid deep links ---------- */
-.not-found {
+.stop-not-found-view {
   flex: 1;
   min-height: 0;
   display: grid;
@@ -4358,16 +4312,16 @@ button.line-diagram-bundle-option:focus-visible {
   border-radius: 0 0 var(--radius-l) var(--radius-l);
   background: var(--surface);
 }
-.not-found p {
+.stop-not-found-view p {
   max-width: 48ch;
   margin: 0;
   color: var(--ink-soft);
   line-height: 1.5;
 }
-.not-found .eyebrow {
+.stop-not-found-view .eyebrow {
   color: var(--accent-ink);
 }
-.not-found button {
+.stop-not-found-view button {
   min-height: 42px;
   margin-top: 8px;
   padding: 0 18px;
@@ -4379,12 +4333,12 @@ button.line-diagram-bundle-option:focus-visible {
   cursor: pointer;
 }
 /* A failed read can be asked again; the step home stays one, quiet. */
-.not-found-actions {
+.stop-not-found-view-actions {
   display: flex;
   flex-wrap: wrap;
   gap: 10px;
 }
-.not-found button.not-found-secondary {
+.stop-not-found-view button.stop-not-found-view-secondary {
   border: 1px solid var(--line-strong);
   background: var(--surface);
   color: var(--ink);
@@ -5044,9 +4998,9 @@ button.line-diagram-bundle-option:focus-visible {
   .app-shell:not(.station-board-mode) .network-view {
     height: auto;
     display: block;
-    --network-band-nav-height: 44px;
+    --network-band-navigation-height: 44px;
   }
-  .app-shell:not(.station-board-mode) .not-found {
+  .app-shell:not(.station-board-mode) .stop-not-found-view {
     min-height: 70vh;
   }
 
@@ -5106,11 +5060,11 @@ button.line-diagram-bundle-option:focus-visible {
      navigation is the page's own table of contents, so it stays one thumb's reach away while the
      bands scroll, and a heading arriving at the top arrives beneath it. It bleeds to the panel's
      edges so a row cannot slip past it at either side. */
-  .app-shell:not(.station-board-mode) .network-band-nav {
+  .app-shell:not(.station-board-mode) .network-band-navigation {
     position: sticky;
     top: var(--bar-height);
     z-index: 7;
-    height: var(--network-band-nav-height);
+    height: var(--network-band-navigation-height);
     width: auto;
     margin-inline: calc(-16px - env(safe-area-inset-left)) calc(-16px - env(safe-area-inset-right));
     padding-inline: calc(16px + env(safe-area-inset-left)) calc(16px + env(safe-area-inset-right));
@@ -5118,7 +5072,7 @@ button.line-diagram-bundle-option:focus-visible {
     box-shadow: 0 1px 0 var(--line);
   }
   .app-shell:not(.station-board-mode) .network-group-heading {
-    top: calc(var(--bar-height) + var(--network-band-nav-height));
+    top: calc(var(--bar-height) + var(--network-band-navigation-height));
     z-index: 6;
   }
   .app-shell:not(.station-board-mode) .departure-board-platform-group,
@@ -5130,7 +5084,7 @@ button.line-diagram-bundle-option:focus-visible {
      line is also where the navigation reads the page as having arrived: walking to a band and
      being marked as it are the same number, and the stylesheet carries it once. */
   .app-shell:not(.station-board-mode) .network-line-group {
-    scroll-margin-top: calc(var(--bar-height) + var(--network-band-nav-height));
+    scroll-margin-top: calc(var(--bar-height) + var(--network-band-navigation-height));
   }
   /* A place's section lands exactly on the line its heading pins at — no cushion — because that
      line is also where the place bar reads the board as having arrived: walking to a place and

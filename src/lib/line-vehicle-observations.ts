@@ -14,7 +14,7 @@ export type LineVehicleObservation = {
 };
 
 /** The final expected call, plus the grace a marker is held for. */
-export function findLineVehicleExpiry(departure: Departure): number | undefined {
+export function getLineVehicleExpiry(departure: Departure): number | undefined {
   const finalInstant = findFinalCallInstant(departure.tripCalls);
   return finalInstant === undefined ? undefined : finalInstant + LINE_VEHICLE_EXPIRY_GRACE_MS;
 }
@@ -53,7 +53,7 @@ export function updateLineVehicleObservations(
       continue;
     }
 
-    const expiresAt = findLineVehicleExpiry(departure);
+    const expiresAt = getLineVehicleExpiry(departure);
     if (expiresAt === undefined || expiresAt <= feedNow) continue;
     observationByVehicleKey.set(key, {
       departure,

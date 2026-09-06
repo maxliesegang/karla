@@ -181,10 +181,20 @@ export function getVisitedStopKeys(calls: readonly TripCall[]): string[] {
  *
  * The call on the route-facing side is the one kept: at a start that is the second call, where the
  * public departure happens; at an end it is the first, where passengers arrive. The outer call is
- * the turning track. Its missing arrival/departure is copied onto the kept call so it remains an
- * honest run boundary for any reader of the collapsed sequence. This is visible at Hirtenweg:
- * line 4 is timed out of non-boarding Gleis 3, then departs for passengers from Gleis 1. Keeping the
- * boundary-bearing half printed Gleis 3 and 08:46 for a board row that says Gleis 1 and 08:47.
+ * the turning track. This is visible at Hirtenweg: line 4 is timed out of non-boarding Gleis 3,
+ * then departs for passengers from Gleis 1. Keeping the boundary-bearing half printed Gleis 3 and
+ * 08:46 for a board row that says Gleis 1 and 08:47.
+ *
+ * What the kept call states is read from its own ends. At a run's start the feed states no arrival
+ * for the turning track and the public platform's arrival is the pull forward to it — a move
+ * nobody boards — so the arrival is dropped and the run reads as beginning with the public
+ * departure, which is what lets a not-yet-started trip stand at its terminus for the whole of the
+ * lead before it. At a run's end the departure the feed timed on the public platform is the
+ * published end the row beside the diagram counts down to, and the instant the mark's stand is
+ * measured past — dropping it printed the arrival beside a board that publishes the departure, and
+ * re-read the stand from the arrival once the row's own prediction had expired. The run-end
+ * statement itself stays on the raw call: every reader of a run boundary (`statesRunEnd`) reads
+ * `tripCalls`, never this collapsed chain.
  */
 export function collapseTurnaroundCalls(calls: readonly TripCall[]): readonly TripCall[] {
   const kept: TripCall[] = [];
@@ -200,16 +210,22 @@ export function collapseTurnaroundCalls(calls: readonly TripCall[]): readonly Tr
     // boundary nor the public half is assumed to be on one particular side of the pair.
     const boundary = statesRunBoundary(call) ? call : next;
     const publicCall = boundary === call ? next : call;
-    const merged: TripCall = statesRunStart(boundary)
-      ? // Keep the public departure, but also the feed's statement that the run begins here.
-        { ...publicCall, scheduledArrivalTime: undefined }
-      : // Keep the public arrival, but also the feed's statement that the run ends here.
-        {
-          ...publicCall,
-          scheduledDepartureTime: undefined,
-          delayMinutes: publicCall.arrivalDelayMinutes ?? publicCall.delayMinutes,
-        };
-    delete merged.arrivalDelayMinutes;
+    let merged: TripCall;
+    if (statesRunStart(boundary)) {
+      merged = { ...publicCall, scheduledArrivalTime: undefined };
+      // The deviation stated for the arrival has no arrival to describe once it is dropped.
+      delete merged.arrivalDelayMinutes;
+    } else {
+      // Where the feed timed no departure the arrival is the headline, and its own deviation
+      // states it. Where it timed one, the public call is kept whole.
+      merged =
+        publicCall.scheduledDepartureTime === undefined
+          ? {
+              ...publicCall,
+              delayMinutes: publicCall.arrivalDelayMinutes ?? publicCall.delayMinutes,
+            }
+          : publicCall;
+    }
     if (call.isCurrentStop || next.isCurrentStop) merged.isCurrentStop = true;
     else delete merged.isCurrentStop;
     kept.push(merged);

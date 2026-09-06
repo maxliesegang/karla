@@ -192,11 +192,33 @@ So long-distance rail cannot be dropped while regional trains are kept, and long
 cannot be dropped while city buses are kept. A macro of the group's own number for a dragged-in
 value — `std3_inclMOT_7Macro=true` alone — returned nothing at all.
 
+### Data pools
+
+The macros also cross operators. Every line carries a data pool, stated as the leading segment of
+its own id (`kvv:22304:E:H:s26`) and in `liErgRiProj.network`. Measured at Karlsruhe Hauptbahnhof
+(`7000090`) on 5 September 2026, and at four further stops (`7000039`, `7000051`, `7000802`,
+`7001201`): every line KVV publishes itself answers from the `kvv` pool, while the rail station's
+answers also carry lines pooled under other operators' data, which the macros cannot separate —
+
+- the DB-pooled S-Bahn Rhein-Neckar (`ddb:…` — S3, S6 and S9 toward Mannheim, running through to
+  Karlsruhe since the December 2025 timetable change) arrives under `motType 1`, in the same group
+  as the AVG's Stadtbahn;
+- the express trains' rail replacement (`rab:…`, `SEV RE7`) arrives under `motType 6`, in the same
+  group as KVV's regional buses;
+- the pooled long-distance coaches (`bus:…`, Flixbus) arrive under `motType 7`, already dropped by
+  mode.
+
+A line symbolled like a local one is therefore not evidence of being one. KARLA reads the pool when
+the answer is read: a line is kept where the feed states the `kvv` pool or states none at all, and
+left out where it states another operator's — from the rows and from the serving directions alike
+(`kvv-efa-parsers.ts`).
+
 The macros compose with `line`, `depType=stopEvents` and `includeCompleteStopSeq=1`, and they also
 narrow `servingLines`: unfiltered, Hauptbahnhof stated 83 line-directions, of which 43 were Fernbus.
 
 KARLA asks every board for `1`, `4` and `5` and drops the coaches again by `motType` when the
-answer is read, both from the rows and from the serving directions a coverage read would query.
+answer is read, both from the rows and from the serving directions a coverage read would query;
+the lines pooled under another operator's data are dropped by pool in the same pass.
 `limit` is spent before that second pass, so a coach still costs a row.
 
 ### The mode macros decide more than the modes

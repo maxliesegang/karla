@@ -200,11 +200,12 @@ export function ZentrumSchematicCanvas({
                 {
                   left: toZentrumCanvasLeft(node.x),
                   top: toZentrumCanvasTop(node.y),
-                  // The invisible button anchor occupies the enclosing circle of the stop's
-                  // rules. The label then clears the whole of the mark, however far out on an
-                  // arm the reading put it, rather than being spaced from the coordinate.
+                  // The invisible button anchor is as tall or as wide as the station reaches on
+                  // the side the name stands, so the name clears exactly what is drawn between it
+                  // and the coordinate -- the rules of the mark, and the band running through --
+                  // and stands no further off than that.
                   ...(stopMark && {
-                    "--zentrum-stop-dot": `${(stopMark.labelRadius * 200) / ZENTRUM_SCHEMATIC_VIEWBOX.width}cqw`,
+                    "--zentrum-stop-dot": `${(stopMark.labelClearance[node.labelSide ?? "below"] * 200) / ZENTRUM_SCHEMATIC_VIEWBOX.width}cqw`,
                   }),
                 } as CSSProperties
               }

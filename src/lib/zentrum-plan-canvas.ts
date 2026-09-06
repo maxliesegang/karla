@@ -18,30 +18,50 @@ export const ZENTRUM_MINIMUM_ZOOM = ZENTRUM_ZOOM_STEPS[0];
 export const ZENTRUM_MAXIMUM_ZOOM = ZENTRUM_ZOOM_STEPS[ZENTRUM_ZOOM_STEPS.length - 1];
 
 /** The step in or out from the one being read at; the ends of the range answer for themselves. */
-export const getNeighbouringZentrumZoom = (zoom: number, direction: 1 | -1): number => {
+export const getNeighboringZentrumZoom = (zoom: number, direction: 1 | -1): number => {
   const index = ZENTRUM_ZOOM_STEPS.indexOf(zoom as (typeof ZENTRUM_ZOOM_STEPS)[number]);
   const next = (index < 0 ? 0 : index) + direction;
   return ZENTRUM_ZOOM_STEPS[Math.min(Math.max(next, 0), ZENTRUM_ZOOM_STEPS.length - 1)];
 };
 
 /**
+ * The farthest a portrait box may be panned, as a multiple of its own width.
+ *
+ * A box can be far taller than it is wide, and filling its height with a plan two and a half times
+ * as wide as it is tall would ask a reader to pan half the morning to cross the
+ * Kaiserstraße. Three screens is a phone held upright showing the plan down its whole height, and
+ * is where the panning stops.
+ */
+const ZENTRUM_PORTRAIT_PLAN_MAXIMUM_PAN = 3;
+
+/**
  * How wide the plan is drawn in the box it was given, at the zoom it is being read at.
  *
- * The plan keeps its own ratio and is drawn whole inside whichever of the box's two dimensions
- * runs out first — the zoom grows it from there. Before the first measurement there is no width to
- * state, and the drawing takes the room CSS gives it.
+ * A box shaped roughly like the plan is given the whole of it, fitted to whichever dimension runs
+ * out first, and the zoom grows it from there. A box shaped nothing like it — a phone held
+ * upright, a portrait panel — is filled by its height instead and panned sideways, which is how
+ * every map on a phone is read. Fitting one of those by the width drew the Zentrum a finger's
+ * breadth tall in a box the length of the screen, with two thirds of the box empty and every name
+ * withheld for want of room to print it: the whole plan, at a size nothing on it could be read at.
+ *
+ * Before the first measurement there is no width to state, and the drawing takes the room CSS
+ * gives it.
  */
 export const getZentrumPlanWidth = (
   box: ZentrumPlanBox | null,
   zoom: number,
-): number | undefined =>
-  box
-    ? zoom *
-      Math.min(
-        box.width,
-        (box.height * ZENTRUM_SCHEMATIC_VIEWBOX.width) / ZENTRUM_SCHEMATIC_VIEWBOX.height,
-      )
-    : undefined;
+): number | undefined => {
+  if (!box) return undefined;
+  const heightWidth =
+    (box.height * ZENTRUM_SCHEMATIC_VIEWBOX.width) / ZENTRUM_SCHEMATIC_VIEWBOX.height;
+  const fitted =
+    box.height > box.width
+      ? Math.min(heightWidth, box.width * ZENTRUM_PORTRAIT_PLAN_MAXIMUM_PAN)
+      : Math.min(box.width, heightWidth);
+  // Floored: a plan fitted to a fractional pixel of its box overflows it by a hair, and a hair of
+  // overflow is a scrollbar down the side of a plan that is already whole on screen.
+  return Math.floor(zoom * fitted);
+};
 
 /** A schematic coordinate as a share of the canvas, which is what stretches with its width. */
 export const toZentrumCanvasLeft = (x: number): string =>

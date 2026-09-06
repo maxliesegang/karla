@@ -161,9 +161,9 @@ export type TransitLine = {
   /** The ends the line was seen running between, most frequent first. */
   destinations: readonly string[];
   /**
-   * The two ends of the furthest run observed for the line, spoken the way a compact heading states
+   * The two ends of the farthest run observed for the line, spoken the way a compact heading states
    * them (`Knielingen Nord`, not the bare `Nord` the feed names the stop). Where no run was observed
-   * far enough — or where the furthest run turns on itself, which names one place and no extent —
+   * far enough — or where the farthest run turns on itself, which names one place and no extent —
    * this is absent, and the ends the destinations name stand in.
    */
   farthestRunTermini?: readonly string[];

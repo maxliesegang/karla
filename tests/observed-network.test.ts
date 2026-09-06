@@ -35,7 +35,7 @@ const board = (departures: readonly Departure[]): DepartureBoard[] => [
   },
 ];
 
-test("the observed line states its extent off the furthest run, not off the signs", () => {
+test("the observed line states its extent off the farthest run, not off the signs", () => {
   // The rows at the posts sign their short workings; the one whole run the posts have seen runs
   // further than any of them says.
   const observedNetwork = buildObservedNetwork(
@@ -69,7 +69,7 @@ test("the observed line states its extent off the furthest run, not off the sign
   assert.deepEqual(observedLine.farthestRunTermini, ["Knielingen Nord", "Rheinhafen"]);
 });
 
-test("the observed line carries no extent where the furthest run turns on itself", () => {
+test("the observed line carries no extent where the farthest run turns on itself", () => {
   const observedNetwork = buildObservedNetwork(
     board([
       trip({

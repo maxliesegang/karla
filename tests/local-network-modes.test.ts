@@ -51,6 +51,96 @@ test("long-distance serving directions are not recorded as directions to go and 
   assert.deepEqual(board.servingLines, [{ lineId: "3", directionId: "kvv:21003:E:H:s26" }]);
 });
 
+/**
+ * The Hauptbahnhof rail answers as the feed keeps it: the operator's own S-Bahn pooled under `kvv`
+ * beside the DB-pooled S-Bahn Rhein-Neckar under `ddb`, and the express trains' rail replacement
+ * pooled under `rab` beside the city buses.
+ */
+function railBoardPayload() {
+  return {
+    departureList: [
+      {
+        stopID: "7000090",
+        dateTime: { year: "2026", month: "9", day: "5", hour: "10", minute: "0" },
+        servingLine: {
+          motType: "1",
+          symbol: "S4",
+          number: "S4",
+          direction: "Öhringen",
+          stateless: "kvv:22304:E:H:s26",
+        },
+      },
+      {
+        stopID: "7000090",
+        dateTime: { year: "2026", month: "9", day: "5", hour: "10", minute: "4" },
+        servingLine: {
+          motType: "1",
+          symbol: "S6",
+          number: "S6",
+          direction: "Mannheim, Hauptbahnhof",
+          stateless: "ddb:92V06: :H:j26",
+        },
+      },
+      {
+        stopID: "7000090",
+        dateTime: { year: "2026", month: "9", day: "5", hour: "10", minute: "8" },
+        servingLine: {
+          motType: "6",
+          symbol: "SEV RE7",
+          number: "SEV RE7",
+          direction: "Mannheim",
+          stateless: "rab:34882: :H:26a",
+        },
+      },
+    ],
+    servingLines: {
+      lines: [
+        { mode: { type: "1", symbol: "S4", diva: { stateless: "kvv:22304:E:H:s26" } } },
+        { mode: { type: "1", symbol: "S6", diva: { stateless: "ddb:92V06: :H:j26" } } },
+        { mode: { type: "6", symbol: "SEV RE7", diva: { stateless: "rab:34882: :H:26a" } } },
+      ],
+    },
+  };
+}
+
+test("a board keeps the operator's own S-Bahn and leaves the DB-pooled rail and its replacement out", () => {
+  // The mode groups cannot tell them apart: the S6 Rhein-Neckar shares the Stadtbahn's motType 1,
+  // and the rail replacement shares the buses' motType 6. The pool the feed states for each line
+  // is what decides.
+  const board = parseDepartureBoardResponse(railBoardPayload(), "7000090");
+
+  assert.deepEqual(
+    board.departures.map((departure) => departure.lineId),
+    ["S4"],
+  );
+});
+
+test("DB-pooled serving directions are not recorded as directions to go and read", () => {
+  const board = parseDepartureBoardResponse(railBoardPayload(), "7000090");
+
+  assert.deepEqual(board.servingLines, [{ lineId: "S4", directionId: "kvv:22304:E:H:s26" }]);
+});
+
+test("a rail line that states no pool is unknown, not foreign", () => {
+  const board = parseDepartureBoardResponse(
+    {
+      departureList: [
+        {
+          stopID: "7000090",
+          dateTime: { year: "2026", month: "9", day: "5", hour: "10", minute: "0" },
+          servingLine: { motType: "1", symbol: "S2", number: "S2", direction: "Spöck" },
+        },
+      ],
+    },
+    "7000090",
+  );
+
+  assert.deepEqual(
+    board.departures.map((departure) => departure.lineId),
+    ["S2"],
+  );
+});
+
 test("the departure monitor asks for tram, Stadtbahn and bus only", async () => {
   let requestedUrl: URL | undefined;
   const client = new KvvEfaClient({

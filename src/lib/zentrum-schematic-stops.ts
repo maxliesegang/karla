@@ -13,7 +13,7 @@ import {
   getTrackOffset,
   getUnitVector,
   orientCorridorRun,
-  printPoint,
+  formatPoint,
   zentrumSchematicNodeById,
 } from "./zentrum-schematic-plan";
 /**
@@ -43,13 +43,27 @@ export type ZentrumSchematicStopMark = {
   /** The rules as one path of straight strokes, in schematic units. Painted, never filled. */
   data: string;
   /**
-   * The enclosing radius the label has to clear, measured from the stop's authored coordinate.
+   * How far the station reaches from its authored coordinate, on each of the four sides a name may
+   * stand on.
    *
-   * A junction's rules need not stand centred on that coordinate. Measuring from the coordinate,
-   * rather than returning half a width, therefore keeps every label outside the station it names
-   * whichever arm the reading put the rules on.
+   * One enclosing radius was the reading before this, and a radius is the wrong measure: a rule
+   * pushed out along Karlstor's eastern arm is two lane widths east of the coordinate and nothing
+   * at all west of it, yet the radius spaced the western name off by the whole of that reach. The
+   * name then floated a band's width clear of the station it names, which on a plan of
+   * twenty-five names is the difference between reading a label and hunting for its stop. Each
+   * side is therefore measured on its own, over the rules drawn here and over the paint of every
+   * corridor leaving the stop, so a name stands exactly clear of what is drawn on its side and no
+   * further.
    */
-  labelRadius: number;
+  labelClearance: ZentrumSchematicLabelClearance;
+};
+
+/** How far a station's drawing reaches from its coordinate, per side a name may stand on. */
+export type ZentrumSchematicLabelClearance = {
+  left: number;
+  right: number;
+  above: number;
+  below: number;
 };
 
 /**
@@ -238,6 +252,87 @@ const getNodeStopBars = (
 };
 
 /**
+ * The farthest a corridor may space a name off its stop, as a multiple of the band's half width.
+ *
+ * A corridor leaving the stop the way the name stands is one the name can only clear by being
+ * pushed along it, and a shallow angle would push it the whole way to the next stop. Two half
+ * widths clears the diagonal a name most often has to sit beside -- Rüppurrer Tor's -- and leaves
+ * every name still reading as belonging to the dot it hangs from.
+ */
+const ZENTRUM_SCHEMATIC_LABEL_MAXIMUM_REACH = 2;
+
+/** The four sides a name may stand on, as the direction it stands in from the stop. */
+const LABEL_SIDE_DIRECTIONS = {
+  left: { x: -1, y: 0 },
+  right: { x: 1, y: 0 },
+  above: { x: 0, y: -1 },
+  below: { x: 0, y: 1 },
+} as const;
+
+/**
+ * How far a corridor's paint reaches from the stop, going one way out of it.
+ *
+ * A band is the strip half a width either side of the corridor it runs along, and how far a name
+ * has to travel to leave that strip depends on the angle between the two. Square to the corridor
+ * it is half the width; along a corridor pointing the same way it never leaves at all, so the
+ * reach is capped — a name is spaced off a station, not walked to the next one. Ninety degrees the
+ * other way, where the corridor leaves the stop behind the name, the strip is already behind it.
+ */
+const getArmReach = (
+  arm: ZentrumSchematicNodeArm,
+  trackWidth: number,
+  direction: SchematicPoint,
+): number => {
+  const { lowest, highest } = getBandExtent([arm], trackWidth);
+  const halfWidth = Math.max(Math.abs(lowest), Math.abs(highest));
+  const normal = { x: -arm.outward.y, y: arm.outward.x };
+  const across = Math.abs(dotProduct(normal, direction));
+  return dotProduct(arm.outward, direction) > 0.05
+    ? Math.min(
+        halfWidth / Math.max(across, 0.35),
+        halfWidth * ZENTRUM_SCHEMATIC_LABEL_MAXIMUM_REACH,
+      )
+    : halfWidth * across;
+};
+
+/**
+ * How far the station reaches from its coordinate towards one side.
+ *
+ * Two things are drawn at a stop and a name has to clear both: the rules the stop is marked with,
+ * which are measured where their ends actually lie, and the bands of the corridors leaving it,
+ * measured by how far the name has to go to be off them.
+ */
+const getSideClearance = (
+  node: ZentrumSchematicNode,
+  arms: readonly ZentrumSchematicNodeArm[],
+  bars: readonly { from: SchematicPoint; to: SchematicPoint }[],
+  trackWidth: number,
+  direction: SchematicPoint,
+): number =>
+  Math.max(
+    0,
+    ...bars.flatMap((bar) =>
+      [bar.from, bar.to].map(
+        (point) => (point.x - node.x) * direction.x + (point.y - node.y) * direction.y,
+      ),
+    ),
+    ...arms.map((arm) => getArmReach(arm, trackWidth, direction)),
+  );
+
+/** How far the station reaches from its coordinate, on each side a name may stand on. */
+const getLabelClearance = (
+  node: ZentrumSchematicNode,
+  arms: readonly ZentrumSchematicNodeArm[],
+  bars: readonly { from: SchematicPoint; to: SchematicPoint }[],
+  trackWidth: number,
+): ZentrumSchematicLabelClearance => ({
+  left: getSideClearance(node, arms, bars, trackWidth, LABEL_SIDE_DIRECTIONS.left),
+  right: getSideClearance(node, arms, bars, trackWidth, LABEL_SIDE_DIRECTIONS.right),
+  above: getSideClearance(node, arms, bars, trackWidth, LABEL_SIDE_DIRECTIONS.above),
+  below: getSideClearance(node, arms, bars, trackWidth, LABEL_SIDE_DIRECTIONS.below),
+});
+
+/**
  * The rule, or rules, each stop the reading draws is marked with.
  *
  * Sized from the corridors themselves, so a mark is exactly as wide as what calls there, and placed
@@ -263,16 +358,17 @@ export const getZentrumSchematicStopMarks = (
     // point -- and drawing it twice only thickens it.
     const dataByBar = new Map(
       bars.map((bar) => [
-        `${printPoint(bar.from)} ${printPoint(bar.to)}`,
-        `M ${printPoint(bar.from)} L ${printPoint(bar.to)}`,
+        `${formatPoint(bar.from)} ${formatPoint(bar.to)}`,
+        `M ${formatPoint(bar.from)} L ${formatPoint(bar.to)}`,
       ]),
     );
     if (dataByBar.size === 0) return [];
-    const labelRadius = Math.max(
-      ...bars.flatMap((bar) =>
-        [bar.from, bar.to].map((point) => Math.hypot(point.x - node.x, point.y - node.y)),
-      ),
-    );
-    return [{ nodeId, data: [...dataByBar.values()].join(" "), labelRadius }];
+    return [
+      {
+        nodeId,
+        data: [...dataByBar.values()].join(" "),
+        labelClearance: getLabelClearance(node, arms, bars, trackWidth),
+      },
+    ];
   });
 };

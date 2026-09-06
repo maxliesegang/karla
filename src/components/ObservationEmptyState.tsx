@@ -1,7 +1,7 @@
 import type { DepartureBoardCoverage } from "../data/transit-types";
 
 /** What a view calls the thing it has nothing of yet, in the three states it can be in. */
-export type ObservationEmptyLabels = {
+export type ObservationEmptyStateLabels = {
   /** While the observation has not answered at all. */
   loading: string;
   /** Where it could not be read. */
@@ -23,7 +23,7 @@ export function ObservationEmptyState({
   labels,
 }: {
   coverage: DepartureBoardCoverage;
-  labels: ObservationEmptyLabels;
+  labels: ObservationEmptyStateLabels;
 }) {
   return (
     <div className="panel-empty">

@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
-import { findNetworkBandIdInView, type NetworkBandReading } from "../lib/network-band-nav";
+import { findNetworkBandIdInView, type NetworkBandReading } from "../lib/network-band-navigation";
 import { scrollIntoView } from "../lib/scroll";
 
-export type NetworkBandNav = {
+export type NetworkBandNavigation = {
   /** The band the page is being read in, or `undefined` while it is being read in none. */
   activeBandId: string | undefined;
   /** The ref a band's section renders under, which is how the navigation knows where the bands are. */
@@ -25,10 +25,10 @@ export type NetworkBandNav = {
  * of at the scrollport's top. The scroll is heard where it happens, so the same navigation serves
  * both without either knowing a breakpoint.
  */
-export function useNetworkBandNav(
+export function useNetworkBandNavigation(
   listRef: RefObject<HTMLElement | null>,
   { isEnabled, isPageScrollport }: { isEnabled: boolean; isPageScrollport: boolean },
-): NetworkBandNav {
+): NetworkBandNavigation {
   const bandByIdRef = useRef(new Map<string, HTMLElement>());
   const bandRefByIdRef = useRef(new Map<string, (band: HTMLElement | null) => void>());
   const [activeBandId, setActiveBandId] = useState<string | undefined>(undefined);

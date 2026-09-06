@@ -8,8 +8,14 @@ import type { ZentrumLineSignReader } from "./line-sign";
  * also the filter: a badge is the one gesture that follows a line, whatever the reading. Beside the
  * zoom stands the size the plan is read at — one is how much of the Zentrum is in the box, the
  * other is how big the box is, and a reader reaching for one is reaching for the other next.
+ *
+ * The caption rides the same band, between the two. It used to stand on a row of its own as a
+ * bordered pill, which gave the foot of the page two lines of chrome that lined up with nothing:
+ * a pill floating over the legend under it. Set as plain text on the controls' own baseline it
+ * says exactly as much, and the plan gets the row back.
  */
 export function ZentrumSchematicToolbar({
+  caption,
   lineIds,
   getSign,
   selectedLineId,
@@ -21,6 +27,8 @@ export function ZentrumSchematicToolbar({
   isFullscreen,
   onChangeFullscreen,
 }: {
+  /** What the drawing cannot say of itself: what the marks are worth, and how many are running. */
+  caption: string;
   lineIds: readonly string[];
   getSign: ZentrumLineSignReader;
   /** The line the plan is following, as the address names it. */
@@ -69,6 +77,7 @@ export function ZentrumSchematicToolbar({
           );
         })}
       </div>
+      <p className="zentrum-schematic-caption">{caption}</p>
       <div className="zentrum-schematic-zoom">
         <button
           type="button"

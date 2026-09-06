@@ -3,7 +3,7 @@ import test from "node:test";
 import type { Departure, TripCall } from "../src/data/transit-types.ts";
 import {
   getFarthestLineRun,
-  getFarthestRunTermini,
+  getFarthestLineRunTermini,
   getLineTermini,
   findNextCompatibleDeparture,
   findStopByName,
@@ -77,7 +77,7 @@ test("finds the following non-cancelled departure over the same observed route",
   );
 });
 
-test("names a whole line by the furthest observed run instead of the drawn short working", () => {
+test("names a whole line by the farthest observed run instead of the drawn short working", () => {
   const short = departure({
     id: "short",
     destination: "D",
@@ -115,7 +115,7 @@ test("a run observed heading the diagram's own way comes back in the diagram's o
   } as Parameters<typeof getFarthestLineRun>[0];
   const drawn = calls("D", "C", "B");
 
-  // The furthest run ends where the diagram's top row is, so its origin end is the one the view
+  // The farthest run ends where the diagram's top row is, so its origin end is the one the view
   // reads downward and its calls are read the other way round.
   assert.deepEqual(getFarthestLineRun(line, [towardDiagram], drawn), {
     firstTerminus: "D",
@@ -159,7 +159,7 @@ test("falls back to the line's observed destinations until a complete run is in 
   });
 });
 
-test("reads a line's extent off the furthest run observed for it", () => {
+test("reads a line's extent off the farthest run observed for it", () => {
   // The board's rows sign their short workings, and the destinations follow the signs — so the
   // two most frequent ones name less of the line than the one whole run the posts have seen.
   const short = departure({
@@ -177,13 +177,16 @@ test("reads a line's extent off the furthest run observed for it", () => {
     ],
   });
 
-  assert.deepEqual(getFarthestRunTermini("2", [short, full]), ["Knielingen Nord", "Rheinhafen"]);
+  assert.deepEqual(getFarthestLineRunTermini("2", [short, full]), [
+    "Knielingen Nord",
+    "Rheinhafen",
+  ]);
   // The pair the observation states stands in for the whole view wherever the line's ends are
   // asked for, before the signs' short workings are read.
   const observedLine = {
     id: "2",
     destinations: ["Knielingen Nord", "Rheinhafen über Kühler Krug"],
-    farthestRunTermini: getFarthestRunTermini("2", [short, full]),
+    farthestRunTermini: getFarthestLineRunTermini("2", [short, full]),
   } as Parameters<typeof getLineTermini>[0];
   assert.deepEqual(getLineTermini(observedLine), ["Knielingen Nord", "Rheinhafen"]);
 });
@@ -195,7 +198,7 @@ test("a run that turns on itself names one place and no extent", () => {
     tripCalls: calls("Turmberg", "Dürrbachstraße", "Rathaus", "Turmberg"),
   });
 
-  assert.equal(getFarthestRunTermini("23", [loop]), undefined);
+  assert.equal(getFarthestLineRunTermini("23", [loop]), undefined);
   // The destinations still say which place the loop serves.
   assert.deepEqual(
     getLineTermini({
@@ -207,7 +210,7 @@ test("a run that turns on itself names one place and no extent", () => {
 });
 
 test("no run observed far enough leaves the extent to the destinations", () => {
-  assert.equal(getFarthestRunTermini("2", []), undefined);
+  assert.equal(getFarthestLineRunTermini("2", []), undefined);
 });
 
 /**

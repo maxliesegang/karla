@@ -12,6 +12,7 @@ import {
   getLineDiagramCoordinateKey,
   getLineDiagramVehicleDepartures,
   getLineDiagramVehicles,
+  getShownLineDiagramVehicles,
   getTripPositionAnchorIndex,
   getVehicleLabelsByRowIndex,
   getVehicleRowCoordinate,
@@ -280,6 +281,34 @@ test("draws both published platform calls at the same stop", () => {
   );
 });
 
+test("reads a three-call terminus as the two calls the route keeps", () => {
+  // Waidweg, as line 3 reports a terminating run: the loop's entry point, the public platform the
+  // row departs from, and the track the run ends on — three calls, one stop. The pair the feed
+  // itself marks folds to one call, and what remains are the two calls a rider reads, each saying
+  // which platform it is. The entry point stays beside the folded call, exactly as Europaplatz's
+  // two street platforms do.
+  const tripCalls = [
+    call("hammweg", 0),
+    { ...call("waidweg", 1), platformLabel: "Gleis 1" },
+    { ...call("waidweg", 2), platformLabel: "3", isCurrentStop: true },
+    { ...call("waidweg", 3), platformLabel: "Gleis 2", scheduledDepartureTime: undefined },
+  ];
+  const diagramStops = buildLineDiagramStops(network, line, tripCalls, null);
+
+  assert.deepEqual(
+    diagramStops.map(({ stopName, stopId, platformLabel }) => ({
+      stopName,
+      stopId,
+      platformLabel,
+    })),
+    [
+      { stopName: "HAMMWEG", stopId: "hammweg", platformLabel: undefined },
+      { stopName: "WAIDWEG", stopId: "waidweg", platformLabel: "Gleis 1" },
+      { stopName: "WAIDWEG", stopId: "waidweg", platformLabel: "3" },
+    ],
+  );
+});
+
 test("a chain names its own coordinates, and a row speaks for every mark behind it", () => {
   const diagramStops = buildLineDiagramStops(network, line, [call("a", 0), call("b", 1)], null);
   assert.equal(getLineDiagramCoordinateKey("2", diagramStops), "2:a>b");
@@ -393,6 +422,65 @@ test("speaks a mark standing at a terminus as the departure or the arrival it is
     getVehicleLabelsByRowIndex(arrived).get(1),
     "Fahrt von 2 Richtung B endet hier",
     "the final stop, rather than the preceding link, speaks for an arrived mark",
+  );
+});
+
+test("hides the turnaround stands with the line's other vehicles, but never the rider's own", () => {
+  const diagramStops = buildLineDiagramStops(
+    network,
+    line,
+    [call("a", 0), call("b", 2), call("c", 4)],
+    null,
+  );
+  const mine: Departure = {
+    id: "shown-mine",
+    tripId: "shown-mine",
+    lineId: "2",
+    transportMode: "tram",
+    destination: "C",
+    minutesUntilDeparture: 0,
+    platformCode: "1",
+    boardingLocalStopId: "a",
+    status: "realtime",
+    scheduledDepartureTime: new Date(start + 2 * 60_000).toISOString(),
+    tripCalls: run([call("a", 2), call("b", 4), call("c", 6)]),
+  };
+  // The next run out of the same terminus, standing there for its own turn.
+  const turning: Departure = {
+    ...mine,
+    id: "shown-turning",
+    tripId: "shown-turning",
+    scheduledDepartureTime: new Date(start + 5 * 60_000).toISOString(),
+    tripCalls: run([call("a", 5), call("b", 7), call("c", 9)]),
+  };
+
+  // Both runs stand at their first stop before either has begun.
+  const placements = getLineDiagramVehicles(diagramStops, [mine, turning], [], mine, start);
+  assert.deepEqual(
+    placements.map(({ departure, phase }) => [departure.tripId, phase]),
+    [
+      ["shown-mine", "beforeStart"],
+      ["shown-turning", "beforeStart"],
+    ],
+  );
+
+  // With the line's other vehicles hidden the turnaround stand goes with them; the stand the
+  // rider's own run begins from stays, being theirs.
+  assert.deepEqual(
+    getShownLineDiagramVehicles(placements, false).map(({ departure }) => departure.tripId),
+    ["shown-mine"],
+  );
+  assert.deepEqual(
+    getShownLineDiagramVehicles(placements, true).map(({ departure }) => departure.tripId),
+    ["shown-mine", "shown-turning"],
+  );
+
+  // Without a followed trip every stand is another run's beginning, so hiding the others clears
+  // the diagram of them all.
+  const unaccompanied = getLineDiagramVehicles(diagramStops, [mine, turning], [], undefined, start);
+  assert.deepEqual(
+    getShownLineDiagramVehicles(unaccompanied, false).map(({ departure }) => departure.tripId),
+    [],
   );
 });
 

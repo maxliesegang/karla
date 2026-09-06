@@ -15,7 +15,7 @@ import {
   getLineIntersection,
   getLineTrackPoint,
   getUnitVector,
-  printPoint,
+  formatPoint,
   subtractPoints,
 } from "./zentrum-schematic-plan";
 /**
@@ -45,7 +45,7 @@ export function getZentrumSchematicLinePathData(
 ): string {
   const pieces = getZentrumSchematicLinePathPieces(linePath, edges, trackWidth);
   if (pieces.length === 0) return "";
-  return [`M ${printPoint(pieces[0].start)}`, ...pieces.flatMap(({ commands }) => commands)].join(
+  return [`M ${formatPoint(pieces[0].start)}`, ...pieces.flatMap(({ commands }) => commands)].join(
     " ",
   );
 }
@@ -119,7 +119,7 @@ export function getZentrumSchematicLinePathSegments(
   return getZentrumSchematicLinePathPieces(linePath, edges, trackWidth).map(
     ({ edgeId, start, commands }) => ({
       edgeId,
-      data: [`M ${printPoint(start)}`, ...commands].join(" "),
+      data: [`M ${formatPoint(start)}`, ...commands].join(" "),
     }),
   );
 }
@@ -187,7 +187,7 @@ const getZentrumSchematicLinePathBend = (
     return {
       approach,
       leave,
-      data: `A ${radius.toFixed(2)} ${radius.toFixed(2)} 0 0 ${sweep} ${printPoint(leave)}`,
+      data: `A ${radius.toFixed(2)} ${radius.toFixed(2)} 0 0 ${sweep} ${formatPoint(leave)}`,
     };
   }
   const bendDistance = Math.min(
@@ -206,7 +206,7 @@ const getZentrumSchematicLinePathBend = (
   return {
     approach,
     leave,
-    data: `C ${printPoint(segment.to)} ${printPoint(next.from)} ${printPoint(leave)}`,
+    data: `C ${formatPoint(segment.to)} ${formatPoint(next.from)} ${formatPoint(leave)}`,
   };
 };
 
@@ -254,7 +254,7 @@ const getZentrumSchematicLinePathPieces = (
     const outgoingBend = bends[index];
     const start = incomingBend ? incomingBend.approach : segment.from;
     const end = outgoingBend ? outgoingBend.approach : segment.to;
-    const commands = [...(incomingBend?.data ? [incomingBend.data] : []), `L ${printPoint(end)}`];
+    const commands = [...(incomingBend?.data ? [incomingBend.data] : []), `L ${formatPoint(end)}`];
     return { edgeId: segment.edgeId, start, commands };
   });
 };

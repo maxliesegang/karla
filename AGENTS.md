@@ -52,7 +52,17 @@ published URL segment is still `/center`.
 - **Constants carry the whole noun**, not the shortened one the module could get away with:
   `DEPARTURE_BOARD_REFRESH_MS`, not `BOARD_REFRESH_MS`.
 - **CSS classes are kebab-case of the component that owns them**, and a view's root class ends
-  `-view`.
+  `-view`. The exceptions are the shared vocabulary — `panel-heading`, `panel-empty`,
+  `visually-hidden`, and state words like `cancelled`, `diverted`, `pinned` — which belong to no
+  component and are never re-spelled per view.
+- **One verb per job.** `format*` prints a value for a reader, `parse*` reads one back, `build*` and
+  `create*` make a structure, `read*`/`write*`/`subscribe*` reach stored settings, and
+  `remember*`/`recall*`/`forget*` reach a memory. A second word for a job one of these already
+  names is drift: a reading kept across a gap is *retained*, never *held*.
+- **Identifiers are US spelling; prose is not.** The comments read `colour`, `centre`, `metres`,
+  `neighbour`; the code reads `getVerifiedLineColor`, `metersToNextCall`, `neighborsByEdgeId`,
+  `normalizePlatformCode`. `farthest` is the one word for reach, in both. A field the provider names
+  keeps the provider's spelling verbatim (`trainNum`, `stopSeqCoords`).
 
 ## Constraints
 

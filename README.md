@@ -75,6 +75,9 @@ options are recorded in [`docs/kvv-efa-api.md`](docs/kvv-efa-api.md).
 Every board is asked for the local network only — Stadtbahn and S-Bahn, tram, and bus. Without that
 a Hauptbahnhof board is mostly ICE, IC, TGV and Flixbus, which is not what this app is opened for;
 the coaches the feed's bus group carries along are dropped again by mode when the answer is read.
+The feed's groups also carry lines published from other operators' data pools — the DB-pooled
+S-Bahn Rhein-Neckar beside the Stadtbahn on the Hauptbahnhof's rail platforms — and those are
+dropped in the same pass, by the pool the feed states for every line.
 
 `src/lib/observed-network.ts` builds the served stops and the lines calling there out of those live
 trips: a line that stops running leaves the view by itself. The only authored data left is which

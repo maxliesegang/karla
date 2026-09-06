@@ -37,7 +37,8 @@ test("a run's origin and the platform it pulls forward to are one call", () => {
 
 test("a turnaround keeps the passenger arrival and the feed's run-end mark", () => {
   // The public call is the first half at a run end; the turning track follows it. Folding the pair
-  // must keep that platform and its arrival while retaining the missing departure as the boundary.
+  // keeps that platform with everything the feed timed for it — the arrival, and the departure
+  // that is the published end the row beside the diagram counts down to.
   const publicArrival = call("rheinstetten", {
     platformLabel: "Gleis 1",
     arrivalDelayMinutes: 3,
@@ -49,20 +50,47 @@ test("a turnaround keeps the passenger arrival and the feed's run-end mark", () 
     runEnd("rheinstetten", "Gleis 2"),
   ]);
 
-  assert.deepEqual(collapsed, [
-    call("a"),
-    call("rheinstetten", {
-      platformLabel: "Gleis 1",
-      scheduledDepartureTime: undefined,
-      delayMinutes: 3,
-    }),
-  ]);
+  assert.deepEqual(collapsed, [call("a"), publicArrival]);
   assert.deepEqual(collapseTurnaroundCalls([runEnd("rheinstetten", "Gleis 2"), publicArrival]), [
-    call("rheinstetten", {
-      platformLabel: "Gleis 1",
-      scheduledDepartureTime: undefined,
-      delayMinutes: 3,
-    }),
+    publicArrival,
+  ]);
+});
+
+test("a run end the feed states twice keeps the arrival half and its deviation", () => {
+  // Both halves timed into and out of nothing: the fold keeps the later call, whose arrival is
+  // the headline, and states beside it the deviation that arrival was read with.
+  const kept = call("rheinstetten", {
+    platformLabel: "Gleis 2",
+    scheduledDepartureTime: undefined,
+    arrivalDelayMinutes: 2,
+  });
+  const earlier = call("rheinstetten", {
+    platformLabel: "Gleis 1",
+    scheduledDepartureTime: undefined,
+  });
+
+  assert.deepEqual(collapseTurnaroundCalls([earlier, kept]), [{ ...kept, delayMinutes: 2 }]);
+});
+
+test("a terminus reported at three platforms folds its run-end pair only", () => {
+  // Waidweg, as line 3 reports a terminating run: the loop's entry point (Gleis 1), the public
+  // Gleis 3 — the row's own call — and the Gleis 2 track the feed says the run ends on. The pair
+  // the feed itself marks folds to one call, kept whole; the entry point keeps its place beside
+  // it, exactly as Europaplatz's two street platforms do.
+  const publicCall = call("waidweg", {
+    platformLabel: "Gleis 3",
+    isCurrentStop: true,
+    delayMinutes: 0,
+  });
+  const calls = [
+    call("waidweg", { platformLabel: "Gleis 1" }),
+    publicCall,
+    runEnd("waidweg", "Gleis 2"),
+  ];
+
+  assert.deepEqual(collapseTurnaroundCalls(calls), [
+    call("waidweg", { platformLabel: "Gleis 1" }),
+    publicCall,
   ]);
 });
 

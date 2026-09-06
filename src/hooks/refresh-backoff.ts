@@ -45,6 +45,21 @@ export function getBackoffDelayMs(refreshMs: number, streak: FailureStreak): num
 export type ResumeEventType = "visibilitychange" | "pageshow" | "focus" | "online";
 
 /**
+ * Whether a resume event says the page can be read, even while WebKit still reports it hidden.
+ *
+ * `pageshow` and `focus` describe a page that is being presented. On iOS, especially for a
+ * home-screen app restored from suspension, either may be the only event delivered and
+ * `document.visibilityState` may lag behind it. A hidden `visibilitychange` or `online` event says
+ * no such thing and must not wake polling in the background.
+ */
+export function isVisibleResumeEvent(
+  eventType: ResumeEventType,
+  visibilityState: "hidden" | "visible",
+): boolean {
+  return visibilityState === "visible" || eventType === "pageshow" || eventType === "focus";
+}
+
+/**
  * Whether one resume event is evidence the page, or the connection, was actually away — which is
  * what makes a standing failure streak stale evidence worth forgiving.
  *

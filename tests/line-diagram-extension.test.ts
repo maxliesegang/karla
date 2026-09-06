@@ -7,8 +7,8 @@ import { extendLineDiagramCalls } from "../src/lib/line-diagram.ts";
 const calls = (...stopIds: string[]): TripCall[] =>
   stopIds.map((localStopId) => ({ stopName: localStopId.toUpperCase(), localStopId }));
 
-test("a short working is drawn out to the run observed furthest, past both of its ends", () => {
-  // The drawn trip reaches C at its furthest; the line has been seen running from D to A. The
+test("a short working is drawn out to the run observed farthest, past both of its ends", () => {
+  // The drawn trip reaches C at its farthest; the line has been seen running from D to A. The
   // reading in hand keeps its own rows and their order; the run contributes what lies beyond them.
   assert.deepEqual(extendLineDiagramCalls(calls("c", "b"), calls("d", "c", "b", "a")), [
     ...calls("d", "c", "b", "a"),
@@ -16,7 +16,7 @@ test("a short working is drawn out to the run observed furthest, past both of it
 });
 
 test("stops the drawn trip skipped but the run calls at are read in between", () => {
-  // The whole-line view is the line, not one working: where the furthest run serves a stop the
+  // The whole-line view is the line, not one working: where the farthest run serves a stop the
   // drawn trip never called at, that stop belongs on the diagram too.
   assert.deepEqual(extendLineDiagramCalls(calls("d", "x", "b"), calls("d", "c", "b", "a")), [
     ...calls("d", "c", "x", "b", "a"),
@@ -24,7 +24,7 @@ test("stops the drawn trip skipped but the run calls at are read in between", ()
 });
 
 test("a drawn-only stop keeps its place beside the drawn calls around it", () => {
-  // A variant calling at a stop the furthest run does not: it is drawn where its own reading put
+  // A variant calling at a stop the farthest run does not: it is drawn where its own reading put
   // it, between the calls it was read between, not where the run would have it.
   assert.deepEqual(extendLineDiagramCalls(calls("d", "c", "x", "b"), calls("d", "c", "b", "a")), [
     ...calls("d", "c", "x", "b", "a"),
@@ -40,7 +40,7 @@ test("a drawn chain the run never reaches is left exactly as it was", () => {
 });
 
 test("a drawn chain is never narrowed by the run it is extended with", () => {
-  // A working that passes one of its own stops twice keeps both passes; the furthest run has only
+  // A working that passes one of its own stops twice keeps both passes; the farthest run has only
   // seen the line once through, and that is not evidence the loop does not happen.
   assert.deepEqual(extendLineDiagramCalls(calls("a", "b", "c", "b", "a"), calls("a", "b", "c")), [
     ...calls("a", "b", "c", "b", "a"),

@@ -423,8 +423,8 @@ export const getTrackLineIdsByEdgeId = (
     edgeIdsByTrackId.set(linePath.trackId, pathEdgeIds);
     for (const [index, node] of linePath.nodes.entries()) {
       const edgeIds = [linePath.nodes[index - 1], linePath.nodes[index + 1]]
-        .filter((neighbour): neighbour is ZentrumSchematicNode => neighbour !== undefined)
-        .map((neighbour) => getEdgeKey(node.id, neighbour.id));
+        .filter((neighbor): neighbor is ZentrumSchematicNode => neighbor !== undefined)
+        .map((neighbor) => getEdgeKey(node.id, neighbor.id));
       const passageEdgeIdsByTrackId =
         passageEdgeIdsByNodeId.get(node.id) ?? new Map<string, Set<string>>();
       const passageEdgeIds = passageEdgeIdsByTrackId.get(linePath.trackId) ?? new Set<string>();
@@ -664,11 +664,11 @@ export const getTrackBandOffsetByEdgeId = (
     }
   }
 
-  const neighboursByEdgeId = new Map<string, { otherId: string; delta: number }[]>();
-  const addNeighbour = (edgeId: string, otherId: string, delta: number) => {
-    const neighbours = neighboursByEdgeId.get(edgeId) ?? [];
-    neighbours.push({ otherId, delta });
-    neighboursByEdgeId.set(edgeId, neighbours);
+  const neighborsByEdgeId = new Map<string, { otherId: string; delta: number }[]>();
+  const addNeighbor = (edgeId: string, otherId: string, delta: number) => {
+    const neighbors = neighborsByEdgeId.get(edgeId) ?? [];
+    neighbors.push({ otherId, delta });
+    neighborsByEdgeId.set(edgeId, neighbors);
   };
   for (const { leftId, rightId, votes } of votesByPairKey.values()) {
     const [winningDelta] = [...votes.entries()].sort(
@@ -677,8 +677,8 @@ export const getTrackBandOffsetByEdgeId = (
         Math.abs(leftDelta) - Math.abs(rightDelta) ||
         leftDelta - rightDelta,
     )[0];
-    addNeighbour(leftId, rightId, winningDelta);
-    addNeighbour(rightId, leftId, -winningDelta);
+    addNeighbor(leftId, rightId, winningDelta);
+    addNeighbor(rightId, leftId, -winningDelta);
   }
 
   // Each straight is anchored once, at its busiest corridor: everything hangs off that, so the
@@ -693,7 +693,7 @@ export const getTrackBandOffsetByEdgeId = (
     while (open.length > 0) {
       const current = open.pop()!;
       component.push(current);
-      for (const { otherId } of neighboursByEdgeId.get(current.id) ?? []) {
+      for (const { otherId } of neighborsByEdgeId.get(current.id) ?? []) {
         if (reached.has(otherId)) continue;
         reached.add(otherId);
         const other = edgeById.get(otherId);
@@ -710,7 +710,7 @@ export const getTrackBandOffsetByEdgeId = (
     bandOffsetByEdgeId.set(anchor.id, 0);
     while (queue.length > 0) {
       const current = queue.shift()!;
-      for (const { otherId, delta } of neighboursByEdgeId.get(current.id) ?? []) {
+      for (const { otherId, delta } of neighborsByEdgeId.get(current.id) ?? []) {
         if (bandOffsetByEdgeId.has(otherId)) continue;
         bandOffsetByEdgeId.set(otherId, bandOffsetByEdgeId.get(current.id)! + delta);
         const other = edgeById.get(otherId);

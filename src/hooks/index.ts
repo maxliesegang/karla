@@ -8,7 +8,7 @@ export { useAppRoute } from "./route";
 export { useAppSettings, writeAppSettings, type AppSettings } from "./app-settings";
 export { useStopBoardingPlaces } from "./boarding-places";
 export { useBoardingPlaceSections, type BoardingPlaceSections } from "./boarding-place-sections";
-export { useNetworkBandNav, type NetworkBandNav } from "./network-band-nav";
+export { useNetworkBandNavigation, type NetworkBandNavigation } from "./network-band-navigation";
 export {
   useLocatableStops,
   useTransitNetwork,

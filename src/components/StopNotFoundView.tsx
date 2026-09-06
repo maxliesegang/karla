@@ -13,7 +13,7 @@ export function StopNotFoundView({
   onRetry: () => void;
 }) {
   return (
-    <section className="not-found">
+    <section className="stop-not-found-view">
       {isFailed ? (
         <>
           <h1>Haltestelle nicht erreichbar</h1>
@@ -21,9 +21,12 @@ export function StopNotFoundView({
             Diese Haltestelle ließ sich gerade nicht vom KVV-Feed lesen — ob es sie gibt, ist damit
             nicht gesagt. Ein erneuter Versuch kann helfen.
           </p>
-          <div className="not-found-actions">
+          <div className="stop-not-found-view-actions">
             <button onClick={onRetry}>Erneut versuchen</button>
-            <button className="not-found-secondary" onClick={() => navigateTo(routePaths.home())}>
+            <button
+              className="stop-not-found-view-secondary"
+              onClick={() => navigateTo(routePaths.home())}
+            >
               Zur Startseite
             </button>
           </div>

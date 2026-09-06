@@ -15,7 +15,7 @@ import { findFinalCallInstant } from "../lib/trip-calls";
 export const DEPARTURE_MEMORY_CAPACITY = 8_192;
 
 /** One provider reading of a trip's sequence, with the instant it was taken. */
-export type CachedTrip = { receivedAt: number; trip: KvvTrip };
+export type RememberedTrip = { receivedAt: number; trip: KvvTrip };
 
 /** Everything the session remembers about one observed departure row. */
 type RememberedDeparture = {
@@ -39,7 +39,7 @@ type RememberedDeparture = {
    */
   runEndsAt?: number;
   /** The separately fetched sequence for this row, where one was asked for. */
-  trip?: CachedTrip;
+  trip?: RememberedTrip;
 };
 
 /**
@@ -72,7 +72,7 @@ export class DepartureMemory {
     return this.entries.get(departureId)?.readAt;
   }
 
-  findTrip(departureId: string): CachedTrip | undefined {
+  findTrip(departureId: string): RememberedTrip | undefined {
     return this.entries.get(departureId)?.trip;
   }
 
@@ -91,7 +91,7 @@ export class DepartureMemory {
   }
 
   /** A separately fetched sequence, which is the fuller statement of where the run ends. */
-  rememberTrip(departureId: string, trip: CachedTrip): void {
+  rememberTrip(departureId: string, trip: RememberedTrip): void {
     const known = this.entries.get(departureId);
     if (!known) return;
     known.trip = trip;

@@ -21,6 +21,26 @@ export const EMPTY_VEHICLE_LAYER_GEOMETRY: VehicleLayerGeometry = {
 };
 
 /**
+ * A marker's horizontal coordinate, written without CSS typed multiplication.
+ *
+ * Safari before 18.2 rejects a whole transform containing multiplication in `calc()`. Repeating
+ * the lane step as additions says the same thing using the interoperable arithmetic supported by
+ * older iPhones as well. Lane indexes are small, bounded integers assigned by `vehicle-lanes`.
+ */
+export function getVehicleLeftOffset(
+  trackLeft: number,
+  laneIndex: number,
+  directionArrow: "↑" | "↓",
+): string {
+  const operator = directionArrow === "↓" ? " - " : " + ";
+  const laneSteps = Array.from(
+    { length: Math.max(0, Math.floor(laneIndex)) },
+    () => "var(--line-diagram-vehicle-lane-step)",
+  ).join(operator);
+  return `calc(${trackLeft}px + var(--line-diagram-vehicle-offset)${laneSteps ? `${operator}${laneSteps}` : ""})`;
+}
+
+/**
  * Where the diagram stands, and the one question of when it is allowed to move itself.
  *
  * It places itself when the rider opens something new to read — a line, or a trip pinned on it —
@@ -133,7 +153,7 @@ export function useCurrentStopMove(currentStopIndex: number, chainKey: string): 
 }
 
 /**
- * The trip the diagram is drawn from, held across the moment another stop's board is being read.
+ * The trip the diagram is drawn from, retained across the moment another stop's board is being read.
  *
  * Walking along a line re-addresses the stop, and every board behind the trip is keyed by that
  * stop: for the few hundred milliseconds it takes them to answer, the feed has nothing to say about
@@ -142,30 +162,30 @@ export function useCurrentStopMove(currentStopIndex: number, chainKey: string): 
  * trip falls back to whichever one of the line the boards can still see, and the stop chain those
  * rows are is replaced under a scroll position measured against the old one.
  *
- * So the trip is held for as long as the address names it. This retains a reading, never a level:
+ * So the trip is retained for as long as the address names it. This retains a reading, never a level:
  * the moment the address stops naming the trip the hold is dropped with it, and a trip the boards
- * answer for and no longer contain is a trip that has genuinely gone. What is held is also exactly
+ * answer for and no longer contain is a trip that has genuinely gone. What is retained is also exactly
  * what was already on the screen — no time is restated as fresher than it was read, because it is
  * the same reading, and the freshness the diagram states is read from it rather than from a board
  * that is momentarily absent.
  */
-export type HeldTrip<T> = { tripId: string; departure: T } | null;
+export type RetainedDiagramTrip<T> = { tripId: string; departure: T } | null;
 
 /**
  * The rule itself, as a fact about one reading rather than about React: draw the addressed trip's
  * last reading, and go on holding it for exactly as long as the address names that trip.
  */
-export function holdAddressedTrip<T>(
-  held: HeldTrip<T>,
+export function retainAddressedTrip<T>(
+  retained: RetainedDiagramTrip<T>,
   tripId: string | undefined,
   departure: T | undefined,
-): { drawn: T | undefined; held: HeldTrip<T> } {
+): { drawn: T | undefined; retained: RetainedDiagramTrip<T> } {
   // A diagram reading no trip holds nothing, so leaving one never leaves a hold behind for the next
   // trip that happens to be addressed to pick up.
-  if (!tripId) return { drawn: departure, held: null };
-  if (departure) return { drawn: departure, held: { tripId, departure } };
-  const kept = held?.tripId === tripId ? held : null;
-  return { drawn: kept?.departure, held: kept };
+  if (!tripId) return { drawn: departure, retained: null };
+  if (departure) return { drawn: departure, retained: { tripId, departure } };
+  const kept = retained?.tripId === tripId ? retained : null;
+  return { drawn: kept?.departure, retained: kept };
 }
 
 export function useRetainedDiagramTrip<T>(
@@ -173,11 +193,14 @@ export function useRetainedDiagramTrip<T>(
   tripId: string | undefined,
   departure: T | undefined,
 ): T | undefined {
-  const [held, setHeld] = useState<HeldTrip<T>>(null);
+  const [retained, setRetained] = useState<RetainedDiagramTrip<T>>(null);
 
-  const next = holdAddressedTrip(held, tripId, departure);
-  if (next.held?.tripId !== held?.tripId || next.held?.departure !== held?.departure) {
-    setHeld(next.held);
+  const next = retainAddressedTrip(retained, tripId, departure);
+  if (
+    next.retained?.tripId !== retained?.tripId ||
+    next.retained?.departure !== retained?.departure
+  ) {
+    setRetained(next.retained);
   }
   return next.drawn;
 }
@@ -202,57 +225,6 @@ export function useRequestedTripPosition(
   });
 }
 
-/** Whether the real first row has passed above its scrollport and needs a contextual stand-in. */
-export function isTopTerminusPastViewport(rowBottom: number, viewportTop: number): boolean {
-  return rowBottom <= viewportTop + 0.5;
-}
-
-/**
- * Reveals a summary after the real top terminus leaves the internal scrollport.
- *
- * The summary is an overlay, never another measured stop. IntersectionObserver watches one row at
- * the point where its visibility actually changes, replacing the old per-scroll scan of every row.
- */
-export function useTopTerminusSummary({
-  scrollContainerRef,
-  enabled,
-  coordinateKey,
-}: {
-  scrollContainerRef: React.RefObject<HTMLDivElement | null>;
-  enabled: boolean;
-  /** Reconnect when the stop chain beneath the persistent panel changes. */
-  coordinateKey: string;
-}): boolean {
-  const [isShown, setIsShown] = useState(false);
-
-  useLayoutEffect(() => {
-    const scrollContainer = scrollContainerRef.current;
-    const firstRow = scrollContainer?.querySelector<HTMLElement>(
-      '.line-diagram-stop-list > [data-line-diagram-stop-index="0"]',
-    );
-    if (!enabled || !scrollContainer || !firstRow) {
-      setIsShown(false);
-      return;
-    }
-
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        const rootTop = entry.rootBounds?.top;
-        setIsShown(
-          rootTop !== undefined &&
-            !entry.isIntersecting &&
-            isTopTerminusPastViewport(entry.boundingClientRect.bottom, rootTop),
-        );
-      },
-      { root: scrollContainer, threshold: 0 },
-    );
-    observer.observe(firstRow);
-    return () => observer.disconnect();
-  }, [coordinateKey, enabled, scrollContainerRef]);
-
-  return enabled && isShown;
-}
-
 /**
  * The node centre in stop-list coordinates, without the visual translation applied by sticky UI.
  *
@@ -260,7 +232,7 @@ export function useTopTerminusSummary({
  * ordinary row, either end of a fork's junction — and then pulled back over that point by half its
  * own size in each direction. That pull-back is a transform, so it never reaches layout, and the
  * offset measured here is already the centre. Adding half the node's height to it would push every
- * mark below the node it belongs to, by more the larger the node is: furthest at the rider's own
+ * mark below the node it belongs to, by more the larger the node is: farthest at the rider's own
  * stop, which is exactly where a mark being off the node is most visible.
  */
 export const getMeasuredNodeCenterOffset = (

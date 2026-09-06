@@ -715,6 +715,32 @@ test("a row that disagrees by less than a minute with its sequence is rounding, 
   });
 });
 
+test("a row merged with a reading taken elsewhere is timed from its own stop's call", () => {
+  // A run is read once and merged into every stop's row of it, so one reading's marker travels
+  // with copies of the row it was not read from. Measuring Hammweg's row (due 23:46, on time)
+  // against the reading's own call at Waidweg read Hammweg's prediction as a two-minute correction
+  // and had the mark reach Hammweg a minute behind the row printed beside it. The row's stop is
+  // the question; the marker answers it only at the stop it was made for.
+  const trip: Departure = {
+    ...departure("position-boarding-elsewhere", [
+      { ...call("waidweg", 4), isCurrentStop: true },
+      { ...call("hammweg", 6), scheduledArrivalTime: new Date(start + 342_000).toISOString() },
+      call("mauerweg", 9.4),
+    ]),
+    lineId: "3",
+    destination: "Rintheim",
+    boardingLocalStopId: "hammweg",
+    platformCode: "2",
+    predictedDepartureTime: new Date(start + 6 * 60_000).toISOString(),
+  };
+
+  const placement = getSmoothTripPlacement(trip, start + 370_000);
+
+  assert.equal(placement?.fromStopId, "hammweg");
+  assert.equal(placement?.toStopId, "mauerweg");
+  assert.ok(placement && placement.progress > 0 && placement.progress < 0.2);
+});
+
 test("lets a finished run go, however often the diagram asks for it", () => {
   // A run that is over is a statement, not a silence: the vehicle it was drawn for is off the line.
   // Held as though the reading were merely unplaceable — which is how every empty reading was read
