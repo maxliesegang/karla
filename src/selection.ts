@@ -29,9 +29,9 @@ import {
   getSelectionPath,
   isAddressOutstanding,
   replaceCurrentRoute,
-  stationBoardConfig,
   type AppRoute,
 } from "./routing";
+import { stationBoardConfig } from "./station-board";
 
 const EMPTY_DEPARTURES: readonly Departure[] = [];
 const EMPTY_LINES: readonly TransitLine[] = [];

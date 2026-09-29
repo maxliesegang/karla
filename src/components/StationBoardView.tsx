@@ -20,7 +20,7 @@ import {
   isPlatformMatch,
   normalizePlatformCode,
   type StationBoardConfig,
-} from "../routing";
+} from "../station-board";
 import { LineBadge } from "./LineBadge";
 import { classNames } from "../lib/class-names";
 

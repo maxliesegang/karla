@@ -1,11 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-// The module reads the query once at load; another test file in this process may have stubbed it.
-if (!("window" in globalThis)) {
-  Object.defineProperty(globalThis, "window", { value: { location: { search: "" } } });
-}
-const { isAddressOutstanding } = await import("../src/routing.ts");
+import { isAddressOutstanding } from "../src/routing.ts";
 
 const TRIP = "de:kvv:00S02_:.kvv-21-12-E.5.T0.946.s26";
 

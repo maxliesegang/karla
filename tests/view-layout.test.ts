@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-Object.defineProperty(globalThis, "window", { value: { location: { search: "" } } });
-const { parseRoute } = await import("../src/routing.ts");
-const { describePanelChange, getViewLayout, readsObservedNetwork, isStationBoardStopView } =
-  await import("../src/view-layout.ts");
+import { parseRoute } from "../src/routing.ts";
+import {
+  describePanelChange,
+  getViewLayout,
+  readsObservedNetwork,
+  isStationBoardStopView,
+} from "../src/view-layout.ts";
 
 const TRIP = "de:kvv:00S11_:.kvv-22-311-E.5.T0.161.s26";
 const OTHER_TRIP = "de:kvv:00S11_:.kvv-22-311-E.5.T0.161.s27";

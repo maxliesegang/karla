@@ -13,9 +13,9 @@ import {
 } from "../src/lib/platform-naming.ts";
 import { createDeparture as createFixture } from "./support/fixtures.ts";
 
-// `routing.ts` reads the address at import time, so it is loaded after a window exists.
+// `station-board.ts` reads the address at import time, so it is loaded after a window exists.
 Object.defineProperty(globalThis, "window", { value: { location: { search: "" } } });
-const { normalizePlatformCode } = await import("../src/routing.ts");
+const { normalizePlatformCode } = await import("../src/station-board.ts");
 
 /**
  * The words here are the operator's. `XSLT_DM_REQUEST` states a `pointType` beside every platform

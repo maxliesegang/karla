@@ -1,8 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-Object.defineProperty(globalThis, "window", { value: { location: { search: "" } } });
-const {
+import {
   getDepartureOpenPath,
   getLandingPath,
   getParentSelectionPath,
@@ -10,7 +9,7 @@ const {
   getViewStartKey,
   parseRoute,
   routePaths,
-} = await import("../src/routing.ts");
+} from "../src/routing.ts";
 
 const TRIP = "de:kvv:00S11_:.kvv-22-311-E.5.T0.161.s26";
 

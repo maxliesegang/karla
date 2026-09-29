@@ -30,14 +30,8 @@ import { useSelectionChain } from "./selection";
 import { getRideProgress } from "./lib/ride-progress";
 import { classNames } from "./lib/class-names";
 import { findNoticesForStop } from "./lib/service-notices";
-import {
-  stationBoardConfig,
-  getDepartureAddressId,
-  getSelectionPath,
-  isStationBoardMode,
-  routePaths,
-  navigateTo,
-} from "./routing";
+import { getDepartureAddressId, getSelectionPath, routePaths, navigateTo } from "./routing";
+import { isStationBoardMode, stationBoardConfig } from "./station-board";
 import { findLineBundleOffers } from "./lib/line-bundles";
 import {
   getDashboardClassNames,
