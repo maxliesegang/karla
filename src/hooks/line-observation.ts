@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { DepartureBoard, TransitLine } from "../data/transit-types";
 import { recallLineObservation, rememberLineObservation } from "../data/line-observation-memory";
 import { transitSource } from "../data/transit-source";
@@ -50,44 +50,32 @@ export function useLineRoutes(
     () => (isEnabled ? getLineRouteRequests(selection, boards) : []),
     [boards, isEnabled, selection],
   );
-  const [state, setState] = useState<{
-    routeStopIdsByLineId: ReadonlyMap<string, readonly string[]>;
-    readDirectionIds: ReadonlySet<string>;
-  }>({ routeStopIdsByLineId: NO_ROUTES, readDirectionIds: new Set() });
+  const [routeStopIdsByLineId, setRouteStopIdsByLineId] = useState(NO_ROUTES);
+  // Asked once per direction: a route does not move, and the source keeps it for the session.
+  const askedDirectionIds = useRef(new Set<string>());
 
   useEffect(() => {
-    let isCurrent = true;
     for (const { lineId, directionId, rowId } of requests) {
-      // Asked once per direction and never again: a route does not move, and the source keeps it
-      // for the session, so a re-render must not turn into a second request.
-      if (state.readDirectionIds.has(directionId)) continue;
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      setState((current) => ({
-        ...current,
-        readDirectionIds: new Set(current.readDirectionIds).add(directionId),
-      }));
+      if (askedDirectionIds.current.has(directionId)) continue;
+      askedDirectionIds.current.add(directionId);
       transitSource.getLineRoute(rowId).then((routeStopIds) => {
-        if (!isCurrent || !routeStopIds?.length) return;
-        setState((current) => {
-          // The two directions of a line are one route: the first read states the order and the
-          // opposite adds only what it does not already carry, which on a one-way loop is the half
-          // of it no outbound run describes.
-          const merged = [...(current.routeStopIdsByLineId.get(lineId) ?? [])];
+        // A route that could not be read is asked for again with the next boards.
+        if (routeStopIds === undefined) askedDirectionIds.current.delete(directionId);
+        if (!routeStopIds?.length) return;
+        setRouteStopIdsByLineId((current) => {
+          // A line's two directions are one route: the second adds only the stops the first lacks,
+          // which on a one-way loop is the half no outbound run describes.
+          const known = current.get(lineId) ?? [];
+          const merged = [...known];
           for (const stopId of routeStopIds) addOnce(merged, stopId);
-          if (merged.length === (current.routeStopIdsByLineId.get(lineId)?.length ?? 0))
-            return current;
-          const routeStopIdsByLineId = new Map(current.routeStopIdsByLineId);
-          routeStopIdsByLineId.set(lineId, merged);
-          return { ...current, routeStopIdsByLineId };
+          if (merged.length === known.length) return current;
+          return new Map(current).set(lineId, merged);
         });
       });
     }
-    return () => {
-      isCurrent = false;
-    };
-  }, [requests, state.readDirectionIds]);
+  }, [requests]);
 
-  return state.routeStopIdsByLineId;
+  return routeStopIdsByLineId;
 }
 
 /**

@@ -33,7 +33,7 @@ GitHub Actions tests, builds and deploys `dist` on push to `main`; don't commit 
 | [src/components/](src/components/) | views; German copy |
 | [src/data/](src/data/) | `TransitSource` boundary, run store, EFA client and parsers |
 | [src/data/generated/](src/data/generated/) | written by [scripts/](scripts/); never edited by hand |
-| [tests/](tests/) | `node --test` over the pure modules; no DOM, no network |
+| [tests/](tests/) | `node --test`; no network. Hooks are tested with `tests/support/render-hook.ts` (happy-dom) |
 
 ## Constraints
 
