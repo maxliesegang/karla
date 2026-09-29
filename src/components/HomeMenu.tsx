@@ -15,14 +15,25 @@ import { routePaths } from "../routing";
  * stands as one at the top of the home. Its `/nearby` view exists as the correction list that
  * action opens onto.
  *
- * The Zentrum is not in this list while its plan is still being built: its page stays addressed
- * (`#/center`) and says so itself.
+ * The Zentrum is listed while its plan is still being built, marked as such here as on its page, so
+ * a rider opening it knows what they are opening.
  */
-const homeMenuItems = [
+const homeMenuItems: readonly {
+  label: string;
+  description: string;
+  path: string;
+  isInProgress?: boolean;
+}[] = [
   {
     label: "Linien",
     description: "Stadtbahn, Straßenbahn und Bus des KVV",
     path: routePaths.network(),
+  },
+  {
+    label: "Zentrum",
+    description: "Die Bahn im Zentrum, live auf dem Plan",
+    path: routePaths.zentrum(),
+    isInProgress: true,
   },
   {
     label: "Meldungen",
@@ -34,7 +45,7 @@ const homeMenuItems = [
     description: "Mach die App so, wie dir passt",
     path: routePaths.settings(),
   },
-] as const;
+];
 
 export function HomeMenu() {
   return (
@@ -47,7 +58,10 @@ export function HomeMenu() {
           <li key={item.path}>
             <a href={`#${item.path}`}>
               <span>
-                <strong>{item.label}</strong>
+                <strong>
+                  {item.label}
+                  {item.isInProgress && <em className="home-menu-progress">In Arbeit</em>}
+                </strong>
                 <small>{item.description}</small>
               </span>
               <b aria-hidden="true">›</b>
