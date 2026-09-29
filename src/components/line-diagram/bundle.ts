@@ -225,12 +225,7 @@ export function useLineBundleBranchVehicles({
     for (const branch of branches) {
       const branchLine = lineById.get(branch.lineId);
       if (!branchLine) continue;
-      const branchStops = buildLineDiagramStops(
-        network,
-        branchLine,
-        [...branch.calls].reverse(),
-        null,
-      );
+      const branchStops = buildLineDiagramStops(network, [...branch.calls].reverse());
       // Past the junction only this line runs, so the leg carries its vehicles alone.
       const branchDepartures = getLineDiagramRunDepartures(
         createLineSelection(branch.lineId),

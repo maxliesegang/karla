@@ -1,11 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type {
-  Departure,
-  TransitLine,
-  TransitNetwork,
-  TripCall,
-} from "../src/data/transit-types.ts";
+import type { Departure, TransitNetwork, TripCall } from "../src/data/transit-types.ts";
 import { buildLineDiagramStops, getLineDiagramVehicles } from "../src/lib/line-diagram.ts";
 import { getDrawableLineBundleOffers, getLineBundleTrunk } from "../src/lib/line-bundles.ts";
 import { createCall } from "./support/calls.ts";
@@ -34,15 +29,6 @@ const network: TransitNetwork = {
   })),
   lines: [],
 };
-
-const lineOf = (id: string): TransitLine => ({
-  id,
-  name: id,
-  color: "#000",
-  textColor: "#fff",
-  destinations: [],
-  zentrumCalls: [],
-});
 
 const trip = (id: string, lineId: string, calls: readonly TripCall[]): Departure =>
   createDeparture({
@@ -82,15 +68,11 @@ const trunk = getLineBundleTrunk(
 );
 
 /** Rows are drawn in reverse travel order, exactly as the panel builds them. */
-const stopsOf = (calls: readonly TripCall[], line: TransitLine) =>
-  buildLineDiagramStops(network, line, [...calls].reverse(), null);
+const stopsOf = (calls: readonly TripCall[]) =>
+  buildLineDiagramStops(network, [...calls].reverse());
 
-const placedOn = (
-  calls: readonly TripCall[],
-  line: TransitLine,
-  vehicles: readonly Departure[],
-  feedNow: number,
-) => getLineDiagramVehicles(stopsOf(calls, line), vehicles, [], undefined, feedNow, { motions });
+const placedOn = (calls: readonly TripCall[], vehicles: readonly Departure[], feedNow: number) =>
+  getLineDiagramVehicles(stopsOf(calls), vehicles, [], undefined, feedNow, { motions });
 
 test("a vehicle still on the shared stretch stands on the trunk and on no leg", () => {
   assert.ok(trunk);
@@ -99,9 +81,9 @@ test("a vehicle still on the shared stretch stands on the trunk and on no leg", 
   // Nine minutes in: between Neureut and Busenbach, which is trunk for both lines.
   const feedNow = start + 9 * 60_000;
 
-  assert.equal(placedOn(trunk.calls, lineOf("S1"), [s1], feedNow).length, 1);
-  assert.equal(placedOn(aheadS1.calls, lineOf("S1"), [s1], feedNow).length, 0);
-  assert.equal(placedOn(aheadS11.calls, lineOf("S11"), [s1], feedNow).length, 0);
+  assert.equal(placedOn(trunk.calls, [s1], feedNow).length, 1);
+  assert.equal(placedOn(aheadS1.calls, [s1], feedNow).length, 0);
+  assert.equal(placedOn(aheadS11.calls, [s1], feedNow).length, 0);
 });
 
 test("a vehicle past the junction stands on its own leg and leaves the trunk", () => {
@@ -111,9 +93,9 @@ test("a vehicle past the junction stands on its own leg and leaves the trunk", (
   // Fifteen minutes in: past Busenbach, out on the S1 branch alone.
   const feedNow = start + 15 * 60_000;
 
-  assert.equal(placedOn(trunk.calls, lineOf("S1"), [s1], feedNow).length, 0);
-  assert.equal(placedOn(aheadS1.calls, lineOf("S1"), [s1], feedNow).length, 1);
-  assert.equal(placedOn(aheadS11.calls, lineOf("S11"), [s1], feedNow).length, 0);
+  assert.equal(placedOn(trunk.calls, [s1], feedNow).length, 0);
+  assert.equal(placedOn(aheadS1.calls, [s1], feedNow).length, 1);
+  assert.equal(placedOn(aheadS11.calls, [s1], feedNow).length, 0);
 });
 
 test("each leg is drawn from the junction, so its first link has both its ends", () => {
@@ -121,7 +103,7 @@ test("each leg is drawn from the junction, so its first link has both its ends",
   const [aheadS1] = trunk.branches;
   // The rows a leg draws, top to bottom: its own terminus down to the junction it runs into.
   assert.deepEqual(
-    stopsOf(aheadS1.calls, lineOf("S1")).map(({ stopId }) => stopId),
+    stopsOf(aheadS1.calls).map(({ stopId }) => stopId),
     ["etzenrot", "busenbach"],
   );
   // And that junction is the trunk's own last call, drawn once there and never again on a leg.

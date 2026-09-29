@@ -1,8 +1,7 @@
-import type { Departure, TransitLine, TransitNetwork, TripCall } from "../data/transit-types";
+import type { Departure, TransitNetwork, TripCall } from "../data/transit-types";
 import { createStopSlug } from "./stop-slug";
 import { findHomePlaceName, getStopPlaceQualifier } from "./stop-naming";
 import { findStopByName } from "./stop-services";
-import { getInterchangesAtStop, type InterchangeIndex } from "./interchanges";
 import type { JoinedRunPortionPair } from "./joined-run-portions";
 import { isSameLineFamily } from "./line-families";
 import { isSelectedLine, type LineSelection } from "./line-bundles";
@@ -24,8 +23,6 @@ import {
 import { getDistinctRuns, getRunMarkKey, isSameRun } from "./trips";
 import { findTurnarounds, type TurnaroundIndex } from "./line-turnarounds";
 
-const EMPTY_INTERCHANGES: readonly TransitLine[] = [];
-
 export type LineDiagramStop = {
   stopName: string;
   /** The municipality, stated only where the stop name does not name one by itself. */
@@ -36,7 +33,6 @@ export type LineDiagramStop = {
    * of the two a rider is looking at.
    */
   platformLabel?: string;
-  interchanges: readonly TransitLine[];
   stopId: string;
   tripCall: TripCall;
 };
@@ -162,10 +158,7 @@ function isOnSharedLink(
 
 export function buildLineDiagramStops(
   network: TransitNetwork,
-  line: TransitLine,
   calls: readonly TripCall[],
-  /** `null` beside a departure board, where the row has no width to state changes in. */
-  interchangeIndex: InterchangeIndex | null,
 ): LineDiagramStop[] {
   // A turnaround is one call reported twice; every other repeat is a stop the route really does
   // reach twice, and drawing it once would take a link a rider rides off the diagram.
@@ -189,14 +182,6 @@ export function buildLineDiagramStops(
       stopName: tripCall.stopName,
       placeName: getStopPlaceQualifier(tripCall, homePlaceName),
       platformLabel: isRepeatedStop ? tripCall.platformLabel : undefined,
-      interchanges: interchangeIndex
-        ? getInterchangesAtStop(
-            interchangeIndex,
-            network,
-            { id: stopId, name: tripCall.stopName },
-            line.id,
-          )
-        : EMPTY_INTERCHANGES,
       stopId,
       tripCall,
     };
@@ -592,13 +577,6 @@ export function getRunPositionAnchorIndex(
   }
   if (!nextCall) return -1;
   return diagramStops.findIndex(({ tripCall }) => getCallKey(tripCall) === getCallKey(nextCall));
-}
-
-/** The changes at a stop, spoken: the lines to change to, or nothing where there are none. */
-export function getInterchangeLabel(interchanges: readonly TransitLine[]): string | undefined {
-  return interchanges.length
-    ? `Umstieg zu ${interchanges.map(({ id }) => id).join(", ")}`
-    : undefined;
 }
 
 /**

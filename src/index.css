@@ -2913,49 +2913,6 @@ button.line-diagram-signs {
 .line-diagram-stop.terminus-end.current {
   background: var(--surface-3);
 }
-/* Changes are choices at a stop, not a second network diagram. A quiet local strip keeps them near
-   the stop name without competing with it or suggesting that its lines run parallel to this ride. */
-.line-diagram-interchanges-full {
-  min-width: 0;
-  display: flex;
-  grid-column: 2;
-  grid-row: 2;
-  align-items: center;
-  gap: 8px;
-  padding: 0 0 7px;
-}
-.line-diagram-interchanges-full > small,
-.line-diagram-interchanges-compact summary > small,
-.line-diagram-interchanges-compact-static > small {
-  flex: 0 0 auto;
-  color: var(--ink-soft);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.line-diagram-interchange-list {
-  min-width: 0;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-}
-.line-diagram-interchange {
-  display: inline-flex;
-  align-items: baseline;
-  color: var(--ink-soft);
-  font-size: 12px;
-  font-weight: 750;
-  font-variant-numeric: tabular-nums;
-}
-.line-diagram-interchange:not(:last-child)::after {
-  content: "·";
-  margin: 0 5px;
-  color: var(--line-strong);
-}
-.line-diagram-interchanges-compact {
-  display: none;
-}
 
 /* The way into the ride: the one control in this header that starts something rather than saying
    something about what is already drawn. The meta beside it — the vehicle count, how the trip is
@@ -5315,60 +5272,6 @@ button.line-diagram-bundle-option:focus-visible {
   }
   .line-diagram.ride {
     width: 100%;
-  }
-  .line-diagram-interchanges-full {
-    display: none;
-  }
-  .line-diagram-interchanges-compact {
-    min-width: 0;
-    display: block;
-    grid-column: 2;
-    grid-row: 2;
-    padding-bottom: 4px;
-  }
-  .line-diagram-interchanges-compact-static {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    padding-block: 4px 8px;
-  }
-  .line-diagram-interchanges-compact summary {
-    min-height: 44px;
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    padding: 4px 0;
-    color: var(--ink-soft);
-    cursor: pointer;
-    list-style: none;
-  }
-  .line-diagram-interchanges-compact summary::-webkit-details-marker {
-    display: none;
-  }
-  .line-diagram-interchanges-compact summary:focus-visible {
-    outline: 3px solid var(--focus);
-    outline-offset: 1px;
-    border-radius: 6px;
-  }
-  .line-diagram-interchanges-compact summary > b {
-    font-size: 11px;
-    font-weight: 800;
-  }
-  .line-diagram-interchanges-compact summary > i {
-    margin-left: auto;
-    font-size: 16px;
-    font-style: normal;
-    transition: transform 0.14s ease;
-  }
-  .line-diagram-interchanges-compact[open] summary .line-diagram-interchange-list,
-  .line-diagram-interchanges-compact[open] summary > b {
-    display: none;
-  }
-  .line-diagram-interchanges-compact[open] summary > i {
-    transform: rotate(180deg);
-  }
-  .line-diagram-interchanges-compact > .line-diagram-interchange-list {
-    padding: 2px 0 8px;
   }
   .line-diagram-call-time strong {
     font-size: 14px;

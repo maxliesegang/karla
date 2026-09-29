@@ -10,7 +10,6 @@ import type {
 import { getFarthestLineRun, getLineTermini } from "../../lib/stop-services";
 import { findTurnarounds } from "../../lib/line-turnarounds";
 import { createRunMotions } from "../../lib/vehicle-positioning";
-import { buildInterchangeIndex } from "../../lib/interchanges";
 import { useAppSettings, useLineRunDepartures, useRuns } from "../../hooks";
 import { getLineDiagramStatusLabel, getRunPositionHint } from "../../lib/departure-presentation";
 import {
@@ -45,8 +44,6 @@ const EMPTY_LINES: readonly TransitLine[] = [];
 const EMPTY_OFFERS: readonly LineBundleOffer[] = [];
 /** Fine enough that a call turns over within a few seconds of the minute it belongs to. */
 const ROW_CLOCK_STEP_MS = 5_000;
-/** Beside each stop of the ride. Off until there is an option to turn it back on. */
-const SHOW_INTERCHANGES = false;
 
 export type LineDiagramReadingInput = {
   line: TransitLine;
@@ -251,20 +248,9 @@ export function useLineDiagramReading({
     isWholeLine && bundledLines.length === 0
       ? { firstTerminus: farthestRun.firstTerminus, lastTerminus: farthestRun.lastTerminus }
       : drawnTermini;
-  // Every board in hand contributes: the Zentrum observation sees the lines crossing the Zentrum, and
-  // this line's own boards see the lines meeting it further out. Trips shared by two boards are
-  // deduplicated, so the overlap costs nothing. Beside a departure board no changes are shown, so
-  // the index is not built either.
-  const interchangeIndex = useMemo(
-    () =>
-      isRide && SHOW_INTERCHANGES
-        ? buildInterchangeIndex([...observationBoards, ...lineDepartureBoards])
-        : null,
-    [isRide, observationBoards, lineDepartureBoards],
-  );
   const diagramStops = useMemo(
-    () => buildLineDiagramStops(network, line, diagramCalls, interchangeIndex),
-    [network, line, diagramCalls, interchangeIndex],
+    () => buildLineDiagramStops(network, diagramCalls),
+    [network, diagramCalls],
   );
   // Row names for the vehicle marks' debug reading; a list keeps the layer memoized across ticks.
   const diagramStopNames = useMemo(

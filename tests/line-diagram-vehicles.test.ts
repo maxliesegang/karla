@@ -1,11 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type {
-  Departure,
-  TransitLine,
-  TransitNetwork,
-  TripCall,
-} from "../src/data/transit-types.ts";
+import type { Departure, TransitNetwork, TripCall } from "../src/data/transit-types.ts";
 import {
   buildLineDiagramStops,
   countLineDiagramVehicles,
@@ -36,22 +31,9 @@ const network: TransitNetwork = {
   })),
   lines: [],
 };
-const line: TransitLine = {
-  id: "2",
-  name: "2",
-  color: "#f00",
-  textColor: "#fff",
-  destinations: ["C"],
-  zentrumCalls: ["a", "b", "c"],
-};
 
 test("moves continuously across every visible row when an observed trip skips a call", () => {
-  const diagramStops = buildLineDiagramStops(
-    network,
-    line,
-    [call("a", 0), call("b", 1), call("c", 2)],
-    null,
-  );
+  const diagramStops = buildLineDiagramStops(network, [call("a", 0), call("b", 1), call("c", 2)]);
   const departure: Departure = createFixture({
     id: "diagram-skipped-call",
     tripId: "diagram-skipped-call",
@@ -80,12 +62,7 @@ test("moves continuously across every visible row when an observed trip skips a 
 });
 
 test("uses the next call as the position anchor before a selected vehicle can be placed", () => {
-  const diagramStops = buildLineDiagramStops(
-    network,
-    line,
-    [call("a", 0), call("b", 1), call("c", 2)],
-    null,
-  );
+  const diagramStops = buildLineDiagramStops(network, [call("a", 0), call("b", 1), call("c", 2)]);
 
   assert.equal(getRunPositionAnchorIndex(diagramStops, [], call("b", 1)), 1);
   assert.equal(getRunPositionAnchorIndex(diagramStops, [], undefined), -1);
@@ -167,7 +144,7 @@ test("draws joined portions as one counted mark until the terminating portion en
       delayMinutes: 1,
     })),
   };
-  const diagramStops = buildLineDiagramStops(network, line, continuing.tripCalls ?? [], null);
+  const diagramStops = buildLineDiagramStops(network, continuing.tripCalls ?? []);
 
   const together = getLineDiagramVehicles(
     diagramStops,
@@ -226,7 +203,7 @@ test("keeps inconsistent joined-portion positions separate", () => {
   ]);
   const continuing = createDeparture("punctual-long", "E", [...sharedCalls, call("e", 8)]);
   const departures = [terminating, continuing];
-  const diagramStops = buildLineDiagramStops(network, line, continuing.tripCalls ?? [], null);
+  const diagramStops = buildLineDiagramStops(network, continuing.tripCalls ?? []);
 
   const vehicles = getLineDiagramVehicles(
     diagramStops,
@@ -245,7 +222,7 @@ test("draws both published platform calls at the same stop", () => {
   // What a turning trip publishes at its last stop: timed into the platform it arrives on, and
   // again out of the one it leaves from, both resolving to the same stop.
   const tripCalls = [call("a", 0), call("b", 2), call("c", 4), call("c", 6)];
-  const diagramStops = buildLineDiagramStops(network, line, tripCalls, null);
+  const diagramStops = buildLineDiagramStops(network, tripCalls);
   assert.deepEqual(
     diagramStops.map(({ stopId }) => stopId),
     ["a", "b", "c", "c"],
@@ -301,7 +278,7 @@ test("reads a three-call terminus as the two calls the route keeps", () => {
     { ...call("waidweg", 2), platformLabel: "3", isCurrentStop: true },
     { ...call("waidweg", 3), platformLabel: "Gleis 2", scheduledDepartureTime: undefined },
   ];
-  const diagramStops = buildLineDiagramStops(network, line, tripCalls, null);
+  const diagramStops = buildLineDiagramStops(network, tripCalls);
 
   assert.deepEqual(
     diagramStops.map(({ stopName, stopId, platformLabel }) => ({
@@ -318,7 +295,7 @@ test("reads a three-call terminus as the two calls the route keeps", () => {
 });
 
 test("a chain names its own coordinates, and a row speaks for every mark behind it", () => {
-  const diagramStops = buildLineDiagramStops(network, line, [call("a", 0), call("b", 1)], null);
+  const diagramStops = buildLineDiagramStops(network, [call("a", 0), call("b", 1)]);
   assert.equal(getLineDiagramCoordinateKey("2", diagramStops), "2:a>b");
 
   const departure: Departure = createFixture({
@@ -358,12 +335,12 @@ test("a chain names its own coordinates, and a row speaks for every mark behind 
 });
 
 test("carries every trip's own destination on its mark, joined portions included", () => {
-  const diagramStops = buildLineDiagramStops(
-    network,
-    line,
-    [call("a", 0), call("b", 1), call("c", 2), call("d", 3)],
-    null,
-  );
+  const diagramStops = buildLineDiagramStops(network, [
+    call("a", 0),
+    call("b", 1),
+    call("c", 2),
+    call("d", 3),
+  ]);
   // A working that turns back at C, on a diagram drawn all the way to D: the one case the diagram
   // itself cannot show, and the mark answers it when it is asked.
   const shortWorking: Departure = createFixture({
@@ -393,7 +370,7 @@ test("carries every trip's own destination on its mark, joined portions included
 });
 
 test("speaks a mark standing at a terminus as the departure or the arrival it is", () => {
-  const diagramStops = buildLineDiagramStops(network, line, [call("a", 0), call("b", 2)], null);
+  const diagramStops = buildLineDiagramStops(network, [call("a", 0), call("b", 2)]);
   const waiting: Departure = createFixture({
     id: "diagram-waiting",
     tripId: "diagram-waiting",
@@ -438,12 +415,7 @@ test("speaks a mark standing at a terminus as the departure or the arrival it is
 });
 
 test("hides the turnaround stands with the line's other vehicles, but never the rider's own", () => {
-  const diagramStops = buildLineDiagramStops(
-    network,
-    line,
-    [call("a", 0), call("b", 2), call("c", 4)],
-    null,
-  );
+  const diagramStops = buildLineDiagramStops(network, [call("a", 0), call("b", 2), call("c", 4)]);
   const mine: Departure = createFixture({
     id: "shown-mine",
     tripId: "shown-mine",
@@ -515,7 +487,7 @@ test("places a mark on the nearer of two rows a chain names the same stop at", (
     lines: [],
   };
   const chain = [call("a", 0), call("b", 2), call("c", 4), call("b", 6), call("d", 8)];
-  const diagramStops = buildLineDiagramStops(loopNetwork, line, chain, null);
+  const diagramStops = buildLineDiagramStops(loopNetwork, chain);
   assert.deepEqual(
     diagramStops.map(({ stopId }) => stopId),
     ["a", "b", "c", "b", "d"],

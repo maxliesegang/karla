@@ -1,18 +1,7 @@
 import { memo } from "react";
 import type { LineDiagramStop } from "../../lib/line-diagram";
-import { getInterchangeLabel } from "../../lib/line-diagram";
 import { getTripCallTimeReading } from "../../lib/departure-presentation";
 import { classNames } from "../../lib/class-names";
-
-const COMPACT_INTERCHANGE_PREVIEW_LIMIT = 2;
-
-function InterchangeTokens({ interchanges }: { interchanges: LineDiagramStop["interchanges"] }) {
-  return interchanges.map((interchangeLine) => (
-    <span key={interchangeLine.id} className="line-diagram-interchange">
-      {interchangeLine.id}
-    </span>
-  ));
-}
 
 function LineDiagramStopRowView({
   diagramStop,
@@ -45,7 +34,7 @@ function LineDiagramStopRowView({
   /** The feed's clock, which is what the call times are read against. */
   feedNow: number;
 }) {
-  const { stopName, placeName, platformLabel, interchanges, stopId } = diagramStop;
+  const { stopName, placeName, platformLabel, stopId } = diagramStop;
   // Only a chosen trip has times to state. Without one the diagram describes the whole line, and
   // the times of whichever trip happens to be drawn would read as the line's own.
   const callTime = isSelectedDeparture
@@ -60,9 +49,6 @@ function LineDiagramStopRowView({
     ...(isAlighting ? ["dein Ausstieg"] : []),
     ...(vehicleLabel ? [vehicleLabel] : []),
   ].join(", ");
-  const interchangeLabel = getInterchangeLabel(interchanges);
-  const compactInterchanges = interchanges.slice(0, COMPACT_INTERCHANGE_PREVIEW_LIMIT);
-  const additionalInterchangeCount = interchanges.length - compactInterchanges.length;
 
   return (
     <div
@@ -121,47 +107,6 @@ function LineDiagramStopRowView({
           </span>
         )}
       </button>
-
-      {interchanges.length > 0 && (
-        <>
-          <span
-            className="line-diagram-interchanges-full"
-            role="note"
-            aria-label={interchangeLabel}
-          >
-            <small>Umstieg</small>
-            <span className="line-diagram-interchange-list" aria-hidden="true">
-              <InterchangeTokens interchanges={interchanges} />
-            </span>
-          </span>
-          {additionalInterchangeCount > 0 ? (
-            <details className="line-diagram-interchanges-compact">
-              <summary aria-label={interchangeLabel}>
-                <small>Umstieg</small>
-                <span className="line-diagram-interchange-list" aria-hidden="true">
-                  <InterchangeTokens interchanges={compactInterchanges} />
-                </span>
-                <b aria-hidden="true">+{additionalInterchangeCount}</b>
-                <i aria-hidden="true">⌄</i>
-              </summary>
-              <span className="line-diagram-interchange-list" aria-hidden="true">
-                <InterchangeTokens interchanges={interchanges} />
-              </span>
-            </details>
-          ) : (
-            <span
-              className="line-diagram-interchanges-compact line-diagram-interchanges-compact-static"
-              role="note"
-              aria-label={interchangeLabel}
-            >
-              <small>Umstieg</small>
-              <span className="line-diagram-interchange-list" aria-hidden="true">
-                <InterchangeTokens interchanges={compactInterchanges} />
-              </span>
-            </span>
-          )}
-        </>
-      )}
     </div>
   );
 }

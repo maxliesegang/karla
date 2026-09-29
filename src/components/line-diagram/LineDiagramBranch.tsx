@@ -72,8 +72,8 @@ export function LineDiagramBranch({
   // that touches the trunk.
   const diagramTripCalls = useMemo(() => [...branch.calls].reverse(), [branch.calls]);
   const diagramStops = useMemo(
-    () => buildLineDiagramStops(network, line, diagramTripCalls, null),
-    [network, line, diagramTripCalls],
+    () => buildLineDiagramStops(network, diagramTripCalls),
+    [network, diagramTripCalls],
   );
   const junctionIndex = branch.direction === "ahead" ? diagramStops.length - 1 : 0;
   const coordinateKey = getLineDiagramCoordinateKey(line.id, diagramStops);

@@ -7,7 +7,7 @@ import {
   getLineDiagramVehicles,
   getVehicleRowCoordinate,
 } from "../src/lib/line-diagram.ts";
-import type { TransitLine, TransitNetwork } from "../src/data/transit-types.ts";
+import type { TransitNetwork } from "../src/data/transit-types.ts";
 import { createCall, run } from "./support/calls.ts";
 import { createRunMotions } from "../src/lib/vehicle-positioning.ts";
 import { createDeparture } from "./support/fixtures.ts";
@@ -62,20 +62,7 @@ test("draws an arrival and a same-instant departure as the two vehicles they are
     stops: ["a", "b", "c"].map((id) => ({ id, name: id.toUpperCase() })),
     lines: [],
   };
-  const line: TransitLine = {
-    id: "2",
-    name: "2",
-    color: "#f00",
-    textColor: "#fff",
-    destinations: ["A", "C"],
-    zentrumCalls: [],
-  };
-  const diagramStops = buildLineDiagramStops(
-    network,
-    line,
-    [call("a", 0), call("b", 4), call("c", 8)],
-    null,
-  );
+  const diagramStops = buildLineDiagramStops(network, [call("a", 0), call("b", 4), call("c", 8)]);
   const arriving = departure("in-immediate", "2", [call("a", 0), call("b", 4), call("c", 8)]);
   const turning = departure("out-immediate", "2", [call("c", 8), call("b", 12), call("a", 16)]);
   const turnaroundIndex = findTurnarounds([arriving, turning]);
@@ -249,20 +236,7 @@ test("draws a turnaround as one standing mark rather than an arrival beside a de
     stops: ["a", "b", "c"].map((id) => ({ id, name: id.toUpperCase() })),
     lines: [],
   };
-  const line: TransitLine = {
-    id: "2",
-    name: "2",
-    color: "#f00",
-    textColor: "#fff",
-    destinations: ["A", "C"],
-    zentrumCalls: [],
-  };
-  const diagramStops = buildLineDiagramStops(
-    network,
-    line,
-    [call("a", 0), call("b", 4), call("c", 8)],
-    null,
-  );
+  const diagramStops = buildLineDiagramStops(network, [call("a", 0), call("b", 4), call("c", 8)]);
   const arriving = departure("in", "2", [call("a", 0), call("b", 4), call("c", 8)]);
   const turning = departure("out", "2", [call("c", 14), call("b", 18), call("a", 22)]);
 
@@ -318,20 +292,7 @@ test("keeps the arriving mark when the departure it turns into cannot be drawn h
     stops: ["a", "b", "c", "d"].map((id) => ({ id, name: id.toUpperCase() })),
     lines: [],
   };
-  const line: TransitLine = {
-    id: "2",
-    name: "2",
-    color: "#f00",
-    textColor: "#fff",
-    destinations: ["A", "C"],
-    zentrumCalls: [],
-  };
-  const diagramStops = buildLineDiagramStops(
-    network,
-    line,
-    [call("a", 0), call("b", 4), call("c", 8)],
-    null,
-  );
+  const diagramStops = buildLineDiagramStops(network, [call("a", 0), call("b", 4), call("c", 8)]);
   const arriving = departure("in-offdiagram", "2", [
     call("d", -2),
     call("a", 0),
@@ -403,21 +364,8 @@ const terminusNetwork: TransitNetwork = {
   stops: ["a", "b", "c"].map((id) => ({ id, name: id.toUpperCase() })),
   lines: [],
 };
-const terminusLine: TransitLine = {
-  id: "3",
-  name: "3",
-  color: "#f00",
-  textColor: "#fff",
-  destinations: ["A", "C"],
-  zentrumCalls: [],
-};
 const terminusDiagram = () =>
-  buildLineDiagramStops(
-    terminusNetwork,
-    terminusLine,
-    [call("a", 0), call("b", 4), call("c", 8)],
-    null,
-  );
+  buildLineDiagramStops(terminusNetwork, [call("a", 0), call("b", 4), call("c", 8)]);
 
 test("draws one mark where an arrival and a waiting departure share a terminus unpaired", () => {
   // Forty seconds between the arrival and the next departure: too quick to be read as one vehicle
