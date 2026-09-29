@@ -10,7 +10,6 @@ import { compareLineIds, getLineFamilyId } from "./line-families";
 import { isZentrumStop } from "../data/zentrum-stops";
 import { getFarthestLineRunTermini } from "./stop-services";
 import { addOnce, getDistinctByFrequency } from "./collections";
-import { getBoardTimetableTrips } from "./trips";
 
 /**
  * The network as the live feed actually shows it, rather than as a list kept by hand.
@@ -234,12 +233,6 @@ export function buildObservedNetworkFromTrips(
     })),
     tripCount: trips.length,
   };
-}
-
-export function buildObservedNetwork(boards: readonly DepartureBoard[]): ObservedNetwork {
-  return buildObservedNetworkFromTrips(
-    getBoardTimetableTrips(boards).filter((departure) => departure.status !== "cancelled"),
-  );
 }
 
 /**

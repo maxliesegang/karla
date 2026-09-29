@@ -728,34 +728,3 @@ const getVehicleHeadingAngle = (
     getZentrumSchematicVehiclePathPlacement(oriented ?? { points: [], steps: [] }, 0).angle ?? 0
   );
 };
-
-/**
- * The corridors each drawn lane's vehicles are still to run.
- *
- * Keyed by the lane, the observed corridors at least one placed vehicle of that lane still has
- * ahead of it: the one it is on now and every corridor its run comes to afterwards. A corridor no
- * vehicle is making for is named by no lane here, and the vehicle map leaves it unlit -- what the
- * map colours is the service still to come, in front of the vehicles, not the network they came
- * from. A vehicle the plan cannot place places nothing: its line keeps the corridors it was seen
- * running, and nothing is lit that no mark on the map is running towards.
- */
-export function getZentrumSchematicAheadEdgeIds(
-  reading: ZentrumSchematicReading,
-  departures: readonly Departure[],
-  feedNow: number,
-  motions: RunMotions,
-): ReadonlyMap<string, ReadonlySet<string>> {
-  const aheadEdgeIdsByTrackId = new Map<string, Set<string>>();
-  for (const { trackId, aheadEdgeIds } of getZentrumSchematicPlacedRuns(
-    reading,
-    departures,
-    feedNow,
-    motions,
-  )) {
-    if (!trackId) continue;
-    const lanes = aheadEdgeIdsByTrackId.get(trackId) ?? new Set<string>();
-    for (const edgeId of aheadEdgeIds) lanes.add(edgeId);
-    aheadEdgeIdsByTrackId.set(trackId, lanes);
-  }
-  return aheadEdgeIdsByTrackId;
-}

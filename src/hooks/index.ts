@@ -29,7 +29,6 @@ export {
   ZENTRUM_OBSERVATION_REFRESH_MS,
   useZentrumNetwork,
   useDepartureBoardCollection,
-  useDepartureBoards,
   type DepartureBoardCollection,
 } from "./departure-board-collection";
 export {

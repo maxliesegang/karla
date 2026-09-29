@@ -32,7 +32,7 @@ export type RidePositionFix = {
 /** Wider than this and the fix cannot tell one link of an urban line from the next. */
 export const MAX_RIDE_POSITION_FIX_ACCURACY_METERS = 250;
 /** How far off the line a fix may land before it stops being evidence about this trip. */
-export const MAX_RIDE_POSITION_OFF_ROUTE_METERS = 400;
+const MAX_RIDE_POSITION_OFF_ROUTE_METERS = 400;
 /** Two links this close to equally good are not distinguished by distance; the timetable decides. */
 const AMBIGUOUS_LINK_MARGIN_METERS = 120;
 

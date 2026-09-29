@@ -8,7 +8,7 @@ import { getRunMarkKey } from "./trips";
  */
 export const RUN_MARK_RETENTION_GRACE_MS = 2 * 60_000;
 /** The set followed is bounded even if a provider returns an unexpectedly large board. */
-export const FOLLOWED_RUN_CAPACITY = 256;
+const FOLLOWED_RUN_CAPACITY = 256;
 
 /**
  * A run a line view is still following: its id, never a copy of its reading.
@@ -27,7 +27,7 @@ export type FollowedRun = {
 };
 
 /** The final expected call, plus the grace a marker is held for. */
-export function getRunRetentionExpiry(departure: Departure): number | undefined {
+function getRunRetentionExpiry(departure: Departure): number | undefined {
   const finalInstant = findFinalCallInstant(departure.tripCalls);
   return finalInstant === undefined ? undefined : finalInstant + RUN_MARK_RETENTION_GRACE_MS;
 }

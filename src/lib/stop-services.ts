@@ -72,7 +72,7 @@ export function getLineTermini(line: TransitLine): string[] {
  * Reach is the run's own length — the number of distinct calls — which is what makes a whole run
  * beat the short workings beside it, whatever order the boards were read in.
  */
-export function findFarthestLineRunCalls(
+function findFarthestLineRunCalls(
   lineId: string,
   departures: readonly Pick<Departure, "lineId" | "tripCalls">[],
 ): readonly TripCall[] | undefined {

@@ -34,8 +34,3 @@ export function rememberLineObservation(lineId: string, observation: LineObserva
     observationByLineId.delete(forgotten);
   }
 }
-
-/** Tests read one visit at a time; nothing in the app forgets a line while it is open. */
-export function clearLineObservationMemory(): void {
-  observationByLineId.clear();
-}

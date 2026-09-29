@@ -5,7 +5,6 @@ import { isZentrumStop, zentrumStopIds } from "../src/data/zentrum-stops.ts";
 import {
   type ZentrumSchematicReading,
   buildZentrumSchematicReading,
-  getZentrumSchematicAheadEdgeIds,
   getZentrumSchematicVehicles,
 } from "../src/lib/zentrum-schematic.ts";
 import {
@@ -1317,26 +1316,14 @@ test("lights the corridors ahead of a placed vehicle, and none behind it", () =>
     "kronenplatz\u0000marktplatz",
   ]);
 
-  // Between the Europaplatz and the Marktplatz, both corridors ahead of the vehicle are lit --
-  // the one it is on now, and the one its run comes to next.
-  const leaving = getZentrumSchematicAheadEdgeIds(
-    reading,
-    [eastbound],
-    Date.parse("2026-09-04T12:01:00+02:00"),
-    motions,
-  );
-  assert.deepEqual([...(leaving.get("S1") ?? [])].sort(), [
-    "europaplatz\u0000marktplatz",
-    "kronenplatz\u0000marktplatz",
-  ]);
   // Past the Marktplatz, the corridor behind has gone out; the one ahead is still lit.
-  const past = getZentrumSchematicAheadEdgeIds(
+  const [past] = getZentrumSchematicVehicles(
     reading,
     [eastbound],
     Date.parse("2026-09-04T12:03:00+02:00"),
     motions,
   );
-  assert.deepEqual([...(past.get("S1") ?? [])], ["kronenplatz\u0000marktplatz"]);
+  assert.deepEqual([...(past?.aheadEdgeIds ?? [])], ["kronenplatz\u0000marktplatz"]);
 });
 
 /*

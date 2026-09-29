@@ -4002,11 +4002,6 @@ button.line-diagram-bundle-option:focus-visible {
   background: color-mix(in srgb, var(--heading-tint) 15%, var(--surface));
   transition-duration: 0s;
 }
-.card-action {
-  margin-left: auto;
-  color: var(--accent-ink);
-  font-size: 20px;
-}
 
 /* ---------- Network ----------
    The line index, read in the modes the network is made of: a band per mode, the rows of that
@@ -4111,8 +4106,7 @@ button.line-diagram-bundle-option:focus-visible {
   text-align: left;
   cursor: pointer;
 }
-.network-group-lines > button:hover,
-.stop-lines button:hover {
+.network-group-lines > button:hover {
   background: var(--surface);
   box-shadow: none;
 }

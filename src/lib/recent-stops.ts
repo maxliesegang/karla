@@ -23,7 +23,7 @@ const RECENT_STOP_TTL_MS = 14 * 24 * 60 * 60 * 1000;
  * How many are kept. A rider has a home stop, a work stop and perhaps one more; a longer list stops
  * being a shortcut and becomes something to read, which is what the search field is for.
  */
-export const RECENT_STOP_LIMIT = 4;
+const RECENT_STOP_LIMIT = 4;
 
 export type RecentStop = {
   stopId: string;

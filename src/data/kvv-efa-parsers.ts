@@ -906,7 +906,7 @@ const OPERATIONAL_REMARK_PATTERN = new RegExp(
   "i",
 );
 
-export function splitDestination(destination: string): [string, string | undefined] {
+function splitDestination(destination: string): [string, string | undefined] {
   const chevron = destination.indexOf(">");
   if (chevron > 0) {
     return [

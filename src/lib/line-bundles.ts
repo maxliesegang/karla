@@ -33,7 +33,7 @@ export type LineSelection = {
  * `#/stop/hochstetten/line/S1+S11`. A line id is alphanumeric and a `+` in a fragment path is the
  * literal character rather than a space, so the bundle needs no escaping to survive a shared link.
  */
-export const LINE_BUNDLE_SEPARATOR = "+";
+const LINE_BUNDLE_SEPARATOR = "+";
 
 /**
  * How many siblings one line may be read with.
@@ -50,7 +50,7 @@ export const MAX_BUNDLED_LINES = 2;
  * distinction `StopServiceCorridor.hasObservedSharedRoute` draws — and a bundle is a promise about
  * a stretch. Three calls is the shortest stretch a rider would call a common way.
  */
-export const MIN_LINE_BUNDLE_SHARED_CALLS = 3;
+const MIN_LINE_BUNDLE_SHARED_CALLS = 3;
 
 export const createLineSelection = (
   lineId: string,
@@ -65,9 +65,6 @@ export function getLineSelectionIds({ lineId, bundledLineIds }: LineSelection): 
 /** Whether a departure belongs to the lines currently being read together. */
 export const isSelectedLine = (selection: LineSelection, lineId: string): boolean =>
   getLineSelectionIds(selection).some((selected) => isSameLineFamily(selected, lineId));
-
-export const isBundledSelection = ({ bundledLineIds }: LineSelection): boolean =>
-  bundledLineIds.length > 0;
 
 /**
  * The addressed siblings that this stop has actually answered for.
@@ -153,7 +150,7 @@ export type DrawableLineBundleOffer = {
 };
 
 /** The offer as it is stated once a drawn trip has picked which of its stretches it is about. */
-export const toDrawableLineBundleOffer = (
+const toDrawableLineBundleOffer = (
   lineId: string,
   sharedCalls: readonly TripCall[],
 ): DrawableLineBundleOffer => ({

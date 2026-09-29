@@ -14,7 +14,7 @@ export type VehicleLayerGeometry = {
   stopCenterOffsets: readonly number[];
   trackLeft: number;
 };
-export const EMPTY_VEHICLE_LAYER_GEOMETRY: VehicleLayerGeometry = {
+const EMPTY_VEHICLE_LAYER_GEOMETRY: VehicleLayerGeometry = {
   coordinateKey: "",
   stopCenterOffsets: [],
   trackLeft: 0,

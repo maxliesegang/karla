@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Departure, DepartureBoard, TripCall } from "../src/data/transit-types.ts";
-import { buildObservedNetwork, getObservedTransitLines } from "../src/lib/observed-network.ts";
+import { ObservedNetworkStore } from "../src/data/observed-network-store.ts";
+import { getObservedTransitLines } from "../src/lib/observed-network.ts";
 import { createDeparture } from "./support/fixtures.ts";
 
 const call = (stopName: string, localStopId: string, placeName?: string): TripCall => ({
@@ -26,6 +27,13 @@ const trip = (
     scheduledDepartureTime: "2026-09-05T12:04:00+02:00",
     ...overrides,
   });
+
+/** The network as the app learns it: every live board passes through the store. */
+const buildObservedNetwork = (boards: readonly DepartureBoard[]) => {
+  const store = new ObservedNetworkStore();
+  for (const liveBoard of boards) store.rememberBoard(liveBoard, 0);
+  return store.getSnapshot();
+};
 
 const board = (departures: readonly Departure[]): DepartureBoard[] => [
   {

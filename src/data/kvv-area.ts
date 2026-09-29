@@ -4,7 +4,7 @@
  * Südliche Weinstraße. The operator's stop finder reads stops from the whole country, so a search
  * keeps what falls inside the box and leaves the rest of Germany to other apps.
  */
-export const KVV_AREA_BOUNDS = {
+const KVV_AREA_BOUNDS = {
   /** The Rastatt district's southern stops around Renchen and Achern stay in; the Ortenau beyond stays out. */
   south: 48.55,
   /** Lingenfeld in the Germersheim district stays in; Speyer, already VRN, stays out. */

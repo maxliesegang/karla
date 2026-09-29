@@ -29,7 +29,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
 };
 
 /** The row counts a board can be asked to hold. A cap the feed never answers for is not among them. */
-export const STACKED_DEPARTURE_LIMIT_OPTIONS: readonly number[] = [5, 8, 12];
+const STACKED_DEPARTURE_LIMIT_OPTIONS: readonly number[] = [5, 8, 12];
 
 const APP_SETTINGS_STORAGE_KEY = "karla:settings";
 

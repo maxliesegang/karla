@@ -69,7 +69,7 @@ import { getRunMarkKey } from "./trips";
  * the trade: it refuses the long turns a measured headway allows, rather than inventing a stand at
  * a terminus whose service it has not seen enough of to bound.
  */
-export const DEFAULT_TURNAROUND_WINDOW_MS = 10 * 60_000;
+const DEFAULT_TURNAROUND_WINDOW_MS = 10 * 60_000;
 /**
  * The longest stand read as one vehicle turning, whatever the headway allows.
  *
@@ -78,7 +78,7 @@ export const DEFAULT_TURNAROUND_WINDOW_MS = 10 * 60_000;
  * Turns measured across the network run from three minutes to fifteen (`docs/kvv-efa-api.md`), so
  * this sits above the longest of them and well below a sparse headway.
  */
-export const MAX_TURNAROUND_STAND_MS = 20 * 60_000;
+const MAX_TURNAROUND_STAND_MS = 20 * 60_000;
 /**
  * The shortest gap still drawn as one vehicle standing and turning back.
  *
@@ -89,7 +89,7 @@ export const MAX_TURNAROUND_STAND_MS = 20 * 60_000;
  * never saw — so nothing is drawn. This disqualifies a pairing; it never passes the arrival on to a
  * later departure, which would be a longer and more confident version of the same invention.
  */
-export const MIN_TURNAROUND_STAND_MS = 60_000;
+const MIN_TURNAROUND_STAND_MS = 60_000;
 
 export type TurnaroundIndex = {
   /**

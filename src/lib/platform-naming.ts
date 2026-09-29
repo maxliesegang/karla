@@ -78,7 +78,7 @@ export function findSharedPlatformCode(departures: readonly Departure[]): string
  */
 export type PlatformHeadingParts = { word?: string; code: string };
 
-export const UNNAMED_PLATFORM_LABEL = "Ohne Steigangabe";
+const UNNAMED_PLATFORM_LABEL = "Ohne Steigangabe";
 
 export function getPlatformHeadingParts(
   platformCode: string,

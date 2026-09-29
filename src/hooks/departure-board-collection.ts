@@ -63,20 +63,6 @@ export type DepartureBoardCollection = {
 };
 
 /**
- * Loads several stops' boards at once. Each board carries the whole trip behind every departure, so
- * a handful of well-placed boards describes the entire Zentrum — the stops, the track between them,
- * and the vehicles on it. Requests are deduplicated and cached by the source, so a shared stop
- * costs nothing.
- */
-export function useDepartureBoards(
-  stopIds: readonly string[],
-  refreshMs = ZENTRUM_OBSERVATION_REFRESH_MS,
-  routeDirectionIds: readonly string[] = EMPTY_ROUTE_DIRECTION_IDS,
-): readonly DepartureBoard[] {
-  return useDepartureBoardCollection(stopIds, refreshMs, routeDirectionIds).departureBoards;
-}
-
-/**
  * Several boards retained independently, plus how many observation posts answered this refresh.
  *
  * The retained boards keep the observed network still through a short provider failure. Coverage

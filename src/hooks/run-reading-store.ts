@@ -6,7 +6,7 @@ import type { Departure, DepartureBoard } from "../data/transit-types";
  * The version of the run readings one view uses: a string, because `useSyncExternalStore` compares
  * snapshots by identity and a primitive is stable by construction.
  */
-export function useRunReadingVersion(rowIds: readonly string[]): string {
+function useRunReadingVersion(rowIds: readonly string[]): string {
   const subscribe = useCallback(
     (listener: () => void) => transitSource.subscribeToRuns(rowIds, listener),
     [rowIds],

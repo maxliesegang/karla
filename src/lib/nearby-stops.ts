@@ -1,8 +1,8 @@
 import type { TransitStop } from "../data/transit-types";
 import { getDistanceMeters } from "./geo";
 
-export const MAX_NEARBY_DISTANCE_METERS = 900;
-export const MAX_NEARBY_STOP_COUNT = 6;
+const MAX_NEARBY_DISTANCE_METERS = 900;
+const MAX_NEARBY_STOP_COUNT = 6;
 
 export type NearbyStop = { stop: TransitStop; distanceMeters: number };
 

@@ -269,7 +269,7 @@ export function getOppositeDirectionId(routeDirectionId: string): string | undef
 }
 
 /** Whether both ways of a line have been named, which is when a filtered board may be asked for. */
-export const hasBothLineDirections = ({ directionIds }: LineObservation): boolean =>
+const hasBothLineDirections = ({ directionIds }: LineObservation): boolean =>
   directionIds.some((directionId) => {
     const opposite = getOppositeDirectionId(directionId);
     return Boolean(opposite && directionIds.includes(opposite));

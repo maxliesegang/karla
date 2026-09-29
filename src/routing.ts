@@ -131,7 +131,7 @@ const defaultRoute: AppRoute = {
  * An id in any other shape yields nothing, and the shell falls back to reading the line off the
  * trip once a board resolves it, exactly as a legacy `/departure/:tripId` link does.
  */
-export function getLineIdFromTripId(tripId: string): string {
+function getLineIdFromTripId(tripId: string): string {
   // `00S02_` is line S2: zeros pad both around the letter and in front of the number.
   const lineSegment = (tripId.split(":")[2] ?? "").replace(/_+$/, "");
   const padded = /^0*([A-Z]*?)0*(\d{1,3})$/.exec(lineSegment);
