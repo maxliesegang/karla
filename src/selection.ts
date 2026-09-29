@@ -6,6 +6,7 @@ import {
   useLineObservation,
   useLineStopBoard,
   type LineObservationReading,
+  useHeldRun,
   useRetainedRun,
   useTransitStop,
   useRunReadings,
@@ -284,7 +285,19 @@ export function useSelectionChain(
   // from a thirty-second board completed by a twenty-minute-old sequence is a twenty-minute-old
   // observation and says so without being told.
   const retainedRun = useRetainedRun(route.isRide ? route.addressId : undefined, observedDeparture);
-  const selectedDeparture = route.isRide ? retainedRun.departure : observedDeparture;
+  // Off the ride, the addressed run is held only while the readings that could name it are still
+  // out — a step along the line re-keys every board behind it. Once they have answered without it,
+  // the trip leaves the address.
+  const heldDeparture = useHeldRun(route.isRide ? undefined : route.addressId, observedDeparture);
+  const isAddressStillOutstanding = isAddressOutstanding({
+    addressId: route.addressId,
+    hasResolvedDeparture: Boolean(route.isRide ? retainedRun.departure : observedDeparture),
+    isStopBoardRead: departureBoard !== null,
+    isReadingLine,
+  });
+  const selectedDeparture = route.isRide
+    ? retainedRun.departure
+    : (observedDeparture ?? (isAddressStillOutstanding ? heldDeparture : undefined));
   const preferredDestination = usePreferredDestination(selectedLine, selectedDeparture);
   // Until the boards have been read once, a run that has not resolved is only unread, and the view
   // stays as addressed instead of flashing the departure board open beside it.
@@ -315,12 +328,6 @@ export function useSelectionChain(
     isRide,
     alightingStopId,
     originStopId,
-  });
-  const isAddressStillOutstanding = isAddressOutstanding({
-    addressId: route.addressId,
-    hasResolvedDeparture: Boolean(selectedDeparture),
-    isStopBoardRead: departureBoard !== null,
-    isReadingLine,
   });
   useEffect(() => {
     if (route.view !== "stop" || !selectedStop || isAddressStillOutstanding) return;

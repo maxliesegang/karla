@@ -37,7 +37,6 @@ import {
   useLineBundleBranchVehicles,
   useLineDiagramFork,
 } from "./bundle";
-import { retainAddressedRun, type RetainedDiagramRun } from "./layout";
 
 const EMPTY_TRIP_CALLS: readonly TripCall[] = [];
 const EMPTY_DEPARTURES: readonly Departure[] = [];
@@ -56,7 +55,6 @@ export type LineDiagramReadingInput = {
   network: TransitNetwork;
   stop: TransitStop;
   departure?: Departure;
-  addressId?: string;
   preferredDestination?: string;
   departureBoard: DepartureBoard | null;
   lineDepartureBoards: readonly DepartureBoard[];
@@ -79,8 +77,7 @@ export function useLineDiagramReading({
   bundleOffers = EMPTY_OFFERS,
   network,
   stop,
-  departure: observedDeparture,
-  addressId,
+  departure,
   preferredDestination,
   departureBoard,
   lineDepartureBoards,
@@ -90,10 +87,6 @@ export function useLineDiagramReading({
 }: LineDiagramReadingInput) {
   // The rider's own choice about the line's other vehicles, read where the drawing is derived.
   const { isShowingOtherLineRuns } = useAppSettings();
-  // Everything below draws the addressed trip, whether or not a board can answer for it this
-  // instant. The one thing that must not wait for the boards is which stop is the rider's: they
-  // chose it by tapping a row of this diagram, and it is the only thing their tap changed.
-  const departure = useRetainedDiagramRun(addressId, observedDeparture);
   const vehicleObservationBoards = useMemo(
     () => [...observationBoards, ...lineDepartureBoards],
     [observationBoards, lineDepartureBoards],
@@ -141,15 +134,9 @@ export function useLineDiagramReading({
   // way up the line is drawn. Held rather than chosen again at every stop — see
   // `chooseLineDiagramRun`, where the whole of that reasoning lives.
   //
-  // The rider's own stop is the one the address names, and it is asked for rather than read off the
-  // departure because the address is the statement of it that does not blink: the board behind the
-  // row is re-keyed by every step along the line, so `observedDeparture` — and the stop point it
-  // names — is absent for as long as the new stop's boards take to answer. A board row does state
-  // its own boarding stop separately, at the same local grain the calls are read at, and that is
-  // what answers where a stop-complex page lists a departure leaving from one of its other points; both are the rider's stop, so both are what
-  // the line is held by. A ride is nobody's stop — the rider is on board, not waiting at one — but
-  // the line it is drawn on is still a line whose stops the trip states.
-  const boardingLocalStopId = observedDeparture?.boardingLocalStopId;
+  // The rider's stop is the addressed stop, plus the stop point the row actually leaves from where a
+  // stop-complex page lists a departure from one of its other points.
+  const boardingLocalStopId = departure?.boardingLocalStopId;
   const riderStopIds = useMemo(
     () => (boardingLocalStopId ? [stop.id, boardingLocalStopId] : [stop.id]),
     [boardingLocalStopId, stop.id],
@@ -407,28 +394,4 @@ export function useLineDiagramReading({
     // a bare arrow says less than the line's own name.
     hasTermini: Boolean(termini.firstTerminus && termini.lastTerminus),
   };
-}
-
-/** The addressed run, held by id across a moment no board answers for it (`retainAddressedRun`). */
-export function useRetainedDiagramRun(
-  /** The run address names, which is what the hold belongs to. */
-  addressId: string | undefined,
-  departure: Departure | undefined,
-): Departure | undefined {
-  // The hold is the run's *id*: while nothing answers for it, the run is read from the store, so
-  // what is drawn is still the freshest reading anything has taken of it.
-  const [retained, setRetained] = useState<RetainedDiagramRun<string>>(null);
-  const next = retainAddressedRun(retained, addressId, departure?.id);
-  if (
-    next.retained?.addressId !== retained?.addressId ||
-    next.retained?.departure !== retained?.departure
-  ) {
-    setRetained(next.retained);
-  }
-  const heldRowIds = useMemo(
-    () => (!departure && next.drawn ? [next.drawn] : NO_ROW_IDS),
-    [departure, next.drawn],
-  );
-  const [held] = useRuns(heldRowIds);
-  return departure ?? held;
 }

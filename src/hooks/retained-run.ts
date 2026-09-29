@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { transitSource } from "../data/transit-source";
 import type { Departure } from "../data/transit-types";
 import { getDepartureReadInstant } from "../lib/trips";
 import { DEPARTURE_BOARD_REFRESH_MS } from "./departure-board";
 import { useDeviceNow } from "./clock";
 import { useKeyedLoad, type KeyedLoadOptions } from "./keyed-load";
-import { useRuns } from "./run-reading-store";
+import { useHeldRun } from "./run-reading-store";
 import {
   findActiveRideObservation,
   forgetActiveRideObservation,
@@ -29,8 +29,6 @@ export type RetainedRun = {
   isRetained: boolean;
 };
 
-const EMPTY_IDS: readonly string[] = [];
-
 const loadRetainedRun = (rowId: string): Promise<Departure | undefined> =>
   transitSource.getRun(rowId, DEPARTURE_BOARD_REFRESH_MS);
 
@@ -52,29 +50,21 @@ export function useRetainedRun(
 ): RetainedRun {
   // Ticking, so a board that goes quiet starts the ride's own re-reading by itself.
   const now = useDeviceNow();
-  // Read once per ride: seeds the id after a reload, and is the answer of last resort.
+  // Read once per ride: the answer of last resort after a reload, until a board lists the run.
   const storedObservation = useMemo(
     () => (addressId ? findActiveRideObservation(addressId) : null),
     [addressId],
   );
 
-  // The id of the run to go on reading, stated once per ride.
-  const [anchor, setAnchor] = useState<{ rideId: string; rowId: string } | null>(null);
-  const anchored = anchor?.rideId === addressId ? anchor : null;
-  const rowId = departure?.id ?? anchored?.rowId ?? storedObservation?.departure.id;
-  if (addressId && rowId && rowId !== anchored?.rowId) {
-    setAnchor({ rideId: addressId, rowId });
-  }
+  // Held by id across the boards dropping it, and read back from the store.
+  const reading = useHeldRun(addressId, departure);
+  const rowId = reading?.id;
 
   // Asked for only while no reading is fresher than the board cadence: being listed on a slow
   // observation post's board is not being re-read.
   const departureReadAt = (departure && getDepartureReadInstant(departure)) ?? 0;
   const isReadingCurrent = Boolean(departure) && now - departureReadAt < DEPARTURE_BOARD_REFRESH_MS;
   useRetainedRunRead(!addressId || isReadingCurrent ? undefined : rowId);
-  const readRowIds = useMemo(() => (rowId ? [rowId] : EMPTY_IDS), [rowId]);
-  const [live] = useRuns(readRowIds);
-
-  const reading = live ?? departure;
 
   // Mirrored to storage for the next reload, and forgotten with the ride. Only a newer reading
   // overwrites the mirror.

@@ -52,10 +52,8 @@ type LineDiagramPanelProps = {
   stop: TransitStop;
   departure?: Departure;
   /**
-   * The trip the address names, which is not the same thing as the trip the boards can currently
-   * answer for. Walking along the line re-keys every board behind the trip, so the departure above
-   * drops out for as long as they take; this does not, and it is therefore what both the hold on
-   * the drawn trip and the diagram's own placement are keyed by.
+   * The trip the address names. Unlike `departure`, it never blinks while boards are re-read, so
+   * the diagram's placement is keyed by it.
    */
   addressId?: string;
   /**
@@ -148,7 +146,6 @@ export function LineDiagramPanel({
     network,
     stop,
     departure: observedDeparture,
-    addressId,
     preferredDestination,
     departureBoard,
     lineDepartureBoards,

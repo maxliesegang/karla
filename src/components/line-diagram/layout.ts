@@ -152,41 +152,6 @@ export function useCurrentStopMove(currentStopIndex: number, chainKey: string): 
   return move;
 }
 
-/**
- * The trip the diagram is drawn from, retained across the moment another stop's board is being read.
- *
- * Walking along a line re-addresses the stop, and every board behind the trip is keyed by that
- * stop: for the few hundred milliseconds it takes them to answer, the feed has nothing to say about
- * a trip the rider has not stopped reading. Letting the diagram believe that is what made a step
- * between two stops of one line look like a navigation — the call times leave every row, the drawn
- * trip falls back to whichever one of the line the boards can still see, and the stop chain those
- * rows are is replaced under a scroll position measured against the old one.
- *
- * So the trip is retained for as long as the address names it. This retains a reading, never a level:
- * the moment the address stops naming the trip the hold is dropped with it, and a trip the boards
- * answer for and no longer contain is a trip that has genuinely gone. What is retained is the run's id, and
- * the run is read back from the source's store, which dates every reading it holds — so no time is
- * restated as fresher than it was read.
- */
-export type RetainedDiagramRun<T> = { addressId: string; departure: T } | null;
-
-/**
- * The rule itself, as a fact about one reading rather than about React: draw the addressed trip's
- * last reading, and go on holding it for exactly as long as the address names that trip.
- */
-export function retainAddressedRun<T>(
-  retained: RetainedDiagramRun<T>,
-  addressId: string | undefined,
-  departure: T | undefined,
-): { drawn: T | undefined; retained: RetainedDiagramRun<T> } {
-  // A diagram reading no trip holds nothing, so leaving one never leaves a hold behind for the next
-  // trip that happens to be addressed to pick up.
-  if (!addressId) return { drawn: departure, retained: null };
-  if (departure) return { drawn: departure, retained: { addressId, departure } };
-  const kept = retained?.addressId === addressId ? retained : null;
-  return { drawn: kept?.departure, retained: kept };
-}
-
 /** A ride moves only when the rider explicitly asks to return to its position. */
 export function useRequestedRunPosition(
   request: number,

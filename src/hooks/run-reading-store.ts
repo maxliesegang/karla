@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { useCallback, useMemo, useState, useSyncExternalStore } from "react";
 import { transitSource } from "../data/transit-source";
 import type { Departure, DepartureBoard } from "../data/transit-types";
 
@@ -34,6 +34,31 @@ export function useRuns(rowIds: readonly string[]): readonly Departure[] {
 }
 
 const NO_BOARDS: readonly DepartureBoard[] = [];
+const NO_ROW_IDS: readonly string[] = [];
+
+/**
+ * `departure` while there is one; otherwise the run last seen under `key`, read back from the store.
+ *
+ * This is how a view keeps a run across a moment nothing lists it — a board re-keyed by a step along
+ * the line, or a ride whose run has left every board. Only the id is held; the reading is always the
+ * store's. A new `key` holds nothing until a departure is seen under it.
+ */
+export function useHeldRun(
+  key: string | undefined,
+  departure: Departure | undefined,
+): Departure | undefined {
+  const [held, setHeld] = useState<{ key: string; rowId: string } | null>(null);
+  if (key !== undefined && departure && (held?.key !== key || held.rowId !== departure.id)) {
+    setHeld({ key, rowId: departure.id });
+  }
+  const heldRowId = key !== undefined && held?.key === key ? held.rowId : undefined;
+  const rowIds = useMemo(
+    () => (!departure && heldRowId ? [heldRowId] : NO_ROW_IDS),
+    [departure, heldRowId],
+  );
+  const [run] = useRuns(rowIds);
+  return departure ?? run;
+}
 
 /**
  * These boards with every row as the store reads it now.

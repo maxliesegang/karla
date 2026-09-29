@@ -1,12 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-const {
-  describeCurrentStopMove,
-  getVehicleLeftOffset,
-  getMeasuredNodeCenterOffset,
-  retainAddressedRun,
-} = await import("../src/components/line-diagram/layout.ts");
+const { describeCurrentStopMove, getVehicleLeftOffset, getMeasuredNodeCenterOffset } = await import(
+  "../src/components/line-diagram/layout.ts"
+);
 
 test("writes vehicle lanes without CSS multiplication older iOS Safari rejects", () => {
   assert.equal(getVehicleLeftOffset(52, 0, "↑"), "calc(52px + var(--line-diagram-vehicle-offset))");
@@ -61,42 +58,6 @@ test("a note that was not on the diagram has not moved onto it", () => {
   // The ride marks no stop of its own, and a stop off the drawn trip resolves to no row at all.
   assert.equal(describeCurrentStopMove(place(-1), place(2)), undefined);
   assert.equal(describeCurrentStopMove(place(2), place(-1)), undefined);
-});
-
-const TRIP = "de:kvv:00S11_:.kvv-22-311-E.5.T0.161.s26";
-const OTHER_TRIP = "de:kvv:00S11_:.kvv-22-311-E.5.T0.161.s27";
-const READING = { destination: "Wörth Badepark" };
-const FRESHER = { destination: "Wörth Badepark" };
-
-test("the diagram keeps drawing the addressed trip while the next stop's boards are read", () => {
-  // Walking along the line re-keys every board behind the trip, so for a few hundred milliseconds
-  // the feed can say nothing about a trip the rider has not stopped reading.
-  const retained = retainAddressedRun(null, TRIP, READING).retained;
-  const loading = retainAddressedRun(retained, TRIP, undefined);
-  assert.equal(loading.drawn, READING);
-  assert.equal(loading.retained, retained);
-});
-
-test("a fresher reading of the same trip replaces the one being held", () => {
-  const retained = retainAddressedRun(null, TRIP, READING).retained;
-  const answered = retainAddressedRun(retained, TRIP, FRESHER);
-  assert.equal(answered.drawn, FRESHER);
-  assert.deepEqual(answered.retained, { addressId: TRIP, departure: FRESHER });
-});
-
-test("the hold is dropped with the trip the address stops naming", () => {
-  // Unpinning the trip leaves the whole line in view, and nothing of the trip may survive it.
-  const retained = retainAddressedRun(null, TRIP, READING).retained;
-  const unpinned = retainAddressedRun(retained, undefined, undefined);
-  assert.equal(unpinned.drawn, undefined);
-  assert.equal(unpinned.retained, null);
-});
-
-test("a hold is never picked up by a different trip", () => {
-  const retained = retainAddressedRun(null, TRIP, READING).retained;
-  const other = retainAddressedRun(retained, OTHER_TRIP, undefined);
-  assert.equal(other.drawn, undefined);
-  assert.equal(other.retained, null);
 });
 
 const { chooseLineDiagramRun, getCurrentStopIndex, isCurrentLineDiagramStop } = await import(
