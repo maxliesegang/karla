@@ -10,14 +10,14 @@ import {
   buildLineDiagramStops,
   countLineDiagramVehicles,
   getLineDiagramCoordinateKey,
-  getLineDiagramVehicleDepartures,
+  getLineDiagramRunDepartures,
   getLineDiagramVehicles,
   getShownLineDiagramVehicles,
-  getTripPositionAnchorIndex,
+  getRunPositionAnchorIndex,
   getVehicleLabelsByRowIndex,
   getVehicleRowCoordinate,
 } from "../src/lib/line-diagram.ts";
-import { getJoinedTripPortionPairs } from "../src/lib/joined-trip-portions.ts";
+import { getJoinedRunPortionPairs } from "../src/lib/joined-run-portions.ts";
 import { createLineSelection } from "../src/lib/line-bundles.ts";
 import { createCall, run } from "./support/calls.ts";
 
@@ -37,7 +37,7 @@ const line: TransitLine = {
   color: "#f00",
   textColor: "#fff",
   destinations: ["C"],
-  zentrumStopIds: ["a", "b", "c"],
+  zentrumCalls: ["a", "b", "c"],
 };
 
 test("moves continuously across every visible row when an observed trip skips a call", () => {
@@ -70,7 +70,7 @@ test("moves continuously across every visible row when an observed trip skips a 
   );
 
   assert.ok(getVehicleRowCoordinate(vehicle) > 1.1 && getVehicleRowCoordinate(vehicle) < 1.4);
-  assert.equal(getTripPositionAnchorIndex(diagramStops, [vehicle], call("c", 2)), 1);
+  assert.equal(getRunPositionAnchorIndex(diagramStops, [vehicle], call("c", 2)), 1);
 });
 
 test("uses the next call as the position anchor before a selected vehicle can be placed", () => {
@@ -81,8 +81,8 @@ test("uses the next call as the position anchor before a selected vehicle can be
     null,
   );
 
-  assert.equal(getTripPositionAnchorIndex(diagramStops, [], call("b", 1)), 1);
-  assert.equal(getTripPositionAnchorIndex(diagramStops, [], undefined), -1);
+  assert.equal(getRunPositionAnchorIndex(diagramStops, [], call("b", 1)), 1);
+  assert.equal(getRunPositionAnchorIndex(diagramStops, [], undefined), -1);
 });
 
 test("keeps the freshest board's reading of a vehicle, not the first board's", () => {
@@ -104,22 +104,21 @@ test("keeps the freshest board's reading of a vehicle, not the first board's", (
     scheduledDepartureTime: new Date(start).toISOString(),
     tripCalls: [call("a", 0), call("b", 2), call("c", 4)],
   };
-  const stale = base;
+  const stale: Departure = { ...base, readAt: { rowReadAt: 1, sequenceReadAt: 1 } };
   const fresh: Departure = {
     ...base,
+    readAt: { rowReadAt: 2, sequenceReadAt: 2 },
     tripCalls: base.tripCalls?.map((tripCall, index) =>
       index === 0 ? tripCall : { ...tripCall, delayMinutes: 2 },
     ),
   };
 
   const selection = createLineSelection("2");
-  const [winner] = getLineDiagramVehicleDepartures(selection, [stale, fresh], (departure) =>
-    departure === fresh ? 2 : 1,
-  );
+  const [winner] = getLineDiagramRunDepartures(selection, [stale, fresh]);
   assert.equal(winner, fresh);
 
   // And where no reading is dated, the fuller sequence still wins, as before.
-  const [fuller] = getLineDiagramVehicleDepartures(selection, [base, { ...fresh, tripCalls: [] }]);
+  const [fuller] = getLineDiagramRunDepartures(selection, [base, { ...fresh, tripCalls: [] }]);
   assert.equal(fuller, base);
 });
 
@@ -166,7 +165,7 @@ test("draws joined portions as one counted mark until the terminating portion en
   const together = getLineDiagramVehicles(
     diagramStops,
     [terminating, continuing],
-    getJoinedTripPortionPairs([terminating, continuing]),
+    getJoinedRunPortionPairs([terminating, continuing]),
     terminating,
     start + 60_000,
   );
@@ -183,7 +182,7 @@ test("draws joined portions as one counted mark until the terminating portion en
   const afterTerminus = getLineDiagramVehicles(
     diagramStops,
     [terminating, continuing],
-    getJoinedTripPortionPairs([terminating, continuing]),
+    getJoinedRunPortionPairs([terminating, continuing]),
     undefined,
     start + 7 * 60_000,
   );
@@ -226,7 +225,7 @@ test("keeps inconsistent joined-portion positions separate", () => {
   const vehicles = getLineDiagramVehicles(
     diagramStops,
     departures,
-    getJoinedTripPortionPairs(departures),
+    getJoinedRunPortionPairs(departures),
     undefined,
     start + 3 * 60_000,
   );

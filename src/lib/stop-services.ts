@@ -74,7 +74,7 @@ export function getLineTermini(line: TransitLine): string[] {
  */
 export function findFarthestLineRunCalls(
   lineId: string,
-  departures: readonly Departure[],
+  departures: readonly Pick<Departure, "lineId" | "tripCalls">[],
 ): readonly TripCall[] | undefined {
   let farthestCalls: readonly TripCall[] | undefined;
   let farthestReach = 0;
@@ -116,7 +116,7 @@ function getRunTermini(calls: readonly TripCall[]): {
  */
 export function getFarthestLineRunTermini(
   lineId: string,
-  departures: readonly Departure[],
+  departures: readonly Pick<Departure, "lineId" | "tripCalls">[],
 ): readonly string[] | undefined {
   const calls = findFarthestLineRunCalls(lineId, departures);
   if (!calls || calls.length < 2) return undefined;

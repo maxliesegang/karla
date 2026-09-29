@@ -5,7 +5,7 @@ const {
   describeCurrentStopMove,
   getVehicleLeftOffset,
   getMeasuredNodeCenterOffset,
-  retainAddressedTrip,
+  retainAddressedRun,
 } = await import("../src/components/line-diagram/layout.ts");
 
 test("writes vehicle lanes without CSS multiplication older iOS Safari rejects", () => {
@@ -71,35 +71,35 @@ const FRESHER = { destination: "Wörth Badepark" };
 test("the diagram keeps drawing the addressed trip while the next stop's boards are read", () => {
   // Walking along the line re-keys every board behind the trip, so for a few hundred milliseconds
   // the feed can say nothing about a trip the rider has not stopped reading.
-  const retained = retainAddressedTrip(null, TRIP, READING).retained;
-  const loading = retainAddressedTrip(retained, TRIP, undefined);
+  const retained = retainAddressedRun(null, TRIP, READING).retained;
+  const loading = retainAddressedRun(retained, TRIP, undefined);
   assert.equal(loading.drawn, READING);
   assert.equal(loading.retained, retained);
 });
 
 test("a fresher reading of the same trip replaces the one being held", () => {
-  const retained = retainAddressedTrip(null, TRIP, READING).retained;
-  const answered = retainAddressedTrip(retained, TRIP, FRESHER);
+  const retained = retainAddressedRun(null, TRIP, READING).retained;
+  const answered = retainAddressedRun(retained, TRIP, FRESHER);
   assert.equal(answered.drawn, FRESHER);
-  assert.deepEqual(answered.retained, { tripId: TRIP, departure: FRESHER });
+  assert.deepEqual(answered.retained, { addressId: TRIP, departure: FRESHER });
 });
 
 test("the hold is dropped with the trip the address stops naming", () => {
   // Unpinning the trip leaves the whole line in view, and nothing of the trip may survive it.
-  const retained = retainAddressedTrip(null, TRIP, READING).retained;
-  const unpinned = retainAddressedTrip(retained, undefined, undefined);
+  const retained = retainAddressedRun(null, TRIP, READING).retained;
+  const unpinned = retainAddressedRun(retained, undefined, undefined);
   assert.equal(unpinned.drawn, undefined);
   assert.equal(unpinned.retained, null);
 });
 
 test("a hold is never picked up by a different trip", () => {
-  const retained = retainAddressedTrip(null, TRIP, READING).retained;
-  const other = retainAddressedTrip(retained, OTHER_TRIP, undefined);
+  const retained = retainAddressedRun(null, TRIP, READING).retained;
+  const other = retainAddressedRun(retained, OTHER_TRIP, undefined);
   assert.equal(other.drawn, undefined);
   assert.equal(other.retained, null);
 });
 
-const { chooseLineDiagramTrip, getCurrentStopIndex, isCurrentLineDiagramStop } = await import(
+const { chooseLineDiagramRun, getCurrentStopIndex, isCurrentLineDiagramStop } = await import(
   "../src/lib/line-diagram.ts"
 );
 
@@ -126,13 +126,13 @@ const chooseAt = (
   held: typeof OUTBOUND | undefined,
   candidates = [OUTBOUND, INBOUND],
 ) =>
-  chooseLineDiagramTrip({
+  chooseLineDiagramRun({
     lineId: "2",
     riderStopIds: [stopId],
     pinnedDeparture: undefined,
     retainedDeparture: held,
     preferredDestination: undefined,
-    stopTripDepartures: candidates,
+    stopRunDepartures: candidates,
     boardDepartures: candidates,
   });
 
@@ -146,13 +146,13 @@ test("walking along the line keeps the trip the line is already drawn from", () 
 test("a stop the held trip does not call at is drawn afresh, pointing the same way", () => {
   // Nothing to hold on to — but the direction it was last read in still stands, so a line reopened
   // further out is not turned around either.
-  const chosen = chooseLineDiagramTrip({
+  const chosen = chooseLineDiagramRun({
     lineId: "2",
     riderStopIds: ["b"],
     pinnedDeparture: undefined,
     retainedDeparture: trip("gone", "Wörth", ["x", "y"]),
     preferredDestination: undefined,
-    stopTripDepartures: [INBOUND, SHORT_OUTBOUND, OUTBOUND],
+    stopRunDepartures: [INBOUND, SHORT_OUTBOUND, OUTBOUND],
     boardDepartures: [],
   });
   assert.equal(chosen?.destination, "Wörth");
@@ -162,26 +162,26 @@ test("a stop the held trip does not call at is drawn afresh, pointing the same w
 });
 
 test("the trip the address names draws the line, held or not", () => {
-  const chosen = chooseLineDiagramTrip({
+  const chosen = chooseLineDiagramRun({
     lineId: "2",
     riderStopIds: ["c"],
     pinnedDeparture: INBOUND,
     retainedDeparture: OUTBOUND,
     preferredDestination: "Wörth",
-    stopTripDepartures: [OUTBOUND],
+    stopRunDepartures: [OUTBOUND],
     boardDepartures: [OUTBOUND],
   });
   assert.equal(chosen, INBOUND);
 });
 
 test("a line opened with nothing held is pointed where the rider was last heading", () => {
-  const chosen = chooseLineDiagramTrip({
+  const chosen = chooseLineDiagramRun({
     lineId: "2",
     riderStopIds: ["b"],
     pinnedDeparture: undefined,
     retainedDeparture: undefined,
     preferredDestination: "Durlach",
-    stopTripDepartures: [OUTBOUND, INBOUND],
+    stopRunDepartures: [OUTBOUND, INBOUND],
     boardDepartures: [],
   });
   assert.equal(chosen, INBOUND);
@@ -194,13 +194,13 @@ test("a held trip of another line is not what this line is drawn from", () => {
 
 test("without a chain to draw, the plain board still states a direction", () => {
   const boardRow = { ...INBOUND, tripCalls: undefined };
-  const chosen = chooseLineDiagramTrip({
+  const chosen = chooseLineDiagramRun({
     lineId: "2",
     riderStopIds: ["b"],
     pinnedDeparture: undefined,
     retainedDeparture: undefined,
     preferredDestination: undefined,
-    stopTripDepartures: [],
+    stopRunDepartures: [],
     boardDepartures: [boardRow],
   });
   assert.equal(chosen, boardRow);

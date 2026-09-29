@@ -39,8 +39,8 @@ export type ResolvedViewSelection = {
   stopId: string;
   /** The line still resolving at the stop, which is what turns a stop view into a line view. */
   lineId: string | undefined;
-  /** Route identity of the resolved trip, which is what makes one trip a different view to another. */
-  tripId: string | undefined;
+  /** Address of the resolved run, which is what makes one run a different view to another. */
+  addressId: string | undefined;
   hasSelectedDeparture: boolean;
   isRide: boolean;
   originStopId: string | undefined;
@@ -111,7 +111,7 @@ function getPanelKeys(
   isRideInView: boolean,
 ): PanelKeys {
   const primaryKey = isRideInView
-    ? `ride:${selection.tripId ?? ""}`
+    ? `ride:${selection.addressId ?? ""}`
     : activeView === "line"
       ? `line:${selection.lineId ?? ""}`
       : activeView;
@@ -179,7 +179,8 @@ function getBackPath(
     view: route.view,
     stopId: selection.stopId,
     lineId: selection.lineId,
-    tripId: selection.tripId,
+    addressId: selection.addressId,
+    tripParent: route.tripParent,
     isRide: isRideInView,
     originStopId: selection.originStopId,
   });

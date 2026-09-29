@@ -16,7 +16,7 @@ const createDepartureBoardLoader = (request: DepartureBoardRequest) => (stopId: 
   transitSource.getDepartureBoard(stopId, request);
 
 /**
- * The key that names stops and, optionally, line ids: `stopIds|lineIds`. Stop slugs and provider
+ * The key that names stops and, optionally, route direction ids: `stopIds|routeDirectionIds`. Stop slugs and provider
  * direction ids contain neither separator.
  */
 const parseStopLineKey = (key: string): { stopKey: string; lineKey: string } => {
@@ -27,7 +27,10 @@ const parseStopLineKey = (key: string): { stopKey: string; lineKey: string } => 
 /** One stop's board restricted to one line's directions; the key is `stopId|directionIds`. */
 const loadLineStopBoard = (key: string) => {
   const { stopKey: stopId, lineKey } = parseStopLineKey(key);
-  return transitSource.getDepartureBoard(stopId, lineKey ? { lineIds: lineKey.split(",") } : {});
+  return transitSource.getDepartureBoard(
+    stopId,
+    lineKey ? { routeDirectionIds: lineKey.split(",") } : {},
+  );
 };
 
 /**
@@ -36,7 +39,7 @@ const loadLineStopBoard = (key: string) => {
  * boards, and a single board has no runs of its own, so there the field has no one to speak to.
  */
 type DepartureBoardsRequest = DepartureBoardRequest & {
-  tripMaxAgeMs?: number;
+  runMaxAgeMs?: number;
 };
 
 /**
@@ -55,9 +58,9 @@ export const createDepartureBoardsLoader = (request: DepartureBoardsRequest) => 
   const stopIds = stopKey.split(",");
   if (lineKey) {
     return transitSource.getLineDepartureBoards(stopIds, {
-      lineIds: lineKey.split(","),
+      routeDirectionIds: lineKey.split(","),
       maxAgeMs: request.maxAgeMs,
-      tripMaxAgeMs: request.tripMaxAgeMs,
+      runMaxAgeMs: request.runMaxAgeMs,
     });
   }
   return Promise.all(stopIds.map(createDepartureBoardLoader(request)));
@@ -265,9 +268,9 @@ export function useStopTopologyBoard(stopId: string | undefined): DepartureBoard
  */
 export function useLineStopBoard(
   stopId: string | undefined,
-  lineIds: readonly string[],
+  routeDirectionIds: readonly string[],
 ): DepartureBoard | null {
-  const key = stopId ? `${stopId}|${createSortedKey(lineIds)}` : null;
+  const key = stopId ? `${stopId}|${createSortedKey(routeDirectionIds)}` : null;
   const loaded = useKeyedLoad(key, loadLineStopBoard, SINGLE_BOARD_LOAD_OPTIONS) ?? null;
   // Retained across a change of line ids as well as a failed refresh: the directions are learned
   // from the board itself, so the first reading is always the one that names them.

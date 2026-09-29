@@ -1,6 +1,7 @@
-import type { Departure, TripCall } from "../data/transit-types";
+import type { Departure, DepartureReadingTimes, TripCall } from "../data/transit-types";
+import { FEED_REVISION_INTERVAL_MS } from "./feed-clock";
 import { collapseTurnaroundCalls, statesRunEnd, statesRunStart } from "./trip-calls";
-import { getVehicleTripKey } from "./trips";
+import { getRunMarkKey } from "./trips";
 
 /**
  * Turns timed calls into event-driven vehicle trajectories.
@@ -22,15 +23,15 @@ import { getVehicleTripKey } from "./trips";
  * run out at its final one. Which vehicle turns back into which departure is not published
  * anywhere (see docs/kvv-efa-api.md), so the two are never joined into one standing vehicle.
  */
-export type TripPlacementPhase = "running" | "beforeStart" | "afterEnd";
+export type RunPlacementPhase = "running" | "beforeStart" | "afterEnd";
 
 /** Where a vehicle is: between two calling points, and how far along. */
-export type TripPlacement = {
+export type RunPlacement = {
   fromStopId: string;
   toStopId: string;
   /** 0 at the stop behind, 1 at the stop ahead. Stays at 0 while the vehicle is standing. */
   progress: number;
-  phase: TripPlacementPhase;
+  phase: RunPlacementPhase;
   /**
    * Whether the mark got here by travelling or by being put here.
    *
@@ -40,7 +41,7 @@ export type TripPlacement = {
    * somewhere else, a trip came back after a gap, or this is its first paint — none of which is a
    * journey, and all of which look like a train sliding across the diagram when animated.
    */
-  motion: TripPlacementMotion;
+  motion: RunPlacementMotion;
   /**
    * How far a placement put the mark from where it was drawn, as one continuous count of the
    * trip's own links: whole links between the two positions, the fractions at either end included.
@@ -57,13 +58,13 @@ export type TripPlacement = {
    * and reaches the next stop at `arrivesAt`. The plan is stable while time passes; only a new feed
    * reading or the handover to the following link replaces it.
    */
-  trajectory?: TripSegmentTrajectory;
+  trajectory?: RunSegmentTrajectory;
 };
 
-/** See `TripPlacement.motion`. */
-export type TripPlacementMotion = "travelled" | "placed";
+/** See `RunPlacement.motion`. */
+export type RunPlacementMotion = "travelled" | "placed";
 
-export type TripSegmentTrajectory = {
+export type RunSegmentTrajectory = {
   startProgress: number;
   startsAt: number;
   arrivesAt: number;
@@ -79,10 +80,10 @@ export type TripSegmentTrajectory = {
   sampledAt: number;
 };
 
-/** A trip unseen for this long has stopped being tracked; its next position starts fresh. */
-const TRIP_MOTION_STALE_MS = 120_000;
-/** Trips remembered for smoothing before the untouched ones are swept out. */
-const TRIP_MOTION_CAPACITY = 256;
+/** A run unseen for this long has stopped being tracked; its next position starts fresh. */
+const RUN_MOTION_STALE_MS = 120_000;
+/** Runs remembered for smoothing before the untouched ones are swept out. */
+const RUN_MOTION_CAPACITY = 256;
 /**
  * This close to the trip's own position, the mark has arrived and stops trailing it — and this
  * close to a call, it is standing at that call rather than running away from it.
@@ -100,6 +101,17 @@ const SEGMENT_SPEED_RAMP_SHARE = 0.15;
  * leaping back to its terminus and away again on every refresh.
  */
 const ROW_DEPARTURE_PRECISION_MS = 60_000;
+/**
+ * How much later than the row its own calling sequence must have been read before the row stops
+ * correcting it: one feed revision, `FEED_REVISION_INTERVAL_MS`.
+ *
+ * A sequence read that much after the row has already seen everything the row could tell it and one
+ * revision more. Below that the two are accounts of the same moment: a stop's board and the trips
+ * behind it are fetched in one refresh and land milliseconds apart in whichever order the requests
+ * complete, and reading that ordering as staleness would throw away the row correction everywhere
+ * it is right.
+ */
+const ROW_SUPERSEDED_BY_SEQUENCE_MS = FEED_REVISION_INTERVAL_MS;
 /**
  * How long before a trip is due out of its first stop it is drawn standing there *on its own*.
  *
@@ -134,7 +146,7 @@ const DEPARTURE_STAND_LEAD_MS = 9 * 60_000;
  *
  * Its calls say the vehicle is due there and say nothing after it, so the mark stands at the
  * terminus rather than vanishing at the minute it pulls in. Kept inside the grace the observation
- * itself is retained for (`lib/line-vehicle-observations.ts`), so a mark never outlives the trip
+ * itself is retained for (`lib/line-run-departures.ts`), so a mark never outlives the trip
  * behind it — and only where the feed says the run ends there, since a reading that merely stops
  * short says nothing about a vehicle standing anywhere.
  */
@@ -146,6 +158,17 @@ const toInstant = (value: string | undefined): number | undefined => {
 };
 
 const clampUnit = (value: number) => Math.min(1, Math.max(0, value));
+
+/**
+ * Whether the calls beside a row were read late enough to have answered the row's own question.
+ *
+ * A departure with no calls clock has had no sequence read behind it at all, so there is nothing
+ * for the row to have been superseded by and the row stands — the same answer a departure that
+ * states no clocks gets.
+ */
+const isRowSupersededBySequence = (readAt: DepartureReadingTimes | undefined): boolean =>
+  readAt?.sequenceReadAt !== undefined &&
+  readAt.sequenceReadAt - readAt.rowReadAt > ROW_SUPERSEDED_BY_SEQUENCE_MS;
 
 type TimedCall = {
   stopId: string;
@@ -268,14 +291,24 @@ function resolveCallShifts(calls: readonly ScheduledCall[]): CallShift[] {
 }
 
 /**
- * The deviation the board row states at its own stop, which is the freshest fact about this vehicle
- * that exists anywhere in the reading.
+ * The deviation the board row states at its own stop, where the row is the later of the two
+ * readings the departure was merged from.
  *
- * A row is re-read on the board's own cadence; the calling sequence behind it is a separate reading
- * on a slower one, so on most refreshes the row knows something the sequence does not yet. The same
- * rule the rest of the app follows — the stop row is the statement about when this vehicle leaves
- * *here* — decides it, and the difference is carried down the rest of the run, exactly as an
- * unmonitored call carries the last stated deviation.
+ * A row is re-read on its board's cadence; the calling sequence behind it is a separate reading on
+ * a cadence of its own. On a stop's board the row is much the fresher of the two, so on most
+ * refreshes it knows something the sequence does not yet, and the same rule the rest of the app
+ * follows — the stop row is the statement about when this vehicle leaves *here* — decides it. The
+ * difference is carried down the rest of the run, exactly as an unmonitored call carries the last
+ * stated deviation.
+ *
+ * Which reading is the later one is not a constant, though, and reading it as one put marks back at
+ * stops they had left. The Zentrum inverts the usual relation: its observation posts are read every
+ * five minutes while every run they name is re-read within one, so for most of each cycle the row
+ * beside a fresh sequence is minutes of history. Taken as a correction it re-timed the whole run
+ * from a stop the vehicle had already left — the mark hauled back to the post, held there until the
+ * stale prediction elapsed, and then thrown a full link forward. So the row corrects the sequence
+ * only where it is not itself the older reading (`Departure.readAt`), and a departure that states
+ * no two clocks is one reading and keeps the rule its board's cadence implies.
  *
  * It holds only while that departure is still ahead. A row is a *prediction* about a vehicle that
  * has not left yet, which is the only kind of row a departure board carries; once the vehicle has
@@ -291,6 +324,7 @@ function getRowDepartureShift(
   feedNow: number,
 ): number | undefined {
   if (!boardingCall || !sequenceShift) return undefined;
+  if (isRowSupersededBySequence(departure.readAt)) return undefined;
   const predicted = toInstant(departure.predictedDepartureTime);
   const scheduled = toInstant(departure.scheduledDepartureTime);
   const stated =
@@ -410,7 +444,7 @@ function getStandingEnd(here: TimedCall): number {
  * is due out of. A monitored trip is one the operator's own system is following; an unmonitored one
  * is a line in a timetable, and a timetable is not evidence that anything is at that terminus.
  */
-function isMonitoredTrip(departure: Departure): boolean {
+function isMonitoredRun(departure: Departure): boolean {
   return (
     departure.status === "realtime" ||
     departure.predictedDepartureTime !== undefined ||
@@ -468,11 +502,11 @@ type CallPositionContext = {
  * at the stop the run starts from, and whether that stand was found from an observed arrival
  * (`lib/line-turnarounds.ts`), from a re-stated origin or merely from the lead before the departure
  * does not change what it says — the run has not begun, so the vehicle is at that stop and on no
- * link. `getTripPlacement` reads it that way against a mark already drawn travelling.
+ * link. `getRunPlacement` reads it that way against a mark already drawn travelling.
  */
-type TripCallPosition = {
+type RunCallPosition = {
   position: number;
-  phase: TripPlacementPhase;
+  phase: RunPlacementPhase;
 };
 
 /**
@@ -492,7 +526,7 @@ function findCallPosition(
   calls: readonly TimedCall[],
   feedNow: number,
   { isMonitored, standFrom, runEnds, originStatedShift }: CallPositionContext,
-): TripCallPosition | EmptyReading {
+): RunCallPosition | EmptyReading {
   if (calls.length < 2) return "unplaceable";
   const first = calls[0];
   const last = calls[calls.length - 1];
@@ -573,7 +607,7 @@ type SegmentAnchor = {
   brakesFrom: number;
 };
 
-type TripMotion = {
+type RunMotion = {
   timelineKey: string;
   segment: SegmentAnchor;
   shownAt: number;
@@ -587,20 +621,20 @@ type TripMotion = {
    * kept asking for it.
    */
   readAt: number;
-  shown: TripPlacement;
+  shown: RunPlacement;
 };
 
 /** One event-driven trajectory per vehicle, shared by every diagram that paints it. */
-const tripMotions = new Map<string, TripMotion>();
+const runMotions = new Map<string, RunMotion>();
 
-function sweepTripMotions(feedNow: number) {
-  if (tripMotions.size <= TRIP_MOTION_CAPACITY) return;
-  for (const [key, motion] of tripMotions) {
-    if (feedNow - motion.shownAt > TRIP_MOTION_STALE_MS) tripMotions.delete(key);
+function sweepRunMotions(feedNow: number) {
+  if (runMotions.size <= RUN_MOTION_CAPACITY) return;
+  for (const [key, motion] of runMotions) {
+    if (feedNow - motion.shownAt > RUN_MOTION_STALE_MS) runMotions.delete(key);
   }
-  for (const key of tripMotions.keys()) {
-    if (tripMotions.size <= TRIP_MOTION_CAPACITY) break;
-    tripMotions.delete(key);
+  for (const key of runMotions.keys()) {
+    if (runMotions.size <= RUN_MOTION_CAPACITY) break;
+    runMotions.delete(key);
   }
 }
 
@@ -651,8 +685,8 @@ const getSegmentProgress = (segment: MotionCurve, feedNow: number): number => {
 };
 
 /** The shared domain/browser reading of one acceleration–cruise–braking trajectory. */
-export const getTripTrajectoryProgress = (
-  trajectory: TripSegmentTrajectory,
+export const getRunTrajectoryProgress = (
+  trajectory: RunSegmentTrajectory,
   feedNow: number,
 ): number => getSegmentProgress(trajectory, feedNow);
 
@@ -748,7 +782,7 @@ function createRemainingSegment(
 
 function getSegmentForPosition(
   calls: readonly TimedCall[],
-  position: TripCallPosition,
+  position: RunCallPosition,
   feedNow: number,
 ): { index: number; segment: SegmentAnchor; progress: number } {
   const index = Math.min(calls.length - 2, Math.max(0, Math.floor(position.position)));
@@ -780,10 +814,10 @@ function getSegmentForPosition(
 function placementFromSegment(
   segment: SegmentAnchor,
   feedNow: number,
-  phase: TripPlacementPhase,
-  motion: TripPlacementMotion,
+  phase: RunPlacementPhase,
+  motion: RunPlacementMotion,
   placedAfterLinks?: number,
-): TripPlacement {
+): RunPlacement {
   const progress = getSegmentProgress(segment, feedNow);
   const trajectory =
     phase === "running" && segment.arrivesAt > segment.startsAt
@@ -812,8 +846,8 @@ function placementFromSegment(
 /** What a refresh decided to draw: the link a mark is on, and how it came to be there. */
 type DrawnMotion = {
   segment: SegmentAnchor;
-  phase: TripPlacementPhase;
-  motion: TripPlacementMotion;
+  phase: RunPlacementPhase;
+  motion: RunPlacementMotion;
 };
 
 /**
@@ -830,9 +864,9 @@ type DrawnMotion = {
  */
 function reconcileWithDrawnMark(
   calls: readonly TimedCall[],
-  reading: TripCallPosition,
+  reading: RunCallPosition,
   read: { index: number; segment: SegmentAnchor; progress: number },
-  previous: TripMotion,
+  previous: RunMotion,
   timelineKey: string,
   feedNow: number,
 ): DrawnMotion {
@@ -865,12 +899,47 @@ function reconcileWithDrawnMark(
       calls[read.index].departureIsExplicit &&
       calls[read.index].departure > feedNow);
   if (standsAtCall) {
+    // A stand along the run may hold a mark at the stop it has not left yet; it may never carry one
+    // back past a stop it has. The reading can put such a stand on a link behind the drawn mark — a
+    // call re-timed later than the ones behind it does exactly that, and so does a row read at a
+    // stop the mark is already past — and answered as a stand the mark was hauled back whole links
+    // to wait at a platform its vehicle had pulled out of minutes ago. So the drawn link is kept
+    // wherever this timeline still names it: the mark finishes the ground it was covering, on the
+    // revised clock, and the stand is left to a reading that reaches it.
+    //
+    // Two stands are excepted, and both are statements rather than re-timings. `beforeStart` says
+    // the run has not begun at all — the feed re-stating a monitored origin later is a measurement
+    // of a vehicle standing at its terminus, and the mark belongs there however far along the
+    // optimistic reading had drawn it. And the stop the mark is *leaving*, saying its own departure
+    // is still ahead, is the direct platform fact the branch below is for.
+    if (reading.phase !== "beforeStart" && previousIndex > read.index) {
+      return hasReachedStop
+        ? continuing({
+            ...createRemainingSegment(calls, previousIndex, 1, feedNow),
+            arrivesAt: Math.max(feedNow, calls[previousIndex + 1].arrival),
+          })
+        : continuing(
+            createRemainingSegment(
+              calls,
+              previousIndex,
+              previousProgress,
+              feedNow,
+              previousVelocity,
+            ),
+          );
+    }
     return {
       segment: createScheduledSegment(calls, read.index),
       phase: reading.phase,
-      // A direct platform fact outweighs the interpolated journey that had already been drawn; a
-      // mark that never left the stop has nothing to be corrected about and simply stays put.
-      motion: previousProgress > SETTLED_TOLERANCE ? "placed" : "travelled",
+      // A direct platform fact outweighs the interpolated journey that had already been drawn.
+      // Only a mark drawn standing at this very stop has nothing to be corrected about, though:
+      // one drawn further back -- down the link it was travelling, or at the stop before it -- was
+      // found by the reading somewhere else, which is a placement, and is corrected over rather
+      // than travelled across.
+      motion:
+        previousIndex === read.index && previousProgress <= SETTLED_TOLERANCE
+          ? "travelled"
+          : "placed",
     };
   }
 
@@ -919,9 +988,9 @@ function reconcileWithDrawnMark(
 }
 
 /** Newest last, so the sweep's eviction order is the order the marks were last spoken for. */
-function rememberMotion(key: string, motion: TripMotion) {
-  tripMotions.delete(key);
-  tripMotions.set(key, motion);
+function rememberMotion(key: string, motion: RunMotion) {
+  runMotions.delete(key);
+  runMotions.set(key, motion);
 }
 
 /**
@@ -936,8 +1005,8 @@ function rememberMotion(key: string, motion: TripMotion) {
  */
 function getPlacementTravel(
   calls: readonly TimedCall[],
-  previous: TripMotion,
-  position: TripCallPosition,
+  previous: RunMotion,
+  position: RunCallPosition,
   feedNow: number,
 ): number | undefined {
   const previousIndex = findSegmentIndex(calls, previous.segment);
@@ -954,22 +1023,22 @@ function getPlacementTravel(
  * The sole exception is direct evidence that the departure behind it is still in the future; that
  * corrects the estimate by placing the marker back at the stop, without animating a reverse trip.
  */
-export function getTripPlacement(
+export function getRunPlacement(
   departure: Departure,
   feedNow: number,
   standFrom?: number,
-): TripPlacement | null {
-  const key = getVehicleTripKey(departure);
-  const previous = tripMotions.get(key);
+): RunPlacement | null {
+  const key = getRunMarkKey(departure);
+  const previous = runMotions.get(key);
   if (previous?.shownAt === feedNow) return previous.shown;
   if (departure.status === "cancelled") {
-    tripMotions.delete(key);
+    runMotions.delete(key);
     return null;
   }
 
   const { calls, originStatedShift } = getTimedCalls(departure, feedNow);
   const reading = findCallPosition(calls, feedNow, {
-    isMonitored: isMonitoredTrip(departure),
+    isMonitored: isMonitoredRun(departure),
     standFrom,
     runEnds: findRunEndStops(departure),
     originStatedShift,
@@ -978,7 +1047,7 @@ export function getTripPlacement(
   // A run the feed says is over takes its mark with it, and its trajectory: whatever was drawn for
   // it, there is no vehicle there to draw any more.
   if (reading === "finished") {
-    tripMotions.delete(key);
+    runMotions.delete(key);
     return null;
   }
   if (reading === "unplaceable") {
@@ -986,7 +1055,7 @@ export function getTripPlacement(
     if (
       !previous ||
       feedNow < previous.shownAt ||
-      feedNow - previous.readAt >= TRIP_MOTION_STALE_MS ||
+      feedNow - previous.readAt >= RUN_MOTION_STALE_MS ||
       previousIndex < 0
     ) {
       return null;
@@ -1011,7 +1080,7 @@ export function getTripPlacement(
 
   const read = getSegmentForPosition(calls, reading, feedNow);
   const previousIsFresh =
-    previous !== undefined && feedNow - previous.shownAt < TRIP_MOTION_STALE_MS;
+    previous !== undefined && feedNow - previous.shownAt < RUN_MOTION_STALE_MS;
   const drawn: DrawnMotion = previousIsFresh
     ? reconcileWithDrawnMark(calls, reading, read, previous, timelineKey, feedNow)
     : { segment: read.segment, phase: reading.phase, motion: "placed" };
@@ -1032,7 +1101,7 @@ export function getTripPlacement(
     readAt: feedNow,
     shown,
   });
-  sweepTripMotions(feedNow);
+  sweepRunMotions(feedNow);
   return shown;
 }
 

@@ -21,9 +21,9 @@ function LineDiagramStopRowView({
   vehicleLabel,
   isFirst,
   isLast,
-  isSelectedTrip,
+  isSelectedDeparture,
   isAlighting,
-  isTripPositionAnchor,
+  isRunPositionAnchor,
   onActivate,
   feedNow,
 }: {
@@ -35,11 +35,11 @@ function LineDiagramStopRowView({
   vehicleLabel: string;
   isFirst: boolean;
   isLast: boolean;
-  isSelectedTrip: boolean;
+  isSelectedDeparture: boolean;
   /** This row is the Ausstieg the rider marked. */
   isAlighting: boolean;
   /** The stable stop row nearest the selected vehicle, or its next call before a mark is available. */
-  isTripPositionAnchor: boolean;
+  isRunPositionAnchor: boolean;
   /** What the row does: open the stop, or mark it as the Ausstieg while the rider is on board. */
   onActivate: { kind: "open" | "mark"; run: (stopId: string) => void };
   /** The feed's clock, which is what the call times are read against. */
@@ -48,7 +48,7 @@ function LineDiagramStopRowView({
   const { stopName, placeName, platformLabel, interchanges, stopId } = diagramStop;
   // Only a chosen trip has times to state. Without one the diagram describes the whole line, and
   // the times of whichever trip happens to be drawn would read as the line's own.
-  const callTime = isSelectedTrip
+  const callTime = isSelectedDeparture
     ? getTripCallTimeReading(diagramStop.tripCall, feedNow)
     : undefined;
   const label = [
@@ -56,7 +56,7 @@ function LineDiagramStopRowView({
     placeName ? `${stopName}, ${placeName}` : stopName,
     ...(platformLabel ? [platformLabel] : []),
     ...(callTime ? [callTime.accessibilityLabel] : []),
-    ...(isCurrent ? [isSelectedTrip ? "Fahrt hier ausgewählt" : "aktueller Halt"] : []),
+    ...(isCurrent ? [isSelectedDeparture ? "Fahrt hier ausgewählt" : "aktueller Halt"] : []),
     ...(isAlighting ? ["dein Ausstieg"] : []),
     ...(vehicleLabel ? [vehicleLabel] : []),
   ].join(", ");
@@ -75,7 +75,7 @@ function LineDiagramStopRowView({
         isLast && "terminus-end",
       )}
       data-current-stop={isCurrent || undefined}
-      data-trip-position-anchor={isTripPositionAnchor || undefined}
+      data-run-position-anchor={isRunPositionAnchor || undefined}
       data-line-diagram-stop-index={index}
       aria-current={isCurrent ? "location" : undefined}
     >
@@ -90,7 +90,7 @@ function LineDiagramStopRowView({
         aria-label={
           onActivate.kind === "mark"
             ? `${label}, ${isAlighting ? "Ausstieg aufheben" : "als Ausstieg merken"}`
-            : `${label}, Abfahrten ${isSelectedTrip ? "mit dieser Fahrt " : ""}öffnen`
+            : `${label}, Abfahrten ${isSelectedDeparture ? "mit dieser Fahrt " : ""}öffnen`
         }
       >
         <span className="line-diagram-stop-name">
@@ -106,7 +106,7 @@ function LineDiagramStopRowView({
               named: it travels from the row they were on to the row they tapped. */}
           {isCurrent && (
             <small className="line-diagram-current-note">
-              {isSelectedTrip ? "Ausgewählt" : "Aktueller Halt"}
+              {isSelectedDeparture ? "Ausgewählt" : "Aktueller Halt"}
             </small>
           )}
           {isAlighting && <small className="line-diagram-alighting-note">Ausstieg</small>}

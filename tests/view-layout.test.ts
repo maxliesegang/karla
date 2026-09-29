@@ -20,8 +20,8 @@ const layoutFor = (
     selection: {
       stopId: route.stopId || "europaplatz",
       lineId: route.lineId || undefined,
-      tripId: route.tripId,
-      hasSelectedDeparture: Boolean(route.tripId),
+      addressId: route.addressId,
+      hasSelectedDeparture: Boolean(route.addressId),
       isRide: route.isRide,
       originStopId: route.originStopId,
       ...selection,

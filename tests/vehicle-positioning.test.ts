@@ -2,8 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { Departure, TripCall } from "../src/data/transit-types.ts";
 import {
-  getTripPlacement as getSmoothTripPlacement,
-  getTripTrajectoryProgress,
+  getRunPlacement as getSmoothTripPlacement,
+  getRunTrajectoryProgress as getTripTrajectoryProgress,
 } from "../src/lib/vehicle-positioning.ts";
 import { createCall, run } from "./support/calls.ts";
 
@@ -696,6 +696,44 @@ test("a departure re-stated later brings a departed mark back to the terminus it
   });
 });
 
+test("a stand read a link ahead of a standing mark is placed there, not travelled to", () => {
+  // The mark was drawn standing at B on the reading that restated its departure; the next reading
+  // finds the vehicle standing at C, whose departure is still ahead -- it covered the link between
+  // the two readings. The mark never drew that journey, so it is not travelled either: it is a
+  // placement, and is corrected over the same few seconds any placement within a link is.
+  const tripId = "position-stand-link-ahead";
+  const held = departure(
+    tripId,
+    run([
+      call("a", 0),
+      // Held at B: arrived on time, its departure restated two minutes down.
+      { ...call("b", 2, 2), arrivalDelayMinutes: 0 },
+      call("c", 4),
+      call("d", 6),
+    ]),
+  );
+  const standing = getSmoothTripPlacement(held, start + 2.5 * 60_000);
+  assert.equal(standing?.fromStopId, "b");
+  assert.equal(standing?.progress, 0);
+
+  const moved = departure(
+    tripId,
+    run([
+      call("a", 0),
+      call("b", 2),
+      // On time into C, standing there on a departure two minutes down.
+      { ...call("c", 3, 2), arrivalDelayMinutes: 0 },
+      call("d", 6),
+    ]),
+  );
+  const placed = getSmoothTripPlacement(moved, start + 3.17 * 60_000);
+
+  assert.equal(placed?.fromStopId, "c");
+  assert.equal(placed?.progress, 0);
+  assert.equal(placed?.motion, "placed");
+  assert.equal(placed?.placedAfterLinks, 1);
+});
+
 test("a row that disagrees by less than a minute with its sequence is rounding, not a correction", () => {
   // The row publishes its times to the minute and the sequence to the second, so the same on-time
   // departure reads 09:14 on one and 09:14:48 on the other. Taken as a correction the row pulled
@@ -713,6 +751,78 @@ test("a row that disagrees by less than a minute with its sequence is rounding, 
     phase: "beforeStart",
     motion: "placed",
   });
+});
+
+test("a row read minutes before its own sequence corrects nothing", () => {
+  // The Zentrum's shape, and the one the row correction was written the wrong way round for: the
+  // observation posts are read every five minutes and every run they name is re-read within one,
+  // so the row beside a fresh sequence is history. Taken as a correction it re-timed the run from
+  // the post — the mark hauled back off the link it was travelling, held at a platform its vehicle
+  // had left, then thrown a whole link forward when the stale prediction finally elapsed.
+  const calls = [call("a", 0), call("b", 2), call("c", 4), call("d", 6), call("e", 8)];
+  const post: Departure = {
+    ...departure("position-stale-row", calls),
+    boardingLocalStopId: "c",
+    scheduledDepartureTime: new Date(start + 4 * 60_000).toISOString(),
+    // The post's row, read five minutes ago, still predicts this vehicle out of C two minutes late.
+    predictedDepartureTime: new Date(start + 6 * 60_000).toISOString(),
+    delayMinutes: 2,
+  };
+  const readAt = { rowReadAt: start, sequenceReadAt: start + 4.5 * 60_000 };
+
+  // Travelling on the sequence, well past the post.
+  const travelling = getSmoothTripPlacement({ ...post, readAt }, start + 5.2 * 60_000);
+  assert.equal(travelling?.fromStopId, "c");
+  assert.ok(travelling && travelling.progress > 0.5);
+
+  // The next tick keeps the ground: the row is the older reading and states nothing the sequence
+  // has not already answered.
+  const held = getSmoothTripPlacement({ ...post, readAt }, start + 5.3 * 60_000);
+  assert.equal(held?.motion, "travelled");
+  assert.ok(held && held.progress >= travelling.progress);
+
+  // The same row read *after* its sequence is the correction it was always meant to be.
+  const fresh = getSmoothTripPlacement(
+    {
+      ...post,
+      id: "position-fresh-row",
+      tripId: "position-fresh-row",
+      readAt: { rowReadAt: start + 5 * 60_000, sequenceReadAt: start },
+    },
+    start + 5.3 * 60_000,
+  );
+  assert.equal(fresh?.fromStopId, "c");
+  assert.equal(fresh?.progress, 0);
+});
+
+test("a stand read behind the mark is a re-timing, not a vehicle reversing", () => {
+  // The stand the reading places on a link the mark is already past: B is now held four minutes,
+  // so the reading has the vehicle standing there while the mark is half-way from C to D. Answered
+  // as a stand it carried the mark back over a stop its vehicle had left — and back it went again
+  // on every refresh that restated the hold. The mark keeps its ground and finishes the link it is
+  // on; the stand is left to a reading that reaches it.
+  const tripId = "position-stand-behind";
+  const running = getSmoothTripPlacement(
+    departure(tripId, [call("a", 0), call("b", 2), call("c", 4), call("d", 6)]),
+    start + 5 * 60_000,
+  );
+  assert.equal(running?.fromStopId, "c");
+  assert.ok(running && running.progress > 0.4);
+
+  const held = getSmoothTripPlacement(
+    departure(tripId, [
+      call("a", 0),
+      // Pulled in on time and still standing: the arrival keeps its own deviation, the departure
+      // is four minutes down, and the calls ahead carry that with them.
+      { ...call("b", 2, 4), arrivalDelayMinutes: 0 },
+      call("c", 4),
+      call("d", 6),
+    ]),
+    start + 5 * 60_000 + 1_000,
+  );
+  assert.equal(held?.motion, "travelled");
+  assert.equal(held?.fromStopId, "c");
+  assert.ok(held && held.progress >= running.progress);
 });
 
 test("a row merged with a reading taken elsewhere is timed from its own stop's call", () => {

@@ -35,6 +35,8 @@
     "src/data/line-signs.ts",
     "src/lib/line-families.ts",
     "src/lib/stop-slug.ts",
+    "src/lib/feed-clock.ts",
+    "src/lib/line-turnarounds.ts",
     "src/lib/trip-calls.ts",
     "src/lib/trips.ts",
     "src/lib/vehicle-positioning.ts",

@@ -6,7 +6,7 @@ import type { LineDiagramVehicle } from "../../lib/line-diagram";
 import {
   buildLineDiagramStops,
   getLineDiagramCoordinateKey,
-  getTripPositionAnchorIndex,
+  getRunPositionAnchorIndex,
   getVehicleLabelsByRowIndex,
 } from "../../lib/line-diagram";
 import { classNames } from "../../lib/class-names";
@@ -83,7 +83,7 @@ export function LineDiagramBranch({
   // The leg never states a next call of its own: the trip's own next call is read on the trunk, and
   // two lists both claiming the anchor would leave the position control scrolling to whichever the
   // document happened to hold first. A mark of this line out here is anchor enough.
-  const tripPositionStopIndex = getTripPositionAnchorIndex(diagramStops, vehicles, undefined);
+  const runPositionStopIndex = getRunPositionAnchorIndex(diagramStops, vehicles, undefined);
   const onActivate = useMemo(() => ({ kind: "open" as const, run: onOpenStop }), [onOpenStop]);
 
   return (
@@ -134,9 +134,9 @@ export function LineDiagramBranch({
               vehicleLabel={vehicleLabelByRowIndex.get(index) ?? ""}
               isFirst={index === 0}
               isLast={index === diagramStops.length - 1}
-              isSelectedTrip={Boolean(selectedDeparture)}
+              isSelectedDeparture={Boolean(selectedDeparture)}
               isAlighting={false}
-              isTripPositionAnchor={index === tripPositionStopIndex}
+              isRunPositionAnchor={index === runPositionStopIndex}
               onActivate={onActivate}
               feedNow={rowFeedNow}
             />

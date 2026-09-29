@@ -5,7 +5,6 @@ import { compareLineIds } from "../../lib/line-families";
 import type { ObservedNetwork } from "../../lib/observed-network";
 import {
   buildZentrumSchematicReading,
-  getZentrumSchematicAheadEdgeIds,
   getZentrumSchematicVehicles,
 } from "../../lib/zentrum-schematic";
 import { navigateTo, replaceCurrentRoute, routePaths } from "../../routing";
@@ -70,16 +69,28 @@ export function ZentrumView({
   /** Whether the plan is being read at the size of the screen, as the address names it. */
   isFullscreen: boolean;
 }) {
+  // What is running through the Zentrum, on the two clocks that place it: the posts name the runs,
+  // and each run's own reading says where it is by now. The set is the drawn runs — board rows and
+  // retained readings alike, however the runs came to be named — and it changes only when a run is
+  // picked up or lets go, not when a post's board is re-fetched.
+  const { runDepartures, feedNow } = useZentrumVehicles(departureBoards);
+  // The drawing reads the same runs the marks are placed from, so a line holds its corridors while
+  // any run the plan is drawing still states them: a board refresh that only swapped rows draws
+  // the same plan again, and a line the boards have stopped naming does not take its lanes down
+  // under a mark still travelling on them.
+  const schematic = useMemo(() => buildZentrumSchematicReading(runDepartures), [runDepartures]);
+  // Every mark rides the lane its line is drawn in, because every line is drawn in a lane.
+  const vehicles = getZentrumSchematicVehicles(schematic, runDepartures, feedNow);
   // The feed states each line's mode, and the badge needs it for the lines that have no verified sign.
   const getSign = useMemo(() => createZentrumLineSignReader(network.lines), [network.lines]);
-  const schematic = useMemo(() => buildZentrumSchematicReading(departureBoards), [departureBoards]);
   const schematicLineIds = useMemo(
     () => [...new Set(schematic.edges.flatMap((edge) => edge.lineIds))].sort(compareLineIds),
     [schematic.edges],
   );
   // A line that has stopped running leaves the address by itself, exactly as a stop or a trip does
   // — but never before the reading that could name it has answered, which is what the plan having
-  // corridors at all says.
+  // corridors at all says. The reading names a line while any run the plan draws still states it,
+  // so a line the boards have stopped listing is followed for exactly as long as its mark is.
   const isLineObserved = selectedLineId === undefined || schematicLineIds.includes(selectedLineId);
   useEffect(() => {
     if (!isLineObserved && schematicLineIds.length > 0) {
@@ -87,35 +98,12 @@ export function ZentrumView({
     }
   }, [isLineObserved, schematicLineIds.length, isFullscreen]);
   const followedLineId = isLineObserved ? selectedLineId : undefined;
-
-  // What is running through the Zentrum, on the two clocks that place it: the posts name the runs,
-  // and each run's own reading says where it is by now.
-  const { vehicleDepartures, feedNow } = useZentrumVehicles(departureBoards);
-  // Every mark rides the lane its line is drawn in, because every line is drawn in a lane.
-  const vehicles = getZentrumSchematicVehicles(
-    schematic,
-    vehicleDepartures,
-    feedNow,
-    schematic.trackWidth,
-  );
   // The plan re-renders every second to move its marks; the Escape key that leaves the full-screen
   // reading listens for as long as that reading is up, and must not be re-subscribed under it.
   const changeFullscreen = useCallback(
     (next: boolean) => navigateTo(routePaths.zentrum(followedLineId, next)),
     [followedLineId],
   );
-  // The corridors the followed line's vehicles are still to run: what the plan lights in front of
-  // them and leaves grey behind them. Only a followed line makes that claim — over the whole band
-  // it was a third reading of the same drawing, and it is a placement the plan does not pay for
-  // while nobody is following anything.
-  const aheadEdgeIdsByTrackId = followedLineId
-    ? getZentrumSchematicAheadEdgeIds(
-        schematic,
-        vehicleDepartures.filter((departure) => departure.lineId === followedLineId),
-        feedNow,
-      )
-    : undefined;
-
   if (network.stops.length === 0) {
     return (
       <>
@@ -140,7 +128,6 @@ export function ZentrumView({
         getSign={getSign}
         selectedLineId={followedLineId}
         vehicles={vehicles}
-        aheadEdgeIdsByTrackId={aheadEdgeIdsByTrackId}
         isFullscreen={isFullscreen}
         /* Following a line is navigating to it: the reading a rider arrives at is the reading
            they can share, and the back button is what stops following. The size the plan is being

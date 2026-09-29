@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { TripSegmentTrajectory } from "../src/lib/vehicle-positioning.ts";
+import type { RunSegmentTrajectory } from "../src/lib/vehicle-positioning.ts";
 import {
   getTrajectoryKeyframes,
   isCorrectivePlacement,
@@ -10,7 +10,7 @@ import {
 const start = Date.parse("2026-08-23T10:00:00Z");
 
 /** One 60-second link with the ramp share the placement plans its segments on. */
-const trajectory: TripSegmentTrajectory = {
+const trajectory: RunSegmentTrajectory = {
   startProgress: 0,
   startsAt: start,
   arrivesAt: start + 60_000,

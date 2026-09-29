@@ -7,7 +7,7 @@ const RIDE_EXPIRY_GRACE_MS = 60 * 60_000;
 const FALLBACK_RIDE_LIFETIME_MS = 6 * 60 * 60_000;
 
 export type ActiveRideObservation = {
-  routeId: string;
+  rideId: string;
   departure: Departure;
   observedAt: number;
   expiresAt: number;
@@ -30,19 +30,20 @@ export function getActiveRideExpiry(departure: Departure, observedAt: number): n
 }
 
 export function findActiveRideObservation(
-  routeId: string,
+  rideId: string,
   now = Date.now(),
 ): ActiveRideObservation | null {
   const storage = readStorage();
-  if (!storage || !routeId) return null;
+  if (!storage || !rideId) return null;
 
   try {
     const raw = storage.getItem(ACTIVE_RIDE_STORAGE_KEY);
     if (!raw) return null;
-    const stored = JSON.parse(raw) as Partial<ActiveRideObservation>;
+    const stored = JSON.parse(raw) as Partial<ActiveRideObservation> & { routeId?: string };
+    const storedRideId = stored.rideId ?? stored.routeId;
     const departure = stored.departure as Partial<Departure> | undefined;
     const isValid =
-      stored.routeId === routeId &&
+      storedRideId === rideId &&
       typeof stored.observedAt === "number" &&
       typeof stored.expiresAt === "number" &&
       stored.expiresAt > now &&
@@ -50,23 +51,23 @@ export function findActiveRideObservation(
       typeof departure.lineId === "string" &&
       typeof departure.destination === "string" &&
       Array.isArray(departure.tripCalls);
-    if (!isValid) {
+    if (!isValid || !storedRideId) {
       storage.removeItem(ACTIVE_RIDE_STORAGE_KEY);
       return null;
     }
-    return stored as ActiveRideObservation;
+    return { ...stored, rideId: storedRideId } as ActiveRideObservation;
   } catch {
     return null;
   }
 }
 
 export function rememberActiveRideObservation(
-  routeId: string,
+  rideId: string,
   departure: Departure,
   observedAt: number,
 ): ActiveRideObservation {
   const observation = {
-    routeId,
+    rideId,
     departure,
     observedAt,
     expiresAt: getActiveRideExpiry(departure, observedAt),
@@ -79,15 +80,15 @@ export function rememberActiveRideObservation(
   return observation;
 }
 
-export function forgetActiveRideObservation(routeId?: string): void {
+export function forgetActiveRideObservation(rideId?: string): void {
   const storage = readStorage();
   if (!storage) return;
   try {
-    if (routeId) {
-      const stored = JSON.parse(
-        storage.getItem(ACTIVE_RIDE_STORAGE_KEY) ?? "null",
-      ) as Partial<ActiveRideObservation> | null;
-      if (stored?.routeId !== routeId) return;
+    if (rideId) {
+      const stored = JSON.parse(storage.getItem(ACTIVE_RIDE_STORAGE_KEY) ?? "null") as
+        | (Partial<ActiveRideObservation> & { routeId?: string })
+        | null;
+      if ((stored?.rideId ?? stored?.routeId) !== rideId) return;
     }
     storage.removeItem(ACTIVE_RIDE_STORAGE_KEY);
   } catch {

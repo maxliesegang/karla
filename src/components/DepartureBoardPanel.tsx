@@ -52,14 +52,14 @@ import {
   writeDepartureBoardOrder,
 } from "../hooks";
 import {
-  findJoinedTripPortionPair,
-  getJoinedTripPortionPairs,
-  type JoinedTripPortionPair,
-} from "../lib/joined-trip-portions";
+  findJoinedRunPortionPair,
+  getJoinedRunPortionPairs,
+  type JoinedRunPortionPair,
+} from "../lib/joined-run-portions";
 import type { StopCorridorPatterns } from "../lib/stop-corridor-patterns";
 import { getStopServiceCorridorLineGroups } from "../lib/stop-corridors";
 import { DepartureBoardLineOrder } from "./DepartureBoardLineOrder";
-import { isSameVehicleTrip } from "../lib/trips";
+import { isSameRun } from "../lib/trips";
 
 type DepartureBoardPanelProps = {
   panelRef?: Ref<HTMLElement>;
@@ -123,7 +123,7 @@ function DepartureRow({
   isPinned,
   feedNow,
   showsPlatform,
-  joinedTrip,
+  joinedPortionPair,
 }: {
   departure: Departure;
   /** The next observed trip over the same route, stated only when this one is cancelled. */
@@ -135,7 +135,7 @@ function DepartureRow({
   /** Its platform, printed on the row only where no heading above it already states one. */
   showsPlatform: boolean;
   /** A high-confidence shared consist inferred from two complete route readings. */
-  joinedTrip?: JoinedTripPortionPair;
+  joinedPortionPair?: JoinedRunPortionPair;
   /**
    * Where the row stands in what it is being read within, which is the only thing its entrance
    * needs: a board settles from the top down, in reading order, rather than all at once.
@@ -164,11 +164,12 @@ function DepartureRow({
     nextCompatibleReading?.kind === "minutes"
       ? `${nextCompatibleReading.minutes} min`
       : nextCompatibleReading?.label;
-  const isTerminatingPortion = joinedTrip && isSameVehicleTrip(departure, joinedTrip.terminating);
-  const joinedLabel = joinedTrip
+  const isTerminatingPortion =
+    joinedPortionPair && isSameRun(departure, joinedPortionPair.terminating);
+  const joinedLabel = joinedPortionPair
     ? isTerminatingPortion
-      ? `Gemeinsam bis ${joinedTrip.terminating.destination} · weiterer Zugteil nach ${joinedTrip.continuing.destination}`
-      : `Gemeinsam bis ${joinedTrip.terminating.destination}`
+      ? `Gemeinsam bis ${joinedPortionPair.terminating.destination} · weiterer Zugteil nach ${joinedPortionPair.continuing.destination}`
+      : `Gemeinsam bis ${joinedPortionPair.terminating.destination}`
     : undefined;
 
   return (
@@ -179,7 +180,7 @@ function DepartureRow({
         isPinned && "pinned",
         departure.status === "cancelled" && "cancelled",
         departure.status === "diverted" && "diverted",
-        joinedTrip && "joined-trip-portion",
+        joinedPortionPair && "joined-run-portion",
       )}
       style={{ "--departure-index": index } as CSSProperties}
       aria-current={isSelected ? "true" : undefined}
@@ -453,8 +454,8 @@ export function DepartureBoardPanel({
     [corridorPatterns, isGroupedByLine, visibleDepartures],
   );
   const staleLabel = getStaleBoardLabel(departureBoard, feedNow);
-  const joinedPairs = useMemo(
-    () => getJoinedTripPortionPairs(completedLineDepartures),
+  const joinedPortionPairs = useMemo(
+    () => getJoinedRunPortionPairs(completedLineDepartures),
     [completedLineDepartures],
   );
   const renderRow = (departure: Departure, index: number) => (
@@ -475,7 +476,7 @@ export function DepartureBoardPanel({
       feedNow={feedNow}
       // In grouped order the heading above the row already names its platform.
       showsPlatform={!isGroupedByPlatform}
-      joinedTrip={findJoinedTripPortionPair(departure, joinedPairs)}
+      joinedPortionPair={findJoinedRunPortionPair(departure, joinedPortionPairs)}
     />
   );
 

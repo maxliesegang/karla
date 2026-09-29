@@ -1,6 +1,6 @@
 import type { Departure, TripCall } from "../data/transit-types";
 import { getCallKey } from "./trip-calls";
-import { getVehicleTripKey, isSameVehicleTrip } from "./trips";
+import { getRunMarkKey, isSameRun } from "./trips";
 
 /**
  * Two separately addressed timetable trips that run as one consist until the shorter one ends.
@@ -10,7 +10,7 @@ import { getVehicleTripKey, isSameVehicleTrip } from "./trips";
  * physical point, every call of the shorter trip must prefix the longer route, and every schedule
  * time both publish must agree. Branches, duplicate trips and uncertain readings remain separate.
  */
-export type JoinedTripPortionPair = {
+export type JoinedRunPortionPair = {
   terminating: Departure;
   continuing: Departure;
   sharedUntil: TripCall;
@@ -32,13 +32,13 @@ const getComparableScheduledTimes = (left: TripCall, right: TripCall) =>
     [left.scheduledDepartureTime, right.scheduledDepartureTime],
   ].filter((pair): pair is [string, string] => pair[0] !== undefined && pair[1] !== undefined);
 
-function findJoinedPair(first: Departure, second: Departure): JoinedTripPortionPair | undefined {
+function findJoinedPair(first: Departure, second: Departure): JoinedRunPortionPair | undefined {
   if (
     first.status === "cancelled" ||
     second.status === "cancelled" ||
     !first.trainNumber ||
     first.trainNumber !== second.trainNumber ||
-    getVehicleTripKey(first) === getVehicleTripKey(second) ||
+    getRunMarkKey(first) === getRunMarkKey(second) ||
     first.destination === second.destination
   )
     return undefined;
@@ -69,9 +69,9 @@ function findJoinedPair(first: Departure, second: Departure): JoinedTripPortionP
  * Finds only unambiguous pairs. A bucket containing three portions is left alone until the product
  * has a truthful way to describe and draw more than one split.
  */
-export function getJoinedTripPortionPairs(
+export function getJoinedRunPortionPairs(
   departures: readonly Departure[],
-): readonly JoinedTripPortionPair[] {
+): readonly JoinedRunPortionPair[] {
   const byDepartureFact = new Map<string, Departure[]>();
   for (const departure of departures) {
     const bucket = byDepartureFact.get(getBucketKey(departure)) ?? [];
@@ -87,12 +87,12 @@ export function getJoinedTripPortionPairs(
 }
 
 /** Finds the completed trip reading that belongs to a possibly basic board row. */
-export function findJoinedTripPortionPair(
+export function findJoinedRunPortionPair(
   departure: Departure,
-  joinedPairs: readonly JoinedTripPortionPair[],
-): JoinedTripPortionPair | undefined {
-  return joinedPairs.find(
+  joinedPortionPairs: readonly JoinedRunPortionPair[],
+): JoinedRunPortionPair | undefined {
+  return joinedPortionPairs.find(
     ({ terminating, continuing }) =>
-      isSameVehicleTrip(departure, terminating) || isSameVehicleTrip(departure, continuing),
+      isSameRun(departure, terminating) || isSameRun(departure, continuing),
   );
 }

@@ -20,7 +20,7 @@ import { createLineSelection } from "../src/lib/line-bundles.ts";
 import { withStopVisit } from "../src/lib/recent-stops.ts";
 
 /** The line as the network states it, before any board has been read for it. */
-const line3 = { id: "3", zentrumStopIds: ["kronenplatz", "europaplatz"] } as TransitLine;
+const line3 = { id: "3", zentrumCalls: ["kronenplatz", "europaplatz"] } as TransitLine;
 
 /** Linie 3 as the observation sees it: ten stops along the line, three of them observation posts. */
 const lineStopIds = [

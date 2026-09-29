@@ -36,7 +36,7 @@ const lineOf = (id: string): TransitLine => ({
   color: "#000",
   textColor: "#fff",
   destinations: [],
-  zentrumStopIds: [],
+  zentrumCalls: [],
 });
 
 const trip = (id: string, lineId: string, calls: readonly TripCall[]): Departure => ({

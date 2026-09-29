@@ -1,9 +1,9 @@
-import { useCallback, useMemo } from "react";
+import { useMemo } from "react";
 import type { Departure, DepartureBoard } from "../data/transit-types";
-import { mergeTripSequences } from "../lib/trip-calls";
-import { getZentrumVehicleObservation } from "../lib/zentrum-vehicles";
-import { useLineVehicleDepartures } from "./line-vehicle-departures";
-import { useTripDepartures } from "./trip-departures";
+import { mergeRunSequences } from "../lib/trip-calls";
+import { getZentrumRunObservation } from "../lib/zentrum-run-observation";
+import { useLineRunDepartures } from "./line-run-departures";
+import { useRunReadings } from "./run-reading-loader";
 
 /** The retention these vehicles accumulate under: the Zentrum, not any one line running through it. */
 const ZENTRUM_VEHICLE_RETENTION_KEY = "zentrum";
@@ -22,27 +22,23 @@ const ZENTRUM_VEHICLE_RETENTION_KEY = "zentrum";
  * away what has been observed of the others and re-learn it on the next refresh.
  */
 export function useZentrumVehicles(departureBoards: readonly DepartureBoard[]): {
-  vehicleDepartures: readonly Departure[];
+  runDepartures: readonly Departure[];
   feedNow: number;
 } {
-  const observation = useMemo(
-    () => getZentrumVehicleObservation(departureBoards),
-    [departureBoards],
+  const observation = useMemo(() => getZentrumRunObservation(departureBoards), [departureBoards]);
+  // Only the runs actually drawn are read, so a plan with no vehicles on it asks for nothing. Here
+  // the run's own reading is much the fresher of the two — five minutes against one — and a mark
+  // placed as though the post's row were fresher was hauled back to the post it had left and held
+  // there until the stale prediction elapsed. Each merged departure states both clocks, so the
+  // placement reads which half is the later evidence off the departure itself.
+  const runReadings = useRunReadings(observation.runDepartures);
+  const observedRuns = useMemo(
+    () => mergeRunSequences(observation.runDepartures, runReadings),
+    [observation.runDepartures, runReadings],
   );
-  // Only the runs actually drawn are read, so a plan with no vehicles on it asks for nothing.
-  const tripReadings = useTripDepartures(observation.departures);
-  const observedTrips = useMemo(
-    () => mergeTripSequences(observation.departures, tripReadings),
-    [observation.departures, tripReadings],
-  );
-  const observedAt = useCallback(
-    (departure: Departure) => observation.observedAtByRowId.get(departure.id) ?? 0,
-    [observation.observedAtByRowId],
-  );
-  return useLineVehicleDepartures(
+  return useLineRunDepartures(
     ZENTRUM_VEHICLE_RETENTION_KEY,
-    observedTrips,
-    observedAt,
+    observedRuns,
     observation.clockBoard,
     false,
   );

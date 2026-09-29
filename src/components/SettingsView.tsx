@@ -43,7 +43,7 @@ const rememberingItems: readonly SegmentedControlItem<"on" | "off">[] = [
   { value: "off", label: "Vergessen", ariaLabel: "Besuchte Haltestellen nicht merken" },
 ];
 
-const otherTripsItems: readonly SegmentedControlItem<"on" | "off">[] = [
+const otherRunsItems: readonly SegmentedControlItem<"on" | "off">[] = [
   { value: "on", label: "Zeigen", ariaLabel: "Andere Fahrzeuge der Linie im Liniediagramm zeigen" },
   {
     value: "off",
@@ -99,10 +99,10 @@ export function SettingsView() {
           description="Im Liniediagramm andere Fahrzeuge der Linie zeigen"
           control={
             <SegmentedControl
-              value={settings.isShowingOtherLineTrips ? "on" : "off"}
-              items={otherTripsItems}
+              value={settings.isShowingOtherLineRuns ? "on" : "off"}
+              items={otherRunsItems}
               ariaLabel="Andere Fahrzeuge zeigen"
-              onValueChange={(value) => write({ isShowingOtherLineTrips: value === "on" })}
+              onValueChange={(value) => write({ isShowingOtherLineRuns: value === "on" })}
             />
           }
         />

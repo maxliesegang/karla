@@ -25,8 +25,9 @@ export function ZentrumVehicleDetail({
         <span>Richtung</span>
         <strong>{vehicle.destination}</strong>
         <p>
-          Zwischen {vehicle.from.label} und {vehicle.to.label}. Aus den veröffentlichten
-          Haltestellenzeiten geschätzt; keine GPS-Position.
+          {vehicle.from.id === vehicle.to.id
+            ? `Hält an ${vehicle.from.label}. Aus den veröffentlichten Haltestellenzeiten geschätzt; keine GPS-Position.`
+            : `Zwischen ${vehicle.from.label} und ${vehicle.to.label}. Aus den veröffentlichten Haltestellenzeiten geschätzt; keine GPS-Position.`}
         </p>
       </div>
       <button

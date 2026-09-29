@@ -43,6 +43,7 @@ export type KvvTripCall = TripCall & { providerId?: string };
 /** The provider tuple that identifies one dated trip; every field is copied from its DM row. */
 export type KvvTripLocator = {
   tripCode: string;
+  /** The provider's own key for the service designation (`servingLine.stateless`), not the sign. */
   line: string;
   stopPointId: string;
   date: string;

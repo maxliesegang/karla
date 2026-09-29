@@ -12,7 +12,7 @@ import {
   isSameLineFamily,
 } from "./line-families";
 import { createStopSlug } from "./stop-slug";
-import { getDistinctTimetableTrips } from "./trips";
+import { getBoardTimetableTrips } from "./trips";
 
 /**
  * Which lines a rider can change to at a stop.
@@ -50,7 +50,7 @@ function getCallStopKeys(stopName: string, localStopId: string | undefined): str
 export function buildInterchangeIndex(boards: readonly DepartureBoard[]): InterchangeIndex {
   const callingLinesByStopKey = new Map<string, ObservedCallingLine[]>();
 
-  for (const trip of getDistinctTimetableTrips(boards)) {
+  for (const trip of getBoardTimetableTrips(boards)) {
     const callingLine: ObservedCallingLine = {
       familyId: getLineFamilyId(trip.lineId),
       transportMode: trip.transportMode,

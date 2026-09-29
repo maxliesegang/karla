@@ -1,5 +1,11 @@
 /** Live boards contain every KVV line calling at a stop, so ids from the feed are open. */
 export type LineId = string;
+/**
+ * `LineId` states the rider-facing grain: the line's sign as the operator prints it. The
+ * provider's own key for that designation (`servingLine.stateless`) is a different fact and keeps
+ * its provider spelling — a locator's `line`, run keys, wire filters. One is rider language, the
+ * other feed language, and neither stands for the other.
+ */
 
 export type TransportMode = "tram" | "lightRail" | "bus" | "other";
 
@@ -149,6 +155,62 @@ export type Departure = {
   vehicleAccess?: VehicleAccess;
   /** Exact calling points for this train; requested from the live feed for the stop detail view. */
   tripCalls?: readonly TripCall[];
+  /**
+   * When each half of this departure was read, on the device's clock.
+   *
+   * A departure is not a fact about a vehicle; it is what one reading said about it at one instant,
+   * and a copy that cannot say when it was read cannot be ranked against another copy of the same
+   * run. So the stamp travels *on* the departure rather than beside it: every filter, sort and set
+   * the drawing layer puts these through carries it along, and there is no step left at which it
+   * can be dropped and have to be threaded back in.
+   *
+   * The two halves are two readings on two cadences (`mergeRunSequence`), and which is the later
+   * one decides which may correct the other. On a stop's own board the row is the fresher fact by
+   * far: it is re-read every thirty seconds while the sequence behind it is re-read far more
+   * slowly, so the row states a prediction the calls have not caught up with. On the Zentrum the
+   * relation is inverted — the observation posts are read every five minutes and every run they
+   * name is re-read within one — and there the row beside a fresh sequence is minutes of history
+   * that must not be read as a correction to it. A row that arrived carrying its own calls states
+   * one instant twice: it is one reading, and the two halves cannot disagree.
+   *
+   * Set by the `TransitSource` boundary on every departure it publishes. Optional only so a fixture
+   * may leave it out, which reads as an age nothing knows (`getDepartureReadInstant`).
+   */
+  readAt?: DepartureReadingTimes;
+};
+
+/**
+ * When a row and the calling sequence merged into it were each read, on the device's clock.
+ *
+ * `sequenceReadAt` is stated only where there are calls for it to date. A row that carries none has had
+ * no sequence read behind it, and a clock for one would be a reading nobody took: it would answer a
+ * tolerance asking when the calls were last read (`getSequenceReadInstant`) and tell a placement that
+ * the row had been superseded by them (`lib/vehicle-positioning.ts`). Absent, both questions get
+ * the honest answer that there is nothing here to have gone stale.
+ */
+export type DepartureReadingTimes = { rowReadAt: number; sequenceReadAt?: number };
+
+/**
+ * A run's whole calling sequence, as one reading of the run described it.
+ *
+ * Deliberately not a `Departure`. The reading that carries a sequence is discovered through
+ * whichever stop's row happened to ask for it, and a `Departure` shaped like that row carries the
+ * row's `id`, its stop, its platform and its countdown — facts about one stop of the run, on a copy
+ * every *other* stop of the run then reads. Nothing consumes those fields and the merge discards
+ * them, so the only thing their presence can do is mislead the next reader. What a sequence is is
+ * what `mergeRunSequence` lifts out of it, and nothing else.
+ */
+export type RunSequence = {
+  tripCalls: readonly TripCall[];
+  /** The dated identity this sequence's first call refines, where the reading names one. */
+  tripInstanceId?: string;
+  status: DepartureStatus;
+  /**
+   * When these calls were read, on the device's clock. Absent only on a fixture.
+   *
+   * One instant rather than the two a departure carries: the row's own clock belongs to the row.
+   */
+  readAt?: number;
 };
 
 export type TransitLine = {
@@ -167,7 +229,8 @@ export type TransitLine = {
    * this is absent, and the ends the destinations name stand in.
    */
   farthestRunTermini?: readonly string[];
-  zentrumStopIds: readonly string[];
+  /** The Zentrum calls: where this line was seen calling inside the Zentrum's membership. */
+  zentrumCalls: readonly string[];
 };
 
 export type TransitNetwork = {
@@ -204,17 +267,6 @@ type DepartureBoardReading = {
  * coverage pass queries by id and never needs to know whose it is.
  */
 export type ServingLine = { lineId?: string; directionId: string };
-
-/**
- * One trip's calls, and when that reading was actually made.
- *
- * A board dates itself and a trip has to as well, because the two are read on different cadences
- * and a trip is not always re-read when it is asked for: a sequence still inside the caller's
- * tolerance is answered from the one already in hand, and a row that arrived carrying its own
- * calls is never re-read at all. `receivedAt` is when the reading was taken, never when it was
- * handed over, so nothing downstream can restate an old reading as a fresh one.
- */
-export type TripReading = { trip: Departure; receivedAt: number };
 
 /** One stop's board plus the provenance the views have to disclose. */
 export type DepartureBoard = DepartureBoardReading &
@@ -326,5 +378,5 @@ export type DepartureBoardRequest = {
    * line alone and reach an hour and a half ahead — which is what lets a diagram see a vehicle
    * still out at the end of its run instead of only the ones already near the middle.
    */
-  lineIds?: readonly string[];
+  routeDirectionIds?: readonly string[];
 };

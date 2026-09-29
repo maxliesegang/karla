@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Departure, TransitLine, TransitNetwork, TripCall } from "../../data/transit-types";
-import type { JoinedTripPortionPair } from "../../lib/joined-trip-portions";
+import type { JoinedRunPortionPair } from "../../lib/joined-run-portions";
 import {
   chooseLineBundleChain,
   createLineSelection,
@@ -18,7 +18,7 @@ import { isSameLineFamily } from "../../lib/line-families";
 import type { TurnaroundIndex } from "../../lib/line-turnarounds";
 import {
   buildLineDiagramStops,
-  getLineDiagramVehicleDepartures,
+  getLineDiagramRunDepartures,
   getLineDiagramVehicles,
   getShownLineDiagramVehicles,
   type LineDiagramVehicle,
@@ -190,27 +190,27 @@ export function useLineBundleBranchVehicles({
   branches,
   lineById,
   network,
-  vehicleDepartures,
-  joinedTripPairs,
+  runDepartures,
+  joinedPortionPairs,
   selectedDeparture,
   feedNow,
   turnaroundIndex,
   showWaitingVehicles = true,
-  areOtherTripsShown = true,
+  areOtherRunsShown = true,
   trunkVehicles,
 }: {
   branches: readonly LineBundleBranch[];
   lineById: ReadonlyMap<string, TransitLine>;
   network: TransitNetwork;
-  vehicleDepartures: readonly Departure[];
-  joinedTripPairs: readonly JoinedTripPortionPair[];
+  runDepartures: readonly Departure[];
+  joinedPortionPairs: readonly JoinedRunPortionPair[];
   selectedDeparture: Departure | undefined;
   feedNow: number;
   turnaroundIndex: TurnaroundIndex;
   /** See `getLineDiagramVehicles`: whether a trip still waiting to set out carries a mark. */
   showWaitingVehicles?: boolean;
   /** See `getShownLineDiagramVehicles`: whether the legs draw the line's other vehicles too. */
-  areOtherTripsShown?: boolean;
+  areOtherRunsShown?: boolean;
   trunkVehicles: readonly LineDiagramVehicle[];
 }): {
   vehiclesByBranchKey: ReadonlyMap<string, readonly LineDiagramVehicle[]>;
@@ -228,9 +228,9 @@ export function useLineBundleBranchVehicles({
         null,
       );
       // Past the junction only this line runs, so the leg carries its vehicles alone.
-      const branchDepartures = getLineDiagramVehicleDepartures(
+      const branchDepartures = getLineDiagramRunDepartures(
         createLineSelection(branch.lineId),
-        vehicleDepartures,
+        runDepartures,
       );
       byKey.set(
         getLineBundleBranchKey(branch),
@@ -238,27 +238,27 @@ export function useLineBundleBranchVehicles({
           getLineDiagramVehicles(
             branchStops,
             branchDepartures,
-            joinedTripPairs,
+            joinedPortionPairs,
             selectedDeparture,
             feedNow,
             { turnaroundIndex, showWaitingVehicles },
           ),
-          areOtherTripsShown,
+          areOtherRunsShown,
         ),
       );
     }
     return byKey;
   }, [
-    areOtherTripsShown,
+    areOtherRunsShown,
     branches,
     feedNow,
-    joinedTripPairs,
+    joinedPortionPairs,
     lineById,
     network,
     selectedDeparture,
     turnaroundIndex,
     showWaitingVehicles,
-    vehicleDepartures,
+    runDepartures,
   ]);
 
   const previousTrunkMarkerKeysRef = useRef<ReadonlySet<string>>(new Set());

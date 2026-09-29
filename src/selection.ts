@@ -6,12 +6,12 @@ import {
   useLineObservation,
   useLineStopBoard,
   type LineObservationReading,
-  useRetainedTrip,
+  useRetainedRun,
   useTransitStop,
-  useTripDepartures,
+  useRunReadings,
 } from "./hooks";
-import { mergeTripSequence } from "./lib/trip-calls";
-import { findBestTripReading } from "./lib/trips";
+import { mergeRunReading } from "./lib/trip-calls";
+import { findBestRunReading } from "./lib/trips";
 import { getLineSign } from "./data/line-signs";
 import { findLineForRoute, isSameLineFamily } from "./lib/line-families";
 import {
@@ -26,14 +26,13 @@ import type {
   TransitLine,
   TransitNetwork,
   TransitStop,
-  TripReading,
 } from "./data/transit-types";
 import {
   DEFAULT_STOP_ID,
-  findDepartureByRouteId,
-  getDepartureRouteId,
+  findDepartureByAddressId,
+  getDepartureAddressId,
   getSelectionPath,
-  isAddressedTripOutstanding,
+  isAddressOutstanding,
   replaceCurrentRoute,
   stationBoardConfig,
   type AppRoute,
@@ -46,7 +45,7 @@ const EMPTY_LINES: readonly TransitLine[] = [];
  * vehicles a rider can still reach; past that a board lists trips nobody in front of it is waiting
  * for, and each one is a request of its own.
  */
-const LINE_TRIP_LOAD_LIMIT = 6;
+const LINE_RUN_LOAD_LIMIT = 6;
 
 /**
  * Whether the visible board is asked for the trips behind its departures, or only for what leaves.
@@ -56,7 +55,7 @@ const LINE_TRIP_LOAD_LIMIT = 6;
  * bounded and shared. Only an unattended board whose own rows print `via` needs complete sequences
  * in the board response itself — no address a rider navigates to does.
  */
-const NEEDS_BOARD_TRIP_CALLS = stationBoardConfig?.detail === "via";
+const NEEDS_BOARD_CALLS = stationBoardConfig?.detail === "via";
 
 /**
  * What the address actually resolved to.
@@ -105,8 +104,8 @@ export type ResolvedSelectionChain = {
   preferredDestination: string | undefined;
   /** This stop's board plus the line-filtered boards discovered along the whole line. */
   lineDepartureBoards: readonly DepartureBoard[];
-  /** Whole-trip readings for the selected line at this stop, used for route-aware presentation. */
-  lineTripDepartures: readonly Departure[];
+  /** Whole-run readings for the selected line at this stop, used for route-aware presentation. */
+  lineRunDepartures: readonly Departure[];
   /**
    * The ride: the trip read on its own, without the departure board beside it. It is the trip's
    * mode, so it lasts exactly as long as the trip — once the boards have been read and the trip is
@@ -129,10 +128,10 @@ export type ResolvedSelectionChain = {
    */
   originStopId: string | undefined;
   /**
-   * A link naming a trip alone cannot say which line it belongs to until its board arrives; showing
-   * the bare stop first would flip to the line view a moment later.
+   * A stop-scoped trip cannot say which line it belongs to until its board arrives; showing the
+   * bare stop first would flip to the line view a moment later.
    */
-  isAwaitingLegacyTrip: boolean;
+  isAwaitingStopBoardTrip: boolean;
 };
 
 export function useSelectionChain(
@@ -141,7 +140,7 @@ export function useSelectionChain(
   observationBoards: readonly DepartureBoard[] = [],
 ): ResolvedSelectionChain {
   const observedLine = network ? findLineForRoute(network.lines, route.lineId) : undefined;
-  const addressedStopId = route.stopId || observedLine?.zentrumStopIds[0] || DEFAULT_STOP_ID;
+  const addressedStopId = route.stopId || observedLine?.zentrumCalls[0] || DEFAULT_STOP_ID;
   // A failed provider read is retried by bumping the nonce: the load re-runs for the same key, so
   // whatever the last attempt settled on stays visible until the new one answers.
   const [stopReloadNonce, setStopReloadNonce] = useState(0);
@@ -168,14 +167,14 @@ export function useSelectionChain(
   const departureBoardOrder = useDepartureBoardOrder();
   const departureBoardReading = useDepartureBoard(
     selectedStop ? stopId : undefined,
-    NEEDS_BOARD_TRIP_CALLS ? "calls" : departureBoardOrder === "line" ? "covered" : "plain",
+    NEEDS_BOARD_CALLS ? "calls" : departureBoardOrder === "line" ? "covered" : "plain",
     boardReloadNonce,
   );
   const departureBoard = departureBoardReading.board;
   const departures = departureBoard?.departures ?? EMPTY_DEPARTURES;
   // A trip named beside a stop is that stop's own entry: its countdown, platform and calling point
   // are the ones the board states, so another board's copy of the same trip is not interchangeable.
-  const stopDeparture = findDepartureByRouteId(departures, route.tripId);
+  const stopDeparture = findDepartureByAddressId(departures, route.addressId);
 
   const selectedLine = findSelectedLine(
     route,
@@ -223,76 +222,71 @@ export function useSelectionChain(
     selectedLineId ? stopId : undefined,
     stopFilterDirectionIds,
   );
-  // The addressed trip as this stop states it, on either reading of this stop.
+  // The addressed run as this stop states it, on either reading of this stop.
   //
   // The shared board is not the only one: read for the line alone the same stop reaches most of an
   // hour where the shared board reaches minutes, and at a busy stop — a dozen lines and twenty rows
-  // between them — the trip a rider addressed is very often on that reading and on no other. It is
+  // between them — the run a rider addressed is very often on that reading and on no other. It is
   // the same stop's own row either way, and looking for it only on the board a rider happens to be
   // shown left a shared link to a trip at the Hauptbahnhof with nothing to resolve.
   const addressedDeparture =
     stopDeparture ??
-    findDepartureByRouteId(lineStopBoard?.departures ?? EMPTY_DEPARTURES, route.tripId);
+    findDepartureByAddressId(lineStopBoard?.departures ?? EMPTY_DEPARTURES, route.addressId);
   const lineDeparturesAtStop = useLineDeparturesAtStop(
     lineSelection,
     lineStopBoard,
     departures,
     addressedDeparture,
   );
-  const currentLineTrips = useTripDepartures(lineDeparturesAtStop, addressedDeparture?.id);
+  const currentLineRuns = useRunReadings(lineDeparturesAtStop, {
+    selectedRowId: addressedDeparture?.id,
+  });
   const { boards: lineDepartureBoards, isReading: isReadingLine } = useLineDepartureBoards({
     selection: lineSelection,
     lines: selectionLines,
     stopId,
     shellBoards,
     departureBoard: lineStopBoard ?? departureBoard,
-    currentLineTrips,
+    currentLineRuns,
   });
-  // A trip addressed on its own names no stop, so the board it was read from is not known in
-  // advance: it is looked for across the line's boards, keeping the freshest copy that saw the trip.
+  // A run addressed on its own names no stop, so the board it was read from is not known in
+  // advance: it is looked for across the line's boards, keeping the freshest copy that saw the run.
   const observedBoards = useMemo(
     () => [...observationBoards, ...lineDepartureBoards],
     [lineDepartureBoards, observationBoards],
   );
-  const observedTripReading = findTripInDepartureBoards(observedBoards, route.tripId);
-  // A trip found up the line is a row before it is a run: the boards along a line are read as rows,
+  const observedRunReading = findRunInDepartureBoards(observedBoards, route.addressId);
+  // A run found up the line is a row before it is a run: the boards along a line are read as rows,
   // and only the runs actually out on it are read as calls (`getLineDepartureBoards`). One that is
   // not — a departure still hours from setting out, which a rider may well have shared a link to —
-  // has no chain for the diagram to draw, so the one trip the address names is read on its own.
-  const addressedTripRows = useMemo(
+  // has no chain for the diagram to draw, so the one run the address names is read on its own.
+  const addressedRunRows = useMemo(
     () =>
-      observedTripReading?.trip && !observedTripReading.trip.tripCalls?.length
-        ? [observedTripReading.trip]
+      observedRunReading && !observedRunReading.tripCalls?.length
+        ? [observedRunReading]
         : EMPTY_DEPARTURES,
-    [observedTripReading],
+    [observedRunReading],
   );
-  const [addressedTripReading] = useTripDepartures(addressedTripRows, addressedTripRows[0]?.id);
-  // The stop row owns countdown, platform and destination; the single-trip reading contributes the
+  const [addressedRunReading] = useRunReadings(addressedRunRows, {
+    selectedRowId: addressedRunRows[0]?.id,
+  });
+  // The stop row owns countdown, platform and destination; the single-run reading contributes the
   // complete sequence. This keeps one published departure fact while still preferring fuller calls.
-  const observedTrip = addressedTripReading ?? observedTripReading?.trip;
+  const observedRun = addressedRunReading ?? observedRunReading;
   const observedDeparture = useMemo(
-    () => (addressedDeparture ? mergeTripSequence(addressedDeparture, observedTrip) : observedTrip),
-    [addressedDeparture, observedTrip],
+    () => (addressedDeparture ? mergeRunReading(addressedDeparture, observedRun) : observedRun),
+    [addressedDeparture, observedRun],
   );
   // A ride outlives the boards that found it: a departure board lists what has not left yet, so a
-  // few minutes after boarding no board mentions this trip. Only the ride keeps the last reading —
-  // beside a departure board a departed trip still steps back up to its line, as it always has.
-  // Dated by the sequence in it, not by the freshest board in hand: every time the ride publishes
-  // is a call of this trip, so a row from a thirty-second board completed by a twenty-minute-old
-  // sequence is a twenty-minute-old observation and has to be able to say so.
-  const receivedAt =
-    observedTripReading?.receivedAt ??
-    departureBoard?.receivedAt ??
-    lineDepartureBoards[0]?.receivedAt ??
-    0;
-  const retainedTrip = useRetainedTrip(
-    route.isRide ? route.tripId : undefined,
-    observedDeparture,
-    receivedAt,
-  );
-  const selectedDeparture = route.isRide ? retainedTrip.departure : observedDeparture;
+  // few minutes after boarding no board mentions this run. Only the ride keeps the last reading —
+  // beside a departure board a departed run still steps back up to its line, as it always has.
+  // The departure states when each half of it was read, so the ride reads its own age off it: a row
+  // from a thirty-second board completed by a twenty-minute-old sequence is a twenty-minute-old
+  // observation and says so without being told.
+  const retainedRun = useRetainedRun(route.isRide ? route.addressId : undefined, observedDeparture);
+  const selectedDeparture = route.isRide ? retainedRun.departure : observedDeparture;
   const preferredDestination = usePreferredDestination(selectedLine, selectedDeparture);
-  // Until the boards have been read once, a trip that has not resolved is only unread, and the view
+  // Until the boards have been read once, a run that has not resolved is only unread, and the view
   // stays as addressed instead of flashing the departure board open beside it.
   const isRide = route.isRide && (Boolean(selectedDeparture) || departureBoard === null);
   // The Ausstieg is a level like any other: it holds only while the trip in hand actually calls
@@ -309,28 +303,29 @@ export function useSelectionChain(
   const originStopId = isRide ? route.originStopId : undefined;
 
   // The address always states what actually resolved. Writing it back is how a level leaves the
-  // chain, and how a legacy link that named a trip alone acquires the line it belongs to — but a
-  // level is only ever dropped once the readings that could name it have answered, which for a
-  // trip is not this stop's board alone (`isAddressedTripOutstanding`).
+  // chain, and how a stop-scoped trip acquires the line it belongs to without changing its parent
+  // — but a level is only ever dropped once the readings that could name it have answered, which
+  // for a run is not this stop's board alone (`isAddressOutstanding`).
   const selectionPath = getSelectionPath({
     stopId,
     lineId: selectedLine?.id,
     bundledLineIds: lineSelection.bundledLineIds,
-    tripId: selectedDeparture && getDepartureRouteId(selectedDeparture),
+    addressId: selectedDeparture && getDepartureAddressId(selectedDeparture),
+    tripParent: route.tripParent,
     isRide,
     alightingStopId,
     originStopId,
   });
-  const isTripOutstanding = isAddressedTripOutstanding({
-    addressedTripId: route.tripId,
-    hasResolvedTrip: Boolean(selectedDeparture),
+  const isAddressStillOutstanding = isAddressOutstanding({
+    addressId: route.addressId,
+    hasResolvedDeparture: Boolean(selectedDeparture),
     isStopBoardRead: departureBoard !== null,
     isReadingLine,
   });
   useEffect(() => {
-    if (route.view !== "stop" || !selectedStop || isTripOutstanding) return;
+    if (route.view !== "stop" || !selectedStop || isAddressStillOutstanding) return;
     replaceCurrentRoute(selectionPath);
-  }, [isTripOutstanding, route.view, selectedStop, selectionPath]);
+  }, [isAddressStillOutstanding, route.view, selectedStop, selectionPath]);
 
   return {
     stopId,
@@ -348,23 +343,23 @@ export function useSelectionChain(
     selectedDeparture,
     preferredDestination,
     lineDepartureBoards,
-    lineTripDepartures: currentLineTrips,
+    lineRunDepartures: currentLineRuns,
     isRide,
-    isSelectedDepartureRetained: isRide && retainedTrip.isRetained,
-    selectedDepartureObservedAt: retainedTrip.observedAt,
+    isSelectedDepartureRetained: isRide && retainedRun.isRetained,
+    selectedDepartureObservedAt: retainedRun.observedAt,
     alightingStopId,
     originStopId,
     // Only ever waits on a stop that resolved, because an unresolved one is never asked for a board
     // and would wait forever.
-    isAwaitingLegacyTrip:
-      Boolean(selectedStop) && Boolean(route.tripId) && !route.lineId && departureBoard === null,
+    isAwaitingStopBoardTrip:
+      Boolean(selectedStop) && Boolean(route.addressId) && !route.lineId && departureBoard === null,
   };
 }
 
 /**
  * The line in view. A line is running here if this stop's own board says so, whether or not the
- * Zentrum observation covers it — that is how a bus keeps its sign. A legacy `/departure/:trip/:stop`
- * link names no line at all, so the trip it resolves to supplies one.
+ * Zentrum observation covers it — that is how a bus keeps its sign. A stop-scoped trip address
+ * names no line at all, so the departure it resolves to supplies one.
  */
 function findSelectedLine(
   route: AppRoute,
@@ -383,8 +378,8 @@ function findSelectedLine(
   if (lineDeparture)
     return getLineSign(network.lines, lineDeparture.lineId, lineDeparture.transportMode);
 
-  // A ride can restore its saved trip after a reload even when the current observation no longer
-  // sees that line. The retained departure supplies the trip below; this neutral sign only keeps
+  // A ride can restore its saved run after a reload even when the current observation no longer
+  // sees that line. The retained departure supplies the run below; this neutral sign only keeps
   // the line level available long enough for that honest observation to resolve.
   if (route.isRide && route.lineId) return getLineSign(network.lines, route.lineId, "other");
 
@@ -396,18 +391,17 @@ function findSelectedLine(
     : undefined;
 }
 
-/** The trip as the best-informed board in hand describes it: `lib/trips.ts` decides which that is. */
-const findTripInDepartureBoards = (
+/** The run as the best-informed board in hand describes it: `lib/trips.ts` decides which that is. */
+const findRunInDepartureBoards = (
   boards: readonly DepartureBoard[],
-  tripId: string | undefined,
-): TripReading | undefined =>
-  tripId
-    ? findBestTripReading(boards, (departures) => findDepartureByRouteId(departures, tripId))
+  addressId: string | undefined,
+): Departure | undefined =>
+  addressId
+    ? findBestRunReading(boards, (departures) => findDepartureByAddressId(departures, addressId))
     : undefined;
 
 /**
- * This stop's individually loaded same-line trips first, then the boards read for this line
- * alone.
+ * This stop's individually loaded same-line runs first, then the boards read for this line alone.
  *
  * Every discovered calling point is read, and each board is filtered to this line — where both of
  * its directions are known — rather than spending its rows on every service at the stop. The stop
@@ -420,23 +414,23 @@ function useLineDepartureBoards({
   stopId,
   shellBoards,
   departureBoard,
-  currentLineTrips,
+  currentLineRuns,
 }: {
   selection: LineSelection;
   lines: readonly TransitLine[];
   stopId: string;
   shellBoards: readonly DepartureBoard[];
   departureBoard: DepartureBoard | null;
-  currentLineTrips: readonly Departure[];
+  currentLineRuns: readonly Departure[];
 }): LineObservationReading {
-  // This stop's rows, read as whole trips. They are the richest thing the crawl is ever taught — a
+  // This stop's rows, read as whole runs. They are the richest thing the crawl is ever taught — a
   // complete calling sequence each — so the route it reads is theirs from its very first round.
   const currentLineBoard = useMemo(
     () =>
-      departureBoard && currentLineTrips.length > 0
-        ? { ...departureBoard, departures: currentLineTrips }
+      departureBoard && currentLineRuns.length > 0
+        ? { ...departureBoard, departures: currentLineRuns }
         : null,
-    [currentLineTrips, departureBoard],
+    [currentLineRuns, departureBoard],
   );
   const evidenceBoards = useMemo(
     () => (currentLineBoard ? [...shellBoards, currentLineBoard] : shellBoards),
@@ -478,7 +472,7 @@ function useLineDeparturesAtStop(
     // The cap is the reading's, not each line's: it stands for the trips a rider can still catch,
     // and a corridor read as one has one such set of trips however many lines run it.
     const ofSelection = rows.filter((departure) => isSelectedLine(selection, departure.lineId));
-    const loaded = ofSelection.slice(0, LINE_TRIP_LOAD_LIMIT);
+    const loaded = ofSelection.slice(0, LINE_RUN_LOAD_LIMIT);
     return stopDeparture && !loaded.some(({ id }) => id === stopDeparture.id)
       ? [stopDeparture, ...loaded]
       : loaded;

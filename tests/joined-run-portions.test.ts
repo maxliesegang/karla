@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Departure, TripCall } from "../src/data/transit-types.ts";
-import { getJoinedTripPortionPairs } from "../src/lib/joined-trip-portions.ts";
+import { getJoinedRunPortionPairs } from "../src/lib/joined-run-portions.ts";
 
 const start = Date.parse("2026-08-26T12:00:00Z");
 
@@ -43,7 +43,7 @@ test("recognises a separately addressed portion that terminates along a shared t
     call("bondorf", 50, false),
   ]);
 
-  const [joined] = getJoinedTripPortionPairs([terminating, continuing]);
+  const [joined] = getJoinedRunPortionPairs([terminating, continuing]);
 
   assert.equal(joined?.terminating, terminating);
   assert.equal(joined?.continuing, continuing);
@@ -58,7 +58,7 @@ test("treats a missing time on one portion as unknown when later shared calls co
   ]);
   const continuing = departure("long", "F", [...shared, call("f", 50)]);
 
-  assert.equal(getJoinedTripPortionPairs([terminating, continuing]).length, 1);
+  assert.equal(getJoinedRunPortionPairs([terminating, continuing]).length, 1);
 });
 
 test("uses the shared train number and route when one portion has no valid call times", () => {
@@ -74,7 +74,7 @@ test("uses the shared train number and route when one portion has no valid call 
   );
   const continuing = departure("long", "E", [...shared, call("e", 40)]);
 
-  assert.equal(getJoinedTripPortionPairs([terminating, continuing]).length, 1);
+  assert.equal(getJoinedRunPortionPairs([terminating, continuing]).length, 1);
 });
 
 test("does not infer joining for branches, identical routes or mismatched passage times", () => {
@@ -82,15 +82,15 @@ test("does not infer joining for branches, identical routes or mismatched passag
   const base = departure("base", "D", shared);
 
   assert.deepEqual(
-    getJoinedTripPortionPairs([
+    getJoinedRunPortionPairs([
       base,
       departure("branch", "E", [...shared.slice(0, -1), call("e", 30), call("f", 40)]),
     ]),
     [],
   );
-  assert.deepEqual(getJoinedTripPortionPairs([base, departure("duplicate", "D", shared)]), []);
+  assert.deepEqual(getJoinedRunPortionPairs([base, departure("duplicate", "D", shared)]), []);
   assert.deepEqual(
-    getJoinedTripPortionPairs([
+    getJoinedRunPortionPairs([
       base,
       departure("later", "E", [...shared.slice(0, -1), call("d", 31), call("e", 40)]),
     ]),
@@ -104,11 +104,11 @@ test("does not infer joining without a shared operator train number", () => {
   const continuing = departure("long", "E", [...shared, call("e", 40)]);
 
   assert.deepEqual(
-    getJoinedTripPortionPairs([{ ...terminating, trainNumber: undefined }, continuing]),
+    getJoinedRunPortionPairs([{ ...terminating, trainNumber: undefined }, continuing]),
     [],
   );
   assert.deepEqual(
-    getJoinedTripPortionPairs([terminating, { ...continuing, trainNumber: "85654" }]),
+    getJoinedRunPortionPairs([terminating, { ...continuing, trainNumber: "85654" }]),
     [],
   );
 });
@@ -121,5 +121,5 @@ test("leaves an ambiguous group of three portions unchanged", () => {
     departure("long", "F", [...shared, call("e", 40), call("f", 50)]),
   ];
 
-  assert.deepEqual(getJoinedTripPortionPairs(departures), []);
+  assert.deepEqual(getJoinedRunPortionPairs(departures), []);
 });

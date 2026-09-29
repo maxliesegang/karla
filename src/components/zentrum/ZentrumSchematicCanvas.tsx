@@ -1,9 +1,9 @@
 import { type CSSProperties, useMemo, useRef, type RefObject } from "react";
 import { useVehicleTrajectoryAnimations, type TrajectoryAnimationFields } from "../../hooks";
 import {
+  getZentrumVehicleLinkKey,
   getZentrumVehicleTransform,
   toZentrumCanvasLeft,
-  toZentrumCanvasRun,
   toZentrumCanvasTop,
 } from "../../lib/zentrum-plan-canvas";
 import type { ZentrumSchematicVehicle } from "../../lib/zentrum-schematic";
@@ -16,7 +16,6 @@ import {
 } from "../../lib/zentrum-schematic-plan";
 import { getZentrumSchematicDrawnPaths } from "../../lib/zentrum-schematic-paths";
 import { getZentrumSchematicStopMarks } from "../../lib/zentrum-schematic-stops";
-import { navigateTo, routePaths } from "../../routing";
 import type { ZentrumLineSignReader } from "./line-sign";
 import { ZentrumSchematicDrawing } from "./ZentrumSchematicDrawing";
 
@@ -33,8 +32,7 @@ import { ZentrumSchematicDrawing } from "./ZentrumSchematicDrawing";
 const ZENTRUM_NAME_EVERY_STOP_WIDTH = 1000;
 
 /** What a mark animates with, on top of the place the schematic already gives it. */
-type ZentrumVehicleMark = ZentrumSchematicVehicle &
-  TrajectoryAnimationFields & { courseX: string; courseY: string };
+type ZentrumVehicleMark = ZentrumSchematicVehicle & TrajectoryAnimationFields;
 
 /**
  * The plan itself: the drawing, the stops named on it, and the marks moving over it.
@@ -52,10 +50,12 @@ export function ZentrumSchematicCanvas({
   lineIdsByNodeId,
   getSign,
   selectedLineId,
+  selectedStationId,
   vehicles,
-  aheadEdgeIdsByTrackId,
+  showVehicleProgress,
   selectedVehicleId,
   onSelectVehicle,
+  onSelectStation,
   scrollRef,
   zoom,
   planWidth,
@@ -70,14 +70,14 @@ export function ZentrumSchematicCanvas({
   getSign: ZentrumLineSignReader;
   /** The line the plan is following, as the address names it. */
   selectedLineId?: string;
+  /** The station whose serving lines are highlighted in the transient map reading. */
+  selectedStationId?: string;
   vehicles: readonly ZentrumSchematicVehicle[];
-  /**
-   * The corridors the followed line's vehicles are still to run, which the plan lights ahead of
-   * them; absent — and every stretch keeps its colour — while no line is being followed.
-   */
-  aheadEdgeIdsByTrackId?: ReadonlyMap<string, ReadonlySet<string>>;
+  /** Whether the all-lines view should colour each line ahead of and behind its vehicles. */
+  showVehicleProgress: boolean;
   selectedVehicleId?: string;
   onSelectVehicle: (vehicleId: string) => void;
+  onSelectStation: (stationId: string) => void;
   scrollRef: RefObject<HTMLDivElement | null>;
   zoom: number;
   planWidth: number | undefined;
@@ -85,6 +85,12 @@ export function ZentrumSchematicCanvas({
   const canvasRef = useRef<HTMLDivElement>(null);
   const visibleNodes = ZENTRUM_SCHEMATIC_NODES.filter((node) => lineIdsByNodeId.has(node.id));
   const showsEveryName = planWidth !== undefined && planWidth >= ZENTRUM_NAME_EVERY_STOP_WIDTH;
+  const highlightedLineIds = useMemo(() => {
+    if (selectedStationId !== undefined) {
+      return new Set(lineIdsByNodeId.get(selectedStationId) ?? []);
+    }
+    return selectedLineId === undefined ? undefined : new Set([selectedLineId]);
+  }, [lineIdsByNodeId, selectedLineId, selectedStationId]);
 
   // Every name at once is what buries a small plan: twenty-five of them, most of them long German
   // compounds, over a drawing whose corridors are the thing to read. So a plan with no room for
@@ -134,32 +140,33 @@ export function ZentrumSchematicCanvas({
 
   // Marks move on one segment-long Web Animation, the same choreography the line diagram's marks
   // keep: the placement's own trajectory sampled into keyframes, a replan correcting from the
-  // paint already on the mark, a placement painted where it belongs. The corridor is the mark's
-  // coordinate system, stated in container units -- the base sits at the corridor's lane start
-  // and the translate carries the whole run -- so a zoom or a resize re-resolves the very same
-  // animation, and only a replan asks for a new one.
-  const vehicleMarks: ZentrumVehicleMark[] = vehicles.flatMap((vehicle) =>
-    vehicle.trajectory
-      ? [
-          {
-            ...vehicle,
-            trajectory: vehicle.trajectory,
-            key: vehicle.id,
-            linkKey: `${vehicle.from.id}:${vehicle.to.id}`,
-            courseX: toZentrumCanvasRun(vehicle.to.x - vehicle.from.x),
-            courseY: toZentrumCanvasRun(vehicle.to.y - vehicle.from.y),
-          },
-        ]
-      : [],
-  );
+  // paint already on the mark, a placement painted where it belongs. The canvas is the mark's
+  // coordinate system, stated in container units -- the base sits at its origin and the translate
+  // carries it along the vehicle path's points -- so a zoom or a resize
+  // re-resolves the very same animation, and only a replan asks for a new one.
+  const vehicleMarks: ZentrumVehicleMark[] = vehicles.map((vehicle) => ({
+    ...vehicle,
+    key: vehicle.markerKey ?? vehicle.id,
+    linkKey: getZentrumVehicleLinkKey(vehicle.from.id, vehicle.to.id, vehicle.path),
+  }));
   useVehicleTrajectoryAnimations({
     container: canvasRef,
     marks: vehicleMarks,
     // The plan is blown up and re-fitted by zoom and box alike; while the coordinates state
     // themselves in live units the marks scale with it, the paint a replan would carry does not.
-    geometrySignature: String(planWidth ?? zoom),
-    getTransform: (mark, progress) =>
-      getZentrumVehicleTransform(mark.courseX, mark.courseY, progress),
+    geometrySignature: [
+      planWidth ?? zoom,
+      trackWidth,
+      ...edges.map(
+        ({ id, trackBandOffset, trackLineIds }) =>
+          `${id}:${trackBandOffset}:${trackLineIds.join(",")}`,
+      ),
+      ...drawnLinePaths.map(({ id, data }) => `${id}:${data}`),
+    ].join("|"),
+    getTransform: (mark, progress) => getZentrumVehicleTransform(mark.path, progress),
+    // The vehicle path's own points are where its drawn lane bends; a mark crossing each on its own clock
+    // turns the corner the stroke turns, instead of interpolating straight across it.
+    getBoundaryProgresses: (mark) => mark.path.steps.slice(1, -1),
   });
 
   return (
@@ -176,19 +183,21 @@ export function ZentrumSchematicCanvas({
           edges={edges}
           drawnLinePaths={drawnLinePaths}
           stopMarks={stopMarks}
-          selectedLineId={selectedLineId}
-          aheadEdgeIdsByTrackId={aheadEdgeIdsByTrackId}
+          highlightedLineIds={highlightedLineIds}
+          vehicles={vehicles}
+          showVehicleProgress={showVehicleProgress}
           trackWidth={trackWidth}
         />
 
         {visibleNodes.map((node) => {
           const lineIdsAtNode = lineIdsByNodeId.get(node.id) ?? [];
           const stopMark = stopMarkByNodeId.get(node.id);
-          const isMuted = selectedLineId !== undefined && !lineIdsAtNode.includes(selectedLineId);
-          const isNamed =
-            showsEveryName ||
-            junctions.has(node.id) ||
-            (selectedLineId !== undefined && lineIdsAtNode.includes(selectedLineId));
+          const isHighlighted = highlightedLineIds
+            ? lineIdsAtNode.some((lineId) => highlightedLineIds.has(lineId))
+            : false;
+          const isMuted = highlightedLineIds !== undefined && !isHighlighted;
+          const isNamed = showsEveryName || junctions.has(node.id) || isHighlighted;
+          const isSelected = selectedStationId === node.id;
           return (
             <button
               key={node.id}
@@ -196,6 +205,7 @@ export function ZentrumSchematicCanvas({
               className={`zentrum-schematic-stop ${node.labelSide ?? "below"}`}
               data-muted={isMuted}
               data-named={isNamed}
+              data-selected={isSelected}
               style={
                 {
                   left: toZentrumCanvasLeft(node.x),
@@ -209,8 +219,9 @@ export function ZentrumSchematicCanvas({
                   }),
                 } as CSSProperties
               }
-              onClick={() => navigateTo(routePaths.stop(node.id))}
-              aria-label={`${node.label}, Linien ${lineIdsAtNode.join(", ")}. Haltestelle öffnen`}
+              onClick={() => onSelectStation(node.id)}
+              aria-pressed={isSelected}
+              aria-label={`${node.label}, Linien ${lineIdsAtNode.join(", ")}. ${isSelected ? "Linien nicht mehr hervorheben" : "Linien hervorheben"}`}
             >
               <i aria-hidden="true" />
               <span>{node.label}</span>
@@ -220,38 +231,42 @@ export function ZentrumSchematicCanvas({
 
         {vehicles.map((vehicle) => {
           const sign = getSign(vehicle.lineId);
-          // The base sits at the corridor's start -- lane included, so the mark rides its
-          // line's colour from the first frame -- and the translate carries the whole run to
-          // the stop ahead. That one property is what both the static paint and the animated
-          // keyframes state, so the per-second tick repositions nothing the animation runs.
-          const runX = vehicle.to.x - vehicle.from.x;
-          const runY = vehicle.to.y - vehicle.from.y;
-          const courseX = toZentrumCanvasRun(runX);
-          const courseY = toZentrumCanvasRun(runY);
+          // The mark carries its whole position in transform in container units, anchored at
+          // top-left of the canvas. That one property is what both the static paint and the
+          // animated keyframes state, so link handovers and replans share the coordinate system
+          // and transition seamlessly.
+          const markerKey = vehicle.markerKey ?? vehicle.id;
           const isSelected = selectedVehicleId === vehicle.id;
+          const isHolding = vehicle.from.id === vehicle.to.id;
+          const place =
+            vehicle.phase === "beforeStart"
+              ? `steht an ${vehicle.from.label} vor Abfahrt`
+              : vehicle.phase === "afterEnd"
+                ? `steht an ${vehicle.to.label} (Fahrt endet hier)`
+                : isHolding
+                  ? `hält an ${vehicle.from.label}`
+                  : `geschätzt zwischen ${vehicle.from.label} und ${vehicle.to.label}`;
           const style = {
-            left: toZentrumCanvasLeft(vehicle.x - runX * vehicle.progress),
-            top: toZentrumCanvasTop(vehicle.y - runY * vehicle.progress),
-            transform: getZentrumVehicleTransform(courseX, courseY, vehicle.progress),
+            transform: getZentrumVehicleTransform(vehicle.path, vehicle.progress),
             "--zentrum-line-color": sign.color,
             "--zentrum-vehicle-ink": sign.textColor,
             "--zentrum-vehicle-angle": `${vehicle.angle}deg`,
           } as CSSProperties;
           return (
             <button
-              key={vehicle.id}
+              key={markerKey}
               type="button"
               className="zentrum-schematic-vehicle"
-              data-marker-key={vehicle.id}
+              data-marker-key={markerKey}
               data-selected={isSelected}
               data-dimmed={
-                selectedLineId !== undefined && vehicle.lineId !== selectedLineId
+                highlightedLineIds !== undefined && !highlightedLineIds.has(vehicle.lineId)
                   ? "true"
                   : undefined
               }
               style={style}
-              title={`Linie ${vehicle.lineId} nach ${vehicle.destination}; geschätzt zwischen ${vehicle.from.label} und ${vehicle.to.label}`}
-              aria-label={`Linie ${vehicle.lineId} nach ${vehicle.destination}, geschätzte Position zwischen ${vehicle.from.label} und ${vehicle.to.label}`}
+              title={`Linie ${vehicle.lineId} nach ${vehicle.destination}; ${place}`}
+              aria-label={`Linie ${vehicle.lineId} nach ${vehicle.destination}, ${place}`}
               aria-expanded={isSelected}
               aria-controls={isSelected ? "zentrum-vehicle-detail" : undefined}
               onClick={() => onSelectVehicle(vehicle.id)}

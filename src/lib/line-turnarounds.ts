@@ -1,7 +1,7 @@
 import type { Departure, TripCall } from "../data/transit-types";
 import { getLineFamilyId, isSameLineFamily } from "./line-families";
 import { getCallKey, getTripCallInstant, statesRunEnd, statesRunStart } from "./trip-calls";
-import { getVehicleTripKey } from "./trips";
+import { getRunMarkKey } from "./trips";
 
 /**
  * The turnaround at a terminus, reconstructed — and the word is exact, because nothing publishes it.
@@ -176,7 +176,7 @@ function findRunEnds(departures: readonly Departure[]): { arrivals: RunEnd[]; st
   for (const departure of departures) {
     const calls = departure.tripCalls ?? [];
     if (calls.length < 2 || departure.status === "cancelled") continue;
-    const key = getVehicleTripKey(departure);
+    const key = getRunMarkKey(departure);
     const finalCall = calls[calls.length - 1];
     const firstCall = calls[0];
     const arrivalInstant = statesRunEnd(finalCall)

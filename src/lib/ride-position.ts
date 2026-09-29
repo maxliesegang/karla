@@ -36,7 +36,7 @@ export const MAX_RIDE_POSITION_OFF_ROUTE_METERS = 400;
 /** Two links this close to equally good are not distinguished by distance; the timetable decides. */
 const AMBIGUOUS_LINK_MARGIN_METERS = 120;
 
-export type RidePlacement = {
+export type RidePosition = {
   /** Index into the trip's calls of the stop the vehicle is running towards. */
   nextCallIndex: number;
   /** 0 at the call behind, 1 at the call ahead: how far along that link the fix sits. */
@@ -73,11 +73,11 @@ function projectOntoLink(from: LocalPoint, to: LocalPoint) {
  * `preferredCallIndex` is the timetable's own reading of which call is next; it settles a tie
  * between two passes over the same ground and is ignored where the fix is unambiguous.
  */
-export function getRidePlacement(
+export function getRidePosition(
   calls: readonly TripCall[],
   fix: RidePositionFix,
   preferredCallIndex?: number,
-): RidePlacement | null {
+): RidePosition | null {
   if (
     !Number.isFinite(fix.accuracyMeters) ||
     fix.accuracyMeters > MAX_RIDE_POSITION_FIX_ACCURACY_METERS
@@ -93,7 +93,7 @@ export function getRidePlacement(
 
   // A link needs both of its ends. Where the feed omits a call's coordinates the ground on either
   // side of it is simply not covered, rather than being spanned by a link that skips a stop.
-  const candidates: RidePlacement[] = [];
+  const candidates: RidePosition[] = [];
   for (let index = 0; index < calls.length - 1; index += 1) {
     const from = points[index];
     const to = points[index + 1];
@@ -114,7 +114,7 @@ export function getRidePlacement(
   );
   if (preferredCallIndex === undefined) return nearest;
   // Among the links the fix cannot tell apart, the timetable's own place in the sequence decides.
-  const distanceFromPreferred = (candidate: RidePlacement) =>
+  const distanceFromPreferred = (candidate: RidePosition) =>
     Math.abs(candidate.nextCallIndex - preferredCallIndex);
   return candidates
     .filter(

@@ -1332,20 +1332,22 @@ button.brand:active .brand-mark,
 .zentrum-schematic-network-track-color {
   stroke-width: calc(var(--zentrum-schematic-track-width) * 0.84);
 }
-/* The vehicle reading lights the stretch a vehicle is still to run, and leaves what lies behind
-   the vehicles in the drawing's own structure grey — same band, same casing, no colour, and at
-   the lane's full width, which buries the lane's own seam again: the band behind the vehicles
-   reads as one quiet grey rather than as ruled lanes. */
+/* Progress mode uses two visual channels: a quiet dashed trace for the general route, then a solid
+   saturated overlay for the stretch currently reachable. This avoids asking a grey tint to mean
+   both "the route exists" and "nothing is currently ahead". */
 .zentrum-schematic-network-track-color[data-has-vehicles="false"] {
   stroke: var(--line-strong);
-  stroke-width: var(--zentrum-schematic-track-width);
+  stroke-width: calc(var(--zentrum-schematic-track-width) * 0.42);
+  stroke-dasharray: calc(var(--zentrum-schematic-track-width) * 0.42)
+    calc(var(--zentrum-schematic-track-width) * 0.78);
+  opacity: 0.9;
 }
 /* Following a line recedes the rest of the band rather than removing it: what a rider is reading is
    one line's way *through* the Zentrum, and a plan emptied of everything else would no longer say
    through what. */
 .zentrum-schematic-network-track-color[data-dimmed="true"],
 .zentrum-schematic-vehicle[data-dimmed="true"] {
-  opacity: 0.28;
+  opacity: 0.2;
 }
 .zentrum-schematic-vehicle[data-dimmed="true"]:hover,
 .zentrum-schematic-vehicle[data-dimmed="true"]:focus-visible,
@@ -1388,6 +1390,8 @@ button.brand:active .brand-mark,
    handover are placements of their own, not journeys a transition would glide across. */
 .zentrum-schematic-vehicle {
   position: absolute;
+  left: 0;
+  top: 0;
   z-index: 4;
   width: clamp(12px, 1.5cqw, 21px);
   height: clamp(12px, 1.5cqw, 21px);
@@ -1532,6 +1536,16 @@ button.brand:active .brand-mark,
 .zentrum-schematic-stop:focus-visible span {
   text-shadow: none;
 }
+.zentrum-schematic-stop[data-selected="true"] {
+  z-index: 4;
+  background: var(--surface);
+  box-shadow: 0 3px 10px #10201f26;
+  outline: 2px solid var(--ink);
+  outline-offset: 2px;
+}
+.zentrum-schematic-stop[data-selected="true"] span {
+  text-shadow: none;
+}
 .zentrum-schematic-stop[data-muted="true"] {
   opacity: 0.42;
 }
@@ -1664,6 +1678,27 @@ button.brand:active .brand-mark,
 }
 .zentrum-schematic-lines[data-has-selection="true"] button:not(.selected) {
   opacity: 0.48;
+}
+.zentrum-schematic-progress-toggle {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 26px;
+  padding: 2px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 13px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 11.5px;
+  line-height: 1.1;
+  cursor: pointer;
+}
+.zentrum-schematic-progress-toggle:hover,
+.zentrum-schematic-progress-toggle:focus-visible,
+.zentrum-schematic-progress-toggle[aria-pressed="true"] {
+  border-color: var(--ink);
+  background: var(--surface-2);
 }
 /* What cannot be read off the drawing — that the marks are estimates, and which stretches are the
     ones still ahead — said on the control band, between the legend and the zoom. Plain text on the
@@ -3614,7 +3649,7 @@ button.line-diagram-bundle-option:focus-visible {
 }
 /* While a trip is followed, every other vehicle on the line steps back into a tint — same
    direction or not — so the ride the rider is on is the one mark that reads at full strength. */
-.line-diagram-vehicle-layer .line-diagram-vehicle.other-trip {
+.line-diagram-vehicle-layer .line-diagram-vehicle.other-run {
   background: color-mix(in srgb, var(--line-color) 42%, var(--surface));
   color: var(--ink);
 }

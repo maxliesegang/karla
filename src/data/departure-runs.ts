@@ -1,10 +1,10 @@
 import type { KvvDeparture } from "./kvv-efa-parsers";
 import type { Departure } from "./transit-types";
-import { getExpectedDepartureTime } from "../lib/departure-order";
+import { getExpectedDepartureInstant } from "../lib/departure-order";
 
 /** Whether a departure is expected inside a window, read against the feed's clock. */
 export function isDepartureWithin(departure: Departure, from: number, until: number): boolean {
-  const expected = getExpectedDepartureTime(departure, from);
+  const expected = getExpectedDepartureInstant(departure, from);
   return expected >= from && expected <= until;
 }
 
@@ -22,7 +22,7 @@ export function isDepartureWithin(departure: Departure, from: number, until: num
  * id exactly as before rather than by a description `createDepartureId` has already refused. Joined
  * portions share a train number but never a destination, so they are never folded into one row.
  */
-export function getRunKey(departure: Departure): string | undefined {
+export function getBoardRowKey(departure: Departure): string | undefined {
   if (!departure.trainNumber) return undefined;
   return [
     departure.trainNumber,
@@ -47,10 +47,10 @@ export function keepOneRowPerRun(departures: readonly Departure[]): Departure[] 
   const indexByRunKey = new Map<string, number>();
   const kept: Departure[] = [];
   for (const departure of departures) {
-    const runKey = getRunKey(departure);
-    const knownIndex = runKey === undefined ? undefined : indexByRunKey.get(runKey);
+    const boardRowKey = getBoardRowKey(departure);
+    const knownIndex = boardRowKey === undefined ? undefined : indexByRunKey.get(boardRowKey);
     if (knownIndex === undefined) {
-      if (runKey !== undefined) indexByRunKey.set(runKey, kept.length);
+      if (boardRowKey !== undefined) indexByRunKey.set(boardRowKey, kept.length);
       kept.push(departure);
       continue;
     }
@@ -70,20 +70,20 @@ export function keepOneRowPerRun(departures: readonly Departure[]): Departure[] 
  */
 export function createRunCollector(base: readonly Departure[]) {
   const departureById = new Map<string, Departure>();
-  const runKeys = new Set<string>();
+  const boardRowKeys = new Set<string>();
   for (const departure of base) {
     departureById.set(departure.id, departure);
-    const runKey = getRunKey(departure);
-    if (runKey) runKeys.add(runKey);
+    const boardRowKey = getBoardRowKey(departure);
+    if (boardRowKey) boardRowKeys.add(boardRowKey);
   }
   return {
     departureById: departureById as ReadonlyMap<string, Departure>,
     /** Adds a departure unless the run it names has already been stated; says whether it was added. */
     add(departure: Departure): boolean {
-      const runKey = getRunKey(departure);
-      if (runKey) {
-        if (runKeys.has(runKey)) return false;
-        runKeys.add(runKey);
+      const boardRowKey = getBoardRowKey(departure);
+      if (boardRowKey) {
+        if (boardRowKeys.has(boardRowKey)) return false;
+        boardRowKeys.add(boardRowKey);
       }
       departureById.set(departure.id, departure);
       return true;

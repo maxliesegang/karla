@@ -216,8 +216,8 @@ test("one route is asked for per direction, however many rows of it a board carr
   const requests = getLineRouteRequests(selection, boards);
 
   assert.deepEqual(requests, [
-    { lineId: "3", directionId: "kvv:21003:E:R:s26", departureId: "erste" },
-    { lineId: "3", directionId: "kvv:21003:E:H:s26", departureId: "gegenrichtung" },
+    { lineId: "3", directionId: "kvv:21003:E:R:s26", rowId: "erste" },
+    { lineId: "3", directionId: "kvv:21003:E:H:s26", rowId: "gegenrichtung" },
   ]);
 });
 

@@ -330,7 +330,7 @@ export function createLineSign(lineId: string, mode: TransportMode): TransitLine
     color,
     textColor: getAccessibleTextColor(color),
     destinations: [],
-    zentrumStopIds: [],
+    zentrumCalls: [],
   };
 }
 

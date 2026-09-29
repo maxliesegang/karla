@@ -16,7 +16,7 @@ export type AppSettings = {
   /** Whether the stops the rider reads are kept on this device for the next visit. */
   isRememberingStops: boolean;
   /** Whether the line diagram draws the line's other vehicles beside the one the rider follows. */
-  isShowingOtherLineTrips: boolean;
+  isShowingOtherLineRuns: boolean;
   /** How many departures the stacked board shows before "mehr anzeigen" gathers the rest. */
   stackedDepartureLimit: number;
 };
@@ -24,7 +24,7 @@ export type AppSettings = {
 export const DEFAULT_APP_SETTINGS: AppSettings = {
   landing: "recent-stop",
   isRememberingStops: true,
-  isShowingOtherLineTrips: true,
+  isShowingOtherLineRuns: true,
   stackedDepartureLimit: 8,
 };
 
@@ -39,11 +39,13 @@ const isRowLimit = (value: unknown): value is number =>
 /** The settings a stored value stands for, field by field: anything unreadable is the default. */
 export function getAppSettingsFromStored(stored: unknown): AppSettings {
   if (typeof stored !== "object" || stored === null) return DEFAULT_APP_SETTINGS;
-  const candidate = stored as Partial<AppSettings>;
+  const candidate = stored as Partial<AppSettings> & { isShowingOtherLineTrips?: boolean };
+  const isShowingOtherLineRuns =
+    candidate.isShowingOtherLineRuns ?? candidate.isShowingOtherLineTrips;
   return {
     landing: candidate.landing === "home" ? "home" : "recent-stop",
     isRememberingStops: candidate.isRememberingStops !== false,
-    isShowingOtherLineTrips: candidate.isShowingOtherLineTrips !== false,
+    isShowingOtherLineRuns: isShowingOtherLineRuns !== false,
     stackedDepartureLimit: isRowLimit(candidate.stackedDepartureLimit)
       ? candidate.stackedDepartureLimit
       : DEFAULT_APP_SETTINGS.stackedDepartureLimit,

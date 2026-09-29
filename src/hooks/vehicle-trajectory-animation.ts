@@ -1,17 +1,21 @@
 import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import {
-  getTripTrajectoryProgress,
-  type TripPlacementMotion,
-  type TripSegmentTrajectory,
+  getRunTrajectoryProgress,
+  type RunPlacementMotion,
+  type RunSegmentTrajectory,
 } from "../lib/vehicle-positioning";
-import { isCorrectivePlacement, getTrajectoryKeyframes } from "../lib/vehicle-trajectory-animation";
+import {
+  isCorrectivePlacement,
+  getTrajectoryKeyframes,
+  TRAJECTORY_CORRECTION_MS,
+} from "../lib/vehicle-trajectory-animation";
 
 /**
  * One mark's segment-length Web Animation, kept for it between renders.
  *
  * This is the choreography both drawings that animate a mark share (`LineDiagramVehicleLayer` and
  * the Zentrum's vehicle map): the domain places a mark on a link with an appointment —
- * `TripSegmentTrajectory` — and the browser runs it as one animation, not as a succession of
+ * `RunSegmentTrajectory` — and the browser runs it as one animation, not as a succession of
  * one-second transitions. What is shared here is everything about *how* an animation is kept:
  *
  * - A signature over the trajectory's plan and the drawing's own coordinates decides whether the
@@ -23,7 +27,7 @@ import { isCorrectivePlacement, getTrajectoryKeyframes } from "../lib/vehicle-tr
  *   never animated from the old paint, and never reuses an animation that had travelled: the two
  *   are indistinguishable from coordinates alone, and only the placement knows which happened.
  *   The placement that barely moved the mark states how far it moved it
- *   (`TripPlacement.placedAfterLinks`), and within a link it is corrected over the same few
+ *   (`RunPlacement.placedAfterLinks`), and within a link it is corrected over the same few
  *   seconds a replan is — a snap there would read as a blink, not as a statement.
  * - A mark with no trajectory, and every mark under `prefers-reduced-motion`, stand still and are
  *   painted at the position their tick evaluated; their animations, if any, are cancelled.
@@ -37,14 +41,20 @@ import { isCorrectivePlacement, getTrajectoryKeyframes } from "../lib/vehicle-tr
 export type TrajectoryAnimationFields = {
   /** The mark's element, found by its `data-marker-key` in the container. */
   key: string;
-  /** The link's motion as one appointment with its next stop, as the placement sampled it. */
-  trajectory: TripSegmentTrajectory;
+  /**
+   * The link's motion as one appointment with its next stop, as the placement sampled it.
+   *
+   * Absent where the placement has no journey to plan -- its link ran out between two readings,
+   * or the mark stands where no link is drawn. The mark is then painted at its tick position,
+   * corrected over from the paint it already carries where the placement allows a correction.
+   */
+  trajectory?: RunSegmentTrajectory;
   /** How the mark got here: only travelled motion is animated as a journey. */
-  motion: TripPlacementMotion;
+  motion: RunPlacementMotion;
   /**
    * How far a placement put the mark from where it was drawn, in links of the trip's own calls —
    * the placement's own statement of whether it may be corrected over rather than snapped. See
-   * `TripPlacement.placedAfterLinks`.
+   * `RunPlacement.placedAfterLinks`.
    */
   placedAfterLinks?: number;
   /** The progress the mark's tick evaluated, which its base style is painted at. */
@@ -56,7 +66,7 @@ export type TrajectoryAnimationFields = {
 type KeptAnimation = {
   signature: string;
   geometrySignature: string | undefined;
-  motion: TripPlacementMotion;
+  motion: RunPlacementMotion;
   animation: Animation;
 };
 
@@ -103,6 +113,35 @@ export function useVehicleTrajectoryAnimations<Mark extends TrajectoryAnimationF
         animationsRef.current.delete(mark.key);
         continue;
       }
+      if (!mark.trajectory) {
+        // The mark stands where no journey can be planned. Its static paint has already moved to
+        // where the reading says it stands, but the animation it had been running still holds the
+        // old position -- cancelling it snaps the mark across whatever ground the reading moved it
+        // by. A placement a drawing may correct is therefore carried over the same few seconds a
+        // replan is; anything else is let go, painted where it belongs, on the spot.
+        const signature = ["held", mark.linkKey, fromTransform, geometrySignature ?? ""].join(":");
+        const active = animationsRef.current.get(mark.key);
+        if (active?.signature === signature) continue;
+        const corrective = mark.motion !== "placed" || isCorrectivePlacement(mark.placedAfterLinks);
+        const paintedTransform =
+          corrective && active && active.geometrySignature === geometrySignature
+            ? getComputedStyle(element).transform
+            : undefined;
+        active?.animation.cancel();
+        animationsRef.current.delete(mark.key);
+        if (!paintedTransform || paintedTransform === "none") continue;
+        const animation = element.animate(
+          [{ transform: paintedTransform }, { transform: fromTransform }],
+          { duration: TRAJECTORY_CORRECTION_MS, easing: "linear", fill: "both" },
+        );
+        animationsRef.current.set(mark.key, {
+          signature,
+          geometrySignature,
+          motion: mark.motion,
+          animation,
+        });
+        continue;
+      }
       const { trajectory } = mark;
       const plannedFromTransform = getTransform(mark, trajectory.startProgress);
       if (!plannedFromTransform) continue;
@@ -146,7 +185,7 @@ export function useVehicleTrajectoryAnimations<Mark extends TrajectoryAnimationF
       const animationStartsAt = waitingMs > 0 ? trajectory.startsAt : trajectory.sampledAt;
       // The first keyframe is where the mark stands at that instant, so the painted mark and the
       // animation agree about the present moment from the frame the animation starts in.
-      const movingFrom = getTripTrajectoryProgress(trajectory, animationStartsAt);
+      const movingFrom = getRunTrajectoryProgress(trajectory, animationStartsAt);
       const movingFromTransform = getTransform(mark, movingFrom);
       if (!movingFromTransform) continue;
       const movingDuration =

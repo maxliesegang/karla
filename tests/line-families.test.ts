@@ -15,7 +15,7 @@ const line = (id: string): TransitLine => ({
   color: "#000",
   textColor: "#fff",
   destinations: [],
-  zentrumStopIds: [],
+  zentrumCalls: [],
 });
 
 test("keeps S1 and S11 as distinct passenger-facing lines", () => {

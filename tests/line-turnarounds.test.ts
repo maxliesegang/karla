@@ -67,7 +67,7 @@ test("draws an arrival and a same-instant departure as the two vehicles they are
     color: "#f00",
     textColor: "#fff",
     destinations: ["A", "C"],
-    zentrumStopIds: [],
+    zentrumCalls: [],
   };
   const diagramStops = buildLineDiagramStops(
     network,
@@ -254,7 +254,7 @@ test("draws a turnaround as one standing mark rather than an arrival beside a de
     color: "#f00",
     textColor: "#fff",
     destinations: ["A", "C"],
-    zentrumStopIds: [],
+    zentrumCalls: [],
   };
   const diagramStops = buildLineDiagramStops(
     network,
@@ -321,7 +321,7 @@ test("keeps the arriving mark when the departure it turns into cannot be drawn h
     color: "#f00",
     textColor: "#fff",
     destinations: ["A", "C"],
-    zentrumStopIds: [],
+    zentrumCalls: [],
   };
   const diagramStops = buildLineDiagramStops(
     network,
@@ -404,7 +404,7 @@ const terminusLine: TransitLine = {
   color: "#f00",
   textColor: "#fff",
   destinations: ["A", "C"],
-  zentrumStopIds: [],
+  zentrumCalls: [],
 };
 const terminusDiagram = () =>
   buildLineDiagramStops(

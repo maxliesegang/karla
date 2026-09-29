@@ -5,7 +5,7 @@ import test from "node:test";
 if (!("window" in globalThis)) {
   Object.defineProperty(globalThis, "window", { value: { location: { search: "" } } });
 }
-const { isAddressedTripOutstanding } = await import("../src/routing.ts");
+const { isAddressOutstanding } = await import("../src/routing.ts");
 
 const TRIP = "de:kvv:00S02_:.kvv-21-12-E.5.T0.946.s26";
 
@@ -13,9 +13,9 @@ test("a trip that has left the rider's stop is not dropped while its line is sti
   // The trip departed this stop half an hour ago, so the stop's own board is read and has no row
   // for it. The boards along the line have it — and have not answered yet.
   assert.equal(
-    isAddressedTripOutstanding({
-      addressedTripId: TRIP,
-      hasResolvedTrip: false,
+    isAddressOutstanding({
+      addressId: TRIP,
+      hasResolvedDeparture: false,
       isStopBoardRead: true,
       isReadingLine: true,
     }),
@@ -25,9 +25,9 @@ test("a trip that has left the rider's stop is not dropped while its line is sti
 
 test("a trip nothing has named once every reading answered is dropped", () => {
   assert.equal(
-    isAddressedTripOutstanding({
-      addressedTripId: TRIP,
-      hasResolvedTrip: false,
+    isAddressOutstanding({
+      addressId: TRIP,
+      hasResolvedDeparture: false,
       isStopBoardRead: true,
       isReadingLine: false,
     }),
@@ -38,9 +38,9 @@ test("a trip nothing has named once every reading answered is dropped", () => {
 test("nothing is outstanding once the trip itself is in hand", () => {
   // Resolved from the line's boards while they are still being re-read: the answer is already here.
   assert.equal(
-    isAddressedTripOutstanding({
-      addressedTripId: TRIP,
-      hasResolvedTrip: true,
+    isAddressOutstanding({
+      addressId: TRIP,
+      hasResolvedDeparture: true,
       isStopBoardRead: true,
       isReadingLine: true,
     }),
@@ -50,9 +50,9 @@ test("nothing is outstanding once the trip itself is in hand", () => {
 
 test("an address naming no trip waits for nothing", () => {
   assert.equal(
-    isAddressedTripOutstanding({
-      addressedTripId: undefined,
-      hasResolvedTrip: false,
+    isAddressOutstanding({
+      addressId: undefined,
+      hasResolvedDeparture: false,
       isStopBoardRead: false,
       isReadingLine: true,
     }),
@@ -62,9 +62,9 @@ test("an address naming no trip waits for nothing", () => {
 
 test("a trip is never dropped before this stop's own board has been read", () => {
   assert.equal(
-    isAddressedTripOutstanding({
-      addressedTripId: TRIP,
-      hasResolvedTrip: false,
+    isAddressOutstanding({
+      addressId: TRIP,
+      hasResolvedDeparture: false,
       isStopBoardRead: false,
       isReadingLine: false,
     }),

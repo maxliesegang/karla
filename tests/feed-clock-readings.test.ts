@@ -8,7 +8,7 @@ import {
   getTripCallTimeReading,
 } from "../src/lib/departure-presentation.ts";
 import { parseDepartureBoardResponse } from "../src/data/kvv-efa-parsers.ts";
-import { sortDeparturesByExpectedTime } from "../src/lib/departure-order.ts";
+import { sortDeparturesByExpectedInstant } from "../src/lib/departure-order.ts";
 
 const createDeparture = (overrides: Partial<Departure> = {}): Departure => ({
   id: "trip-1",
@@ -98,7 +98,7 @@ test("the board is ordered by the prediction the rows publish, not by the delay 
   });
 
   assert.deepEqual(
-    sortDeparturesByExpectedTime([predicted, stated]).map(({ id }) => id),
+    sortDeparturesByExpectedInstant([predicted, stated]).map(({ id }) => id),
     ["stated", "predicted"],
   );
 });

@@ -5,9 +5,9 @@ import type { ZentrumLineSignReader } from "./line-sign";
  * One band of controls under the plan rather than four.
  *
  * The zoom sits at the end a thumb reaches, the legend runs along the rest of it, and the legend is
- * also the filter: a badge is the one gesture that follows a line, whatever the reading. Beside the
- * zoom stands the size the plan is read at — one is how much of the Zentrum is in the box, the
- * other is how big the box is, and a reader reaching for one is reaching for the other next.
+ * also the filter: a badge is the one gesture that follows a line, whatever the reading. The live
+ * reach toggle stays beside it, because it changes the map's visual reading rather than the route
+ * being followed. Beside them stands the size the plan is read at.
  *
  * The caption rides the same band, between the two. It used to stand on a row of its own as a
  * bordered pill, which gave the foot of the page two lines of chrome that lined up with nothing:
@@ -20,6 +20,8 @@ export function ZentrumSchematicToolbar({
   getSign,
   selectedLineId,
   onSelectLine,
+  showVehicleProgress,
+  onChangeVehicleProgress,
   zoom,
   canZoomIn,
   canZoomOut,
@@ -34,6 +36,9 @@ export function ZentrumSchematicToolbar({
   /** The line the plan is following, as the address names it. */
   selectedLineId?: string;
   onSelectLine: (lineId: string | undefined) => void;
+  /** Whether the map shows the live-reach overlay over the general route traces. */
+  showVehicleProgress: boolean;
+  onChangeVehicleProgress: (show: boolean) => void;
   zoom: number;
   canZoomIn: boolean;
   canZoomOut: boolean;
@@ -77,6 +82,25 @@ export function ZentrumSchematicToolbar({
           );
         })}
       </div>
+      <button
+        type="button"
+        className="zentrum-schematic-progress-toggle"
+        aria-pressed={showVehicleProgress}
+        aria-label={
+          showVehicleProgress
+            ? "Streckenfortschritt ausschalten"
+            : "Streckenfortschritt einschalten"
+        }
+        title={
+          showVehicleProgress
+            ? "Streckenfortschritt ausschalten"
+            : "Streckenfortschritt einschalten"
+        }
+        onClick={() => onChangeVehicleProgress(!showVehicleProgress)}
+      >
+        <span aria-hidden="true">↦</span>
+        <span>Streckenfortschritt</span>
+      </button>
       <p className="zentrum-schematic-caption">{caption}</p>
       <div className="zentrum-schematic-zoom">
         <button

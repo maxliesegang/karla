@@ -7,7 +7,7 @@ import type {
   TransitStop,
   TripCall,
 } from "../data/transit-types";
-import { getDepartureRouteId, getSelectionPath, navigateTo, routePaths } from "../routing";
+import { getDepartureAddressId, getSelectionPath, navigateTo, routePaths } from "../routing";
 import { useTransientScrollbar } from "../hooks";
 import { classNames } from "../lib/class-names";
 import {
@@ -27,7 +27,7 @@ import { EMPTY_LINE_BUNDLE_BRANCH_VEHICLES } from "./line-diagram/bundle";
 import {
   useCurrentStopMove,
   useStopPlacement,
-  useRequestedTripPosition,
+  useRequestedRunPosition,
   useVehicleLayerGeometry,
 } from "./line-diagram/layout";
 import { useLineDiagramReading } from "./line-diagram/reading";
@@ -57,7 +57,7 @@ type LineDiagramPanelProps = {
    * drops out for as long as they take; this does not, and it is therefore what both the hold on
    * the drawn trip and the diagram's own placement are keyed by.
    */
-  tripId?: string;
+  addressId?: string;
   /**
    * Where the rider was last heading on this line. A selected trip states its own direction; once
    * it has departed, this keeps the diagram pointing the same way instead of turning around.
@@ -87,7 +87,7 @@ type LineDiagramPanelProps = {
    */
   onToggleAlighting?: (stopId: string) => void;
   /** Incremented by the ride status when the rider asks to see the trip on the line. */
-  tripPositionRequest?: number;
+  runPositionRequest?: number;
   /**
    * The stop the ride is running towards, as the ride card reads it. Handed down rather than read
    * again here, so the row the position control scrolls to is the same stop the card names — the
@@ -106,7 +106,7 @@ export function LineDiagramPanel({
   network,
   stop,
   departure: observedDeparture,
-  tripId,
+  addressId,
   preferredDestination,
   departureBoard,
   lineDepartureBoards,
@@ -114,7 +114,7 @@ export function LineDiagramPanel({
   isRide,
   alightingStopId,
   onToggleAlighting,
-  tripPositionRequest = 0,
+  runPositionRequest = 0,
   rideNextCall,
 }: LineDiagramPanelProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -136,10 +136,10 @@ export function LineDiagramPanel({
     vehiclesByBranchKey,
     transferKeysByBranchKey,
     totalVehicleCount,
-    tripPositionStopIndex,
+    runPositionStopIndex,
     rowFeedNow,
     statusLabel,
-    tripPositionHint,
+    runPositionHint,
     termini,
   } = useLineDiagramReading({
     line,
@@ -148,7 +148,7 @@ export function LineDiagramPanel({
     network,
     stop,
     departure: observedDeparture,
-    tripId,
+    addressId,
     preferredDestination,
     departureBoard,
     lineDepartureBoards,
@@ -198,7 +198,7 @@ export function LineDiagramPanel({
                   stopId,
                   lineId: line.id,
                   bundledLineIds: (bundledLines ?? []).map(({ id }) => id),
-                  tripId: departure && getDepartureRouteId(departure),
+                  addressId: departure && getDepartureAddressId(departure),
                 }),
               ),
           },
@@ -237,9 +237,9 @@ export function LineDiagramPanel({
             getSelectionPath({
               stopId,
               lineId: branch.lineId,
-              tripId:
+              addressId:
                 departure && isSameLineFamily(departure.lineId, branch.lineId)
-                  ? getDepartureRouteId(departure)
+                  ? getDepartureAddressId(departure)
                   : undefined,
             }),
           )
@@ -255,14 +255,14 @@ export function LineDiagramPanel({
   // actually is. Walking to another stop of the line moves neither — see `useStopPlacement`. A ride
   // starts at its status card and moves to the diagram only through the explicit position control.
   useStopPlacement({
-    placementKey: isRide ? null : (tripId ?? line.id),
+    placementKey: isRide ? null : (addressId ?? line.id),
     chainKey: vehicleCoordinateKey,
     containerRef: scrollContainerRef,
   });
   // Which way the rider's own stop travelled, so the note that marks it can arrive from the side it
   // came from — the one thing that moves when the rider walks along the line.
   const currentStopMove = useCurrentStopMove(currentStopIndex, vehicleCoordinateKey);
-  useRequestedTripPosition(tripPositionRequest, scrollContainerRef);
+  useRequestedRunPosition(runPositionRequest, scrollContainerRef);
   useTransientScrollbar(scrollContainerRef);
 
   return (
@@ -270,10 +270,10 @@ export function LineDiagramPanel({
       className={classNames(
         "line-diagram",
         isRide && "ride",
-        departure && "has-selected-trip",
+        departure && "has-selected-run",
         /* A fork is drawn as legs standing side by side, so the diagram is read in a wider column
            for as long as there is one. Said here rather than left to the stylesheet to notice,
-           because it is the same thing `has-selected-trip` is: what this diagram currently is. */
+           because it is the same thing `has-selected-run` is: what this diagram currently is. */
         hasFork && "has-fork",
       )}
       style={
@@ -292,7 +292,7 @@ export function LineDiagramPanel({
           <>
             <LineDiagramLineSigns
               lines={displayedLines}
-              onClearTrip={
+              onClearRun={
                 departure
                   ? () =>
                       navigateTo(
@@ -304,7 +304,7 @@ export function LineDiagramPanel({
                       )
                   : undefined
               }
-              clearTripLabel={
+              clearRunLabel={
                 departure
                   ? `Fahrt Richtung ${departure.destination} nicht mehr hervorheben, Linien ${displayedLines
                       .map(({ id }) => id)
@@ -356,7 +356,7 @@ export function LineDiagramPanel({
             <button
               type="button"
               className="line-diagram-ride-toggle"
-              onClick={() => navigateTo(routePaths.ride(getDepartureRouteId(departure), stop.id))}
+              onClick={() => navigateTo(routePaths.ride(getDepartureAddressId(departure), stop.id))}
             >
               <i aria-hidden="true" />
               Fahrt begleiten
@@ -368,9 +368,9 @@ export function LineDiagramPanel({
 
       {/* Between the heading and the line itself, where the missing mark is: the diagram draws the
           rider's trip, so the one thing it cannot draw is said in words rather than left blank. */}
-      {tripPositionHint && (
+      {runPositionHint && (
         <p className="line-diagram-trip-hint" role="status">
-          {tripPositionHint}
+          {runPositionHint}
         </p>
       )}
 
@@ -407,9 +407,9 @@ export function LineDiagramPanel({
               vehicleLabel={vehicleLabelByRowIndex.get(index) ?? ""}
               isFirst={index === 0 && branchesAhead.length === 0}
               isLast={index === diagramStops.length - 1 && branchesBehind.length === 0}
-              isSelectedTrip={Boolean(departure)}
+              isSelectedDeparture={Boolean(departure)}
               isAlighting={Boolean(alightingStopId) && diagramStop.stopId === alightingStopId}
-              isTripPositionAnchor={index === tripPositionStopIndex}
+              isRunPositionAnchor={index === runPositionStopIndex}
               onActivate={onActivate}
               feedNow={rowFeedNow}
             />

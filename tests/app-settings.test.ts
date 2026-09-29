@@ -26,7 +26,7 @@ test("a rider who has chosen nothing is given the defaults", () => {
   assert.deepEqual(DEFAULT_APP_SETTINGS, {
     landing: "recent-stop",
     isRememberingStops: true,
-    isShowingOtherLineTrips: true,
+    isShowingOtherLineRuns: true,
     stackedDepartureLimit: 8,
   });
 });
@@ -51,13 +51,13 @@ test("a stored value is read field by field, and an unreadable one is the defaul
     getAppSettingsFromStored({
       landing: "home",
       isRememberingStops: false,
-      isShowingOtherLineTrips: false,
+      isShowingOtherLineRuns: false,
       stackedDepartureLimit: 5,
     }),
     {
       landing: "home",
       isRememberingStops: false,
-      isShowingOtherLineTrips: false,
+      isShowingOtherLineRuns: false,
       stackedDepartureLimit: 5,
     },
   );
@@ -70,8 +70,12 @@ test("a stored value is read field by field, and an unreadable one is the defaul
     landing: "home",
   });
   assert.deepEqual(getAppSettingsFromStored({ stackedDepartureLimit: 6 }), DEFAULT_APP_SETTINGS);
+  assert.deepEqual(getAppSettingsFromStored({ isShowingOtherLineRuns: false }), {
+    ...DEFAULT_APP_SETTINGS,
+    isShowingOtherLineRuns: false,
+  });
   assert.deepEqual(getAppSettingsFromStored({ isShowingOtherLineTrips: false }), {
     ...DEFAULT_APP_SETTINGS,
-    isShowingOtherLineTrips: false,
+    isShowingOtherLineRuns: false,
   });
 });

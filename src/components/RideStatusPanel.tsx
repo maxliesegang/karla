@@ -1,7 +1,7 @@
 import type { Departure, TransitLine } from "../data/transit-types";
 import type { RidePositionController } from "../hooks";
 import { formatClockTime, getTripCallTimeReading } from "../lib/departure-presentation";
-import type { TripProgress } from "../lib/trip-progress";
+import type { RideProgress } from "../lib/ride-progress";
 import { classNames } from "../lib/class-names";
 import { formatDistance } from "../lib/geo";
 import { LineBadge } from "./LineBadge";
@@ -26,7 +26,7 @@ import { LineBadge } from "./LineBadge";
 export function RideStatusPanel({
   line,
   departure,
-  tripProgress,
+  rideProgress,
   feedNow,
   isRetainedObservation,
   observedAt,
@@ -37,7 +37,7 @@ export function RideStatusPanel({
 }: {
   line: TransitLine;
   departure: Departure;
-  tripProgress: TripProgress;
+  rideProgress: RideProgress;
   feedNow: number;
   /** The boards no longer carry this trip; what is shown is the last reading of it. */
   isRetainedObservation: boolean;
@@ -58,14 +58,14 @@ export function RideStatusPanel({
     isAlightingNext,
     isFinished,
     finalCall,
-  } = tripProgress;
+  } = rideProgress;
   const alightingCallTime = alightingCall && getTripCallTimeReading(alightingCall, feedNow);
   const nextCallTime = nextCall && getTripCallTimeReading(nextCall, feedNow);
   // Which of the two witnesses the countdown came from, and — where the device is the witness —
   // how much of the link is left. A rider deciding whether to stand up is entitled to know whether
   // the app can see where they are.
   const sourceLabel =
-    tripProgress.source === "schedule"
+    rideProgress.source === "schedule"
       ? "geschätzt nach Fahrplan"
       : metersToNextCall === undefined
         ? "nach Standort"

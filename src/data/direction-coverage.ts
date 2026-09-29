@@ -5,7 +5,7 @@ import type {
   LiveDepartureBoard,
 } from "./transit-types";
 import { createRunCollector, isDepartureWithin } from "./departure-runs";
-import { sortDeparturesByExpectedTime } from "../lib/departure-order";
+import { sortDeparturesByExpectedInstant } from "../lib/departure-order";
 
 /** One supplement answers for every sparse direction at once, so its rows are shared far wider. */
 const DIRECTION_SUPPLEMENT_LIMIT = 40;
@@ -170,7 +170,7 @@ export class DirectionCoverageCompleter {
   ): DepartureBoard {
     return {
       ...base,
-      departures: sortDeparturesByExpectedTime(
+      departures: sortDeparturesByExpectedInstant(
         [...departureById.values()].filter((departure) =>
           isDepartureWithin(departure, feedNow, feedNow + horizonMs),
         ),

@@ -10,6 +10,7 @@
     "refresh:stops": "node --experimental-strip-types scripts/refresh-stop-catalog.ts",
     "probe:cadence": "node --experimental-strip-types --import ./tests/register-resolver.js scripts/probe-feed-cadence.ts",
     "probe:turnarounds": "node --experimental-strip-types --import ./tests/register-resolver.js scripts/probe-turnarounds.ts",
+    "probe:run-identity": "node --experimental-strip-types --import ./tests/register-resolver.js scripts/probe-run-identity.ts",
     "test": "node --experimental-strip-types --import ./tests/register-resolver.js --test tests/*.test.ts",
     "preview": "vite preview",
     "lint": "eslint .",

@@ -169,35 +169,35 @@ export function useCurrentStopMove(currentStopIndex: number, chainKey: string): 
  * the same reading, and the freshness the diagram states is read from it rather than from a board
  * that is momentarily absent.
  */
-export type RetainedDiagramTrip<T> = { tripId: string; departure: T } | null;
+export type RetainedDiagramRun<T> = { addressId: string; departure: T } | null;
 
 /**
  * The rule itself, as a fact about one reading rather than about React: draw the addressed trip's
  * last reading, and go on holding it for exactly as long as the address names that trip.
  */
-export function retainAddressedTrip<T>(
-  retained: RetainedDiagramTrip<T>,
-  tripId: string | undefined,
+export function retainAddressedRun<T>(
+  retained: RetainedDiagramRun<T>,
+  addressId: string | undefined,
   departure: T | undefined,
-): { drawn: T | undefined; retained: RetainedDiagramTrip<T> } {
+): { drawn: T | undefined; retained: RetainedDiagramRun<T> } {
   // A diagram reading no trip holds nothing, so leaving one never leaves a hold behind for the next
   // trip that happens to be addressed to pick up.
-  if (!tripId) return { drawn: departure, retained: null };
-  if (departure) return { drawn: departure, retained: { tripId, departure } };
-  const kept = retained?.tripId === tripId ? retained : null;
+  if (!addressId) return { drawn: departure, retained: null };
+  if (departure) return { drawn: departure, retained: { addressId, departure } };
+  const kept = retained?.addressId === addressId ? retained : null;
   return { drawn: kept?.departure, retained: kept };
 }
 
-export function useRetainedDiagramTrip<T>(
-  /** The trip the address names, which is what the hold belongs to. */
-  tripId: string | undefined,
+export function useRetainedDiagramRun<T>(
+  /** The run address names, which is what the hold belongs to. */
+  addressId: string | undefined,
   departure: T | undefined,
 ): T | undefined {
-  const [retained, setRetained] = useState<RetainedDiagramTrip<T>>(null);
+  const [retained, setRetained] = useState<RetainedDiagramRun<T>>(null);
 
-  const next = retainAddressedTrip(retained, tripId, departure);
+  const next = retainAddressedRun(retained, addressId, departure);
   if (
-    next.retained?.tripId !== retained?.tripId ||
+    next.retained?.addressId !== retained?.addressId ||
     next.retained?.departure !== retained?.departure
   ) {
     setRetained(next.retained);
@@ -206,7 +206,7 @@ export function useRetainedDiagramTrip<T>(
 }
 
 /** A ride moves only when the rider explicitly asks to return to its position. */
-export function useRequestedTripPosition(
+export function useRequestedRunPosition(
   request: number,
   containerRef: React.RefObject<HTMLDivElement | null>,
 ) {
@@ -215,7 +215,7 @@ export function useRequestedTripPosition(
   useLayoutEffect(() => {
     if (request === handledRequestRef.current) return;
     const anchor = containerRef.current?.querySelector<HTMLElement>(
-      '[data-trip-position-anchor="true"]',
+      '[data-run-position-anchor="true"]',
     );
     // A next-call row is normally available before the button can be pressed. If live data is in
     // the middle of replacing the sequence, leave the request pending and fulfil it next render.

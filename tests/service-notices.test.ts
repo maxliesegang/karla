@@ -15,7 +15,7 @@ const createLine = (id: string): TransitLine => ({
   color: "#000",
   textColor: "#fff",
   destinations: [],
-  zentrumStopIds: [],
+  zentrumCalls: [],
 });
 
 const createNotice = (notice: Partial<ServiceNotice>): ServiceNotice => ({

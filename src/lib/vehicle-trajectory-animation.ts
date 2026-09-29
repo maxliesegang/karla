@@ -1,4 +1,4 @@
-import { getTripTrajectoryProgress, type TripSegmentTrajectory } from "./vehicle-positioning";
+import { getRunTrajectoryProgress, type RunSegmentTrajectory } from "./vehicle-positioning";
 
 /**
  * One trajectory as browser keyframes, shared by every drawing that paints a mark along it.
@@ -36,7 +36,7 @@ export type TrajectoryKeyframe = { transform: string; offset: number };
 
 export type TrajectoryKeyframeOptions = {
   /** The trajectory the mark follows, as the placement sampled it. */
-  trajectory: TripSegmentTrajectory;
+  trajectory: RunSegmentTrajectory;
   /** Feed-clock instant the animation spans from; the trajectory is read from there. */
   animationStartsAt: number;
   /** The mark's transform at a progress along the link, in the drawing's own coordinate system. */
@@ -65,7 +65,7 @@ export function getTrajectoryKeyframes({
 }: TrajectoryKeyframeOptions): TrajectoryKeyframe[] {
   const duration = trajectory.arrivesAt - animationStartsAt;
   if (duration <= 0) return [];
-  const fromProgress = getTripTrajectoryProgress(trajectory, animationStartsAt);
+  const fromProgress = getRunTrajectoryProgress(trajectory, animationStartsAt);
   const boundaryProgressesWithin = boundaryProgresses.filter(
     (progress) => progress > fromProgress && progress < 1,
   );
@@ -76,7 +76,7 @@ export function getTrajectoryKeyframes({
     // and accurate enough that a skipped-stop marker crosses each boundary on its own clock.
     for (let pass = 0; pass < 24; pass += 1) {
       const middle = (before + after) / 2;
-      if (getTripTrajectoryProgress(trajectory, middle) < targetProgress) before = middle;
+      if (getRunTrajectoryProgress(trajectory, middle) < targetProgress) before = middle;
       else after = middle;
     }
     return (before + after) / 2;
@@ -100,7 +100,7 @@ export function getTrajectoryKeyframes({
     .sort((left, right) => left - right)
     .filter((instant, index, all) => index === 0 || instant !== all[index - 1]);
   return times.flatMap((instant, index) => {
-    const progress = getTripTrajectoryProgress(trajectory, instant);
+    const progress = getRunTrajectoryProgress(trajectory, instant);
     const transform = index === 0 && paintedTransform ? paintedTransform : getTransform(progress);
     return transform ? [{ transform, offset: (instant - animationStartsAt) / duration }] : [];
   });

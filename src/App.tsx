@@ -34,12 +34,12 @@ import {
   useViewShortcuts,
 } from "./hooks";
 import { useSelectionChain } from "./selection";
-import { getTripProgress } from "./lib/trip-progress";
+import { getRideProgress } from "./lib/ride-progress";
 import { classNames } from "./lib/class-names";
 import { findNoticesForStop } from "./lib/service-notices";
 import {
   stationBoardConfig,
-  getDepartureRouteId,
+  getDepartureAddressId,
   getSelectionPath,
   isStationBoardMode,
   routePaths,
@@ -56,7 +56,7 @@ import {
 export default function App() {
   const departurePanelRef = useRef<HTMLElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const [tripPositionRequest, setTripPositionRequest] = useState(0);
+  const [runPositionRequest, setRunPositionRequest] = useState(0);
   const [nearbyReturnStopId, setNearbyReturnStopId] = useState<string>();
   const route = useAppRoute();
   const isNarrowViewport = useIsNarrowViewport();
@@ -137,7 +137,7 @@ export default function App() {
     selection: {
       stopId: selection.stopId,
       lineId: selection.selectedLine?.id,
-      tripId: selection.selectedDeparture && getDepartureRouteId(selection.selectedDeparture),
+      addressId: selection.selectedDeparture && getDepartureAddressId(selection.selectedDeparture),
       hasSelectedDeparture: Boolean(selection.selectedDeparture),
       isRide: selection.isRide,
       originStopId: selection.originStopId,
@@ -158,7 +158,7 @@ export default function App() {
     navigateTo(routePaths.nearby());
   };
 
-  if (!network || selection.isStopLoading || selection.isAwaitingLegacyTrip) {
+  if (!network || selection.isStopLoading || selection.isAwaitingStopBoardTrip) {
     return <AppLoadingScreen />;
   }
 
@@ -199,9 +199,9 @@ export default function App() {
   // On board the device is the better witness of where the vehicle is, so the ride reads its own
   // position where the rider has granted one and falls back to the feed's estimate where it cannot
   // — the whole of that decision is in `lib/ride-position.ts`.
-  const tripProgress =
+  const rideProgress =
     isRideInView && selection.selectedDeparture
-      ? getTripProgress(selection.selectedDeparture.tripCalls ?? [], feedNow, {
+      ? getRideProgress(selection.selectedDeparture.tripCalls ?? [], feedNow, {
           alightingStopId: selection.alightingStopId,
           fix: ridePosition.fix,
         })
@@ -209,10 +209,10 @@ export default function App() {
 
   const toggleAlighting = (stopId: string) => {
     if (!selection.selectedDeparture) return;
-    const tripId = getDepartureRouteId(selection.selectedDeparture);
+    const addressId = getDepartureAddressId(selection.selectedDeparture);
     navigateTo(
       routePaths.ride(
-        tripId,
+        addressId,
         selection.originStopId,
         selection.alightingStopId === stopId ? undefined : stopId,
       ),
@@ -304,11 +304,11 @@ export default function App() {
                   <>
                     {/* The ride's one permanent surface: what a rider on board is reading, kept above
                       the diagram and out of its scrollport so it cannot scroll away. */}
-                    {tripProgress && selection.selectedDeparture && (
+                    {rideProgress && selection.selectedDeparture && (
                       <RideStatusPanel
                         line={selection.selectedLine}
                         departure={selection.selectedDeparture}
-                        tripProgress={tripProgress}
+                        rideProgress={rideProgress}
                         feedNow={feedNow}
                         isRetainedObservation={selection.isSelectedDepartureRetained}
                         observedAt={selection.selectedDepartureObservedAt}
@@ -318,7 +318,7 @@ export default function App() {
                             ? () => toggleAlighting(selection.alightingStopId ?? "")
                             : undefined
                         }
-                        onShowPosition={() => setTripPositionRequest((request) => request + 1)}
+                        onShowPosition={() => setRunPositionRequest((request) => request + 1)}
                         /* Ending a ride leaves it behind at the stop it reached — the Ausstieg the
                          rider marked, or failing that where the trip itself ends. That is a
                          different act from stepping up, which returns to where the ride was begun,
@@ -327,7 +327,7 @@ export default function App() {
                           navigateTo(
                             routePaths.stop(
                               selection.alightingStopId ??
-                                tripProgress.finalCall?.localStopId ??
+                                rideProgress.finalCall?.localStopId ??
                                 selection.originStopId ??
                                 selection.stopId,
                             ),
@@ -344,7 +344,7 @@ export default function App() {
                          stop, so walking along the line loses the departure for as long as they
                          take to answer for the new one. The trip the rider chose is unchanged
                          throughout, and the diagram holds its drawing and its place by it. */
-                      tripId={route.tripId}
+                      addressId={route.addressId}
                       preferredDestination={selection.preferredDestination}
                       departureBoard={selection.departureBoard}
                       lineDepartureBoards={selection.lineDepartureBoards}
@@ -360,14 +360,15 @@ export default function App() {
                             stopId: selection.stopId,
                             lineId: selection.selectedLine?.id,
                             bundledLineIds,
-                            tripId: route.tripId,
+                            addressId: route.addressId,
+                            tripParent: route.tripParent,
                           }),
                         )
                       }
                       alightingStopId={selection.alightingStopId}
                       onToggleAlighting={isRideInView ? toggleAlighting : undefined}
-                      tripPositionRequest={tripPositionRequest}
-                      rideNextCall={tripProgress?.nextCall}
+                      runPositionRequest={runPositionRequest}
+                      rideNextCall={rideProgress?.nextCall}
                     />
                   </>
                 )}
@@ -381,7 +382,7 @@ export default function App() {
                 panelRef={departurePanelRef}
                 stop={selectedStop!}
                 departures={selection.departures}
-                completedLineDepartures={selection.lineTripDepartures}
+                completedLineDepartures={selection.lineRunDepartures}
                 departureBoard={selection.departureBoard}
                 network={network}
                 feedNow={feedNow}

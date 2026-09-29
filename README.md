@@ -29,6 +29,7 @@ chain, each level refining the one above it:
 - `#/stop/europaplatz/line/2` — a line calling there, beside the board
 - `#/stop/hochstetten/line/S1+S11` — two of them read together over the stretch they share
 - `#/stop/europaplatz/line/2/trip/:tripId` — one trip of that line, highlighted
+- `#/stop/europaplatz/trip/:tripId` — one trip opened from the stop board, with the board as its parent
 - `#/trip/:tripId` — that trip read on its own: the ride
 - `#/trip/:tripId/to/:stopId` — the same ride with the rider's alighting stop marked
 
@@ -97,7 +98,7 @@ a rider reads is untouched by this: it is read whole, and the operator's mode fi
 sequences whether or not they were asked for.
 
 The two halves also read apart in time. The boards stay on the line's ninety-second observation
-cadence, while the runs' readings are re-read on a tolerance of their own (`LINE_TRIP_MAX_AGE_MS`),
+cadence, while the runs' readings are re-read on a tolerance of their own (`LINE_RUN_MAX_AGE_MS`),
 a minute to a minute and a half — the diagram places vehicles from the runs' calls, and the feed
 revises those about every thirty-five seconds. What a rider reads beside a row is still the board
 row's; the one trip that reads faster is the ride itself, on the thirty-second board cadence.

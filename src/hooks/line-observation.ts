@@ -22,7 +22,7 @@ import {
   LINE_OBSERVATION_REFRESH_MS,
   useDepartureBoardCollection,
 } from "./departure-board-collection";
-import { LINE_TRIP_MAX_AGE_MS } from "./trip-departures";
+import { LINE_RUN_READING_MAX_AGE_MS } from "./run-reading-loader";
 
 const NO_OBSERVATIONS: LineObservations = new Map();
 const EMPTY_STOP_IDS: readonly string[] = [];
@@ -57,7 +57,7 @@ export function useLineRoutes(
 
   useEffect(() => {
     let isCurrent = true;
-    for (const { lineId, directionId, departureId } of requests) {
+    for (const { lineId, directionId, rowId } of requests) {
       // Asked once per direction and never again: a route does not move, and the source keeps it
       // for the session, so a re-render must not turn into a second request.
       if (state.readDirectionIds.has(directionId)) continue;
@@ -66,7 +66,7 @@ export function useLineRoutes(
         ...current,
         readDirectionIds: new Set(current.readDirectionIds).add(directionId),
       }));
-      transitSource.getLineRoute(departureId).then((routeStopIds) => {
+      transitSource.getLineRoute(rowId).then((routeStopIds) => {
         if (!isCurrent || !routeStopIds?.length) return;
         setState((current) => {
           // The two directions of a line are one route: the first read states the order and the
@@ -209,7 +209,7 @@ export function useLineObservation({
     observationStopIds,
     LINE_OBSERVATION_REFRESH_MS,
     filterDirectionIds,
-    LINE_TRIP_MAX_AGE_MS,
+    LINE_RUN_READING_MAX_AGE_MS,
   );
 
   const observations = useMemo(

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Departure, DepartureBoard, TripCall } from "../src/data/transit-types.ts";
-import { getZentrumVehicleObservation } from "../src/lib/zentrum-vehicles.ts";
+import { getZentrumRunObservation } from "../src/lib/zentrum-run-observation.ts";
 
 const call = (localStopId: string): TripCall => ({
   stopName: localStopId,
@@ -37,11 +37,15 @@ const board = (
   receivedAt,
   dataStatus,
   feedUpdatedAt: "2026-09-04T11:57:00+02:00",
-  departures,
+  // Dated by the board they came off, exactly as the source dates every row it publishes.
+  departures: departures.map((departure) => ({
+    ...departure,
+    readAt: { rowReadAt: receivedAt, sequenceReadAt: receivedAt },
+  })),
 });
 
 test("reads the vehicles the Zentrum's own posts placed, and nothing else", () => {
-  const observation = getZentrumVehicleObservation([
+  const observation = getZentrumRunObservation([
     board("europaplatz", 10, [departure("a")]),
     // Not a post of the Zentrum: its rows are read by the boards, not by the plan.
     board("durlacher-tor", 10, [departure("b")]),
@@ -50,13 +54,13 @@ test("reads the vehicles the Zentrum's own posts placed, and nothing else", () =
   ]);
 
   assert.deepEqual(
-    observation.departures.map(({ id }) => id),
+    observation.runDepartures.map(({ id }) => id),
     ["a"],
   );
 });
 
 test("only what the plan can draw: a run with calls, on rails", () => {
-  const observation = getZentrumVehicleObservation([
+  const observation = getZentrumRunObservation([
     board("europaplatz", 10, [
       departure("rail"),
       departure("bus", { tripId: "bus", transportMode: "bus" }),
@@ -65,32 +69,31 @@ test("only what the plan can draw: a run with calls, on rails", () => {
   ]);
 
   assert.deepEqual(
-    observation.departures.map(({ id }) => id),
+    observation.runDepartures.map(({ id }) => id),
     ["rail"],
   );
 });
 
 test("one vehicle read at two posts is one mark, stamped with the board its row came off", () => {
   const shared = { tripId: "one-run", lineId: "S1" };
-  const observation = getZentrumVehicleObservation([
+  const observation = getZentrumRunObservation([
     board("europaplatz", 10, [departure("early", shared)]),
     board("karlstor", 40, [departure("late", shared)]),
   ]);
 
   // The freshest post answers for the vehicle, and every row keeps the age of its own board.
   assert.deepEqual(
-    observation.departures.map(({ id }) => id),
+    observation.runDepartures.map(({ id }) => id),
     ["late"],
   );
-  assert.equal(observation.observedAtByRowId.get("late"), 40);
-  assert.equal(observation.observedAtByRowId.get("early"), 10);
+  assert.deepEqual(observation.runDepartures[0].readAt, { rowReadAt: 40, sequenceReadAt: 40 });
   // The marks are moved against the freshest post, which is the newest reading in hand.
   assert.equal(observation.clockBoard?.receivedAt, 40);
 });
 
 test("no post answered at all is no reading, and no clock", () => {
-  const observation = getZentrumVehicleObservation([]);
+  const observation = getZentrumRunObservation([]);
 
-  assert.deepEqual(observation.departures, []);
+  assert.deepEqual(observation.runDepartures, []);
   assert.equal(observation.clockBoard, null);
 });

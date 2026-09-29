@@ -1,11 +1,11 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import type { DepartureBoard, DepartureBoardCoverage } from "../data/transit-types";
 import {
-  buildObservedNetwork,
   REACH_OBSERVATION_POST_STOP_IDS,
   ZENTRUM_OBSERVATION_POST_STOP_IDS,
   type ObservedNetwork,
 } from "../lib/observed-network";
+import { transitSource } from "../data/transit-source";
 import {
   buildRetainedDepartureBoards,
   getDepartureBoardCoverage,
@@ -56,7 +56,7 @@ export const REACH_OBSERVATION_REFRESH_MS = 20 * 60_000;
  */
 export const IDLE_OBSERVATION_REFRESH_MS = 30 * 60_000;
 
-const EMPTY_LINE_IDS: readonly string[] = [];
+const EMPTY_ROUTE_DIRECTION_IDS: readonly string[] = [];
 const EMPTY_DEPARTURE_BOARDS: readonly DepartureBoard[] = [];
 
 const hasUnavailableBoard = (boards: readonly DepartureBoard[]) =>
@@ -76,9 +76,9 @@ export type DepartureBoardCollection = {
 export function useDepartureBoards(
   stopIds: readonly string[],
   refreshMs = ZENTRUM_OBSERVATION_REFRESH_MS,
-  lineIds: readonly string[] = EMPTY_LINE_IDS,
+  routeDirectionIds: readonly string[] = EMPTY_ROUTE_DIRECTION_IDS,
 ): readonly DepartureBoard[] {
-  return useDepartureBoardCollection(stopIds, refreshMs, lineIds).departureBoards;
+  return useDepartureBoardCollection(stopIds, refreshMs, routeDirectionIds).departureBoards;
 }
 
 /**
@@ -98,16 +98,16 @@ export function useDepartureBoardCollection(
    * reach an hour and a half, which is the difference between seeing a vehicle at the end of its
    * run and not seeing it at all. Empty reads the whole stop, as the Zentrum observation does.
    */
-  lineIds: readonly string[] = EMPTY_LINE_IDS,
+  routeDirectionIds: readonly string[] = EMPTY_ROUTE_DIRECTION_IDS,
   /**
    * How stale the runs' own re-reads may be. A line's boards are read as rows, and the runs out on
    * it are read as calls on a clock of their own; the boards name which runs exist, the calls are
    * what places the vehicles. With none named, the runs keep the boards' freshness.
    */
-  tripMaxAgeMs?: number,
+  runMaxAgeMs?: number,
 ): DepartureBoardCollection {
   const stopKey = createSortedKey(stopIds);
-  const lineKey = createSortedKey(lineIds);
+  const lineKey = createSortedKey(routeDirectionIds);
   const key = lineKey ? `${stopKey}|${lineKey}` : stopKey;
   const loadOptions = useMemo<KeyedLoadOptions<DepartureBoard[]>>(
     () => ({ refreshMs, isFailure: hasUnavailableBoard }),
@@ -127,10 +127,10 @@ export function useDepartureBoardCollection(
         createDepartureBoardsLoader({
           includeTripCalls: true,
           maxAgeMs: refreshMs,
-          tripMaxAgeMs: isEntryRead ? 0 : tripMaxAgeMs,
+          runMaxAgeMs: isEntryRead ? 0 : runMaxAgeMs,
         })(key),
       ),
-    [refreshMs, tripMaxAgeMs],
+    [refreshMs, runMaxAgeMs],
   );
   const loaded = useKeyedLoad(stopKey ? key : null, load, loadOptions);
   const orderedStopIds = stopKey ? stopKey.split(",") : [];
@@ -196,7 +196,14 @@ export function useZentrumNetwork({ isEnabled = true, isInView = true } = {}): {
     () => [...zentrumBoards, ...reachBoards],
     [zentrumBoards, reachBoards],
   );
-  const network = useMemo(() => buildObservedNetwork(departureBoards), [departureBoards]);
+  // Network knowledge belongs to the session, not to these two view-owned request cycles. Every
+  // live board passes through the source's observed-network store, including boards read by other
+  // views, and this subscription survives either collection being disabled or re-keyed.
+  const network = useSyncExternalStore(
+    (listener) => transitSource.subscribeToObservedNetwork(listener),
+    () => transitSource.getObservedNetwork(),
+    () => transitSource.getObservedNetwork(),
+  );
   // Coverage states the Zentrum posts alone. It is what the view says out loud — "teilweise
   // erreichbar", and the Zentrum list's own empty state — and a reach post that did not answer is
   // not evidence that the list in front of the rider is short: it contributes lines and positions,

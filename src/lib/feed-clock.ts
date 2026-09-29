@@ -15,6 +15,18 @@ import type { Departure, DepartureBoard } from "../data/transit-types";
  * than from the number the feed happened to state when the board was fetched.
  */
 
+/**
+ * How often the feed revises what it says about a vehicle under way: about every thirty-five
+ * seconds.
+ *
+ * It is the unit two decisions are reasoned in — how much later than its row a run's calling
+ * sequence must have been read before the row stops correcting it
+ * (`vehicle-positioning.ts`), and how stale a run's own reading may be before a view asks the
+ * provider again (`LINE_RUN_READING_MAX_AGE_MS`). Stated once so a change in the feed's behaviour is one
+ * change, not a drift across three files.
+ */
+export const FEED_REVISION_INTERVAL_MS = 35_000;
+
 /** The feed's clock now: its server time when the board was read, advanced by the time since. */
 export function getFeedNow(departureBoard: DepartureBoard | null, now: number): number {
   if (!departureBoard || departureBoard.dataStatus !== "live") return now;

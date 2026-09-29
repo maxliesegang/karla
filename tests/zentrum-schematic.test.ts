@@ -12,12 +12,18 @@ import {
   ZENTRUM_SCHEMATIC_GRID,
   ZENTRUM_SCHEMATIC_NODES,
   ZENTRUM_SCHEMATIC_VIEWBOX,
+  getEdgeKey,
 } from "../src/lib/zentrum-schematic-plan.ts";
 import {
+  getZentrumSchematicVehiclePathPlacement,
   getZentrumSchematicLinePathData,
   getZentrumSchematicLinePathSegments,
+  getZentrumSchematicVehiclePathData,
+  reverseZentrumSchematicVehiclePath,
 } from "../src/lib/zentrum-schematic-paths.ts";
+import { getZentrumVehicleLinkKey } from "../src/lib/zentrum-plan-canvas.ts";
 import { getZentrumSchematicStopMarks } from "../src/lib/zentrum-schematic-stops.ts";
+import { run } from "./support/calls.ts";
 
 const call = (localStopId: string, providerStopPointId: string, platformCode = "1"): TripCall => ({
   stopName: localStopId,
@@ -54,17 +60,52 @@ const board = (...departures: readonly Departure[]): DepartureBoard => ({
   departures,
 });
 
+/**
+ * What a reading is built from: the runs its boards hand over, as the drawn set carries them.
+ *
+ * The reading reads the same runs the plan places marks for — a helper here stands in for the
+ * union the view is handed (`useLineRunDepartures`), which is those rows plus the runs the
+ * boards have stopped listing.
+ */
+const drawn = (boards: readonly DepartureBoard[]): Departure[] =>
+  boards.flatMap(({ departures }) => departures);
+
+test("changes a vehicle animation key when its drawn ride bends differently", () => {
+  const straightRide = {
+    points: [
+      { x: 0, y: 0 },
+      { x: 100, y: 0 },
+    ],
+    steps: [0, 1],
+  };
+  const bentRide = {
+    points: [
+      { x: 0, y: 0 },
+      { x: 50, y: 20 },
+      { x: 100, y: 0 },
+    ],
+    steps: [0, 0.5, 1],
+  };
+
+  assert.notEqual(
+    getZentrumVehicleLinkKey("from", "to", straightRide),
+    getZentrumVehicleLinkKey("from", "to", bentRide),
+  );
+});
+
 test("reads only adjacent observed calls into schematic edges", () => {
-  const reading = buildZentrumSchematicReading([
-    board(
-      departure("2", [
-        call("muehlburger-tor", "7000039", "1a"),
-        call("europaplatz", "7000037", "5"),
-        call("outside", "7009999"),
-        call("karlstor", "7000061", "1"),
-      ]),
-    ),
-  ]);
+  const reading = buildZentrumSchematicReading(
+    drawn([
+      board(
+        departure("2", [
+          call("muehlburger-tor", "7000039", "1a"),
+          call("europaplatz", "7000037", "5"),
+          call("outside", "7009999"),
+          call("karlstor", "7000061", "1"),
+        ]),
+      ),
+    ]),
+  );
 
   assert.deepEqual(
     reading.edges.map(({ from, to, lineIds }) => [from.id, to.id, lineIds]),
@@ -84,16 +125,18 @@ test("reads only adjacent observed calls into schematic edges", () => {
  * either: the calls on both sides of it still meet the plan.
  */
 test("crossing between the parts of one complex draws no corridor, and breaks no chain", () => {
-  const reading = buildZentrumSchematicReading([
-    board(
-      departure("S1", [
-        call("ettlinger-tor", "7001012"),
-        call("marktplatz", "7001011"),
-        call("marktplatz", "7001003"),
-        call("europaplatz", "7001004"),
-      ]),
-    ),
-  ]);
+  const reading = buildZentrumSchematicReading(
+    drawn([
+      board(
+        departure("S1", [
+          call("ettlinger-tor", "7001012"),
+          call("marktplatz", "7001011"),
+          call("marktplatz", "7001003"),
+          call("europaplatz", "7001004"),
+        ]),
+      ),
+    ]),
+  );
 
   assert.deepEqual(
     reading.edges.map(({ from, to }) => [from.id, to.id]),
@@ -107,18 +150,63 @@ test("crossing between the parts of one complex draws no corridor, and breaks no
 test("combines directions and repeated trips into one corridor line set", () => {
   const west = call("muehlburger-tor", "7000039", "1a");
   const europa = call("europaplatz", "7000037", "5");
-  const reading = buildZentrumSchematicReading([
-    board(
-      departure("2", [west, europa]),
-      departure("2", [europa, west], { id: "second-2" }),
-      departure("3", [west, europa]),
-      departure("9", [west, europa], { status: "cancelled" }),
-      departure("ICE", [west, europa], { transportMode: "other" }),
-    ),
-  ]);
+  const reading = buildZentrumSchematicReading(
+    drawn([
+      board(
+        departure("2", [west, europa]),
+        departure("2", [europa, west], { id: "second-2" }),
+        departure("3", [west, europa]),
+        departure("9", [west, europa], { status: "cancelled" }),
+        departure("ICE", [west, europa], { transportMode: "other" }),
+      ),
+    ]),
+  );
 
   assert.deepEqual(reading.edges[0]?.lineIds, ["2", "3"]);
   assert.equal(reading.linePaths.filter(({ lineId }) => lineId === "2").length, 1);
+});
+
+test("one trip named twice in the drawn set is one trip, not two", () => {
+  // The same trip arrives as a board row and, completed by its retained reading, as the drawn run
+  // beside it. Counted twice, it would outvote the short workings that two ordinary trips support.
+  const west = call("muehlburger-tor", "7000039");
+  const europa = call("europaplatz", "7000037");
+  const market = call("marktplatz", "7001003");
+  const reading = buildZentrumSchematicReading([
+    departure("S5", [west, europa, market], {
+      id: "row",
+      tripId: "trip-1",
+      tripInstanceId: "trip-1@a",
+    }),
+    departure("S5", [west, europa, market], {
+      id: "reading",
+      tripId: "trip-1",
+      tripInstanceId: "trip-1@a",
+    }),
+    departure("S5", [west, europa], { id: "short-1", tripId: "trip-2" }),
+    departure("S5", [europa, west], { id: "short-2", tripId: "trip-3" }),
+  ]);
+
+  assert.deepEqual(
+    reading.linePaths.map(({ lineId, nodes }) => [lineId, nodes.map(({ id }) => id)]),
+    [["S5", ["muehlburger-tor", "europaplatz"]]],
+  );
+});
+
+test("a run the boards have stopped naming still states the corridors its mark rides", () => {
+  // The drawn set is the runs the plan places, not the boards' rows alone: a run between two
+  // observation posts is on no board at all, and taking the drawing from the boards alone would
+  // take its line's lanes down under its own mark every few minutes.
+  const west = call("muehlburger-tor", "7000039");
+  const europa = call("europaplatz", "7000037");
+  const reading = buildZentrumSchematicReading([
+    departure("2", [west, europa], { id: "between-posts", tripId: "between-posts" }),
+  ]);
+
+  assert.deepEqual(
+    reading.edges.map(({ from, to, lineIds }) => [from.id, to.id, lineIds]),
+    [["europaplatz", "muehlburger-tor", ["2"]]],
+  );
 });
 
 test("draws only the path used by the most timetable trips for each line", () => {
@@ -127,13 +215,15 @@ test("draws only the path used by the most timetable trips for each line", () =>
   const market = call("marktplatz", "7001003");
   const kronen = call("kronenplatz", "7001002");
   const karlstor = call("karlstor", "7000061");
-  const reading = buildZentrumSchematicReading([
-    board(
-      departure("S5", [west, europa, market, kronen], { id: "main-1", tripId: "main-1" }),
-      departure("S5", [kronen, market, europa, west], { id: "main-2", tripId: "main-2" }),
-      departure("S5", [west, europa, karlstor], { id: "branch", tripId: "branch" }),
-    ),
-  ]);
+  const reading = buildZentrumSchematicReading(
+    drawn([
+      board(
+        departure("S5", [west, europa, market, kronen], { id: "main-1", tripId: "main-1" }),
+        departure("S5", [kronen, market, europa, west], { id: "main-2", tripId: "main-2" }),
+        departure("S5", [west, europa, karlstor], { id: "branch", tripId: "branch" }),
+      ),
+    ]),
+  );
 
   assert.deepEqual(
     reading.linePaths.map(({ lineId, nodes }) => [lineId, nodes.map(({ id }) => id)]),
@@ -158,7 +248,7 @@ test("breaks equal-usage path ties by coverage, independent of board order", () 
 
   for (const orderedBoards of [boards, [...boards].reverse()]) {
     assert.deepEqual(
-      buildZentrumSchematicReading(orderedBoards).linePaths[0]?.nodes.map(({ id }) => id),
+      buildZentrumSchematicReading(drawn(orderedBoards)).linePaths[0]?.nodes.map(({ id }) => id),
       ["muehlburger-tor", "europaplatz", "marktplatz"],
     );
   }
@@ -170,13 +260,15 @@ test("keeps a through line level while the lines around it change", () => {
     call("europaplatz", "7000037"),
     call("marktplatz", "7001003"),
   ];
-  const reading = buildZentrumSchematicReading([
-    board(
-      departure("2", wholeCorridor),
-      departure("1", wholeCorridor.slice(0, 2), { id: "1-trip" }),
-      departure("3", wholeCorridor.slice(1), { id: "3-trip" }),
-    ),
-  ]);
+  const reading = buildZentrumSchematicReading(
+    drawn([
+      board(
+        departure("2", wholeCorridor),
+        departure("1", wholeCorridor.slice(0, 2), { id: "1-trip" }),
+        departure("3", wholeCorridor.slice(1), { id: "3-trip" }),
+      ),
+    ]),
+  );
   const linePath = reading.linePaths.find(({ lineId }) => lineId === "2");
   assert.ok(linePath);
 
@@ -212,17 +304,19 @@ test("draws a trunk and its branches as one lane on the corridors they share", (
   const europa = call("europaplatz", "7000037");
   const market = call("marktplatz", "7001003");
   const karlstor = call("karlstor", "7000061");
-  const reading = buildZentrumSchematicReading([
-    board(
-      departure("2", [west, europa, karlstor]),
-      departure("S1", [west, europa, market], { id: "s1", tripId: "s1" }),
-      departure("S11", [west, europa, market], { id: "s11", tripId: "s11" }),
-      departure("S5", [europa, market], { id: "s5", tripId: "s5" }),
-      departure("S51", [europa, market], { id: "s51", tripId: "s51" }),
-      departure("S4", [europa, market], { id: "s4", tripId: "s4" }),
-      departure("S41", [europa, market], { id: "s41", tripId: "s41" }),
-    ),
-  ]);
+  const reading = buildZentrumSchematicReading(
+    drawn([
+      board(
+        departure("2", [west, europa, karlstor]),
+        departure("S1", [west, europa, market], { id: "s1", tripId: "s1" }),
+        departure("S11", [west, europa, market], { id: "s11", tripId: "s11" }),
+        departure("S5", [europa, market], { id: "s5", tripId: "s5" }),
+        departure("S51", [europa, market], { id: "s51", tripId: "s51" }),
+        departure("S4", [europa, market], { id: "s4", tripId: "s4" }),
+        departure("S41", [europa, market], { id: "s41", tripId: "s41" }),
+      ),
+    ]),
+  );
   const sharedEdge = reading.edges.find(
     ({ from, to }) =>
       [from.id, to.id].includes("europaplatz") && [from.id, to.id].includes("marktplatz"),
@@ -268,13 +362,15 @@ test("parts a branch from its trunk where their observed patterns part", () => {
   const europa = call("europaplatz", "7000037");
   const market = call("marktplatz", "7001003");
   const karlstor = call("karlstor", "7000061");
-  const reading = buildZentrumSchematicReading([
-    board(
-      departure("S1", [west, europa, market], { id: "s1", tripId: "s1" }),
-      departure("S11", [west, europa, karlstor], { id: "s11", tripId: "s11" }),
-      departure("2", [west, europa, market], { id: "2-trip", tripId: "2-trip" }),
-    ),
-  ]);
+  const reading = buildZentrumSchematicReading(
+    drawn([
+      board(
+        departure("S1", [west, europa, market], { id: "s1", tripId: "s1" }),
+        departure("S11", [west, europa, karlstor], { id: "s11", tripId: "s11" }),
+        departure("2", [west, europa, market], { id: "2-trip", tripId: "2-trip" }),
+      ),
+    ]),
+  );
   const orderOn = (leftStopId: string, rightStopId: string) =>
     reading.edges.find(
       ({ from, to }) =>
@@ -305,26 +401,28 @@ test("keeps lines with a longer shared route adjacent through busy corridors", (
   const karlstor = call("karlstor", "7000061");
   const ettlinger = call("ettlinger-tor", "7001012");
   const rueppurrer = call("rueppurrer-tor", "7000077");
-  const reading = buildZentrumSchematicReading([
-    board(
-      departure("1", [west, europa, market, kronen, durlach]),
-      departure("S2", [west, europa, market, kronen, durlach], {
-        id: "s2-trip",
-        tripId: "s2-trip",
-      }),
-      departure("2", [west, europa, market, ettlinger], { id: "2-trip", tripId: "2-trip" }),
-      departure("3", [west, europa, karlstor], { id: "3-trip", tripId: "3-trip" }),
-      departure("4", [europa, karlstor, ettlinger, rueppurrer]),
-      departure("5", [europa, karlstor, ettlinger, rueppurrer], {
-        id: "5-trip",
-        tripId: "5-trip",
-      }),
-      departure("6", [europa, karlstor, call("mathystrasse", "7000062")], {
-        id: "6-trip",
-        tripId: "6-trip",
-      }),
-    ),
-  ]);
+  const reading = buildZentrumSchematicReading(
+    drawn([
+      board(
+        departure("1", [west, europa, market, kronen, durlach]),
+        departure("S2", [west, europa, market, kronen, durlach], {
+          id: "s2-trip",
+          tripId: "s2-trip",
+        }),
+        departure("2", [west, europa, market, ettlinger], { id: "2-trip", tripId: "2-trip" }),
+        departure("3", [west, europa, karlstor], { id: "3-trip", tripId: "3-trip" }),
+        departure("4", [europa, karlstor, ettlinger, rueppurrer]),
+        departure("5", [europa, karlstor, ettlinger, rueppurrer], {
+          id: "5-trip",
+          tripId: "5-trip",
+        }),
+        departure("6", [europa, karlstor, call("mathystrasse", "7000062")], {
+          id: "6-trip",
+          tripId: "6-trip",
+        }),
+      ),
+    ]),
+  );
   const orderOn = (leftStopId: string, rightStopId: string) =>
     reading.edges.find(
       ({ from, to }) =>
@@ -346,28 +444,37 @@ test("orders a shared straight by the side on which its lines leave", () => {
   const market = call("marktplatz", "7001003");
   const kronen = call("kronenplatz", "7001002");
   const durlach = call("durlacher-tor", "7001001");
-  const reading = buildZentrumSchematicReading([
-    board(
-      departure("1", [west, europa, market, kronen, durlach, call("gottesauer-platz", "7000041")]),
-      departure("2", [west, europa, call("karlstor", "7000061")]),
-      departure("4", [
-        west,
-        europa,
-        market,
-        call("ettlinger-tor", "7001012"),
-        call("kongresszentrum", "7001013"),
-        call("augartenstrasse", "7000074"),
-      ]),
-      departure("3", [
-        west,
-        europa,
-        market,
-        kronen,
-        durlach,
-        call("karl-wilhelm-platz", "7000042"),
-      ]),
-    ),
-  ]);
+  const reading = buildZentrumSchematicReading(
+    drawn([
+      board(
+        departure("1", [
+          west,
+          europa,
+          market,
+          kronen,
+          durlach,
+          call("gottesauer-platz", "7000041"),
+        ]),
+        departure("2", [west, europa, call("karlstor", "7000061")]),
+        departure("4", [
+          west,
+          europa,
+          market,
+          call("ettlinger-tor", "7001012"),
+          call("kongresszentrum", "7001013"),
+          call("augartenstrasse", "7000074"),
+        ]),
+        departure("3", [
+          west,
+          europa,
+          market,
+          kronen,
+          durlach,
+          call("karl-wilhelm-platz", "7000042"),
+        ]),
+      ),
+    ]),
+  );
 
   const pathData = new Map(
     reading.linePaths.map((linePath) => [
@@ -399,14 +506,16 @@ test("lays neighbouring lanes exactly one lane width apart", () => {
   const west = call("muehlburger-tor", "7000039");
   const europa = call("europaplatz", "7000037");
   const market = call("marktplatz", "7001003");
-  const reading = buildZentrumSchematicReading([
-    board(
-      departure("1", [west, europa, market]),
-      departure("2", [west, europa, call("karlstor", "7000061")], { id: "2-trip" }),
-      departure("3", [west, europa, market, call("kronenplatz", "7001002")], { id: "3-trip" }),
-      departure("4", [west, europa, market, call("ettlinger-tor", "7001012")], { id: "4-trip" }),
-    ),
-  ]);
+  const reading = buildZentrumSchematicReading(
+    drawn([
+      board(
+        departure("1", [west, europa, market]),
+        departure("2", [west, europa, call("karlstor", "7000061")], { id: "2-trip" }),
+        departure("3", [west, europa, market, call("kronenplatz", "7001002")], { id: "3-trip" }),
+        departure("4", [west, europa, market, call("ettlinger-tor", "7001012")], { id: "4-trip" }),
+      ),
+    ]),
+  );
   const corridor = reading.edges.find(
     ({ from, to }) =>
       [from.id, to.id].includes("muehlburger-tor") && [from.id, to.id].includes("europaplatz"),
@@ -444,31 +553,37 @@ test("lays neighbouring lanes exactly one lane width apart", () => {
  */
 test("hangs a narrower straight off the top of the band its through lines run in", () => {
   const calls = (stopIds: readonly string[]) => stopIds.map((stopId) => call(stopId, "7000000"));
-  const reading = buildZentrumSchematicReading([
-    board(
-      departure(
-        "1",
-        calls(["muehlburger-tor", "europaplatz", "marktplatz", "kronenplatz", "durlacher-tor"]),
+  const reading = buildZentrumSchematicReading(
+    drawn([
+      board(
+        departure(
+          "1",
+          calls(["muehlburger-tor", "europaplatz", "marktplatz", "kronenplatz", "durlacher-tor"]),
+        ),
+        departure(
+          "2",
+          calls(["muehlburger-tor", "europaplatz", "marktplatz", "kronenplatz", "durlacher-tor"]),
+          { id: "2-trip", tripId: "2-trip" },
+        ),
+        ...["3", "4", "5", "6"].map((lineId) =>
+          departure(lineId, calls(["muehlburger-tor", "europaplatz", "karlstor"]), {
+            id: `${lineId}-trip`,
+            tripId: `${lineId}-trip`,
+          }),
+        ),
+        ...["7", "8", "9", "10"].map((lineId) =>
+          departure(
+            lineId,
+            calls(["durlacher-tor", "kronenplatz", "marktplatz", "ettlinger-tor"]),
+            {
+              id: `${lineId}-trip`,
+              tripId: `${lineId}-trip`,
+            },
+          ),
+        ),
       ),
-      departure(
-        "2",
-        calls(["muehlburger-tor", "europaplatz", "marktplatz", "kronenplatz", "durlacher-tor"]),
-        { id: "2-trip", tripId: "2-trip" },
-      ),
-      ...["3", "4", "5", "6"].map((lineId) =>
-        departure(lineId, calls(["muehlburger-tor", "europaplatz", "karlstor"]), {
-          id: `${lineId}-trip`,
-          tripId: `${lineId}-trip`,
-        }),
-      ),
-      ...["7", "8", "9", "10"].map((lineId) =>
-        departure(lineId, calls(["durlacher-tor", "kronenplatz", "marktplatz", "ettlinger-tor"]), {
-          id: `${lineId}-trip`,
-          tripId: `${lineId}-trip`,
-        }),
-      ),
-    ),
-  ]);
+    ]),
+  );
   const pathData = new Map(
     reading.linePaths.map((linePath) => [
       linePath.lineId,
@@ -503,16 +618,20 @@ test("hangs a narrower straight off the top of the band its through lines run in
  */
 test("thins every lane together when a corridor outgrows the band", () => {
   const crowded = [call("muehlburger-tor", "7000039"), call("europaplatz", "7000037")];
-  const busy = buildZentrumSchematicReading([
-    board(
-      ...["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((lineId) =>
-        departure(lineId, crowded, { id: `${lineId}-trip` }),
+  const busy = buildZentrumSchematicReading(
+    drawn([
+      board(
+        ...["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((lineId) =>
+          departure(lineId, crowded, { id: `${lineId}-trip` }),
+        ),
       ),
-    ),
-  ]);
-  const quiet = buildZentrumSchematicReading([
-    board(...["1", "2"].map((lineId) => departure(lineId, crowded, { id: `${lineId}-trip` }))),
-  ]);
+    ]),
+  );
+  const quiet = buildZentrumSchematicReading(
+    drawn([
+      board(...["1", "2"].map((lineId) => departure(lineId, crowded, { id: `${lineId}-trip` }))),
+    ]),
+  );
 
   assert.equal(busy.edges[0]?.trackLineIds.length, 9);
   assert.ok(busy.trackWidth < quiet.trackWidth);
@@ -527,9 +646,11 @@ test("does not reserve lanes for services that join later on a straight", () => 
     call("ebertstrasse", "7000088"),
     call("hauptbahnhof", "7000089"),
   ];
-  const reading = buildZentrumSchematicReading([
-    board(departure("6", line6Calls), departure("3", line6Calls.slice(3), { id: "3-trip" })),
-  ]);
+  const reading = buildZentrumSchematicReading(
+    drawn([
+      board(departure("6", line6Calls), departure("3", line6Calls.slice(3), { id: "3-trip" })),
+    ]),
+  );
   const linePath = reading.linePaths.find(({ lineId }) => lineId === "6");
   assert.ok(linePath);
 
@@ -576,9 +697,9 @@ test("rounds right-angle turns around the intersection of their offset lanes", (
   ] as const;
 
   for (const { line3Calls, companions, roundedCorner } of cases) {
-    const reading = buildZentrumSchematicReading([
-      board(departure("3", line3Calls), ...companions),
-    ]);
+    const reading = buildZentrumSchematicReading(
+      drawn([board(departure("3", line3Calls), ...companions)]),
+    );
     const linePath = reading.linePaths.find(({ lineId }) => lineId === "3");
     assert.ok(linePath);
 
@@ -590,30 +711,88 @@ test("rounds right-angle turns around the intersection of their offset lanes", (
   }
 });
 
+test("reads a right-angle turn as finite points a mark can ride", () => {
+  // The bend is sampled for the mark as well as stated for the stroke, and a sample that lost its
+  // footing -- a turn angle asked of the wrong vectors -- would put a mark nowhere at all.
+  const reading = buildZentrumSchematicReading(
+    drawn([
+      board(
+        departure("3", [
+          call("werderstrasse", "7000083"),
+          call("tivoli", "7000084"),
+          call("poststrasse", "7000098"),
+        ]),
+        departure("6", [call("tivoli", "7000084"), call("poststrasse", "7000098")]),
+      ),
+    ]),
+  );
+  const linePath = reading.linePaths.find(({ lineId }) => lineId === "3");
+  assert.ok(linePath);
+  const paths = reading.vehiclePathsByLineId.get("3");
+  assert.ok(paths);
+
+  for (const [edgeId, path] of paths) {
+    assert.ok(
+      path.points.every((point) => Number.isFinite(point.x) && Number.isFinite(point.y)),
+      `${edgeId} has a point off the plan`,
+    );
+    assert.ok(path.steps.every((step) => Number.isFinite(step)));
+    assert.equal(path.points.length, path.steps.length);
+  }
+  // The bend the stroke rounds is the bend the ride turns: the corner itself is on the ride.
+  const throughTivoli = paths.get(getEdgeKey("tivoli", "werderstrasse"));
+  assert.ok(throughTivoli);
+  assert.ok(throughTivoli.points.some((point) => Math.hypot(point.x - 726, point.y - 616) < 20));
+  assert.ok(paths.get(getEdgeKey("tivoli", "poststrasse")));
+});
+
+test("keeps every straight corridor in a multi-stop ride", () => {
+  const reading = buildZentrumSchematicReading(
+    drawn([
+      board(
+        departure("2", [
+          call("muehlburger-tor", "7000039"),
+          call("europaplatz", "7000037"),
+          call("marktplatz", "7001003"),
+          call("kronenplatz", "7001002"),
+        ]),
+      ),
+    ]),
+  );
+  const paths = reading.vehiclePathsByLineId.get("2");
+  assert.ok(paths);
+
+  assert.ok(paths.get(getEdgeKey("muehlburger-tor", "europaplatz")));
+  assert.ok(paths.get(getEdgeKey("europaplatz", "marktplatz")));
+  assert.ok(paths.get(getEdgeKey("marktplatz", "kronenplatz")));
+});
+
 test("does not lend S51's southern branch to the same-coloured S5", () => {
-  const reading = buildZentrumSchematicReading([
-    board(
-      departure("S5", [
-        call("muehlburger-tor", "7000039", "1a"),
-        call("europaplatz", "7001004"),
-        call("marktplatz", "7001003"),
-        call("kronenplatz", "7001002"),
-        call("durlacher-tor", "7001001"),
-      ]),
-      departure("S51", [
-        call("muehlburger-tor", "7000039", "1a"),
-        call("europaplatz", "7001004"),
-        call("marktplatz", "7001003"),
-        call("marktplatz", "7001011"),
-        call("ettlinger-tor", "7001012"),
-        call("kongresszentrum", "7001013"),
-        call("augartenstrasse", "7000074"),
-        call("poststrasse", "7000098"),
-        call("hauptbahnhof", "7000089"),
-        call("albtalbahnhof", "7001201"),
-      ]),
-    ),
-  ]);
+  const reading = buildZentrumSchematicReading(
+    drawn([
+      board(
+        departure("S5", [
+          call("muehlburger-tor", "7000039", "1a"),
+          call("europaplatz", "7001004"),
+          call("marktplatz", "7001003"),
+          call("kronenplatz", "7001002"),
+          call("durlacher-tor", "7001001"),
+        ]),
+        departure("S51", [
+          call("muehlburger-tor", "7000039", "1a"),
+          call("europaplatz", "7001004"),
+          call("marktplatz", "7001003"),
+          call("marktplatz", "7001011"),
+          call("ettlinger-tor", "7001012"),
+          call("kongresszentrum", "7001013"),
+          call("augartenstrasse", "7000074"),
+          call("poststrasse", "7000098"),
+          call("hauptbahnhof", "7000089"),
+          call("albtalbahnhof", "7001201"),
+        ]),
+      ),
+    ]),
+  );
 
   const southernEdges = reading.edges.filter(({ from, to }) => from.y > 200 || to.y > 200);
   assert.ok(southernEdges.some(({ lineIds }) => lineIds.includes("S51")));
@@ -649,7 +828,7 @@ test("places a vehicle on the link its timings put it on, and keeps its directio
     { id: "portal-trip", tripInstanceId: "portal-trip", delayMinutes: 0 },
   );
 
-  const reading = buildZentrumSchematicReading([board(trip)]);
+  const reading = buildZentrumSchematicReading(drawn([board(trip)]));
   const [vehicle] = getZentrumSchematicVehicles(
     reading,
     [trip],
@@ -665,6 +844,192 @@ test("places a vehicle on the link its timings put it on, and keeps its directio
   assert.equal(
     vehicle?.angle,
     (Math.atan2(vehicle.to.y - vehicle.from.y, vehicle.to.x - vehicle.from.x) * 180) / Math.PI,
+  );
+});
+
+test("places a vehicle on the nearest occurrence when a route visits a stop twice", () => {
+  const timedCall = (localStopId: string, minute: number): TripCall => ({
+    ...call(
+      localStopId,
+      localStopId === "marktplatz" && minute === 4
+        ? "7001011"
+        : ({
+            europaplatz: "7001004",
+            kronenplatz: "7001002",
+            marktplatz: "7001003",
+          }[localStopId] ?? `provider-${localStopId}-${minute}`),
+    ),
+    scheduledArrivalTime: `2026-09-04T12:0${minute}:00+02:00`,
+    scheduledDepartureTime: `2026-09-04T12:0${minute}:00+02:00`,
+    delayMinutes: 0,
+  });
+  const trip = departure(
+    "S1",
+    [
+      timedCall("marktplatz", 0),
+      timedCall("europaplatz", 2),
+      timedCall("marktplatz", 4),
+      timedCall("kronenplatz", 6),
+    ],
+    { id: "zentrum-repeated-stop", tripInstanceId: "zentrum-repeated-stop" },
+  );
+  const reading = buildZentrumSchematicReading(drawn([board(trip)]));
+
+  const [vehicle] = getZentrumSchematicVehicles(
+    reading,
+    [trip],
+    Date.parse("2026-09-04T12:05:00+02:00"),
+  );
+
+  assert.ok(vehicle);
+  assert.equal(vehicle.from.id, "marktplatz");
+  assert.equal(vehicle.to.id, "kronenplatz");
+  assert.deepEqual(
+    vehicle.path.edgeRanges.map(({ edgeId }) => edgeId),
+    [getEdgeKey("marktplatz", "kronenplatz")],
+  );
+});
+
+test("keeps a vehicle standing before its Zentrum run starts", () => {
+  const calls = run([
+    {
+      ...call("kronenplatz", "7001002"),
+      scheduledArrivalTime: "2026-09-04T12:00:00+02:00",
+      scheduledDepartureTime: "2026-09-04T12:00:00+02:00",
+      delayMinutes: 0,
+    },
+    {
+      ...call("marktplatz", "7001003"),
+      scheduledArrivalTime: "2026-09-04T12:02:00+02:00",
+      scheduledDepartureTime: "2026-09-04T12:02:00+02:00",
+      delayMinutes: 0,
+    },
+    {
+      ...call("europaplatz", "7001004"),
+      scheduledArrivalTime: "2026-09-04T12:04:00+02:00",
+      scheduledDepartureTime: "2026-09-04T12:04:00+02:00",
+      delayMinutes: 0,
+    },
+  ]);
+  const trip = departure("zentrum-before-start", calls, {
+    id: "zentrum-before-start",
+    tripInstanceId: "zentrum-before-start@today",
+  });
+  const reading = buildZentrumSchematicReading(drawn([board(trip)]));
+
+  const [vehicle] = getZentrumSchematicVehicles(
+    reading,
+    [trip],
+    Date.parse("2026-09-04T11:56:00+02:00"),
+  );
+
+  assert.equal(vehicle?.phase, "beforeStart");
+  assert.equal(vehicle?.from.id, "kronenplatz");
+  assert.equal(vehicle?.progress, 0);
+  assert.equal(vehicle?.x, vehicle?.from.x);
+  assert.equal(vehicle?.y, vehicle?.from.y);
+});
+
+test("keeps a vehicle standing after its Zentrum run ends", () => {
+  const calls = run([
+    {
+      ...call("kronenplatz", "7001002"),
+      scheduledArrivalTime: "2026-09-04T12:00:00+02:00",
+      scheduledDepartureTime: "2026-09-04T12:00:00+02:00",
+      delayMinutes: 0,
+    },
+    {
+      ...call("marktplatz", "7001003"),
+      scheduledArrivalTime: "2026-09-04T12:02:00+02:00",
+      scheduledDepartureTime: "2026-09-04T12:02:00+02:00",
+      delayMinutes: 0,
+    },
+    {
+      ...call("europaplatz", "7001004"),
+      scheduledArrivalTime: "2026-09-04T12:04:00+02:00",
+      scheduledDepartureTime: "2026-09-04T12:04:00+02:00",
+      delayMinutes: 0,
+    },
+  ]);
+  const trip = departure("zentrum-after-end", calls, {
+    id: "zentrum-after-end",
+    tripInstanceId: "zentrum-after-end@today",
+  });
+  const reading = buildZentrumSchematicReading(drawn([board(trip)]));
+
+  const [vehicle] = getZentrumSchematicVehicles(
+    reading,
+    [trip],
+    Date.parse("2026-09-04T12:04:30+02:00"),
+  );
+
+  assert.equal(vehicle?.phase, "afterEnd");
+  assert.equal(vehicle?.to.id, "europaplatz");
+  assert.equal(vehicle?.progress, 1);
+  assert.equal(vehicle?.x, vehicle?.to.x);
+  assert.equal(vehicle?.y, vehicle?.to.y);
+});
+
+test("keeps one stable marker through a Zentrum turnaround", () => {
+  const arriving = departure(
+    "2",
+    run([
+      {
+        ...call("muehlburger-tor", "7000039"),
+        scheduledArrivalTime: "2026-09-04T12:00:00+02:00",
+        scheduledDepartureTime: "2026-09-04T12:00:00+02:00",
+        delayMinutes: 0,
+      },
+      {
+        ...call("europaplatz", "7000037"),
+        scheduledArrivalTime: "2026-09-04T12:02:00+02:00",
+        scheduledDepartureTime: "2026-09-04T12:02:00+02:00",
+        delayMinutes: 0,
+      },
+      {
+        ...call("karlstor", "7000061"),
+        scheduledArrivalTime: "2026-09-04T12:04:00+02:00",
+        scheduledDepartureTime: "2026-09-04T12:04:00+02:00",
+        delayMinutes: 0,
+      },
+    ]),
+    { id: "zentrum-arrival", tripInstanceId: "zentrum-arrival@today" },
+  );
+  const departing = departure(
+    "2",
+    run([
+      {
+        ...call("karlstor", "7000061"),
+        scheduledArrivalTime: "2026-09-04T12:10:00+02:00",
+        scheduledDepartureTime: "2026-09-04T12:10:00+02:00",
+        delayMinutes: 0,
+      },
+      {
+        ...call("europaplatz", "7000037"),
+        scheduledArrivalTime: "2026-09-04T12:12:00+02:00",
+        scheduledDepartureTime: "2026-09-04T12:12:00+02:00",
+        delayMinutes: 0,
+      },
+      {
+        ...call("muehlburger-tor", "7000039"),
+        scheduledArrivalTime: "2026-09-04T12:14:00+02:00",
+        scheduledDepartureTime: "2026-09-04T12:14:00+02:00",
+        delayMinutes: 0,
+      },
+    ]),
+    { id: "zentrum-departure", tripInstanceId: "zentrum-departure@today" },
+  );
+  const reading = buildZentrumSchematicReading(drawn([board(arriving, departing)]));
+
+  const vehicles = getZentrumSchematicVehicles(
+    reading,
+    [arriving, departing],
+    Date.parse("2026-09-04T12:06:00+02:00"),
+  );
+
+  assert.deepEqual(
+    vehicles.map(({ id, markerKey, phase, from }) => [id, markerKey, phase, from.id]),
+    [["zentrum-departure@today", "zentrum-departure@today", "beforeStart", "karlstor"]],
   );
 });
 
@@ -709,7 +1074,7 @@ test("marks ride their line's lane, either way along the corridor", () => {
     { id: "tram", tripInstanceId: "tram", delayMinutes: 0 },
   );
 
-  const reading = buildZentrumSchematicReading([board(westbound, eastbound, tram)]);
+  const reading = buildZentrumSchematicReading(drawn([board(westbound, eastbound, tram)]));
   const [west] = getZentrumSchematicVehicles(
     reading,
     [westbound],
@@ -753,6 +1118,156 @@ test("marks ride their line's lane, either way along the corridor", () => {
 });
 
 /*
+ * The mark rides the drawn stretch of its line -- the lane and the bends the stroke paints -- not
+ * a straight of its own. What that buys is the handover: two corridors' rides meet at the approach
+ * the stroke itself turns through, so a mark passing a stop stays on its line's lane through the
+ * turn instead of jumping sideways from one corridor's offset to the next.
+ */
+test("hands a mark over between corridors exactly where its line's stroke turns", () => {
+  const timedCall = (
+    localStopId: string,
+    providerStopPointId: string,
+    minute: number,
+  ): TripCall => ({
+    ...call(localStopId, providerStopPointId),
+    scheduledArrivalTime: `2026-09-04T12:0${minute}:00+02:00`,
+    scheduledDepartureTime: `2026-09-04T12:0${minute}:00+02:00`,
+    delayMinutes: 0,
+  });
+  const through = departure(
+    "2",
+    [
+      timedCall("muehlburger-tor", "7000039", 0),
+      timedCall("europaplatz", "7000037", 2),
+      timedCall("karlstor", "7000061", 4),
+    ],
+    { id: "ride-through", tripInstanceId: "ride-through", delayMinutes: 0 },
+  );
+
+  const reading = buildZentrumSchematicReading(drawn([board(through)]));
+  // A hair either side of the Europaplatz: still finishing the corridor before it, and already
+  // standing on the one after it.
+  const [arriving] = getZentrumSchematicVehicles(
+    reading,
+    [through],
+    Date.parse("2026-09-04T12:01:59+02:00"),
+  );
+  const [departing] = getZentrumSchematicVehicles(
+    reading,
+    [through],
+    Date.parse("2026-09-04T12:02:01+02:00"),
+  );
+  assert.equal(arriving?.to.id, "europaplatz");
+  assert.equal(departing?.from.id, "europaplatz");
+
+  // The arriving ride ends where the departing ride begins: the approach the stroke turns through.
+  const last = arriving.path.points.at(-1);
+  const first = departing.path.points[0];
+  assert.ok(last && first);
+  assert.equal(last.x, first.x);
+  assert.equal(last.y, first.y);
+  // And the arrival is drawn a hair short of it, so the handover itself moves nothing.
+  assert.ok(Math.hypot(arriving.x - first.x, arriving.y - first.y) < 4);
+});
+
+test("parks a mark inside a stop complex, pointing the way out", () => {
+  // The S1 crosses between Marktplatz's two tunnels: a link between two calls of one stop, which
+  // the plan draws no corridor for. The mark used to leave the plan for the whole crossing; it
+  // parks where the leaving corridor's lane begins instead, facing the way the vehicle will go.
+  const timedCall = (
+    localStopId: string,
+    providerStopPointId: string,
+    minute: number,
+  ): TripCall => ({
+    ...call(localStopId, providerStopPointId),
+    scheduledArrivalTime: `2026-09-04T12:0${minute}:00+02:00`,
+    scheduledDepartureTime: `2026-09-04T12:0${minute}:00+02:00`,
+    delayMinutes: 0,
+  });
+  const crossing = departure(
+    "S1",
+    [
+      timedCall("ettlinger-tor", "7001012", 0),
+      timedCall("marktplatz", "7001011", 2),
+      timedCall("marktplatz", "7001003", 4),
+      timedCall("europaplatz", "7001004", 6),
+    ],
+    { id: "tunnel-crossing", tripInstanceId: "tunnel-crossing", delayMinutes: 0 },
+  );
+
+  const reading = buildZentrumSchematicReading(drawn([board(crossing)]));
+  const [parked] = getZentrumSchematicVehicles(
+    reading,
+    [crossing],
+    Date.parse("2026-09-04T12:03:00+02:00"),
+  );
+
+  assert.ok(parked);
+  assert.equal(parked.from.id, "marktplatz");
+  assert.equal(parked.to.id, "marktplatz");
+  assert.equal(parked.path.points.length, 1);
+  // The park is not the stop itself but where the corridor out of it begins its lane.
+  const leavingPath = reading.vehiclePathsByLineId
+    .get("S1")
+    ?.get(getEdgeKey("marktplatz", "europaplatz"));
+  assert.ok(leavingPath);
+  const oriented =
+    leavingPath.fromNodeId === "marktplatz"
+      ? leavingPath
+      : reverseZentrumSchematicVehiclePath(leavingPath);
+  assert.equal(parked.path.points[0]?.x, oriented.points[0].x);
+  assert.equal(parked.path.points[0]?.y, oriented.points[0].y);
+  // And the mark faces the way its vehicle will leave, not the way it came in.
+  assert.ok(parked.angle !== 0);
+  const heading = getZentrumSchematicVehiclePathPlacement(oriented, 0).angle;
+  assert.equal(parked.angle, heading);
+});
+
+test("rides the line's lane through a stop the feed left untimed", () => {
+  // The feed times a link between two calls and can leave a call between them untimed. The
+  // vehicle still names the stop, so the mark follows the line's drawn lane through it rather
+  // than a straight chord across it.
+  const timedCall = (
+    localStopId: string,
+    providerStopPointId: string,
+    minute: number,
+  ): TripCall => ({
+    ...call(localStopId, providerStopPointId),
+    scheduledArrivalTime: minute === undefined ? undefined : `2026-09-04T12:0${minute}:00+02:00`,
+    scheduledDepartureTime: minute === undefined ? undefined : `2026-09-04T12:0${minute}:00+02:00`,
+    delayMinutes: 0,
+  });
+  const past = departure(
+    "2",
+    [
+      timedCall("muehlburger-tor", "7000039", 0),
+      timedCall("europaplatz", "7000037", undefined),
+      timedCall("karlstor", "7000061", 4),
+    ],
+    { id: "untimed-stop", tripInstanceId: "untimed-stop", delayMinutes: 0 },
+  );
+
+  const reading = buildZentrumSchematicReading(drawn([board(past)]));
+  const [vehicle] = getZentrumSchematicVehicles(
+    reading,
+    [past],
+    Date.parse("2026-09-04T12:01:00+02:00"),
+  );
+
+  assert.ok(vehicle);
+  assert.equal(vehicle.from.id, "muehlburger-tor");
+  assert.equal(vehicle.to.id, "karlstor");
+  // The ride passes the Europaplatz it is drawn through, not a straight over it.
+  const europaplatz = ZENTRUM_SCHEMATIC_NODES.find(({ id }) => id === "europaplatz");
+  assert.ok(europaplatz);
+  assert.ok(
+    vehicle.path.points.some(
+      (point) => Math.hypot(point.x - europaplatz.x, point.y - europaplatz.y) < 20,
+    ),
+  );
+});
+
+/*
  * What the vehicle map colours is the service still to come: a corridor is lit while a vehicle on
  * the map is still to run it, and goes out behind the vehicles as they pass.
  */
@@ -776,7 +1291,16 @@ test("lights the corridors ahead of a placed vehicle, and none behind it", () =>
     ],
     { id: "ahead-eastbound", tripInstanceId: "ahead-eastbound", delayMinutes: 0 },
   );
-  const reading = buildZentrumSchematicReading([board(eastbound)]);
+  const reading = buildZentrumSchematicReading(drawn([board(eastbound)]));
+  const [vehicle] = getZentrumSchematicVehicles(
+    reading,
+    [eastbound],
+    Date.parse("2026-09-04T12:01:00+02:00"),
+  );
+  assert.deepEqual([...(vehicle?.aheadEdgeIds ?? [])].sort(), [
+    "europaplatz\u0000marktplatz",
+    "kronenplatz\u0000marktplatz",
+  ]);
 
   // Between the Europaplatz and the Marktplatz, both corridors ahead of the vehicle are lit --
   // the one it is on now, and the one its run comes to next.
@@ -804,19 +1328,21 @@ test("lights the corridors ahead of a placed vehicle, and none behind it", () =>
  * entered, and the stretches joining into the one line the whole-path reading lays.
  */
 test("splits a drawn line at the stops without losing or repeating any of it", () => {
-  const reading = buildZentrumSchematicReading([
-    board(
-      departure(
-        "S11",
-        [
-          call("muehlburger-tor", "7000039"),
-          call("europaplatz", "7000037"),
-          call("karlstor", "7000061"),
-        ],
-        { id: "s11", tripId: "s11" },
+  const reading = buildZentrumSchematicReading(
+    drawn([
+      board(
+        departure(
+          "S11",
+          [
+            call("muehlburger-tor", "7000039"),
+            call("europaplatz", "7000037"),
+            call("karlstor", "7000061"),
+          ],
+          { id: "s11", tripId: "s11" },
+        ),
       ),
-    ),
-  ]);
+    ]),
+  );
   const [linePath] = reading.linePaths;
   assert.ok(linePath);
 
@@ -836,6 +1362,23 @@ test("splits a drawn line at the stops without losing or repeating any of it", (
     [segments[0]?.data, segments[1]?.data.replace(/^M [\d.]+ [\d.]+ /, "")].join(" "),
     getZentrumSchematicLinePathData(linePath, reading.edges, reading.trackWidth),
   );
+});
+
+test("cuts the highlighted path at a vehicle's position inside a corridor", () => {
+  const ride = {
+    points: [
+      { x: 0, y: 0 },
+      { x: 10, y: 0 },
+      { x: 10, y: 10 },
+    ],
+    steps: [0, 0.5, 1],
+  };
+
+  assert.equal(
+    getZentrumSchematicVehiclePathData(ride, 0.25),
+    "M 5.00 0.00 L 10.00 0.00 L 10.00 10.00",
+  );
+  assert.equal(getZentrumSchematicVehiclePathData(ride, 1), "");
 });
 
 /*
@@ -905,27 +1448,29 @@ test("no two places stand closer than the step and a half the layout keeps", () 
  * already be in two corridors earlier, which is the numeric one turned round.
  */
 test("orders a corridor for a parting its lines have not reached yet", () => {
-  const reading = buildZentrumSchematicReading([
-    board(
-      departure("3", [
-        call("muehlburger-tor", "7000039"),
-        call("europaplatz", "7001004"),
-        call("karlstor", "7000061"),
-        call("mathystrasse", "7000062"),
-      ]),
-      departure("4", [
-        call("muehlburger-tor", "7000039"),
-        call("europaplatz", "7001004"),
-        call("karlstor", "7000061"),
-        call("ettlinger-tor", "7001012"),
-      ]),
-      departure("1", [
-        call("muehlburger-tor", "7000039"),
-        call("europaplatz", "7001004"),
-        call("marktplatz", "7001003"),
-      ]),
-    ),
-  ]);
+  const reading = buildZentrumSchematicReading(
+    drawn([
+      board(
+        departure("3", [
+          call("muehlburger-tor", "7000039"),
+          call("europaplatz", "7001004"),
+          call("karlstor", "7000061"),
+          call("mathystrasse", "7000062"),
+        ]),
+        departure("4", [
+          call("muehlburger-tor", "7000039"),
+          call("europaplatz", "7001004"),
+          call("karlstor", "7000061"),
+          call("ettlinger-tor", "7001012"),
+        ]),
+        departure("1", [
+          call("muehlburger-tor", "7000039"),
+          call("europaplatz", "7001004"),
+          call("marktplatz", "7001003"),
+        ]),
+      ),
+    ]),
+  );
   const orderOn = (leftStopId: string, rightStopId: string) =>
     reading.edges.find(
       ({ from, to }) =>
@@ -953,15 +1498,21 @@ test("keeps groups joining a corridor from opposite sides from weaving down it",
   const kongress = call("kongresszentrum", "7001013");
   const fromWest = [call("europaplatz", "7001004"), marktplatz, ettlinger, kongress];
   const fromEast = [call("kronenplatz", "7001002"), marktplatz, ettlinger, kongress];
-  const reading = buildZentrumSchematicReading([
-    board(
-      departure("1", [call("kronenplatz", "7001002"), marktplatz, call("europaplatz", "7001004")]),
-      departure("S1", fromWest, { id: "s1", tripId: "s1" }),
-      departure("S2", fromWest, { id: "s2", tripId: "s2" }),
-      departure("S4", fromEast, { id: "s4", tripId: "s4" }),
-      departure("S8", fromEast, { id: "s8", tripId: "s8" }),
-    ),
-  ]);
+  const reading = buildZentrumSchematicReading(
+    drawn([
+      board(
+        departure("1", [
+          call("kronenplatz", "7001002"),
+          marktplatz,
+          call("europaplatz", "7001004"),
+        ]),
+        departure("S1", fromWest, { id: "s1", tripId: "s1" }),
+        departure("S2", fromWest, { id: "s2", tripId: "s2" }),
+        departure("S4", fromEast, { id: "s4", tripId: "s4" }),
+        departure("S8", fromEast, { id: "s8", tripId: "s8" }),
+      ),
+    ]),
+  );
   const orderOn = (leftStopId: string, rightStopId: string) =>
     reading.edges.find(
       ({ from, to }) =>
@@ -1026,9 +1577,11 @@ test("rules across every lane of a corridor at a through stop", () => {
     call("europaplatz", "7000037"),
     call("marktplatz", "7000041"),
   ];
-  const reading = buildZentrumSchematicReading([
-    board(...["1", "2", "3"].map((lineId) => departure(lineId, along, { id: `${lineId}-trip` }))),
-  ]);
+  const reading = buildZentrumSchematicReading(
+    drawn([
+      board(...["1", "2", "3"].map((lineId) => departure(lineId, along, { id: `${lineId}-trip` }))),
+    ]),
+  );
   const bars = stopBars(reading, "europaplatz");
 
   // One straight through the stop is one rule, square to it and crossing the whole band: the three
@@ -1050,9 +1603,11 @@ test("grows a stop's rule across the band and not along the corridor", () => {
     call("marktplatz", "7000041"),
   ];
   const getRule = (lineIds: readonly string[]) => {
-    const reading = buildZentrumSchematicReading([
-      board(...lineIds.map((lineId) => departure(lineId, along, { id: `${lineId}-trip` }))),
-    ]);
+    const reading = buildZentrumSchematicReading(
+      drawn([
+        board(...lineIds.map((lineId) => departure(lineId, along, { id: `${lineId}-trip` }))),
+      ]),
+    );
     const [bar] = stopBars(reading, "europaplatz");
     return { ...bar, trackWidth: reading.trackWidth };
   };
@@ -1069,21 +1624,23 @@ test("grows a stop's rule across the band and not along the corridor", () => {
  * there rather than as passing it.
  */
 test("rules each straight through a stop the reading names no places at", () => {
-  const reading = buildZentrumSchematicReading([
-    board(
-      departure("1", [
-        call("muehlburger-tor", "7000039"),
-        call("europaplatz", "7000037"),
-        call("karlstor", "7000061"),
-      ]),
-      departure("2", [call("muehlburger-tor", "7000039"), call("europaplatz", "7000037")], {
-        id: "2-trip",
-      }),
-      departure("3", [call("muehlburger-tor", "7000039"), call("europaplatz", "7000037")], {
-        id: "3-trip",
-      }),
-    ),
-  ]);
+  const reading = buildZentrumSchematicReading(
+    drawn([
+      board(
+        departure("1", [
+          call("muehlburger-tor", "7000039"),
+          call("europaplatz", "7000037"),
+          call("karlstor", "7000061"),
+        ]),
+        departure("2", [call("muehlburger-tor", "7000039"), call("europaplatz", "7000037")], {
+          id: "2-trip",
+        }),
+        departure("3", [call("muehlburger-tor", "7000039"), call("europaplatz", "7000037")], {
+          id: "3-trip",
+        }),
+      ),
+    ]),
+  );
   const bars = stopBars(reading, "europaplatz");
 
   // Every trip here boards at platform 1, so the stop is one place and its two straights -- the
@@ -1100,9 +1657,11 @@ test("rules each straight through a stop the reading names no places at", () => 
  * no mark of another kind and gets the same one every other stop has.
  */
 test("rules a stop served by one line as it rules every other", () => {
-  const reading = buildZentrumSchematicReading([
-    board(departure("1", [call("muehlburger-tor", "7000039"), call("europaplatz", "7000037")])),
-  ]);
+  const reading = buildZentrumSchematicReading(
+    drawn([
+      board(departure("1", [call("muehlburger-tor", "7000039"), call("europaplatz", "7000037")])),
+    ]),
+  );
   const bars = stopBars(reading, "europaplatz");
 
   assert.equal(bars.length, 1);
@@ -1125,12 +1684,14 @@ test("rules a junction once for each place its platforms say it is", () => {
     call("karlstor", "7000061", "3"),
     call("mathystrasse", "7000062", "3"),
   ];
-  const reading = buildZentrumSchematicReading([
-    board(
-      ...["1", "2"].map((lineId) => departure(lineId, eastward, { id: `${lineId}-east` })),
-      ...["3", "4"].map((lineId) => departure(lineId, southward, { id: `${lineId}-south` })),
-    ),
-  ]);
+  const reading = buildZentrumSchematicReading(
+    drawn([
+      board(
+        ...["1", "2"].map((lineId) => departure(lineId, eastward, { id: `${lineId}-east` })),
+        ...["3", "4"].map((lineId) => departure(lineId, southward, { id: `${lineId}-south` })),
+      ),
+    ]),
+  );
 
   assert.deepEqual(
     reading.boardingPlacesByNodeId.get("karlstor")?.map((place) => [...place.armTripCounts.keys()]),
@@ -1168,14 +1729,16 @@ test("leaves a barely used platform out of a stop's places", () => {
     call("karlstor", "7000061", "9"),
     call("mathystrasse", "7000062", "3"),
   ];
-  const reading = buildZentrumSchematicReading([
-    board(
-      ...Array.from({ length: 30 }, (_, index) =>
-        departure("1", along, { id: `regular-${index}`, tripId: `regular-${index}` }),
+  const reading = buildZentrumSchematicReading(
+    drawn([
+      board(
+        ...Array.from({ length: 30 }, (_, index) =>
+          departure("1", along, { id: `regular-${index}`, tripId: `regular-${index}` }),
+        ),
+        departure("1", diverted, { id: "diverted", tripId: "diverted" }),
       ),
-      departure("1", diverted, { id: "diverted", tripId: "diverted" }),
-    ),
-  ]);
+    ]),
+  );
 
   assert.equal(reading.boardingPlacesByNodeId.has("karlstor"), false);
   assert.deepEqual(

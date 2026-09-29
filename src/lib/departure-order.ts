@@ -21,7 +21,7 @@ import { compareGermanNames } from "./text";
  * countdown is all there is; without it such a departure sorts last rather than being given a time
  * the feed never stated.
  */
-export function getExpectedDepartureTime(departure: Departure, feedNow?: number): number {
+export function getExpectedDepartureInstant(departure: Departure, feedNow?: number): number {
   const scheduled = Date.parse(departure.scheduledDepartureTime);
   if (!Number.isFinite(scheduled)) {
     return feedNow === undefined
@@ -45,13 +45,13 @@ export function getExpectedDepartureTime(departure: Departure, feedNow?: number)
  * The board in expected-departure order. Stable, so departures the feed states no time for keep the
  * order it listed them in rather than shuffling between refreshes.
  */
-export function sortDeparturesByExpectedTime(
+export function sortDeparturesByExpectedInstant(
   departures: readonly Departure[],
   feedNow?: number,
 ): readonly Departure[] {
   return [...departures].sort(
     (left, right) =>
-      getExpectedDepartureTime(left, feedNow) - getExpectedDepartureTime(right, feedNow),
+      getExpectedDepartureInstant(left, feedNow) - getExpectedDepartureInstant(right, feedNow),
   );
 }
 

@@ -19,25 +19,26 @@ const formatCount = (count: number, one: string, many: string): string =>
  * The caption at the foot of the drawing: what the marks on it are, in as few words as that takes.
  *
  * It says what cannot be read off the drawing — that the marks are estimates rather than fixes, and,
- * while a line is followed and something of it is running, which stretches are the ones still ahead
- * of it. A followed line with nothing on it is drawn whole, so what the caption says of it is that
- * there is nothing to place rather than which stretches are lit. What the reader can
+ * while progress mode is on, that the solid colour is the part currently reachable and the dotted
+ * trace is the general route. A line with nothing to place keeps only that route trace.
+ * What the reader can
  * already see, they are not told: which lines are drawn, and how many, is the legend beneath, and
  * where the reading came from is the page's provenance footer.
  */
 const getZentrumSchematicCaption = (
   selectedLineId: string | undefined,
   vehicleCount: number,
+  showVehicleProgress: boolean,
 ): string =>
   selectedLineId
     ? vehicleCount === 0
-      ? `Linie ${selectedLineId} · derzeit keine Bahn unterwegs`
-      : `Linie ${selectedLineId} · ${formatCount(vehicleCount, "Bahn", "Bahnen")} · Strecke voraus farbig`
-    : formatCount(
+      ? `Linie ${selectedLineId} · derzeit keine Bahn unterwegs${showVehicleProgress ? " · gepunktet = Linienweg" : ""}`
+      : `Linie ${selectedLineId} · ${formatCount(vehicleCount, "Bahn", "Bahnen")}${showVehicleProgress ? " · farbig = jetzt möglich" : " · ganzer Linienweg farbig"}`
+    : `${formatCount(
         vehicleCount,
         "Bahn unterwegs · Position geschätzt",
         "Bahnen unterwegs · Positionen geschätzt",
-      );
+      )}${showVehicleProgress ? " · farbig = jetzt möglich · gepunktet = Linienweg" : ""}`;
 
 /**
  * The Zentrum's plan as it is read: the drawing, what it says of itself, and the controls under it.
@@ -58,7 +59,6 @@ export function ZentrumSchematic({
   getSign,
   selectedLineId,
   vehicles,
-  aheadEdgeIdsByTrackId,
   isFullscreen,
   onSelectLine,
   onChangeFullscreen,
@@ -75,17 +75,14 @@ export function ZentrumSchematic({
   /** The line the plan is following, as the address names it. */
   selectedLineId?: string;
   vehicles: readonly ZentrumSchematicVehicle[];
-  /**
-   * The corridors the followed line's vehicles are still to run, which the plan lights ahead of
-   * them; absent — and every stretch keeps its colour — while no line is being followed.
-   */
-  aheadEdgeIdsByTrackId?: ReadonlyMap<string, ReadonlySet<string>>;
   /** Whether the plan is being read at the size of the screen. */
   isFullscreen: boolean;
   onSelectLine: (lineId: string | undefined) => void;
   onChangeFullscreen: (isFullscreen: boolean) => void;
 }) {
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>();
+  const [selectedStationId, setSelectedStationId] = useState<string>();
+  const [showVehicleProgress, setShowVehicleProgress] = useState(false);
   const plan = useZentrumPlanCanvas();
 
   // Escape is what a reader expects to close a thing that took the screen, and the back gesture is
@@ -108,7 +105,15 @@ export function ZentrumSchematic({
   // one.
   const selectLine = (lineId: string | undefined) => {
     setSelectedVehicleId(undefined);
+    setSelectedStationId(undefined);
     onSelectLine(lineId);
+  };
+
+  const selectStation = (stationId: string) => {
+    setSelectedVehicleId(undefined);
+    setSelectedStationId((current) => (current === stationId ? undefined : stationId));
+    // A station focus is a map-level selection, so it replaces a line followed in the address.
+    if (selectedLineId !== undefined) onSelectLine(undefined);
   };
 
   return (
@@ -130,12 +135,14 @@ export function ZentrumSchematic({
           lineIdsByNodeId={lineIdsByNodeId}
           getSign={getSign}
           selectedLineId={selectedLineId}
+          selectedStationId={selectedStationId}
           vehicles={vehicles}
-          aheadEdgeIdsByTrackId={aheadEdgeIdsByTrackId}
+          showVehicleProgress={showVehicleProgress}
           selectedVehicleId={selectedVehicleId}
           onSelectVehicle={(vehicleId) =>
             setSelectedVehicleId((current) => (current === vehicleId ? undefined : vehicleId))
           }
+          onSelectStation={selectStation}
           scrollRef={plan.scrollRef}
           zoom={plan.zoom}
           planWidth={plan.planWidth}
@@ -150,11 +157,17 @@ export function ZentrumSchematic({
       </div>
 
       <ZentrumSchematicToolbar
-        caption={getZentrumSchematicCaption(selectedLineId, followedVehicleCount)}
+        caption={getZentrumSchematicCaption(
+          selectedLineId,
+          followedVehicleCount,
+          showVehicleProgress,
+        )}
         lineIds={lineIds}
         getSign={getSign}
         selectedLineId={selectedLineId}
         onSelectLine={selectLine}
+        showVehicleProgress={showVehicleProgress}
+        onChangeVehicleProgress={setShowVehicleProgress}
         zoom={plan.zoom}
         canZoomIn={plan.canZoomIn}
         canZoomOut={plan.canZoomOut}

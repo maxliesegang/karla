@@ -1,4 +1,10 @@
-import type { Departure, DepartureStatus, TripCall } from "../data/transit-types";
+import type {
+  Departure,
+  DepartureReadingTimes,
+  DepartureStatus,
+  RunSequence,
+  TripCall,
+} from "../data/transit-types";
 
 /**
  * A trip's remaining calling points, read from the stop it was read at.
@@ -377,37 +383,115 @@ const isExceptionalStatus = (status: DepartureStatus): boolean =>
   status === "cancelled" || status === "diverted";
 
 /**
- * Several rows, each completed by the trip read for it where one has been read.
+ * Several rows, each completed by the run read for it where one has been read.
  *
  * A reading arrives when it arrives: the first ones land seconds after the rows do, and a row the
  * source could not read is answered by no reading at all. The row is what the boards already
  * stated, and a reading that has not landed is no reason to take a vehicle off a map, so each row
  * stands and is completed in place where its reading allows.
  */
-export function mergeTripSequences(
+export function mergeRunSequences(
   rows: readonly Departure[],
-  tripReadings: readonly Departure[],
+  readings: readonly Departure[],
 ): readonly Departure[] {
-  if (tripReadings.length === 0) return rows;
-  const readingByRowId = new Map(tripReadings.map((reading) => [reading.id, reading]));
-  return rows.map((row) => mergeTripSequence(row, readingByRowId.get(row.id)));
+  if (readings.length === 0) return rows;
+  const readingByRowId = new Map(readings.map((reading) => [reading.id, reading]));
+  return rows.map((row) => mergeRunReading(row, readingByRowId.get(row.id)));
 }
 
 /**
- * One published departure fact, completed by a trip read separately from it.
+ * One stop's row completed by another reading of the same run, whatever shape that reading is in.
+ *
+ * The row-shaped door onto `mergeRunSequence`, for the callers holding a whole `Departure` rather
+ * than a sequence: a run addressed on its own is found as some *other* stop's row before it is ever
+ * read as calls, and a Zentrum mark is a row of one post completed by a reading taken at another.
+ * What such a reading contributes beyond a sequence it may not have yet is the run's dated identity
+ * and an exception stated about the run as a whole — a cancellation the addressed stop's own row
+ * has not caught up with is still a cancellation.
+ *
+ * Its stop-specific half contributes nothing and is dropped by `toRunSequence` on the way through,
+ * which is the whole reason that conversion exists: what one stop says about *its* platform is not
+ * evidence about another's.
+ */
+export function mergeRunReading(row: Departure, reading: Departure | undefined): Departure {
+  if (!reading) return row;
+  const merged = mergeRunSequence(row, toRunSequence(reading));
+  return {
+    ...merged,
+    tripInstanceId: reading.tripInstanceId ?? merged.tripInstanceId,
+    status: isExceptionalStatus(reading.status) ? reading.status : merged.status,
+  };
+}
+
+/**
+ * The sequence a departure states, where it states one.
+ *
+ * The one way a `Departure` becomes a `RunSequence`, so a reading that arrived on a row is kept and
+ * ranked as exactly what it is — a calling sequence and the instant it was read — and the stop
+ * facts it happened to arrive beside are dropped here rather than carried into evidence about every
+ * other stop of the run. Nothing where the departure carries no calls: there is no sequence in a
+ * row that states none, and a merge offered one would be a merge of a row with itself.
+ */
+export function toRunSequence(departure: Departure): RunSequence | undefined {
+  if (!departure.tripCalls?.length) return undefined;
+  return {
+    tripCalls: departure.tripCalls,
+    ...(departure.tripInstanceId ? { tripInstanceId: departure.tripInstanceId } : {}),
+    status: departure.status,
+    ...(departure.readAt?.sequenceReadAt !== undefined
+      ? { readAt: departure.readAt.sequenceReadAt }
+      : {}),
+  };
+}
+
+/**
+ * One published departure fact, completed by the run read separately from it.
  *
  * The stop row stays the departure: its countdown, platform and delay are the freshest statement of
- * when this vehicle leaves *here*, and a trip reading is not allowed to replace them with its own
- * older copy. What the trip contributes is what a board row cannot state — the whole sequence
- * behind it, the dated identity that sequence's first call refines, and a cancellation or diversion
- * of the run as a whole.
+ * when this vehicle leaves *here*, and a sequence reading is not allowed to replace them with its
+ * own older copy. What the sequence contributes is what a board row cannot state — the whole
+ * calling sequence behind it, the dated identity that sequence's first call refines, and a
+ * cancellation or diversion of the run as a whole.
+ *
+ * The merge is the one place that knows the result is a hybrid of two readings, so it is the one
+ * place their two clocks are written (`Departure.readAt`). Each half is dated by the half it came
+ * from and by nothing else: the row's stamp stays the row's however fresh the sequence beside it
+ * is, and a sequence read minutes after the row it completes says so rather than inheriting the
+ * row's age. Nothing downstream is asked to know which is which — it can read both off the result.
  */
-export function mergeTripSequence(row: Departure, trip: Departure | undefined): Departure {
-  if (!trip) return row;
+export function mergeRunSequence(row: Departure, sequence: RunSequence | undefined): Departure {
+  if (!sequence) return row;
+  const readAt = resolveMergedReadingTimes(row, sequence);
   return {
     ...row,
-    tripInstanceId: trip.tripInstanceId ?? row.tripInstanceId,
-    status: isExceptionalStatus(trip.status) ? trip.status : row.status,
-    tripCalls: trip.tripCalls ?? row.tripCalls,
+    tripInstanceId: sequence.tripInstanceId ?? row.tripInstanceId,
+    status: isExceptionalStatus(sequence.status) ? sequence.status : row.status,
+    tripCalls: sequence.tripCalls,
+    ...(readAt ? { readAt } : {}),
+  };
+}
+
+/**
+ * The row's own clock, and the sequence's, each staying the clock of the reading it came from.
+ *
+ * Merging a fresh sequence into an older row must not restate that row as freshly read, and a
+ * sequence read minutes after the row it completes must say so rather than inherit the row's age:
+ * which of the two halves is the later reading is what decides whether the row may correct the
+ * sequence at all (`lib/vehicle-positioning.ts`). The types now keep the two apart on their own —
+ * a `RunSequence` carries one instant and it is the calls' — so this only puts them side by side.
+ *
+ * Nothing where neither half was ever stamped, which is a fixture rather than anything the source
+ * published. A row that states no clock takes the sequence's, which is the only instant known about
+ * a departure assembled entirely out of one.
+ */
+function resolveMergedReadingTimes(
+  row: Departure,
+  sequence: RunSequence,
+): DepartureReadingTimes | undefined {
+  const rowReadAt = row.readAt?.rowReadAt ?? sequence.readAt;
+  if (rowReadAt === undefined) return undefined;
+  return {
+    rowReadAt,
+    ...(sequence.readAt !== undefined ? { sequenceReadAt: sequence.readAt } : {}),
   };
 }

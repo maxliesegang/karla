@@ -47,6 +47,7 @@ import { StopRegistry } from "../src/data/stop-registry.ts";
 import type { DepartureBoard, TripCall } from "../src/data/transit-types.ts";
 import { zentrumStopIds } from "../src/data/zentrum-stops.ts";
 import { buildZentrumSchematicReading } from "../src/lib/zentrum-schematic.ts";
+import { getBoardTimetableTrips } from "../src/lib/trips.ts";
 import {
   ZENTRUM_SCHEMATIC_GRID,
   ZENTRUM_SCHEMATIC_NODES,
@@ -159,7 +160,7 @@ async function observe(rowLimit: number): Promise<Observations> {
 
   const median = (values: readonly number[]): number =>
     [...values].sort((left, right) => left - right)[Math.floor(values.length / 2)];
-  const reading = buildZentrumSchematicReading(boards);
+  const reading = buildZentrumSchematicReading(getBoardTimetableTrips(boards));
   return {
     capturedAt: new Date().toISOString(),
     nodes: [...coordinates]

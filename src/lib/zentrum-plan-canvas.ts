@@ -1,4 +1,5 @@
-import { ZENTRUM_SCHEMATIC_VIEWBOX } from "./zentrum-schematic-plan";
+import { ZENTRUM_SCHEMATIC_VIEWBOX, type SchematicPoint } from "./zentrum-schematic-plan";
+import { getZentrumSchematicVehiclePathPlacement } from "./zentrum-schematic-paths";
 
 /** How much room the plan has been given, in CSS pixels. */
 export type ZentrumPlanBox = { width: number; height: number };
@@ -81,16 +82,31 @@ export const toZentrumCanvasTop = (y: number): string =>
 export const toZentrumCanvasRun = (delta: number): string =>
   `${(delta / ZENTRUM_SCHEMATIC_VIEWBOX.width) * 100}cqw`;
 
+/** The identity used to keep one centre-map mark's animation alive between renders. */
+export const getZentrumVehicleLinkKey = (
+  fromId: string,
+  toId: string,
+  path: { points: readonly SchematicPoint[]; steps: readonly number[] },
+): string =>
+  [fromId, toId, path.points.map(({ x, y }) => `${x},${y}`).join(";"), path.steps.join(",")].join(
+    ":",
+  );
+
 /**
- * One mark's whole position in one property, at a progress along its corridor.
+ * One mark's whole position in one property, at a progress along its vehicle path.
  *
  * The static paint and the animated keyframes are stated by this one reading, so the frame an
- * animation starts in agrees with the mark it replaces. The centre anchoring rides along, because
- * the animation replaces the property wholesale.
+ * animation starts in agrees with the mark it replaces. The mark is anchored at the canvas origin
+ * and the translate carries it across the plan in live container units; the keyframes are taken
+ * at the path's own points, so the compositor's straight interpolation between them follows the
+ * bend the stroke draws rather than cutting across it. Because every corridor shares the canvas
+ * coordinate system, link handovers and replans share the same origin and transition seamlessly.
+ * The centre anchoring follows the vehicle path, because the animation replaces the property wholesale.
  */
 export const getZentrumVehicleTransform = (
-  courseX: string,
-  courseY: string,
+  path: { points: readonly SchematicPoint[]; steps: readonly number[] },
   progress: number,
-): string =>
-  `translate3d(calc(${courseX} * ${progress}), calc(${courseY} * ${progress}), 0) translate(-50%, -50%)`;
+): string => {
+  const placement = getZentrumSchematicVehiclePathPlacement(path, progress);
+  return `translate3d(${toZentrumCanvasRun(placement.x - ZENTRUM_SCHEMATIC_VIEWBOX.x)}, ${toZentrumCanvasRun(placement.y - ZENTRUM_SCHEMATIC_VIEWBOX.y)}, 0) translate(-50%, -50%)`;
+};

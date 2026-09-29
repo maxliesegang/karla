@@ -2,9 +2,9 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { Departure } from "../src/data/transit-types.ts";
 import {
-  getExpectedDepartureTime,
+  getExpectedDepartureInstant,
   groupDeparturesByPlatform,
-  sortDeparturesByExpectedTime,
+  sortDeparturesByExpectedInstant,
 } from "../src/lib/departure-order.ts";
 
 const BASE = Date.parse("2026-08-24T14:30:00+02:00");
@@ -32,7 +32,7 @@ test("orders a board by the time its countdowns are counted to, not by the sched
   const punctual = createDeparture("punctual", "2", 5, { delayMinutes: 0 });
 
   assert.deepEqual(
-    sortDeparturesByExpectedTime([delayed, punctual]).map((departure) => departure.id),
+    sortDeparturesByExpectedInstant([delayed, punctual]).map((departure) => departure.id),
     ["punctual", "delayed"],
   );
 });
@@ -40,13 +40,13 @@ test("orders a board by the time its countdowns are counted to, not by the sched
 test("leaves an unmonitored departure on its schedule", () => {
   const unmonitored = createDeparture("unmonitored", "1", 7);
 
-  assert.equal(getExpectedDepartureTime(unmonitored), BASE + 7 * 60_000);
+  assert.equal(getExpectedDepartureInstant(unmonitored), BASE + 7 * 60_000);
 });
 
 test("applies no deviation to a cancelled trip, which is expected nowhere", () => {
   const cancelled = createDeparture("cancelled", "1", 4, { status: "cancelled", delayMinutes: 9 });
 
-  assert.equal(getExpectedDepartureTime(cancelled), BASE + 4 * 60_000);
+  assert.equal(getExpectedDepartureInstant(cancelled), BASE + 4 * 60_000);
 });
 
 test("sorts a departure the feed stated no schedule for last, rather than to an invented time", () => {
@@ -54,11 +54,11 @@ test("sorts a departure the feed stated no schedule for last, rather than to an 
   const timed = createDeparture("timed", "2", 8);
 
   assert.deepEqual(
-    sortDeparturesByExpectedTime([untimed, timed]).map((departure) => departure.id),
+    sortDeparturesByExpectedInstant([untimed, timed]).map((departure) => departure.id),
     ["timed", "untimed"],
   );
   // With the feed's clock in hand its own countdown is all there is, and it is used.
-  assert.equal(getExpectedDepartureTime(untimed, BASE), BASE + 2 * 60_000);
+  assert.equal(getExpectedDepartureInstant(untimed, BASE), BASE + 2 * 60_000);
 });
 
 test("keeps departures the feed states no time for in the order it listed them", () => {
@@ -66,7 +66,7 @@ test("keeps departures the feed states no time for in the order it listed them",
   const second = createDeparture("second", "2", 4, { scheduledDepartureTime: "" });
 
   assert.deepEqual(
-    sortDeparturesByExpectedTime([first, second]).map((departure) => departure.id),
+    sortDeparturesByExpectedInstant([first, second]).map((departure) => departure.id),
     ["first", "second"],
   );
 });

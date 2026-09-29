@@ -4,7 +4,7 @@ import { findExpectedDepartureInstant, getBoardAgeMs, getCountdownMinutes } from
 import { formatSpokenPlatformLabel } from "./platform-naming";
 import { isSelectedLine, type LineSelection } from "./line-bundles";
 import { getTripCallInstant } from "./trip-calls";
-import { isSameVehicleTrip } from "./trips";
+import { isSameRun } from "./trips";
 
 /** Departure times are Karlsruhe clock times, so they are read off that clock wherever the viewer is. */
 const clockFormat = new Intl.DateTimeFormat("de-DE", {
@@ -197,7 +197,7 @@ export function getCountdownReading(departure: Departure, feedNow: number): Coun
  * The trip is matched by vehicle, not by row. A vehicle that calls at two of a complex's places in
  * turn is published once per place, and both rows are the trip the rider chose — Europaplatz states
  * its 3 to Rintheim at `Gleis 6` at 13:43 and again at `Gleis 4` at 13:44, and a rider may be
- * standing at either. `isSameVehicleTrip` settles identity where the readings state different
+ * standing at either. `isSameRun` settles identity where the readings state different
  * subsets of a trip's identifiers, exactly as the diagram's own mark is matched.
  */
 export function isDepartureSelected(
@@ -206,7 +206,7 @@ export function isDepartureSelected(
   lineSelection: LineSelection | undefined,
 ): boolean {
   return selectedDeparture
-    ? isSameVehicleTrip(departure, selectedDeparture)
+    ? isSameRun(departure, selectedDeparture)
     : Boolean(lineSelection && isSelectedLine(lineSelection, departure.lineId));
 }
 
@@ -219,7 +219,7 @@ export function isDeparturePinned(
   departure: Departure,
   selectedDeparture: Departure | undefined,
 ): boolean {
-  return Boolean(selectedDeparture && isSameVehicleTrip(departure, selectedDeparture));
+  return Boolean(selectedDeparture && isSameRun(departure, selectedDeparture));
 }
 
 /** The next few calls a trip makes after this stop: the `über …` a rider checks before boarding. */
@@ -268,7 +268,7 @@ export function getLineDiagramStatusLabel(
  * which of the two it is, and it is read off the same calls the placement is, so it can never state
  * a position the diagram declined to draw.
  */
-export function getSelectedTripPositionHint(
+export function getRunPositionHint(
   departure: Departure | undefined,
   /** Whether the diagram actually carries a mark for this trip; with one there is nothing to say. */
   isPlaced: boolean,

@@ -131,7 +131,7 @@ export function sampleLineObservationStopIds(
 }
 
 /** A line-direction whose route may be asked for, and the observed row that addresses it. */
-export type LineRouteRequest = { lineId: string; directionId: string; departureId: string };
+export type LineRouteRequest = { lineId: string; directionId: string; rowId: string };
 
 /**
  * The route readings worth asking for, from the boards in hand: one per line-direction, no more.
@@ -149,13 +149,13 @@ export function getLineRouteRequests(
   for (const lineId of getLineSelectionIds(selection)) {
     for (const board of boards) {
       for (const departure of board.departures) {
-        const { routeDirectionId: directionId, id: departureId } = departure;
-        if (!directionId || !departureId || requestByDirectionId.has(directionId)) continue;
+        const { routeDirectionId: directionId, id: rowId } = departure;
+        if (!directionId || !rowId || requestByDirectionId.has(directionId)) continue;
         if (!isSameLineFamily(departure.lineId, lineId)) continue;
         requestByDirectionId.set(directionId, {
           lineId: getLineFamilyId(lineId),
           directionId,
-          departureId,
+          rowId,
         });
       }
     }
@@ -405,12 +405,10 @@ export function seedLineObservations(
       seeded.set(lineId, remembered);
       continue;
     }
-    const zentrumStopIds = lines.find((line) => isSameLineFamily(line.id, lineId))?.zentrumStopIds;
+    const zentrumCalls = lines.find((line) => isSameLineFamily(line.id, lineId))?.zentrumCalls;
     seeded.set(
       lineId,
-      zentrumStopIds?.length
-        ? { stopIds: zentrumStopIds, directionIds: [] }
-        : EMPTY_LINE_OBSERVATION,
+      zentrumCalls?.length ? { stopIds: zentrumCalls, directionIds: [] } : EMPTY_LINE_OBSERVATION,
     );
   }
   return seeded;

@@ -19,7 +19,7 @@ import { getVehicleLeftOffset, type VehicleLayerGeometry } from "./layout";
  * domain trajectory in the newly measured coordinate system, without carrying the old paint.
  *
  * The distinction about the mark's own position — travel animated, a placement painted where it
- * belongs — is the placement's to state (`TripPlacement.motion`), and the shared hook reads it
+ * belongs — is the placement's to state (`RunPlacement.motion`), and the shared hook reads it
  * from the mark. This layer deliberately does not try to work that out for itself by watching
  * coordinates jump: the two are indistinguishable from here, since a mark making up several
  * minutes and a mark being repositioned move the same distance in the same tick, and only the
@@ -149,17 +149,13 @@ function LineDiagramVehicleLayerView({
   const geometrySignature = [geometry.trackLeft, geometry.stopCenterOffsets.join(",")].join(":");
   useVehicleTrajectoryAnimations({
     container: layerRef,
-    marks: drawnMarks.flatMap(({ vehicle }) => {
-      if (!vehicle.trajectory) return [];
-      return [
-        {
-          ...vehicle,
-          trajectory: vehicle.trajectory,
-          key: vehicle.markerKey,
-          linkKey: `${vehicle.fromIndex}:${vehicle.toIndex}:${vehicle.laneIndex}`,
-        },
-      ];
-    }),
+    marks: drawnMarks.flatMap(({ vehicle }) => [
+      {
+        ...vehicle,
+        key: vehicle.markerKey,
+        linkKey: `${vehicle.fromIndex}:${vehicle.toIndex}:${vehicle.laneIndex}`,
+      },
+    ]),
     geometrySignature,
     getTransform: (mark, progress) => getVehicleTransform(mark, progress),
     // A mark that skips stops crosses each row it passes on its own clock, so every row boundary
@@ -186,7 +182,7 @@ function LineDiagramVehicleLayerView({
           progress,
           phase,
           motion,
-          isOtherTrip,
+          isOtherRun,
           isSelected,
         } = vehicle;
         // The direction's base offset is CSS, measured from the rail itself: a wide panel has room
@@ -218,13 +214,13 @@ function LineDiagramVehicleLayerView({
             className={classNames(
               "line-diagram-vehicle",
               `direction-${directionArrow === "↓" ? "down" : "up"}`,
-              isOtherTrip && "other-trip",
+              isOtherRun && "other-run",
               phase !== "running" && "standing",
               openMarkerKey === markerKey && "open",
               isSelected && "selected",
               branchTransferKeys?.has(markerKey) && "branch-transfer",
             )}
-            data-selected-trip-marker={isSelected || undefined}
+            data-selected-run-marker={isSelected || undefined}
             onClick={() =>
               setOpenMarkerKey((current) => (current === markerKey ? null : markerKey))
             }

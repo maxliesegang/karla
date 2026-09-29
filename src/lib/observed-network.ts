@@ -10,7 +10,7 @@ import { compareLineIds, getLineFamilyId } from "./line-families";
 import { isZentrumStop } from "../data/zentrum-stops";
 import { getFarthestLineRunTermini } from "./stop-services";
 import { addOnce, getDistinctByFrequency } from "./collections";
-import { getDistinctTimetableTrips } from "./trips";
+import { getBoardTimetableTrips } from "./trips";
 
 /**
  * The network as the live feed actually shows it, rather than as a list kept by hand.
@@ -130,6 +130,17 @@ export type ObservedNetwork = {
 };
 
 /**
+ * The timeless part of one timetable trip that can teach the session about the network.
+ *
+ * Deliberately narrower than `Departure`: the observed-network store may retain route topology,
+ * but never a run's countdown, prediction, status or reading clocks.
+ */
+export type ObservedTripTopology = Pick<
+  Departure,
+  "id" | "tripId" | "lineId" | "transportMode" | "destination" | "tripCalls"
+>;
+
+/**
  * Where the stops the feed has named actually are.
  *
  * Every calling point of every trip states its position, and the trips read at a handful of posts
@@ -180,14 +191,14 @@ function isIdentifiedCall(call: TripCall): call is IdentifiedCall {
   return Boolean(call.localStopId);
 }
 
-export function buildObservedNetwork(boards: readonly DepartureBoard[]): ObservedNetwork {
+export function buildObservedNetworkFromTrips(
+  trips: readonly ObservedTripTopology[],
+): ObservedNetwork {
   const stops = new Map<string, ObservedStop>();
   const lines = new Map<
     string,
-    { transportMode: TransportMode; destinations: string[]; trips: Departure[] }
+    { transportMode: TransportMode; destinations: string[]; trips: ObservedTripTopology[] }
   >();
-
-  const trips = getDistinctTimetableTrips(boards);
 
   for (const trip of trips) {
     const line = lines.get(trip.lineId) ?? {
@@ -225,6 +236,12 @@ export function buildObservedNetwork(boards: readonly DepartureBoard[]): Observe
   };
 }
 
+export function buildObservedNetwork(boards: readonly DepartureBoard[]): ObservedNetwork {
+  return buildObservedNetworkFromTrips(
+    getBoardTimetableTrips(boards).filter((departure) => departure.status !== "cancelled"),
+  );
+}
+
 /**
  * The observed lines as the rest of the app's views expect them — official sign where there is one,
  * neutral otherwise, and the ends the line was seen running between, at the farthest run where the
@@ -236,7 +253,7 @@ export function buildObservedNetwork(boards: readonly DepartureBoard[]): Observe
 type ObservedLineFamily = {
   sign: TransitLine;
   destinations: string[];
-  zentrumStopIds: string[];
+  zentrumCalls: string[];
   farthestRunTermini?: readonly string[];
 };
 
@@ -248,7 +265,7 @@ export function getObservedTransitLines(network: ObservedNetwork): TransitLine[]
     const existing = familyById.get(familyId);
     if (existing) return existing;
     const sign = { ...createLineSign(lineId, transportMode), id: familyId, name: familyId };
-    const created: ObservedLineFamily = { sign, destinations: [], zentrumStopIds: [] };
+    const created: ObservedLineFamily = { sign, destinations: [], zentrumCalls: [] };
     familyById.set(familyId, created);
     return created;
   };
@@ -265,15 +282,15 @@ export function getObservedTransitLines(network: ObservedNetwork): TransitLine[]
   for (const stop of network.stops) {
     for (const lineId of stop.lineIds) {
       const family = familyById.get(getLineFamilyId(lineId));
-      if (family) addOnce(family.zentrumStopIds, stop.id);
+      if (family) addOnce(family.zentrumCalls, stop.id);
     }
   }
 
   return [...familyById.values()]
-    .map(({ sign, destinations, zentrumStopIds, farthestRunTermini }) => ({
+    .map(({ sign, destinations, zentrumCalls, farthestRunTermini }) => ({
       ...sign,
       destinations,
-      zentrumStopIds,
+      zentrumCalls,
       ...(farthestRunTermini ? { farthestRunTermini } : {}),
     }))
     .sort((a, b) => compareLineIds(a.id, b.id));

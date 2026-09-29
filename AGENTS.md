@@ -10,7 +10,7 @@ npm run dev
 npm run build          # tsc -b && vite build
 npm run lint
 npm run format         # biome format --write . — the formatter is the style authority
-npm test               # tests and build both pass before handing off a change
+npm test               # tests and build must pass before handing off a change
 npm run refresh:stops  # regenerates src/data/generated from the operator's published data
 npm run solve:zentrum  # measures the Zentrum plan against the feed, and solves for a truer one
 ```
@@ -24,85 +24,81 @@ npm run solve:zentrum  # measures the Zentrum plan against the feed, and solves 
 | [src/App.tsx](src/App.tsx) | the shell: picks a panel, hands views their data |
 | [src/routing.ts](src/routing.ts) | hash routes and path builders |
 | [src/selection.ts](src/selection.ts) | resolving the stop / line / trip chain against live data |
-| [src/view-layout.ts](src/view-layout.ts) | what an address means for the two panels: which is shown, which is wide, panel keys |
-| [src/hooks/](src/hooks/) | route, network, board, trip, and clock subscriptions |
-| [src/components/](src/components/) | one file per view, plus shared badge, chip, termini, footer |
+| [src/view-layout.ts](src/view-layout.ts) | what an address means for the two panels |
 | [src/lib/](src/lib/) | domain logic: observed network, feed clock, trip progress, notices |
-| [src/data/](src/data/) | `TransitSource` boundary, EFA client and parsers, stop and line data |
+| [src/data/](src/data/) | `TransitSource` boundary, EFA client and parsers |
 | [src/data/generated/](src/data/generated/) | written by [scripts/](scripts/) from published data; never edited by hand |
-| [src/index.css](src/index.css) | the whole visual system |
-| [public/](public/) | icons, manifest, and `sw.js` — the offline app shell |
 | [tests/](tests/) | `node --test` over the pure modules; no DOM, no network |
 
 ## Naming
 
-One concept, one name, everywhere it appears — the Zentrum is `zentrum` in code even where its
-published URL segment is still `/center`.
-
-- **Components.** `*View` is a whole route view, one per `RouteView` (`ZentrumView`,
-  `NetworkView`, `NearbyStopsView`, `ServiceNoticesView`, `SettingsView`, `StationBoardView`). `*Panel` is a half of the dashboard
-  or a section inside a view (`DepartureBoardPanel`, `LineDiagramPanel`, `RideStatusPanel`,
-  `ServiceNoticePanel`). Everything else is named for what it is: badge, chip, row, list, tabs, menu.
-  A component exported from a file the file is not named after belongs in its own file.
-- **Modules.** A module is named for the concern its exports name, so a hook module and the pure
-  module beneath it share a name — `hooks/departure-board-collection.ts` over
-  `lib/departure-board-collection.ts`. Filenames drop the `use` prefix that the hooks inside carry.
-- **`get*` derives an answer from what it is handed; `find*` searches through data for one.** Either
-  may come back with nothing — that is in the return type, not in the verb.
-- **Constants carry the whole noun**, not the shortened one the module could get away with:
-  `DEPARTURE_BOARD_REFRESH_MS`, not `BOARD_REFRESH_MS`.
-- **CSS classes are kebab-case of the component that owns them**, and a view's root class ends
-  `-view`. The exceptions are the shared vocabulary — `panel-heading`, `panel-empty`,
-  `visually-hidden`, and state words like `cancelled`, `diverted`, `pinned` — which belong to no
-  component and are never re-spelled per view.
-- **One verb per job.** `format*` prints a value for a reader, `parse*` reads one back, `build*` and
-  `create*` make a structure, `read*`/`write*`/`subscribe*` reach stored settings, and
-  `remember*`/`recall*`/`forget*` reach a memory. A second word for a job one of these already
-  names is drift: a reading kept across a gap is *retained*, never *held*.
-- **Identifiers are US spelling; prose is not.** The comments read `colour`, `centre`, `metres`,
-  `neighbour`; the code reads `getVerifiedLineColor`, `metersToNextCall`, `neighborsByEdgeId`,
-  `normalizePlatformCode`. `farthest` is the one word for reach, in both. A field the provider names
-  keeps the provider's spelling verbatim (`trainNum`, `stopSeqCoords`).
+One concept, one name: the Zentrum is `zentrum` in code even where its published URL segment is
+still `/center`. Comments read British (`colour`, `centre`); identifiers read US
+(`metersToNextCall`, `normalizePlatformCode`). A field the provider names keeps the provider's
+spelling verbatim (`trainNum`, `stopSeqCoords`).
 
 ## Constraints
 
 - **No backend, no secrets.** Must stay deployable to GitHub Pages as plain files.
 - **The network is observed, not kept.** Served stops and their lines come from live trips; a line
   that stops running leaves the view by itself.
-- **Bandwidth is a design constraint.** Rows are the budget: a view that needs to see further asks
-  for one line, not for more rows. Hidden pages neither poll nor tick.
-- **A line is read as rows, then as runs.** Each run out on the line is read once from the trip
-  endpoint, not once per stop it has yet to call (`getLineDepartureBoards`). Whole-stop boards are
-  the other reading and stay as they are. The two halves keep their own clocks: the boards name
-  which runs exist and stay on the line observation cadence; the runs' readings are re-read at the
-  line's trip tolerance (`LINE_TRIP_MAX_AGE_MS`), because the marks are placed from the runs' calls.
-  The Zentrum vehicle map reads the vehicles it draws the same way: the posts name which runs exist
-  on their slow cadence, and the runs drawn are re-read behind them (`useZentrumVehicles`).
-- **A route is a seed, never an answer.** The provider states where a line goes
-  (`XML_STOPSEQCOORD_REQUEST`, one request per line-direction, kept for the session). It decides
-  which stops are *read* and never what is drawn: a stop of the route nothing calls at today
-  contributes a board with no rows and leaves the diagram by itself, as an observed stop does.
-- **A filter is sent whole or not at all.** A one-direction board is silently incomplete, so the
-  reading waits until both directions are named from the stop's own `servingLines`
-  (`lib/line-observation.ts`).
+- **Hidden pages neither poll nor tick.** Rows are the bandwidth budget: a view that needs to see
+  further asks for one line, not for more rows.
+- **A line is read as rows, then as runs.** One trip request per run, never once per stop it has yet
+  to call; boards and run readings keep their own clocks, the readings re-read at
+  `LINE_RUN_READING_MAX_AGE_MS`.
+- **A route is a seed, never an answer.** It decides which stops are *read*, never what is drawn: a
+  stop nothing calls at today contributes an empty board and leaves the diagram by itself.
+- **A filter is sent whole or not at all.** A one-direction board is silently incomplete; wait until
+  both directions are named from the stop's own `servingLines`.
+- **One reading of a run, and the source holds it.** `RunReadingStore` keeps one record per run;
+  views keep the *ids* of the runs they follow and read them through `findRun`; `Departure.readAt`
+  is set once and never rewritten. Every path out of the source ends at `findRun`, boards included,
+  so one reading is one *object* and not merely one set of facts.
+- **A run's calls are the record's, a stop's facts are the row's.** A `RunSequence` is what a run
+  states about itself — the calls, one clock, the identity they refine — and carries nothing about
+  any stop. A `Departure` becomes one through `toRunSequence`, which is where the discovering row's
+  platform, countdown and id are dropped rather than carried into evidence every other stop reads.
+- **A reading that lands nowhere is a failure and says so.** A request outlives the record it was
+  shared under; `rememberSequence` reports whether it landed, so a caller backs off instead of
+  counting a swallowed answer as a success.
+- **A run is keyed by the provider's address for it: `line|tripCode`.** No date in the key — that
+  splits a run at midnight to defend against a collision a day away. A record retires when its
+  calls run out.
+- **Only a run's own sequence places a vehicle.** A board row is a prediction about one call; the
+  sequence is the only reading that states the whole run. The row corrects the sequence at its
+  boarding call alone, and not once it is the older reading (`isRowSupersededBySequence`) or the
+  departure is behind us. Widening a board's fan-out buys no liveness — only re-reading the run does.
+- **Three keys address a run, and none stands in for another.** `getRunRecordKey` shares a run's
+  evidence and requests, `getRunMarkKey` is the dated identity a drawn mark is followed by,
+  `getBoardRowKey` collapses a board's two rows for one run.
 - **Views never touch a provider.** Fetching, id resolution, and merging live behind `TransitSource`.
 - **Routing is hash-based and goes through `routePaths`.** Components get routing, data, and time as
   props and never touch `window`.
-- **A bundle is a view, not an identity.** Two lines may be *read* together over the stretch they
-  have been observed sharing at one stop, addressed `line/S1+S11` and chosen by the rider.
-  `lib/line-families.ts` stays the statement of line identity and never merges them.
+- **A bundle is a view, not an identity.** Two lines may be *read* together over an observed shared
+  stretch, addressed `line/S1+S11` and chosen by the rider; `lib/line-families.ts` never merges them.
 - **Each level of the chain drops back on its own.** Never drop a level on a feed failure, and never
-  pin a level the rider did not choose — nor before the readings that could name it have answered:
-  a trip that has left this stop is on no board here and on the line's own boards
-  (`isAddressedTripOutstanding`).
+  pin a level the rider did not choose.
 
 ## Data honesty
 
 - Never claim realtime for data that isn't; without a prediction a departure reads "nach Fahrplan".
-- Count minutes against the feed's clock (`lib/feed-clock.ts`), never the device's, and at the
-  minute it shows — the operator's own board does, and a rider is holding ours up against it.
+- Count minutes against the feed's clock (`lib/feed-clock.ts`), never the device's.
 - A failed refresh is not evidence the last board was wrong: keep it and state its age.
-- One published time per row — the one the vehicle is expected at, read from the feed's prediction
-  where it made one (`findExpectedDepartureInstant`) rather than from the delay it states beside it.
-  The countdown, the printed time and the board's order all come from that one instant.
+- One published time per row: countdown, printed time, and board order all come from the feed's
+  predicted instant (`findExpectedDepartureInstant`), never from the delay stated beside it.
 - Quote service notices, never rewrite them.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live as local markdown files under `.scratch/<feature-slug>/`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Canonical roles, each label string equal to its name. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.

@@ -9,14 +9,16 @@
  * is the other two modules' question: the strokes (`zentrum-schematic-paths.ts`) and the stops'
  * rules (`zentrum-schematic-stops.ts`).
  */
-import type { Departure, DepartureBoard } from "../data/transit-types";
+import type { Departure } from "../data/transit-types";
 import { collapseTurnaroundCalls } from "./trip-calls";
-import { getDistinctTimetableTrips, getVehicleTripKey } from "./trips";
+import { getDistinctTimetableTrips, getRunMarkKey } from "./trips";
 import {
-  getTripPlacement,
-  type TripPlacementMotion,
-  type TripSegmentTrajectory,
+  getRunPlacement,
+  type RunPlacementMotion,
+  type RunPlacementPhase,
+  type RunSegmentTrajectory,
 } from "./vehicle-positioning";
+import { findTurnarounds } from "./line-turnarounds";
 import {
   type SchematicPoint,
   type ZentrumSchematicBoardingPlace,
@@ -33,33 +35,72 @@ import {
   orientCorridorRun,
   zentrumSchematicNodeById,
 } from "./zentrum-schematic-plan";
+import {
+  getZentrumSchematicVehiclePathPlacement,
+  getZentrumSchematicVehiclePathsByEdgeId,
+  joinZentrumSchematicVehiclePaths,
+  reverseZentrumSchematicVehiclePath,
+  type ZentrumSchematicVehiclePath as ZentrumSchematicVehicleSegmentPath,
+} from "./zentrum-schematic-paths";
 import { getTrackBandOffsetByEdgeId, getTrackLineIdsByEdgeId } from "./zentrum-schematic-lanes";
 
 export type ZentrumSchematicVehicle = {
   id: string;
+  markerKey?: string;
   lineId: string;
   destination: string;
   from: ZentrumSchematicNode;
   to: ZentrumSchematicNode;
   progress: number;
+  phase?: RunPlacementPhase;
+  /** Every drawn corridor from the one the vehicle is on through the end of its run. */
+  aheadEdgeIds: readonly string[];
   x: number;
   y: number;
   angle: number;
   /**
+   * The drawn stretch the mark follows, already turned the way this run travels it: the line's lane
+   * for the corridor, bent the way the stroke is. The mark's whole position is stated along this,
+   * so it hands over between corridors exactly where its line's stroke does.
+   */
+  path: ZentrumSchematicVehiclePath;
+  /**
    * How the mark got here: only travelled motion may be animated as a journey, a placement is
    * painted where it belongs (`vehicle-positioning.ts`).
    */
-  motion: TripPlacementMotion;
+  motion: RunPlacementMotion;
   /**
    * How far a placement put the mark from where it was drawn, in links of the trip's own calls —
-   * what lets the mark be corrected over rather than snapped. See `TripPlacement.placedAfterLinks`.
+   * what lets the mark be corrected over rather than snapped. See `RunPlacement.placedAfterLinks`.
    */
   placedAfterLinks?: number;
   /**
    * The link's motion as one appointment with its next stop, where the placement planned one: the
    * curve a drawing animates the mark along between its one-second ticks.
    */
-  trajectory?: TripSegmentTrajectory;
+  trajectory?: RunSegmentTrajectory;
+};
+
+/**
+ * The stretch of drawn lane one vehicle's mark follows, in the direction the run travels it.
+ *
+ * A degenerate link — both ends one stop, as the two tunnel calls of a complex are — is a path of
+ * one point: the mark parks there while its vehicle is inside the complex, rather than leaving the
+ * plan for the length of the crossing.
+ */
+export type ZentrumSchematicVehiclePath = {
+  /** The path as points, path-ordered: the first is where the mark stands at progress 0. */
+  points: readonly SchematicPoint[];
+  /** How far along the path each point stands, ascending and ending at 1 where it has a length. */
+  steps: readonly number[];
+  /** The drawn corridors making up the path, with their ranges in the path's progress. */
+  edgeRanges: readonly ZentrumSchematicVehiclePathEdgeRange[];
+};
+
+export type ZentrumSchematicVehiclePathEdgeRange = {
+  edgeId: string;
+  start: number;
+  end: number;
 };
 
 export type ZentrumSchematicReading = {
@@ -74,6 +115,14 @@ export type ZentrumSchematicReading = {
   trackWidth: number;
   /** The stops the reading can name more than one place to stand at, and what those places are. */
   boardingPlacesByNodeId: ReadonlyMap<string, readonly ZentrumSchematicBoardingPlace[]>;
+  /**
+   * The drawn stretch a mark follows, by line and by the corridor it is read on. Read once with the
+   * reading, which is the only time the lanes move; placing a vehicle against it is a lookup.
+   */
+  vehiclePathsByLineId: ReadonlyMap<
+    string,
+    ReadonlyMap<string, ZentrumSchematicVehicleSegmentPath>
+  >;
 };
 
 const getPathKey = (nodes: readonly ZentrumSchematicNode[]): string => {
@@ -186,14 +235,15 @@ const getZentrumSchematicBoardingPlaces = (
 };
 
 /**
- * The paths current trips actually state through the authored drawing surface.
+ * The paths the drawn runs actually state through the authored drawing surface.
  *
- * Calls are considered only in adjacent pairs. A trip leaving the schematic and later returning
- * therefore cannot invent a straight shortcut across it, and an unknown part of a complex breaks
- * the path instead of being guessed into the nearest node.
+ * The drawn runs are the ones the plan places: board rows and retained readings alike, whichever
+ * board last named them. Calls are considered only in adjacent pairs. A trip leaving the schematic
+ * and later returning therefore cannot invent a straight shortcut across it, and an unknown part of
+ * a complex breaks the path instead of being guessed into the nearest node.
  */
 export function buildZentrumSchematicReading(
-  boards: readonly DepartureBoard[],
+  drawnVehicles: readonly Departure[],
 ): ZentrumSchematicReading {
   const lineIdsByEdgeKey = new Map<string, Set<string>>();
   const pathsByLineId = new Map<
@@ -203,7 +253,7 @@ export function buildZentrumSchematicReading(
 
   // The same trips the corridors are read from state where their riders board, so the places to
   // stand are read here rather than from a second pass over the boards.
-  const drawnDepartures = getDistinctTimetableTrips(boards).filter(
+  const drawnDepartures = getDistinctTimetableTrips(drawnVehicles).filter(
     (departure) =>
       departure.status !== "cancelled" &&
       (departure.transportMode === "tram" || departure.transportMode === "lightRail"),
@@ -284,15 +334,24 @@ export function buildZentrumSchematicReading(
   }));
   const trackWidth = getZentrumSchematicTrackWidth(lanes);
   const trackBandOffsetByEdgeId = getTrackBandOffsetByEdgeId(lanes, linePaths, trackWidth);
+  const edges: readonly ZentrumSchematicEdge[] = lanes.map((edge) => ({
+    ...edge,
+    trackBandOffset: trackBandOffsetByEdgeId.get(edge.id) ?? 0,
+  }));
 
   return {
-    edges: lanes.map((edge) => ({
-      ...edge,
-      trackBandOffset: trackBandOffsetByEdgeId.get(edge.id) ?? 0,
-    })),
+    edges,
     linePaths,
     trackWidth,
     boardingPlacesByNodeId: getZentrumSchematicBoardingPlaces(drawnDepartures),
+    // Read from the edges as they are drawn, band offset included: the paths a mark follows are
+    // the same geometry the stroke paints.
+    vehiclePathsByLineId: new Map(
+      linePaths.map((linePath) => [
+        linePath.lineId,
+        getZentrumSchematicVehiclePathsByEdgeId(linePath, edges, trackWidth),
+      ]),
+    ),
     lineIdsByNodeId: new Map(
       [...lineIdsByNodeId].map(([nodeId, lineIds]) => [
         nodeId,
@@ -331,119 +390,341 @@ const getVehicleLaneOffset = (
  * to the end of its run through the plan, as its trip states them -- adjacent Zentrum calls only,
  * by the same adjacency rule the drawn paths keep.
  */
-type ZentrumSchematicPlacedTrip = {
+type ZentrumSchematicPlacedRun = {
   departure: Departure;
-  /** The lane the line is drawn in, where the vehicle's mark rides. */
+  /** The lane the line is drawn in, where the vehicle's mark follows. */
   trackId: string | undefined;
   /** The corridor the vehicle is currently on, where the reading holds one. */
   edge: ZentrumSchematicEdge | undefined;
   from: ZentrumSchematicNode;
   to: ZentrumSchematicNode;
   progress: number;
-  motion: TripPlacementMotion;
+  phase: RunPlacementPhase;
+  markerKey: string;
+  motion: RunPlacementMotion;
   placedAfterLinks?: number;
-  trajectory?: TripSegmentTrajectory;
+  trajectory?: RunSegmentTrajectory;
   /** The corridors from the one the vehicle is on to the end of its run through the plan. */
   aheadEdgeIds: readonly string[];
+  /**
+   * The stops the plan draws between the link's two ends, which the mark's path passes through.
+   * The feed times a link between two calls and can leave a call between them untimed; the trip
+   * still names the stop, and the vehicle path follows the line's drawn lane through it rather than a
+   * straight across it.
+   */
+  via: readonly ZentrumSchematicNode[];
+  /**
+   * The corridor the trip leaves the vehicle's stop complex by, where its link is inside one: the
+   * two tunnel calls of a complex are one link the plan draws no corridor for, and the mark is
+   * parked where the leaving corridor's lane begins while its vehicle crosses.
+   */
+  leaving?: { from: ZentrumSchematicNode; to: ZentrumSchematicNode };
 };
 
-const getZentrumSchematicPlacedTrips = (
+const getZentrumSchematicPlacedRuns = (
   reading: ZentrumSchematicReading,
   departures: readonly Departure[],
   feedNow: number,
-): readonly ZentrumSchematicPlacedTrip[] => {
+): readonly ZentrumSchematicPlacedRun[] => {
   const edgeByKey = new Map(reading.edges.map((edge) => [edge.id, edge]));
   const trackIdByLineId = getTrackIdByLineId(reading.linePaths.map(({ lineId }) => lineId));
-  return departures.flatMap((departure) => {
-    if (departure.transportMode !== "tram" && departure.transportMode !== "lightRail") return [];
-    const placement = getTripPlacement(departure, feedNow);
-    if (!placement || placement.phase !== "running") return [];
+  const turnarounds = findTurnarounds(departures);
+  const turningKeyByMarkKey = new Map<string, string>();
+  for (const [arrivalKey, departureKey] of turnarounds.turningDepartureKeyByArrivalKey) {
+    turningKeyByMarkKey.set(arrivalKey, departureKey);
+    turningKeyByMarkKey.set(departureKey, departureKey);
+  }
+
+  const placedRuns: ZentrumSchematicPlacedRun[] = [];
+  for (const departure of departures) {
+    if (departure.transportMode !== "tram" && departure.transportMode !== "lightRail") continue;
+    const standFrom = turnarounds.standFromByDepartureKey.get(getRunMarkKey(departure));
+    const placement = getRunPlacement(departure, feedNow, standFrom);
+    if (!placement) continue;
 
     const calls = collapseTurnaroundCalls(departure.tripCalls ?? []);
+    const nodeOf = (call: (typeof calls)[number]): ZentrumSchematicNode | undefined =>
+      zentrumSchematicNodeById.get(findZentrumSchematicNodeId(call) ?? "");
+    let selectedLink:
+      | {
+          index: number;
+          toIndex: number;
+          from: ZentrumSchematicNode;
+          to: ZentrumSchematicNode;
+          via: readonly ZentrumSchematicNode[];
+        }
+      | undefined;
     for (let index = 0; index < calls.length - 1; index += 1) {
-      const fromCall = calls[index];
-      const toCall = calls[index + 1];
-      if (
-        fromCall.localStopId !== placement.fromStopId ||
-        toCall.localStopId !== placement.toStopId
-      ) {
-        continue;
+      if (calls[index].localStopId !== placement.fromStopId) continue;
+      // The link's two ends are adjacent in the calls the placement read, but the calls between
+      // them can state places of their own. The far end is the first place after it that the plan
+      // draws *and* the link names; the places the plan draws before it -- calls the feed left
+      // untimed -- are passed through on the vehicle path rather than spanned in a straight, and calls the
+      // plan draws nothing for say nothing about the corridor at all.
+      const via: ZentrumSchematicNode[] = [];
+      let toIndex = -1;
+      for (let ahead = index + 1; ahead < calls.length; ahead += 1) {
+        const node = nodeOf(calls[ahead]);
+        if (!node) continue;
+        if (calls[ahead].localStopId !== placement.toStopId) {
+          via.push(node);
+          continue;
+        }
+        toIndex = ahead;
+        break;
       }
-      const from = zentrumSchematicNodeById.get(findZentrumSchematicNodeId(fromCall) ?? "");
-      const to = zentrumSchematicNodeById.get(findZentrumSchematicNodeId(toCall) ?? "");
-      if (!from || !to || from.id === to.id) continue;
-      const aheadEdgeIds: string[] = [];
+      if (toIndex < 0) continue;
+      const from = nodeOf(calls[index]);
+      const to = nodeOf(calls[toIndex]);
+      if (!from || !to) continue;
+      // A route may visit one local stop more than once. The placement states the two stop ids,
+      // not the occurrence, so the closest matching pair is the least speculative occurrence and
+      // keeps a mark from being sent back around the route when it is already on its later pass.
+      if (
+        selectedLink === undefined ||
+        toIndex - index < selectedLink.toIndex - selectedLink.index
+      ) {
+        selectedLink = { index, toIndex, from, to, via };
+      }
+    }
+    if (!selectedLink) continue;
+    const { index, from, to, via } = selectedLink;
+    const aheadEdgeIds: string[] = [];
+    let leaving: { from: ZentrumSchematicNode; to: ZentrumSchematicNode } | undefined;
+    if (placement.phase !== "afterEnd") {
       for (let ahead = index; ahead < calls.length - 1; ahead += 1) {
-        const aheadFrom = zentrumSchematicNodeById.get(
-          findZentrumSchematicNodeId(calls[ahead]) ?? "",
-        );
-        const aheadTo = zentrumSchematicNodeById.get(
-          findZentrumSchematicNodeId(calls[ahead + 1]) ?? "",
-        );
+        const aheadFrom = nodeOf(calls[ahead]);
+        const aheadTo = nodeOf(calls[ahead + 1]);
         if (!aheadFrom || !aheadTo || aheadFrom.id === aheadTo.id) continue;
         aheadEdgeIds.push(getEdgeKey(aheadFrom.id, aheadTo.id));
       }
-      return [
-        {
-          departure,
-          trackId: trackIdByLineId.get(departure.lineId),
-          edge: edgeByKey.get(getEdgeKey(from.id, to.id)),
-          from,
-          to,
-          progress: placement.progress,
-          motion: placement.motion,
-          placedAfterLinks: placement.placedAfterLinks,
-          trajectory: placement.trajectory,
-          aheadEdgeIds,
-        },
-      ];
     }
-    return [];
+    if (from.id === to.id) {
+      for (let ahead = index + 1; ahead < calls.length - 1; ahead += 1) {
+        const aheadFrom = nodeOf(calls[ahead]);
+        const aheadTo = nodeOf(calls[ahead + 1]);
+        if (!aheadFrom || aheadFrom.id !== from.id || !aheadTo || aheadTo.id === from.id) continue;
+        leaving = { from: aheadFrom, to: aheadTo };
+        break;
+      }
+    }
+    const markerKey = turningKeyByMarkKey.get(getRunMarkKey(departure)) ?? getRunMarkKey(departure);
+    placedRuns.push({
+      departure,
+      trackId: trackIdByLineId.get(departure.lineId),
+      edge: from.id === to.id ? undefined : edgeByKey.get(getEdgeKey(from.id, to.id)),
+      from,
+      to,
+      progress: placement.progress,
+      phase: placement.phase,
+      markerKey,
+      motion: placement.motion,
+      placedAfterLinks: placement.placedAfterLinks,
+      trajectory: placement.trajectory,
+      aheadEdgeIds,
+      via,
+      ...(leaving ? { leaving } : {}),
+    });
+  }
+
+  const placedKeys = new Set(placedRuns.map(({ departure }) => getRunMarkKey(departure)));
+  const afterTurnarounds = placedRuns.filter(({ departure, phase }) => {
+    const turningKey = turnarounds.turningDepartureKeyByArrivalKey.get(getRunMarkKey(departure));
+    return !(phase === "afterEnd" && turningKey !== undefined && placedKeys.has(turningKey));
+  });
+  const endedNodeIds = new Set(
+    afterTurnarounds.flatMap(({ phase, to }) => (phase === "afterEnd" ? [to.id] : [])),
+  );
+  return afterTurnarounds.filter((placement) => {
+    if (placement.phase !== "beforeStart") return true;
+    if (endedNodeIds.has(placement.from.id)) return false;
+    return true;
   });
 };
 
 /**
- * Estimated positions for observed vehicles whose current adjacent calls exist on the schematic.
+ * The path a mark follows for one corridor of its line: its line's drawn stretch, trip-ordered.
  *
- * `getTripPlacement` owns the timing and smoothing rules. Resolving its local-stop link back onto
- * the original adjacent calls is important here: both Marktplatz tunnels share one local stop id,
- * while their provider call identities state which physical connection the vehicle traverses.
+ * The stretch is the same geometry the stroke paints for that corridor, so the mark hands over
+ * between corridors exactly where the stroke does. A corridor the line's drawn pattern does not
+ * hold has no bend to follow; the mark follows the corridor's own lane in a straight, the way it
+ * always has.
+ */
+const getVehiclePath = (
+  reading: ZentrumSchematicReading,
+  {
+    departure,
+    trackId,
+    edge,
+    from,
+    to,
+    via,
+    leaving,
+  }: Pick<
+    ZentrumSchematicPlacedRun,
+    "departure" | "trackId" | "edge" | "from" | "to" | "via" | "leaving"
+  >,
+): ZentrumSchematicVehiclePath => {
+  const paths = reading.vehiclePathsByLineId.get(departure.lineId);
+  // A link inside one stop -- the two tunnel calls of a complex -- is no corridor to follow. The
+  // mark parks where the corridor leaving the complex begins its lane, so it stands exactly where
+  // its vehicle will emerge, and falls back on the stop itself where the plan draws no leaving.
+  if (from.id === to.id) {
+    if (!leaving) return { points: [from], steps: [0], edgeRanges: [] };
+    const leavingPath = paths?.get(getEdgeKey(leaving.from.id, leaving.to.id));
+    const oriented = leavingPath
+      ? leavingPath.fromNodeId === leaving.from.id
+        ? leavingPath
+        : reverseZentrumSchematicVehiclePath(leavingPath)
+      : undefined;
+    return { points: [oriented?.points[0] ?? from], steps: [0], edgeRanges: [] };
+  }
+  // Every drawn place between the link's ends is ridden through, on the line's own lane: the
+  // pieces are the stroke's, so the path turns where the stroke turns, however many stops the
+  // feed left untimed between the two it timed.
+  const stops = [from, ...via, to];
+  const pieces: { edgeId: string; path: ZentrumSchematicVehicleSegmentPath }[] = [];
+  for (let index = 0; index < stops.length - 1; index += 1) {
+    const piece = paths?.get(getEdgeKey(stops[index].id, stops[index + 1].id));
+    if (!piece) break;
+    pieces.push({
+      edgeId: getEdgeKey(stops[index].id, stops[index + 1].id),
+      path:
+        piece.fromNodeId === stops[index].id ? piece : reverseZentrumSchematicVehiclePath(piece),
+    });
+  }
+  const joined =
+    pieces.length === stops.length - 1
+      ? joinZentrumSchematicVehiclePaths(pieces.map(({ path }) => path))
+      : undefined;
+  if (joined) {
+    const totalLength = pieces.reduce((sum, { path }) => sum + getPathLength(path.points), 0);
+    let startLength = 0;
+    const edgeRanges = pieces.map(({ edgeId, path }) => {
+      const endLength = startLength + getPathLength(path.points);
+      const range = {
+        edgeId,
+        start: totalLength > 0 ? startLength / totalLength : 0,
+        end: totalLength > 0 ? endLength / totalLength : 0,
+      };
+      startLength = endLength;
+      return range;
+    });
+    return { ...joined, edgeRanges };
+  }
+  // A corridor the line's drawn pattern does not hold has no bend to follow; the mark follows the
+  // corridor's own lane in a straight, the way it always has.
+  const lane = getVehicleLaneOffset(edge, trackId, reading.trackWidth);
+  return {
+    points: [
+      { x: from.x + lane.x, y: from.y + lane.y },
+      { x: to.x + lane.x, y: to.y + lane.y },
+    ],
+    steps: [0, 1],
+    edgeRanges: edge ? [{ edgeId: edge.id, start: 0, end: 1 }] : [],
+  };
+};
+
+const getPathLength = (points: readonly SchematicPoint[]): number =>
+  points.reduce(
+    (length, point, index) =>
+      index === 0
+        ? length
+        : length + Math.hypot(point.x - points[index - 1].x, point.y - points[index - 1].y),
+    0,
+  );
+
+/**
+ * Estimated positions for observed vehicles whose current link exists on the schematic.
  *
- * A mark rides the lane its line is drawn in -- the path of its line, so a vehicle stands where its
- * colour runs -- rather than a side of the corridor of its own. Both of a line's directions hold
- * the one lane, so trams meeting cover one another for the passing moment; the mark underneath is
- * reached through the one above, which moves on. `trackWidth` is the reading's own: left undefined,
- * as the plan's reading does, every mark rides the middle of the corridor, which is where that
- * reading draws its one line.
+ * `getRunPlacement` owns the timing and smoothing rules. Resolving its local-stop link back onto
+ * the original calls is important here: both Marktplatz tunnels share one local stop id, while
+ * their provider call identities state which physical connection the vehicle traverses.
+ *
+ * A mark follows the lane its line is drawn in -- the drawn stretch of its line, so a vehicle stands
+ * where its colour runs and turns where its colour turns -- rather than a side of the corridor of
+ * its own. Both of a line's directions hold the one lane, so trams meeting cover one another for
+ * the passing moment; the mark underneath is reached through the one above, which moves on.
  */
 export function getZentrumSchematicVehicles(
   reading: ZentrumSchematicReading,
   departures: readonly Departure[],
   feedNow: number,
-  trackWidth: number | undefined,
 ): ZentrumSchematicVehicle[] {
-  return getZentrumSchematicPlacedTrips(reading, departures, feedNow).map(
-    ({ departure, trackId, edge, from, to, progress, motion, placedAfterLinks, trajectory }) => {
-      const lane = getVehicleLaneOffset(edge, trackId, trackWidth);
-      const x = from.x + (to.x - from.x) * progress + lane.x;
-      const y = from.y + (to.y - from.y) * progress + lane.y;
+  return getZentrumSchematicPlacedRuns(reading, departures, feedNow).map(
+    ({
+      departure,
+      trackId,
+      edge,
+      from,
+      to,
+      progress,
+      phase,
+      aheadEdgeIds,
+      markerKey,
+      motion,
+      placedAfterLinks,
+      trajectory,
+      via,
+      leaving,
+    }) => {
+      const path = getVehiclePath(reading, {
+        departure,
+        trackId,
+        edge,
+        from,
+        to,
+        via,
+        leaving,
+      });
+      const placement = getZentrumSchematicVehiclePathPlacement(path, progress);
       return {
-        id: getVehicleTripKey(departure),
+        id: getRunMarkKey(departure),
+        markerKey,
         lineId: departure.lineId,
         destination: departure.destination,
         from,
         to,
         progress,
+        phase,
+        aheadEdgeIds,
+        path,
         motion,
         placedAfterLinks,
         trajectory,
-        x,
-        y,
-        angle: (Math.atan2(to.y - from.y, to.x - from.x) * 180) / Math.PI,
+        x: placement.x,
+        y: placement.y,
+        angle: placement.angle ?? getVehicleHeadingAngle(reading, { departure, leaving }),
       };
     },
   );
 }
+
+/**
+ * Which way a parked mark is pointed.
+ *
+ * The heading fallback only ever answers for a mark whose path states no length -- a mark parked
+ * inside a stop complex, the plan drawing no corridor there. It faces the corridor its vehicle
+ * will leave by, the way it is going, read off the path that begins where it stands; where not
+ * even that is drawn, nothing is stated and the mark simply points along the plan's reading.
+ */
+const getVehicleHeadingAngle = (
+  reading: ZentrumSchematicReading,
+  { departure, leaving }: Pick<ZentrumSchematicPlacedRun, "departure" | "leaving">,
+): number => {
+  if (!leaving) return 0;
+  const leavingPath = reading.vehiclePathsByLineId
+    .get(departure.lineId)
+    ?.get(getEdgeKey(leaving.from.id, leaving.to.id));
+  const oriented = leavingPath
+    ? leavingPath.fromNodeId === leaving.from.id
+      ? leavingPath
+      : reverseZentrumSchematicVehiclePath(leavingPath)
+    : undefined;
+  return (
+    getZentrumSchematicVehiclePathPlacement(oriented ?? { points: [], steps: [] }, 0).angle ?? 0
+  );
+};
 
 /**
  * The corridors each drawn lane's vehicles are still to run.
@@ -461,7 +742,7 @@ export function getZentrumSchematicAheadEdgeIds(
   feedNow: number,
 ): ReadonlyMap<string, ReadonlySet<string>> {
   const aheadEdgeIdsByTrackId = new Map<string, Set<string>>();
-  for (const { trackId, aheadEdgeIds } of getZentrumSchematicPlacedTrips(
+  for (const { trackId, aheadEdgeIds } of getZentrumSchematicPlacedRuns(
     reading,
     departures,
     feedNow,

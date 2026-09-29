@@ -18,6 +18,9 @@ import {
   formatPoint,
   subtractPoints,
 } from "./zentrum-schematic-plan";
+
+/** How finely a bend is read as points for a mark to follow along it. */
+const ZENTRUM_SCHEMATIC_BEND_SAMPLES = 6;
 /**
  * How far a line rounds a turn before and after its lane intersection.
  *
@@ -132,6 +135,81 @@ type ZentrumSchematicLinePathBend = {
   leave: SchematicPoint;
   /** The bend's own commands, empty where the two lanes meet without one. */
   data: string;
+  /**
+   * The bend as points from the approach to the leave, the arc sampled finely enough that a mark
+   * riding them reads as turning the same curve the stroke draws. Empty where there is no bend.
+   */
+  points: readonly SchematicPoint[];
+};
+
+/** The arc one bend draws: tangent to both lanes at the approach and the leave, around the corner. */
+const getZentrumSchematicBendPoints = (
+  bendDistance: number,
+  approach: SchematicPoint,
+  leave: SchematicPoint,
+  incomingDirection: SchematicPoint,
+  outgoingDirection: SchematicPoint,
+): readonly SchematicPoint[] => {
+  const turnAngle = Math.acos(
+    Math.max(
+      -1,
+      Math.min(
+        1,
+        incomingDirection.x * outgoingDirection.x + incomingDirection.y * outgoingDirection.y,
+      ),
+    ),
+  );
+  const radius = bendDistance / Math.tan(turnAngle / 2);
+  // The centre stands a radius off the approach, across the incoming lane; of the two sides it is
+  // the one from which the leave is a radius away too.
+  const centre = (sign: 1 | -1): SchematicPoint => ({
+    x: approach.x - incomingDirection.y * radius * sign,
+    y: approach.y + incomingDirection.x * radius * sign,
+  });
+  const chosen =
+    Math.abs(Math.hypot(leave.x - centre(1).x, leave.y - centre(1).y) - radius) <=
+    Math.abs(Math.hypot(leave.x - centre(-1).x, leave.y - centre(-1).y) - radius)
+      ? centre(1)
+      : centre(-1);
+  const to = (point: SchematicPoint) => ({ x: point.x - chosen.x, y: point.y - chosen.y });
+  const startAngle = Math.atan2(to(approach).y, to(approach).x);
+  const endAngle = Math.atan2(to(leave).y, to(leave).x);
+  // The arc the geometry subtends is the turn angle itself, and the samples read the shorter way
+  // round between the two radii.
+  let sweep = endAngle - startAngle;
+  while (sweep > Math.PI) sweep -= 2 * Math.PI;
+  while (sweep < -Math.PI) sweep += 2 * Math.PI;
+  return Array.from({ length: ZENTRUM_SCHEMATIC_BEND_SAMPLES + 1 }, (_, index) => {
+    const angle = startAngle + (sweep * index) / ZENTRUM_SCHEMATIC_BEND_SAMPLES;
+    return { x: chosen.x + Math.cos(angle) * radius, y: chosen.y + Math.sin(angle) * radius };
+  });
+};
+
+/** A cubic sampled the way the bend's own command states it, from the approach to the leave. */
+const getZentrumSchematicCubicPoints = (
+  firstControl: SchematicPoint,
+  secondControl: SchematicPoint,
+  approach: SchematicPoint,
+  leave: SchematicPoint,
+): readonly SchematicPoint[] => {
+  const point = (t: number): SchematicPoint => {
+    const u = 1 - t;
+    return {
+      x:
+        u * u * u * approach.x +
+        3 * u * u * t * firstControl.x +
+        3 * u * t * t * secondControl.x +
+        t * t * t * leave.x,
+      y:
+        u * u * u * approach.y +
+        3 * u * u * t * firstControl.y +
+        3 * u * t * t * secondControl.y +
+        t * t * t * leave.y,
+    };
+  };
+  return Array.from({ length: ZENTRUM_SCHEMATIC_BEND_SAMPLES + 1 }, (_, index) =>
+    point(index / ZENTRUM_SCHEMATIC_BEND_SAMPLES),
+  );
 };
 
 const getZentrumSchematicLinePathBend = (
@@ -148,7 +226,7 @@ const getZentrumSchematicLinePathBend = (
     next.from.y === segment.to.y &&
     Math.abs(crossProduct(incomingDirection, outgoingDirection)) < 0.001
   ) {
-    return { approach: segment.to, leave: segment.to, data: "" };
+    return { approach: segment.to, leave: segment.to, data: "", points: [] };
   }
   const corner = getLineIntersection(segment.to, incomingDirection, next.from, outgoingDirection);
   const incomingLength = Math.hypot(segment.to.x - segment.from.x, segment.to.y - segment.from.y);
@@ -188,6 +266,13 @@ const getZentrumSchematicLinePathBend = (
       approach,
       leave,
       data: `A ${radius.toFixed(2)} ${radius.toFixed(2)} 0 0 ${sweep} ${formatPoint(leave)}`,
+      points: getZentrumSchematicBendPoints(
+        bendDistance,
+        approach,
+        leave,
+        incomingDirection,
+        outgoingDirection,
+      ),
     };
   }
   const bendDistance = Math.min(
@@ -207,6 +292,7 @@ const getZentrumSchematicLinePathBend = (
     approach,
     leave,
     data: `C ${formatPoint(segment.to)} ${formatPoint(next.from)} ${formatPoint(leave)}`,
+    points: getZentrumSchematicCubicPoints(segment.to, next.from, approach, leave),
   };
 };
 
@@ -258,3 +344,173 @@ const getZentrumSchematicLinePathPieces = (
     return { edgeId: segment.edgeId, start, commands };
   });
 };
+
+/**
+ * The drawn stretch a mark follows for one corridor of one line path, as the stroke paints it.
+ *
+ * This is the same geometry the path data states, read as points rather than commands: the bend
+ * into the corridor (which belongs to the corridor being entered), then the straight along it.
+ * Two corridors' paths meet at one point -- the approach the stroke itself turns through -- so a
+ * mark following its line's lane hands over between corridors exactly where its line's stroke does,
+ * turning the corner instead of jumping across it.
+ */
+export type ZentrumSchematicVehiclePath = {
+  /** The corridor's two ends, in the order the line path runs them. */
+  fromNodeId: string;
+  toNodeId: string;
+  /** The vehicle path as points, in the line path's own direction, duplicates removed. */
+  points: readonly SchematicPoint[];
+  /**
+   * How far along the vehicle path each point stands, as a share of its length: ascending, ending at 1.
+   * These are the boundaries a moving mark is keyframed on, so the compositor's straight
+   * interpolation between them follows the drawn bend.
+   */
+  steps: readonly number[];
+};
+
+/** One line pattern's vehicle paths, by the corridor each is read on. */
+export function getZentrumSchematicVehiclePathsByEdgeId(
+  linePath: ZentrumSchematicLinePath,
+  edges: readonly ZentrumSchematicEdge[],
+  trackWidth: number | undefined,
+): ReadonlyMap<string, ZentrumSchematicVehiclePath> {
+  const edgeByKey = new Map(edges.map((edge) => [edge.id, edge]));
+  const segments = linePath.nodes.slice(1).flatMap((to, index) => {
+    const from = linePath.nodes[index];
+    const edge = edgeByKey.get(getEdgeKey(from.id, to.id));
+    return edge
+      ? [
+          {
+            edgeId: edge.id,
+            fromNodeId: from.id,
+            toNodeId: to.id,
+            from: getLineTrackPoint(edge, from, linePath.trackId, edge.trackLineIds, trackWidth),
+            to: getLineTrackPoint(edge, to, linePath.trackId, edge.trackLineIds, trackWidth),
+          },
+        ]
+      : [];
+  });
+
+  const bends = segments
+    .slice(0, -1)
+    .map((segment, index) => getZentrumSchematicLinePathBend(segment, segments[index + 1]));
+  const pathsByEdgeId = new Map<string, ZentrumSchematicVehiclePath>();
+  segments.forEach((segment, index) => {
+    const incomingBend = bends[index - 1];
+    const outgoingBend = bends[index];
+    const end = outgoingBend ? outgoingBend.approach : segment.to;
+    const points = [
+      ...(incomingBend && incomingBend.points.length > 0 ? incomingBend.points : [segment.from]),
+      end,
+    ];
+    const steps = getPathSteps(points);
+    if (steps)
+      pathsByEdgeId.set(segment.edgeId, {
+        fromNodeId: segment.fromNodeId,
+        toNodeId: segment.toNodeId,
+        points,
+        steps,
+      });
+  });
+  return pathsByEdgeId;
+}
+
+/** How far along a run of points each stands, as a share of the whole; undefined for no length. */
+const getPathSteps = (points: readonly SchematicPoint[]): readonly number[] | undefined => {
+  const steps: number[] = [0];
+  let length = 0;
+  for (let index = 1; index < points.length; index += 1) {
+    const previous = points[index - 1];
+    const current = points[index];
+    length += Math.hypot(current.x - previous.x, current.y - previous.y);
+    steps.push(length);
+  }
+  if (length <= 0) return undefined;
+  return steps.map((step) => step / length);
+};
+
+/** A vehicle path read the other way round, for runs that travel it backwards. */
+export const reverseZentrumSchematicVehiclePath = (
+  path: ZentrumSchematicVehiclePath,
+): ZentrumSchematicVehiclePath => ({
+  fromNodeId: path.toNodeId,
+  toNodeId: path.fromNodeId,
+  points: [...path.points].reverse(),
+  steps: path.steps.map((step) => 1 - step).reverse(),
+});
+
+/**
+ * Several vehicle paths of one line joined into the one stretch a mark follows across them.
+ *
+ * The paths are handed in trip-ordered, so each begins where the one before it ends -- the approach
+ * the stroke itself turns through -- and the join drops the shared point. Nothing where the paths
+ * add up to no length, which a straight across a single stop is.
+ */
+export function joinZentrumSchematicVehiclePaths(
+  paths: readonly ZentrumSchematicVehiclePath[],
+): { points: readonly SchematicPoint[]; steps: readonly number[] } | undefined {
+  const points = paths.flatMap((path, index) => (index === 0 ? path.points : path.points.slice(1)));
+  const steps = getPathSteps(points);
+  return steps ? { points, steps } : undefined;
+}
+
+/** A vehicle path's visible portion as a polyline, inclusive of both requested progress boundaries. */
+export function getZentrumSchematicVehiclePathData(
+  path: { points: readonly SchematicPoint[]; steps: readonly number[] },
+  startProgress: number,
+  endProgress = 1,
+): string {
+  const start = Math.min(1, Math.max(0, startProgress));
+  const end = Math.min(1, Math.max(0, endProgress));
+  if (end <= start || path.points.length < 2) return "";
+
+  const pointAt = (progress: number): SchematicPoint => {
+    let index = 1;
+    const last = path.points.length - 1;
+    while (index < last && path.steps[index] < progress) index += 1;
+    const from = path.points[index - 1];
+    const to = path.points[index];
+    const span = path.steps[index] - path.steps[index - 1];
+    const share = span > 0 ? (progress - path.steps[index - 1]) / span : 0;
+    return {
+      x: from.x + (to.x - from.x) * share,
+      y: from.y + (to.y - from.y) * share,
+    };
+  };
+
+  const points = [pointAt(start)];
+  for (let index = 1; index < path.points.length - 1; index += 1) {
+    const progress = path.steps[index];
+    if (progress > start && progress < end) points.push(path.points[index]);
+  }
+  points.push(pointAt(end));
+  return [
+    `M ${formatPoint(points[0])}`,
+    ...points.slice(1).map((point) => `L ${formatPoint(point)}`),
+  ].join(" ");
+}
+
+/** Where a mark stands on a vehicle path at a progress, and which way its mark is pointed there. */
+export function getZentrumSchematicVehiclePathPlacement(
+  path: { points: readonly SchematicPoint[]; steps: readonly number[] },
+  progress: number,
+): { x: number; y: number; angle: number | undefined } {
+  const { points, steps } = path;
+  const last = points.length - 1;
+  if (last < 1) {
+    const [point] = points;
+    return point ? { x: point.x, y: point.y, angle: undefined } : { x: 0, y: 0, angle: undefined };
+  }
+  const share = Math.min(1, Math.max(0, progress));
+  let index = 1;
+  while (index < last && steps[index] < share) index += 1;
+  const from = points[index - 1];
+  const to = points[index];
+  const span = steps[index] - steps[index - 1];
+  const shareIn = span > 0 ? (share - steps[index - 1]) / span : 0;
+  return {
+    x: from.x + (to.x - from.x) * shareIn,
+    y: from.y + (to.y - from.y) * shareIn,
+    angle: (Math.atan2(to.y - from.y, to.x - from.x) * 180) / Math.PI,
+  };
+}

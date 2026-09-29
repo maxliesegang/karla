@@ -402,7 +402,10 @@ test("a line-filtered board is never allowed to answer a reader asking for the w
   // about twenty minutes. They answer different questions, so they are cached apart.
   const { source, requests } = createRecordingSource();
 
-  await source.getDepartureBoard(STOP_ID, { includeTripCalls: true, lineIds: [directionA] });
+  await source.getDepartureBoard(STOP_ID, {
+    includeTripCalls: true,
+    routeDirectionIds: [directionA],
+  });
   await source.getDepartureBoard(STOP_ID, { includeTripCalls: true, maxAgeMs: 90_000 });
 
   assert.deepEqual(
@@ -416,12 +419,12 @@ test("two readers naming the same lines in any order share one filtered request"
 
   await source.getDepartureBoard(STOP_ID, {
     includeTripCalls: true,
-    lineIds: [directionA, directionB],
+    routeDirectionIds: [directionA, directionB],
   });
   await source.getDepartureBoard(STOP_ID, {
     includeTripCalls: true,
     maxAgeMs: 90_000,
-    lineIds: [directionB, directionA],
+    routeDirectionIds: [directionB, directionA],
   });
 
   assert.equal(requests.length, 1);
@@ -462,7 +465,7 @@ test("a filtered board does not shrink what the stop is known to serve", async (
   const source = new KvvTransitSource(client);
 
   await source.getDepartureBoard(STOP_ID);
-  await source.getDepartureBoard(STOP_ID, { lineIds: [directionA] });
+  await source.getDepartureBoard(STOP_ID, { routeDirectionIds: [directionA] });
   await source.getDepartureBoard(STOP_ID, {
     minimumDeparturesPerDirection: 2,
     coverageHorizonMs: 2 * 60 * 60_000,
@@ -582,7 +585,7 @@ test("a board that describes the whole stop names the directions it knows there"
 
   // A filtered board carries none at all: its silence about a direction is not evidence that the
   // stop has none, and a reading that took it for evidence would keep filtering out what it missed.
-  const filtered = await source.getDepartureBoard(STOP_ID, { lineIds: [directionA] });
+  const filtered = await source.getDepartureBoard(STOP_ID, { routeDirectionIds: [directionA] });
   assert.equal(filtered.servingLines, undefined);
 });
 

@@ -3,8 +3,10 @@ import test from "node:test";
 import {
   getNeighboringZentrumZoom,
   getZentrumPlanWidth,
+  getZentrumVehicleTransform,
   toZentrumCanvasLeft,
   toZentrumCanvasTop,
+  toZentrumCanvasRun,
   ZENTRUM_MAXIMUM_ZOOM,
   ZENTRUM_MINIMUM_ZOOM,
   ZENTRUM_ZOOM_STEPS,
@@ -50,4 +52,22 @@ test("a schematic coordinate is read as a share of the canvas it is drawn on", (
   assert.equal(toZentrumCanvasLeft(x + width), "100%");
   assert.equal(toZentrumCanvasTop(y), "0%");
   assert.equal(toZentrumCanvasTop(y + height / 2), "50%");
+});
+
+test("a vehicle transform is anchored to the canvas origin, not the ride's first point", () => {
+  const ride = {
+    points: [
+      { x: 858, y: 154 },
+      { x: 726, y: 154 },
+    ],
+    steps: [0, 1],
+  } as const;
+  const progress = 0.5;
+  const x = 858 + (726 - 858) * progress;
+  const y = 154;
+
+  assert.equal(
+    getZentrumVehicleTransform(ride, progress),
+    `translate3d(${toZentrumCanvasRun(x - ZENTRUM_SCHEMATIC_VIEWBOX.x)}, ${toZentrumCanvasRun(y - ZENTRUM_SCHEMATIC_VIEWBOX.y)}, 0) translate(-50%, -50%)`,
+  );
 });
