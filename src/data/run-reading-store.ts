@@ -8,7 +8,7 @@ export const RUN_READING_STORE_CAPACITY = 1_024;
 
 /**
  * How long after a run's last call its evidence is kept, so a mark can outlive the boards.
- * One of four nested lifetimes (docs/adr/0002-run-key-without-date.md); exported for the test
+ * One of four nested lifetimes (see the store's doc comment); exported for the test
  * that asserts their order.
  */
 export const RUN_ENDED_GRACE_MS = 10 * 60_000;
@@ -56,7 +56,7 @@ type RunReadingRecord = {
 
 /**
  * The key a run's evidence and requests are shared under: the provider's `line|tripCode`, with no
- * date (docs/adr/0002-run-key-without-date.md). A row the feed gave no locator stands on its own id.
+ * date. A row the feed gave no locator stands on its own id.
  */
 const getRunRecordKey = (departure: Departure, locator: KvvTripLocator | undefined): string =>
   locator ? `run:${locator.line}|${locator.tripCode}` : getRowRecordKey(departure.id);
@@ -65,8 +65,17 @@ const getRunRecordKey = (departure: Departure, locator: KvvTripLocator | undefin
 const getRowRecordKey = (rowId: string): string => `row:${rowId}`;
 
 /**
- * Everything read about the runs out on the network, one record per run
- * (docs/adr/0001-one-run-reading-store.md).
+ * Everything read about the runs out on the network, one record per run. Every view reads runs
+ * from here, so two views never draw the same run from different readings.
+ *
+ * Records are keyed `line|tripCode` without a date. The feed reuses a code the next day (measured
+ * with `npm run probe:run-identity`), so a record must retire long before that: at its last call
+ * plus `RUN_ENDED_GRACE_MS`, or after `RUN_READING_MAX_AGE_MS` when its end is unknown. The
+ * lifetimes around a run must nest, innermost first, or a cached board or a drawn mark would outlive
+ * the record it points at (asserted in `tests/trip-loading.test.ts`):
+ *
+ *     board cache (30 s) < mark retention (2 min) < RUN_ENDED_GRACE_MS (10 min)
+ *       < RUN_READING_MAX_AGE_MS (4 h)
  *
  * Rows own stop-specific facts and the locator; the best sequence owns the calls. The two are kept
  * apart and merged only on the way out (`findRun`). No record ever merges into another, so the key

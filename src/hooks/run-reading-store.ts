@@ -16,7 +16,7 @@ export function useRunReadingVersion(rowIds: readonly string[]): string {
 }
 
 /**
- * The runs behind these rows, read from the store (docs/adr/0001-one-run-reading-store.md).
+ * The runs behind these rows, read from the source's `RunReadingStore`.
  * Memoize `rowIds`: they are the identity of everything read from the result.
  */
 export function useRuns(rowIds: readonly string[]): readonly Departure[] {

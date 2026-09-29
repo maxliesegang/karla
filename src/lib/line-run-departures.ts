@@ -4,7 +4,7 @@ import { getRunMarkKey } from "./trips";
 
 /**
  * How long a finished run's mark is kept past its final call. One of four nested lifetimes; it must
- * stay inside the store's `RUN_ENDED_GRACE_MS` (docs/adr/0002-run-key-without-date.md).
+ * stay inside the store's `RUN_ENDED_GRACE_MS` (see `run-reading-store.ts`).
  */
 export const RUN_MARK_RETENTION_GRACE_MS = 2 * 60_000;
 /** The set followed is bounded even if a provider returns an unexpectedly large board. */

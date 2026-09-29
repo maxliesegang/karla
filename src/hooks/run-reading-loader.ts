@@ -27,7 +27,7 @@ export type RunReadingOptions = {
 
 /**
  * Complete calls for the named runs, one provider request per run. This asks; the answers land in
- * the source's store and are read back from it by id (docs/adr/0001-one-run-reading-store.md).
+ * the source's store and are read back from it by id (`useRuns`).
  */
 export function useRunReadingsByRowId(
   /** Memoize this: it decides the load key and the identity of everything read from the result. */
