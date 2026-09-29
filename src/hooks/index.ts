@@ -61,6 +61,7 @@ export {
   type RunReadingOptions,
 } from "./run-reading-loader";
 export { useHeldRun, useRuns } from "./run-reading-store";
+export { useLineReading, type LineReading } from "./line-reading";
 export { useZentrumPlanCanvas, type ZentrumPlanCanvas } from "./zentrum-plan-canvas";
 export { useZentrumVehicles } from "./zentrum-vehicles";
 export { useRetainedRun, type RetainedRun } from "./retained-run";
