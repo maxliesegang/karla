@@ -134,7 +134,7 @@ export function getDepartureTimeReading(departure: Departure): DepartureTimeRead
 export function getDepartureStatusLabel(departure: Departure): string | undefined {
   if (departure.status === "cancelled") return "entfällt";
   // A diversion is the fact about this trip, and it outranks a punctuality that no longer describes
-  // the journey the rider would be taking. It was previously stated only as a delay value.
+  // the journey the rider would be taking.
   if (departure.status === "diverted") return "Umleitung";
   // The same deviation the row's own time was published from, so the column and the time beside it
   // can never disagree about whether this trip is measured at all.

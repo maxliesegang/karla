@@ -237,8 +237,8 @@ export function useSelectionChain(
     [addressedDeparture, observedRun],
   );
   // A ride outlives the boards that found it: a departure board lists what has not left yet, so a
-  // few minutes after boarding no board mentions this run. Only the ride keeps the last reading —
-  // beside a departure board a departed run still steps back up to its line, as it always has.
+  // few minutes after boarding no board mentions this run. Only the ride keeps the last reading;
+  // beside a departure board a departed run steps back up to its line.
   // The departure states when each half of it was read, so the ride reads its own age off it: a row
   // from a thirty-second board completed by a twenty-minute-old sequence is a twenty-minute-old
   // observation and says so without being told.

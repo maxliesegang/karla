@@ -1188,9 +1188,8 @@ button.brand:active .brand-mark,
 /* The Zentrum is a stable drawing surface under an observed reading. Its geometry names places;
    only the coloured traversals claim that a line is currently using the connection.
 
-   One drawing, not four readings of one: following a line is a selection on it, so the mode
-   control that used to stand over the plan is gone — and so is the page's written head. The plan
-   *is* the page: a name and a sentence above it cost the drawing a band of every screen to say
+   One drawing, not four readings of one: following a line is a selection on it, so there is no
+   mode control over the plan, and no written head either. The plan *is* the page: a name and a sentence above it cost the drawing a band of every screen to say
    what the tab the reader pressed already said, so the drawing starts at the top of the panel and
    takes every row under it. What the drawing cannot say of itself is still said, at its foot, by
    the caption. */
@@ -1703,7 +1702,7 @@ button.brand:active .brand-mark,
 /* What cannot be read off the drawing — that the marks are estimates, and which stretches are the
     ones still ahead — said on the control band, between the legend and the zoom. Plain text on the
     controls' own baseline rather than a pill on a row of its own: it is a note about the drawing,
-    not a control, and the row it used to take is a row the plan now gets. Which lines are drawn is
+    not a control, and the plan gets the row a pill would take. Which lines are drawn is
     the legend beside it; where the reading came from is the page's provenance footer. */
 .zentrum-schematic-caption {
   flex: 0 1 auto;
@@ -1888,8 +1887,7 @@ button.brand:active .brand-mark,
    It is laid out as the comparison it is: the direction on the left with the room to be read, its
    next departures on the right in columns that are the same width under every line of the board. So
    the next tram of the 2 stands directly above the next tram of the 5 — the comparison itself,
-   drawn. Each strip used to begin wherever its own direction happened to end, which left three
-   countdowns to be compared across three different left edges. */
+   drawn, rather than three countdowns compared across three different left edges. */
 /* One tier for the whole reading: the columns every strip on the board is laid out in, and how
    many of them there are — the busiest direction on this board decides that, so a quiet board is
    not laid out around columns none of its lines can fill. The columns are all one width, so the
@@ -2328,9 +2326,8 @@ button.brand:active .brand-mark,
    back out of the panel's padding to both edges, and every row carries the inset itself. So what a
    row *is* — its tint, the hairline it closes on, the ruled columns of the line reading — reaches
    the divider the panel stands against and the edge opposite it, while what a row *says* still
-   starts on the board's own margin, directly under the stop's name. The padding used to sit on the
-   list, which stopped every rule and every selection tint a finger's width short of the panel and
-   left a board that is the whole of this view reading as a card dropped into it. */
+   starts on the board's own margin, directly under the stop's name. Padding on the list would stop
+   every rule and selection tint a finger's width short of the panel. */
 .departure-board-list {
   /* How far a row's rule and its tint reach past the row's words, and so also where those words
      begin: the list steps out by this much and every row puts it back, which is what lands the
@@ -2466,8 +2463,7 @@ button.brand:active .brand-mark,
 }
 /* The bridge is drawn on every row and grown only on the pinned one, so the mark reaches the panel
    divider in the same beat the row takes its tint — rather than being cut in at full width one
-   frame after the address changed. It fills the row's own left margin now that the row reaches the
-   divider itself; it used to reach out of a list that stopped short of one. */
+   frame after the address changed. It fills the row's own left margin. */
 .departure::before {
   content: "";
   position: absolute;
@@ -3998,8 +3994,8 @@ button.line-diagram-bundle-option:focus-visible {
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 0 7px;
-  /* Asymmetric on purpose: this is the space that used to stand above the band as paper. Inside it,
-     it sets the sign nearer the departures it heads than the line it closes off. */
+  /* Asymmetric on purpose: it sets the sign nearer the departures it heads than the line it closes
+     off. */
   padding: 11px var(--row-inset) 5px;
   border: 0;
   background: transparent;
@@ -5152,9 +5148,7 @@ button.line-diagram-bundle-option:focus-visible {
     min-height: 34px;
     font-size: 13px;
   }
-  /* Stacked, a stop is one column: its board, read in whichever of the three orders the rider chose.
-     There used to be a second panel here listing the same departures again, which the board had to
-     be ordered above — a rider scrolled past the whole board and met its trips a second time. */
+  /* Stacked, a stop is one column: its board, read in whichever of the three orders the rider chose. */
   .dashboard {
     min-height: 0;
     display: flex;

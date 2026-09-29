@@ -80,10 +80,9 @@ export interface TransitSource {
    * Several stops of one line, read as the rows they have and completed with each run's calls.
    *
    * The reading a line diagram is drawn from: it wants every stop of the line, and behind every row
-   * the whole run. Asking each board for the runs as well is what that used to mean, and it made
-   * the same run's calling sequence arrive once per stop it had yet to leave — fifteen times over
-   * for a city line. Here the boards state which runs are running and each run states itself,
-   * once. Never rejects, for the same reason `getDepartureBoard` does not.
+   * the whole run. Asking each board for the runs as well would transfer the same run's calling
+   * sequence once per stop it has yet to leave — fifteen times over for a city line. Here the boards
+   * state which runs are running and each run states itself, once. Never rejects, for the same reason `getDepartureBoard` does not.
    */
   getLineDepartureBoards(
     stopIds: readonly string[],
@@ -346,8 +345,8 @@ export class KvvTransitSource implements TransitSource {
   ): Promise<DepartureBoard[]> {
     // The rows first, and only the rows. A board filtered to named directions cannot hold another
     // line, so it needs none of the mode macros — and without them it answers without the calling
-    // sequences too, which is the whole saving: one line's stop read this way is a fifth of the
-    // board it used to be.
+    // sequences too, which is the whole saving: one line's stop read this way is a fifth of a
+    // detailed board.
     const boards = await Promise.all(
       stopIds.map((stopId) => this.getDepartureBoard(stopId, { routeDirectionIds, maxAgeMs })),
     );
@@ -404,7 +403,7 @@ export class KvvTransitSource implements TransitSource {
             return stopIds;
           })
           // A route that could not be read is asked for again; the reading falls back to what the
-          // runs in hand describe, which is where it stood before this existed.
+          // runs in hand describe.
           .catch(() => undefined),
       )
     );

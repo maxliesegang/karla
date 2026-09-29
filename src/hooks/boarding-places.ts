@@ -18,8 +18,7 @@ const NO_BOARDING_PLACES: StopBoardingPlaces = [];
  * takes that timing out of the reading — a stop observed once to be two places stays two places for
  * the visit, rather than folding back together on the refresh that dropped the evidence.
  *
- * A stop with one place answers with none: there is no choice to offer, and every ordinary stop
- * reads exactly as it did before this existed.
+ * A stop with one place answers with none: there is no choice to offer.
  */
 export function useStopBoardingPlaces(
   stopId: string | undefined,

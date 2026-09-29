@@ -11,11 +11,8 @@ import { ServiceNoticeList } from "./ServiceNoticeList";
 /**
  * What the operator published about *this* stop, kept beside the board it concerns.
  *
- * The count that used to sit in the bar was filtered to the stop and its lines, and opened the
- * network list — so *Meldungen 3* at Marktplatz promised three facts about Marktplatz and delivered
- * a page to search (F7). The three facts are here instead, where they were counted, disclosed from
- * the stop's own menu rather than stepping the rider away from the departures they change the
- * meaning of.
+ * The notices filtered to the stop and its lines are disclosed here, beside the departures they
+ * change the meaning of, rather than on a network-wide page the rider would have to search.
  *
  * It never speaks unless it has something to say. A stop with nothing announced shows nothing: the
  * calm reading belongs to the view that is about notices (E3), and asserting it here would put a

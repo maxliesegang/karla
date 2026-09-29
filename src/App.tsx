@@ -64,8 +64,7 @@ export default function App() {
   // need are asked before the selection resolves, because they decide what is fetched. One
   // observation cycle feeds the running-line list and whichever primary panel is visible, which
   // keeps the shell and the Zentrum view consistent; its cadence is decided by whether anything in
-  // view actually reads from it. A diagram's vehicle marks used to, which is what held it at the
-  // fast cadence; they are read from the line's own filtered boards now, which see more of the line.
+  // view actually reads from it.
   const isStationBoardView = isStationBoardStopView(route.view, isStationBoardMode);
   const isObservedNetworkInView = readsObservedNetwork(route.view);
   const {
@@ -176,8 +175,7 @@ export default function App() {
 
   const { activeView, isLineInView, isRideInView, isStandaloneView } = layout;
 
-  // Selected for the stop in view and disclosed from the stop's own menu — the same selection that
-  // used to be counted in the bar and then opened as an unfiltered network list (F7, W7).
+  // The notices for the stop in view and its lines, disclosed from the stop's own menu.
   const stopNotices =
     noticeBoard?.dataStatus === "live" && !isStandaloneView && selectedStop
       ? findNoticesForStop(noticeBoard.notices, selectedStop.id, [
@@ -395,9 +393,7 @@ export default function App() {
                 onRefresh={selection.refreshBoard}
                 /* What KVV announced about this stop, at the board's foot. It rides the board
                    because that is the list it answers for, and it stays while one of the stop's
-                   lines is in view. Its other half used to be a Linien control that scrolled the
-                   page here and navigated there — it is gone with the panel it scrolled to, and the
-                   lines are now one of this board's own three orders. */
+                   lines is in view. */
                 bottomMenu={
                   activeView === "stop" || isLineInView ? (
                     <StopBottomMenu

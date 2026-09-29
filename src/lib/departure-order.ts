@@ -151,10 +151,8 @@ let currentDepartureBoardOrder: DepartureBoardOrder | undefined;
 /**
  * Everything currently reading the preference, so that changing it moves the whole app at once.
  *
- * The order used to be one panel's own state, and could be while it decided nothing but how that
- * panel gathered rows it already had. It now also decides what the board is asked for, and the ask
- * is made above the panel — so the preference is one value the app shares rather than two copies
- * that would disagree for as long as it took a rider to notice.
+ * The order also decides what the board is asked for, and that request is made above the panel, so
+ * the preference is one value the app shares rather than copies that could disagree.
  */
 const departureBoardOrderListeners = new Set<() => void>();
 

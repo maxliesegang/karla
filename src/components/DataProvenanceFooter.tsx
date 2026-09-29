@@ -67,10 +67,8 @@ export function DataProvenanceFooter({
         : coverage?.status === "unavailable"
           ? "nicht erreichbar"
           : coverage?.status === "partial" && oldestLiveBoard
-            ? // How much of the Zentrum this reading rests on, in the one place that answers for
-              // where the reading came from. It used to be a clause of the plan's own caption, in
-              // warning ink, at the end of a sentence describing which mode the plan was in — a
-              // caveat about the *source* filed under the drawing rather than under the source.
+            ? // How much of the Zentrum this reading rests on: a fact about the source, so it is
+              // stated here rather than in the plan's caption.
               `teilweise erreichbar · aus ${coverage.liveBoardCount} von ${coverage.expectedBoardCount} Haltestellen · ältester Stand ${formatClockTime(oldestLiveBoard.feedUpdatedAt)}`
             : isLoading
               ? "wird geladen …"

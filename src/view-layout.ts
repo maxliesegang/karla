@@ -3,9 +3,7 @@
  *
  * The address says what was asked for and `selection.ts` says what of it still resolves; this says
  * what that means for the two halves of the dashboard — which of them is present, which is wide,
- * and what each is showing. It used to be a dozen booleans computed inline in `App.tsx`, each
- * spelling out a corner of the same question, which is why a new view had to be threaded through
- * all of them to be laid out correctly.
+ * and what each is showing. Keeping it in one place means a new view is laid out by adding it here.
  *
  * It is pure and holds no React: the layout of a view is a fact about an address, testable without
  * mounting anything.
@@ -161,8 +159,7 @@ export function getViewLayout({
  * Step up drops exactly one thing from the address the rider is at, so where it leads is readable
  * off the URL before it is pressed. Computed from the resolved selection rather than from the raw
  * address, so a level that has already dropped is not stepped back into — and never from live data,
- * which is what used to land a rider leaving a ride at a stop the vehicle happened to be running
- * towards and they had never seen.
+ * which could land a rider leaving a ride at a stop they have never seen.
  */
 function getBackPath(
   route: AppRoute,

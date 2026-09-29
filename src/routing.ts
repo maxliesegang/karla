@@ -246,9 +246,8 @@ export function parseRoute(hash: string): AppRoute {
       };
     }
     case "network":
-      // The line index is one page of the whole observed network. The two scopes it was once read
-      // in (`/network/city`, `/network/region`) are gone with the control that named them, and an
-      // old link simply opens the page.
+      // The line index is one page of the whole observed network; legacy scoped links
+      // (`/network/city`, `/network/region`) open it.
       return { ...defaultRoute, view: "network" };
     case "nearby":
       return { ...defaultRoute, view: "nearby" };
@@ -332,9 +331,8 @@ export const routePaths = {
  * pages and asks nothing of the network. A rider opening KARLA is nearly
  * always standing at one of the two or three stops they use, and that stop is already known without
  * asking anyone anything: it needs no permission, answers offline, and was chosen by the rider
- * rather than inferred. The bare address used to open the nearby view, which meant every rider with
- * no history and every rider with a full one alike met an idle permission prompt before the app
- * said a single true thing (A1, F5).
+ * rather than inferred. Opening on the nearby view instead would greet every rider with a permission
+ * prompt before the app says anything true.
  *
  * The recalled stop is a starting point, not a claim about where the rider is standing — it is the
  * stop they departed *from*, which is one they are not necessarily at (A7). The list under the

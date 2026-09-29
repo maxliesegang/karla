@@ -9,9 +9,8 @@ export type ZentrumPlanBox = { width: number; height: number };
  *
  * `1` is the whole Zentrum at once, and it is where the plan opens: a plan of a place is read
  * whole first and in detail second, and a reader who arrives already scrolled has to find the
- * Zentrum before they can read it. It used to open a step in, because the stops were drawn as
- * hulls large enough to need the room; a stop is a rule now, and the whole plan is legible in the
- * box the panel gives it.
+ * Zentrum before they can read it. Stops are drawn as rules, so the whole plan is legible in the box
+ * the panel gives it.
  */
 export const ZENTRUM_ZOOM_STEPS = [1, 1.3, 1.7, 2.2, 2.9] as const;
 

@@ -9,10 +9,8 @@ import type { ZentrumLineSignReader } from "./line-sign";
  * reach toggle stays beside it, because it changes the map's visual reading rather than the route
  * being followed. Beside them stands the size the plan is read at.
  *
- * The caption rides the same band, between the two. It used to stand on a row of its own as a
- * bordered pill, which gave the foot of the page two lines of chrome that lined up with nothing:
- * a pill floating over the legend under it. Set as plain text on the controls' own baseline it
- * says exactly as much, and the plan gets the row back.
+ * The caption rides the same band, between the two, as plain text on the controls' baseline, so
+ * the plan does not lose a row to it.
  */
 export function ZentrumSchematicToolbar({
   caption,

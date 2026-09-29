@@ -46,10 +46,10 @@ export type ZentrumSchematicStopMark = {
    * How far the station reaches from its authored coordinate, on each of the four sides a name may
    * stand on.
    *
-   * One enclosing radius was the reading before this, and a radius is the wrong measure: a rule
+   * One enclosing radius would be the wrong measure: a rule
    * pushed out along Karlstor's eastern arm is two lane widths east of the coordinate and nothing
-   * at all west of it, yet the radius spaced the western name off by the whole of that reach. The
-   * name then floated a band's width clear of the station it names, which on a plan of
+   * at all west of it, yet a radius would space the western name off by the whole of that reach. The
+   * name would then float a band's width clear of the station it names, which on a plan of
    * twenty-five names is the difference between reading a label and hunting for its stop. Each
    * side is therefore measured on its own, over the rules drawn here and over the paint of every
    * corridor leaving the stop, so a name stands exactly clear of what is drawn on its side and no

@@ -56,8 +56,8 @@ import { getBoardTimetableTrips } from "./trips";
 /**
  * The posts the Zentrum list rests on.
  *
- * Four, because past that the additions were redundant with each other: dropping either Kronenplatz
- * or Ettlinger Tor from the old five cost nothing at all at the worst reading, both of them sitting
+ * Four, because past that the additions were redundant with each other: adding Kronenplatz or
+ * Ettlinger Tor as a fifth adds nothing at the worst reading, both of them sitting
  * mid-corridor on axes that Europaplatz and the Hauptbahnhof already run end to end through.
  * Each of these four costs something to drop.
  */

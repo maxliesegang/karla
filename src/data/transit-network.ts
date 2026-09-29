@@ -9,8 +9,7 @@ import type { TransitNetwork, TransitStop } from "./transit-types";
  * Which stops those are is `kvv-stop-mappings.ts`: a stop the app addresses by a stable id is a
  * stop it has a provider id for, and there is no second list to keep in step with that one. What a
  * stop is called and where it stands are facts the operator publishes, read from the generated
- * catalog rather than typed here — half the hand-typed positions this file used to carry sat over
- * 100 m from the stop, one of them 501 m, against the 900 m that decides whether the nearby ranking
+ * catalog rather than typed here — hand-typed positions drift by hundreds of metres, against the 900 m that decides whether the nearby ranking
  * offers a stop at all.
  *
  * What is left below is the part no source states: the one place where the operator's name is not

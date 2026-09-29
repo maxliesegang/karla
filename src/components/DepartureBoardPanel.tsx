@@ -304,11 +304,9 @@ function BoardingPlaceGroup({
 /**
  * The places of a stop as a way to move through the board, not a way to shrink it.
  *
- * A rider arriving at a stop that is two places does not read both boards; they walk to one. These
- * buttons used to answer that by narrowing the board to the chosen place — a filter, which hid the
- * rest of the board behind a choice made before any row was read, and hid with it the one thing
- * the choice was made for: the walk between the places. Now the whole board always stands, and the
- * buttons say where it is being read: tapping one walks the board to that place's own section, and
+ * A rider arriving at a stop that is two places walks to one of them. The buttons do not filter the
+ * board, which would hide the rest of it behind a choice made before any row was read; the whole
+ * board always stands, and the buttons say where it is being read: tapping one walks the board to that place's own section, and
  * as the board scrolls the place whose heading is stuck at the top is marked — the same signpost
  * the sticky headings show, echoed on the buttons.
  *

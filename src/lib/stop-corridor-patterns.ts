@@ -145,10 +145,9 @@ export function updateStopCorridorPatterns(
 
   // One trip is read by several boards at once — its own detailed board and whichever observation
   // posts happen to see it — and those readings need not agree about the calls after this stop.
-  // Whoever wrote last used to win, which made this function disagree with itself: two readings of
-  // one trip overwrote each other on every pass, so a re-read that had taught nothing still returned
-  // a new memory and `useStopCorridorPatterns` never reached the fixed point it sets state against.
-  // The first reading of a trip in a pass is the one kept, and `topologyDepartures` puts the stop's
+  // If the last reading won, two readings of one trip would overwrite each other on every pass, and
+  // `useStopCorridorPatterns` would never reach the fixed point it sets state against. So the first
+  // reading of a trip in a pass is the one kept, and `topologyDepartures` puts the stop's
   // own detailed board in front of the observation posts — which is the reading that should win.
   const readTripKeys = new Set<string>();
 
@@ -301,8 +300,8 @@ function createPlaceLineFamiliesDraft(base: PlaceLineFamilies) {
  * otherwise from the route its line runs towards that headsign.
  *
  * The line-and-headsign fallback is what covers the trips further down the board than any detailed
- * reading reached. It needs a clear winner rather than a single answer: one oddly reported run out
- * of a dozen readings used to withdraw the pattern from every trip on the line, whereas two routes
+ * reading reached. It needs a clear winner rather than a single answer, so one oddly reported run
+ * out of a dozen does not withdraw the pattern from every trip on the line, whereas two routes
  * observed equally often really are two branches, and neither may speak for the other.
  */
 export type StopCorridorPatternMatch = {

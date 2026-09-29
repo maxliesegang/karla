@@ -23,10 +23,9 @@ export const LINE_OBSERVATION_REFRESH_MS = 90_000;
 /**
  * The cadence for the posts the Zentrum list is read from.
  *
- * This used to be ninety seconds, which was the cadence of a view that read its vehicle marks from
- * these boards. The line diagram takes its own filtered boards along the line, a rider's own stop
- * fetches its own board, and the Zentrum map places its marks from the runs' own re-reads
- * (`useZentrumVehicles`) — these boards only name which runs exist — so what rests on this
+ * No vehicle mark is placed from these boards: the line diagram reads its own filtered boards, a
+ * rider's stop fetches its own board, and the Zentrum map places its marks from the runs' own
+ * re-reads (`useZentrumVehicles`). These boards only name which runs exist, so what rests on this
  * observation is which stops have service, which lines call there, where the stops are, and the
  * signs a badge is drawn from. None of that is a countdown, and none of it becomes wrong in ninety
  * seconds.
@@ -41,8 +40,8 @@ export const ZENTRUM_OBSERVATION_REFRESH_MS = 5 * 60_000;
  *
  * These answer a question that is nearly static: which lines the operator is running today, and
  * where the stops of the network are. A line does not appear or vanish between two refreshes of
- * anything, and a stop does not move. Twenty minutes is chosen so that the five of them together
- * cost less over an hour than one post did at the old cadence.
+ * anything, and a stop does not move. At twenty minutes the five of them together cost less over an
+ * hour than one post read every ninety seconds.
  */
 export const REACH_OBSERVATION_REFRESH_MS = 20 * 60_000;
 /**
