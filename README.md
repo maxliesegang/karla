@@ -16,31 +16,36 @@ npm run dev
 
 ## Addresses
 
-Routing is hash-based, so every view is a shareable deep link. Three entry points and one selection
-chain, each level refining the one above it:
+Routing is hash-based, so every view is a shareable deep link. A few pages and one selection chain,
+each level refining the one above it:
 
+- `#/` — the home: search, recent stops, and the other pages
 - `#/center` — the Zentrum's plan: one drawing of what is running through it
 - `#/center/line/2` — that plan following one line, with the rest of the band receded
 - `#/center/full`, `#/center/full/line/2` — the same plan read at the size of the screen
-- `#/network/city`, `#/network/region` — the line index
+- `#/network` — the line index
 - `#/nearby` — the six nearest observed stops after a location reading
 - `#/notices` — KVV's published notices relevant to the KARLA network
+- `#/settings` — where the app opens, whether it remembers stops, whether diagrams show other vehicles
 - `#/stop/europaplatz` — a stop with its departure board
 - `#/stop/europaplatz/line/2` — a line calling there, beside the board
 - `#/stop/hochstetten/line/S1+S11` — two of them read together over the stretch they share
 - `#/stop/europaplatz/line/2/trip/:tripId` — one trip of that line, highlighted
 - `#/stop/europaplatz/trip/:tripId` — one trip opened from the stop board, with the board as its parent
 - `#/trip/:tripId` — that trip read on its own: the ride
-- `#/trip/:tripId/to/:stopId` — the same ride with the rider's alighting stop marked
+- `#/trip/:tripId/from/:stopId/to/:stopId` — the ride with where the rider got on and gets off;
+  either part may be left out
 
-Legacy links (`#/line/2`, `#/stop/…/lines`, `#/departure/…`, `#/ride/…`) still resolve and are
-rewritten to the canonical chain; the old combined `line/S1-S11` is read as the bundle `S1+S11`.
+`#/line/2` names no stop; it opens the first stop the line is seen calling at. Legacy links
+(`#/stop/…/lines`, `#/departure/…`, `#/ride/…`, `#/network/city`, `#/center/stops`) still resolve
+and are rewritten; the old combined `line/S1-S11` is read as the bundle `S1+S11`.
 
-With no address the app opens the stop last read, and `#/center` for a reader with no history. It
-never opens on a location prompt: the busiest Zentrum platforms are underground, where a fix is
-unusable, and a remembered stop needs no permission and answers instantly. Location is a control:
-the *Nähe* button in the bar locates on request and opens the closest stop. If that inference is
-wrong, *Andere* opens `#/nearby` with the six nearest observed alternatives.
+With no address the app opens the stop last read, or the home for a reader with no history (the
+*Beim Öffnen* setting can always open the home). It never opens on a location prompt: the busiest
+Zentrum platforms are underground, where a fix is unusable, and a remembered stop needs no
+permission and answers instantly. Location is a control: the *Nähe* button locates on request and
+opens the closest stop. If that inference is wrong, *Andere* opens `#/nearby` with the six nearest
+observed alternatives.
 
 The stops read recently are listed under the search on the home, and fill the search field while
 nothing is typed. The stop they name is the one the rider last departed *from*, so it is offered as
@@ -56,8 +61,8 @@ platform, `platform=2,3` for an island pair. Platform names are normalised (`2`,
 
 | Parameter | Effect |
 | --- | --- |
-| `rows=3…20` | fixed row count; type size follows the row height |
-| `detail=note\|via\|off` | second line: operating note, else the route, or nothing |
+| `rows=3…20` | fixed row count (default 8); type size follows the row height |
+| `detail=note\|via\|off` | second line: operating note (default), else the route, or nothing |
 | `minMinutes=0…30` | lead time; unreachable departures are not listed |
 | `group=platform` | order by platform instead of by time |
 | `reloadMinutes=15…10080` | self-reload so a deploy arrives (default 24 h) |
@@ -82,7 +87,10 @@ dropped in the same pass, by the pool the feed states for every line.
 
 `src/lib/observed-network.ts` builds the served stops and the lines calling there out of those live
 trips: a line that stops running leaves the view by itself. The only authored data left is which
-stops count as the Zentrum (`src/data/zentrum-stops.ts`) and the verified KVV line colours.
+stops count as the Zentrum (`src/data/zentrum-stops.ts`), the Zentrum's drawing
+(`src/lib/zentrum-schematic-plan.ts`, solved by `npm run solve:zentrum`), and the KVV line colours
+transcribed from GTFS (`src/data/line-signs.ts`). The stop catalog in `src/data/generated/` is
+written by `npm run refresh:stops` from EFA and GTFS ([`docs/kvv-gtfs.md`](docs/kvv-gtfs.md)).
 
 ### Reading depth
 
@@ -98,7 +106,7 @@ a rider reads is untouched by this: it is read whole, and the operator's mode fi
 sequences whether or not they were asked for.
 
 The two halves also read apart in time. The boards stay on the line's ninety-second observation
-cadence, while the runs' readings are re-read on a tolerance of their own (`LINE_RUN_MAX_AGE_MS`),
+cadence, while the runs' readings are re-read on a tolerance of their own (`LINE_RUN_READING_MAX_AGE_MS`),
 a minute to a minute and a half — the diagram places vehicles from the runs' calls, and the feed
 revises those about every thirty-five seconds. What a rider reads beside a row is still the board
 row's; the one trip that reads faster is the ride itself, on the thirty-second board cadence.

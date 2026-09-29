@@ -30,7 +30,7 @@ The tested `sl3-alone` endpoints mirror the caller's `Origin` in
 without a backend. Use only simple request headers. In particular, do not attempt to set
 `User-Agent` or add custom headers that would cause an unnecessary preflight.
 
-Requests should be bounded by an abort timeout. KARLA currently uses eight seconds.
+Requests should be bounded by an abort timeout. KARLA currently uses twenty seconds (`DEFAULT_TIMEOUT_MS`).
 
 ### Common parameters
 
@@ -79,7 +79,7 @@ difference of whole minutes, and counting them puts every row a minute below the
 | Endpoint | Role | KARLA status |
 | --- | --- | --- |
 | [`XSLT_DM_REQUEST`](https://projekte.kvv-efa.de/sl3-alone/XSLT_DM_REQUEST?) | Departures, arrivals, realtime state, optional stop sequences | In use |
-| [`XML_TRIPSTOPTIMES_REQUEST`](https://projekte.kvv-efa.de/sl3-alone/XML_TRIPSTOPTIMES_REQUEST?) | One observed trip's calls and times | In use for a selected trip |
+| [`XML_TRIPSTOPTIMES_REQUEST`](https://projekte.kvv-efa.de/sl3-alone/XML_TRIPSTOPTIMES_REQUEST?) | One observed trip's calls and times | In use for each run out on a line and the selected trip |
 | [`XSLT_STOPFINDER_REQUEST`](https://projekte.kvv-efa.de/sl3-alone/XSLT_STOPFINDER_REQUEST?) | Stop and location search | In use for stops |
 | [`XSLT_ADDINFO_REQUEST`](https://projekte.kvv-efa.de/sl3-alone/XSLT_ADDINFO_REQUEST?) | Published service notices | In use |
 | [`XSLT_COORD_REQUEST`](https://projekte.kvv-efa.de/sl3-alone/XSLT_COORD_REQUEST?) | Stops and objects inside a bounding box | Verified, not in use |
@@ -92,7 +92,7 @@ difference of whole minutes, and counting them puts every row a minute below the
 | `XSLT_ROP_REQUEST` | Line route-plan document/data (`reqType=lvp`) | Reachable; answered an empty `lineByName` for every parameter set tried |
 | `XSLT_ROUTE_REQUEST` | Printable route material | Available, not in use |
 | `XML_GEOOBJECT_REQUEST` | Line geometry | Available, not in use |
-| [`XML_STOPSEQCOORD_REQUEST`](https://projekte.kvv-efa.de/sl3-alone/XML_STOPSEQCOORD_REQUEST?) | A line's whole route, terminus to terminus, plus its geometry | Verified, not in use |
+| [`XML_STOPSEQCOORD_REQUEST`](https://projekte.kvv-efa.de/sl3-alone/XML_STOPSEQCOORD_REQUEST?) | A line's whole route, terminus to terminus, plus its geometry | In use as the seed of a line's reading (`fetchLineRoute`) |
 | `https://projekte.kvv-efa.de/json` | Nominal live vehicle positions | Returned HTTP 400; do not use |
 
 ## Departure monitor: `XSLT_DM_REQUEST`
@@ -1051,11 +1051,11 @@ Any new use of these APIs must preserve the following boundaries:
 3. The live network is observed from current trips, not authored from timetable endpoints.
 4. A plain board stays lightweight and polls only while visible; the shared core observation drops
    to an idle cadence on views that only borrow its line signs, stop positions and interchanges
-   (`isObservedNetworkInView` in `src/view-layout.ts`).
+   (`readsObservedNetwork` in `src/view-layout.ts`).
 5. Batched whole-stop sequences stay on observation/topology cadences. A line's boards and its
    runs are two readings on two clocks: the boards name which runs exist and keep the line
    observation cadence; the runs are re-read alone from their locators at the line's trip
-   tolerance (`tripMaxAgeMs`, named apart from the boards'), because a diagram places vehicles
+   tolerance (`LINE_RUN_READING_MAX_AGE_MS`, named apart from the boards'), because a diagram places vehicles
    from the runs' calls. The trip a rider is sitting in reads on the board's cadence.
 6. No departure response is written to the service-worker cache.
 7. Feed time anchors countdowns and freshness.

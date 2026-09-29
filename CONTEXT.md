@@ -117,7 +117,7 @@ _Avoid_: cache (implies rebuildable), store (bare)
 
 **Run record key**:
 The undated address a run's evidence and requests are shared under (`run:line|tripCode`). Deliberately
-carries no date — see ADR-0001.
+carries no date — see ADR-0002.
 _Avoid_: run key (bare), trip key
 
 **Run mark key**:

@@ -13,9 +13,10 @@ npm run format         # biome format --write . — the formatter is the style a
 npm test               # tests and build must pass before handing off a change
 npm run refresh:stops  # regenerates src/data/generated from the operator's published data
 npm run solve:zentrum  # measures the Zentrum plan against the feed, and solves for a truer one
+npm run probe:*        # live feed measurements behind the timing constants and ADR 0002
 ```
 
-`dist` is built and deployed by GitHub Actions on push to `main`; don't commit it.
+GitHub Actions tests, builds and deploys `dist` on push to `main`; don't commit it.
 
 ## Layout
 
@@ -25,10 +26,13 @@ npm run solve:zentrum  # measures the Zentrum plan against the feed, and solves 
 | [src/routing.ts](src/routing.ts) | hash routes and path builders |
 | [src/selection.ts](src/selection.ts) | resolving the stop / line / trip chain against live data |
 | [src/view-layout.ts](src/view-layout.ts) | what an address means for the two panels |
-| [src/lib/](src/lib/) | domain logic: observed network, feed clock, ride progress, notices |
-| [src/data/](src/data/) | `TransitSource` boundary, EFA client and parsers |
+| [src/lib/](src/lib/) | pure domain logic: observed network, feed clock, placement, Zentrum plan |
+| [src/hooks/](src/hooks/) | React glue: polling, store subscriptions, device state |
+| [src/components/](src/components/) | views; German copy |
+| [src/data/](src/data/) | `TransitSource` boundary, `RunReadingStore`, EFA client and parsers |
 | [src/data/generated/](src/data/generated/) | written by [scripts/](scripts/) from published data; never edited by hand |
 | [tests/](tests/) | `node --test` over the pure modules; no DOM, no network |
+| [docs/kvv-efa-api.md](docs/kvv-efa-api.md) | verified feed behaviour; read before changing a request or parser |
 
 ## Naming
 
@@ -54,7 +58,7 @@ spelling verbatim (`trainNum`, `stopSeqCoords`).
 - **One reading of a run, and the source holds it** ([ADR 0001](docs/adr/0001-one-run-reading-store.md)).
   `RunReadingStore` keeps one record per run; views keep only the *ids* of runs (`useRuns`), and
   every board hook hands out boards through `useLiveBoards`, so a row is never looked up again by
-  hand. `Departure.readAt` is set once and never rewritten.
+  hand. `Departure.readAt` is stamped only at the source boundary, one clock per half (row, sequence).
 - **Boards change whenever a run is re-read.** State derived from boards compares before it sets,
   never inside an updater: an effect that set state per board tripped React's nested-update limit.
 - **A drawing owns its marks' motion.** `getRunPlacement` takes the drawing's `RunMotions`
@@ -76,8 +80,8 @@ spelling verbatim (`trainNum`, `stopSeqCoords`).
   evidence and requests, `getRunMarkKey` is the dated identity a drawn mark is followed by,
   `getBoardRowKey` collapses a board's two rows for one run.
 - **Views never touch a provider.** Fetching, id resolution, and merging live behind `TransitSource`.
-- **Routing is hash-based and goes through `routePaths`.** Components get routing, data, and time as
-  props and never touch `window`.
+- **Routing is hash-based and goes through `routePaths`.** Components navigate with `navigateTo` and
+  take time from props or clock hooks; they never read `window.location` or `Date.now()`.
 - **A bundle is a view, not an identity.** Two lines may be *read* together over an observed shared
   stretch, addressed `line/S1+S11` and chosen by the rider; `lib/line-families.ts` never merges them.
 - **Each level of the chain drops back on its own.** Never drop a level on a feed failure, and never
