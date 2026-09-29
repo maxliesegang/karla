@@ -13,60 +13,6 @@ const STOP_TOPOLOGY_REFRESH_MS = 30 * 60_000;
 /** Notices are written by hand and published for weeks; asking often would only cost the rider data. */
 const SERVICE_NOTICE_REFRESH_MS = 15 * 60_000;
 
-const createDepartureBoardLoader = (request: DepartureBoardRequest) => (stopId: string) =>
-  transitSource.getDepartureBoard(stopId, request);
-
-/**
- * The key that names stops and, optionally, route direction ids: `stopIds|routeDirectionIds`. Stop slugs and provider
- * direction ids contain neither separator.
- */
-const parseStopLineKey = (key: string): { stopKey: string; lineKey: string } => {
-  const [stopKey = "", lineKey = ""] = key.split("|");
-  return { stopKey, lineKey };
-};
-
-/** One stop's board restricted to one line's directions; the key is `stopId|directionIds`. */
-const loadLineStopBoard = (key: string) => {
-  const { stopKey: stopId, lineKey } = parseStopLineKey(key);
-  return transitSource.getDepartureBoard(
-    stopId,
-    lineKey ? { routeDirectionIds: lineKey.split(",") } : {},
-  );
-};
-
-/**
- * What a batched reading is asked for: what one board is asked for, plus — on a line's reading
- * only — how stale the runs' own re-reads may be. A whole-stop reading carries its runs inside the
- * boards, and a single board has no runs of its own, so there the field has no one to speak to.
- */
-type DepartureBoardsRequest = DepartureBoardRequest & {
-  runMaxAgeMs?: number;
-};
-
-/**
- * Several stops at once, keyed by the joined ids `useKeyedLoad` addresses them under, optionally
- * with a line filter after a `|`.
- *
- * The filter is not a narrowing of the same reading but a different one. A stop's board is asked
- * for the trips behind its rows, because those trips are what the network is observed from and
- * nothing else will state them. A line's stops are not read that way: the same run is listed at
- * every stop it has yet to leave, so asking each board for it again transfers one calling sequence
- * fifteen times to learn it once. `getLineDepartureBoards` reads the rows and then the trips —
- * see `transit-source.ts`, where both halves and their dating live.
- */
-export const createDepartureBoardsLoader = (request: DepartureBoardsRequest) => (key: string) => {
-  const { stopKey, lineKey } = parseStopLineKey(key);
-  const stopIds = stopKey.split(",");
-  if (lineKey) {
-    return transitSource.getLineDepartureBoards(stopIds, {
-      routeDirectionIds: lineKey.split(","),
-      maxAgeMs: request.maxAgeMs,
-      runMaxAgeMs: request.runMaxAgeMs,
-    });
-  }
-  return Promise.all(stopIds.map(createDepartureBoardLoader(request)));
-};
-
 /**
  * What every direction calling at the stop has to contribute before the board is complete.
  *
@@ -83,48 +29,30 @@ const BOARD_MINIMUM_DEPARTURES_PER_DIRECTION = 3;
  * of these, never a combination of them, and naming it keeps that decision at the view that makes
  * it.
  */
-const departureBoardLoaderByVariant = {
+const departureBoardRequestByVariant = {
   /** What leaves next, and nothing more: the smallest board and the one every reading starts from. */
-  plain: createDepartureBoardLoader({}),
+  plain: {},
   /** The same board, topped up so no direction calling here is missing from it. */
-  covered: createDepartureBoardLoader({
-    minimumDeparturesPerDirection: BOARD_MINIMUM_DEPARTURES_PER_DIRECTION,
-  }),
+  covered: { minimumDeparturesPerDirection: BOARD_MINIMUM_DEPARTURES_PER_DIRECTION },
   /** Every departure with the trip behind it — the heavy reading, for a board that prints `via`. */
-  calls: createDepartureBoardLoader({ includeTripCalls: true }),
-};
+  calls: { includeTripCalls: true },
+} satisfies Record<string, DepartureBoardRequest>;
 
-export type DepartureBoardVariant = keyof typeof departureBoardLoaderByVariant;
+export type DepartureBoardVariant = keyof typeof departureBoardRequestByVariant;
 
-const DEFAULT_DEPARTURE_BOARD_VARIANT: DepartureBoardVariant = "plain";
-
-const isDepartureBoardVariant = (value: string): value is DepartureBoardVariant =>
-  value in departureBoardLoaderByVariant;
-
-/**
- * One stop's board in the variant its key names, `stopId|variant`. Stable, because the load is an
- * effect dependency: a loader built per render would restart the refresh chain on every one of them.
- */
-const loadDepartureBoardVariant = (key: string) => {
-  const { stopKey: stopId, lineKey } = parseStopLineKey(key);
-  const variant = isDepartureBoardVariant(lineKey) ? lineKey : DEFAULT_DEPARTURE_BOARD_VARIANT;
-  return departureBoardLoaderByVariant[variant](stopId);
-};
-const loadStopTopologyBoard = createDepartureBoardLoader({
+const STOP_TOPOLOGY_REQUEST: DepartureBoardRequest = {
   includeTripCalls: true,
   maxAgeMs: STOP_TOPOLOGY_REFRESH_MS,
-});
+};
 
 const SINGLE_BOARD_LOAD_OPTIONS: KeyedLoadOptions<DepartureBoard> = {
   refreshMs: DEPARTURE_BOARD_REFRESH_MS,
   isFailure: isFailedBoard,
 };
 
-const loadServiceNotices = () => transitSource.getServiceNotices();
-const isUnavailableNoticeBoard = (board: ServiceNoticeBoard) => board.dataStatus === "unavailable";
 const SERVICE_NOTICE_LOAD_OPTIONS: KeyedLoadOptions<ServiceNoticeBoard> = {
   refreshMs: SERVICE_NOTICE_REFRESH_MS,
-  isFailure: isUnavailableNoticeBoard,
+  isFailure: (board) => board.dataStatus === "unavailable",
 };
 
 /**
@@ -179,7 +107,7 @@ export type DepartureBoardReading = {
  */
 export function useDepartureBoard(
   stopId: string | undefined,
-  variant: DepartureBoardVariant = DEFAULT_DEPARTURE_BOARD_VARIANT,
+  variant: DepartureBoardVariant = "plain",
   /**
    * Bumped by a caller's explicit "ask again" — a pull to refresh. The board already read stays on
    * screen until the new reading answers, and the backoff the cadence had earned is forgiven: a
@@ -191,10 +119,11 @@ export function useDepartureBoard(
   // left of the thirty-second cadence — and so the answer to one reading is never kept as another's.
   // Counted as the raw answer, before the "nothing has resolved" reading is flattened into `null`,
   // so an answer that resolves to nothing still counts against the one before it.
-  const loaded = useKeyedLoad(stopId ? `${stopId}|${variant}` : null, loadDepartureBoardVariant, {
-    ...SINGLE_BOARD_LOAD_OPTIONS,
-    reloadNonce,
-  });
+  const loaded = useKeyedLoad(
+    stopId ? `${stopId}|${variant}` : null,
+    () => transitSource.getDepartureBoard(stopId!, departureBoardRequestByVariant[variant]),
+    { ...SINGLE_BOARD_LOAD_OPTIONS, reloadNonce },
+  );
   const lastLive = useLastLiveBoard(stopId, loaded ?? null);
   const board = useLiveBoard(loaded ?? lastLive);
   const [counted, setCounted] = useState<{
@@ -215,10 +144,14 @@ export function useDepartureBoard(
  */
 export function useStopTopologyBoard(stopId: string | undefined): DepartureBoard | null {
   const loaded =
-    useKeyedLoad(stopId ?? null, loadStopTopologyBoard, {
-      refreshMs: STOP_TOPOLOGY_REFRESH_MS,
-      isFailure: isFailedBoard,
-    }) ?? null;
+    useKeyedLoad(
+      stopId ?? null,
+      (key) => transitSource.getDepartureBoard(key, STOP_TOPOLOGY_REQUEST),
+      {
+        refreshMs: STOP_TOPOLOGY_REFRESH_MS,
+        isFailure: isFailedBoard,
+      },
+    ) ?? null;
   // Kept without the age limit a shown board has: a route sequence does not become wrong by sitting
   // there, and nothing here is published to a rider as a time.
   const lastLive = useLastLiveBoard(stopId, loaded);
@@ -239,7 +172,16 @@ export function useLineStopBoard(
   routeDirectionIds: readonly string[],
 ): DepartureBoard | null {
   const key = stopId ? `${stopId}|${createSortedKey(routeDirectionIds)}` : null;
-  const loaded = useKeyedLoad(key, loadLineStopBoard, SINGLE_BOARD_LOAD_OPTIONS) ?? null;
+  const loaded =
+    useKeyedLoad(
+      key,
+      () =>
+        transitSource.getDepartureBoard(
+          stopId!,
+          routeDirectionIds.length > 0 ? { routeDirectionIds } : {},
+        ),
+      SINGLE_BOARD_LOAD_OPTIONS,
+    ) ?? null;
   // Held across a change of line ids: the directions are learned from the board itself, so the
   // first reading is always the one that names them.
   const lastLive = useLastLiveBoard(stopId, loaded);
@@ -258,7 +200,7 @@ export function useServiceNotices(enabled = true): ServiceNoticeBoard | null {
   return (
     useKeyedLoad(
       enabled ? "service-notices" : null,
-      loadServiceNotices,
+      () => transitSource.getServiceNotices(),
       SERVICE_NOTICE_LOAD_OPTIONS,
     ) ?? null
   );

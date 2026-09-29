@@ -7,9 +7,8 @@ import {
 } from "../lib/observed-network";
 import { transitSource } from "../data/transit-source";
 import { getDepartureBoardCoverage, isFailedBoard } from "../lib/departure-board-collection";
-import { createSortedKey } from "../lib/collections";
-import { createDepartureBoardsLoader } from "./departure-board";
-import { createFreshEntryLoad, useKeyedLoad, type KeyedLoadOptions } from "./keyed-load";
+import { toSortedIds } from "../lib/collections";
+import { useKeyedLoad, type KeyedLoadOptions } from "./keyed-load";
 import { useLiveBoards } from "./run-reading-store";
 
 /**
@@ -102,37 +101,48 @@ export function useDepartureBoardCollection(
    */
   runMaxAgeMs?: number,
 ): DepartureBoardCollection {
-  const stopKey = createSortedKey(stopIds);
-  const lineKey = createSortedKey(routeDirectionIds);
-  const key = lineKey ? `${stopKey}|${lineKey}` : stopKey;
+  const sortedStopIds = useMemo(() => toSortedIds(stopIds), [stopIds]);
+  const sortedDirectionIds = useMemo(() => toSortedIds(routeDirectionIds), [routeDirectionIds]);
+  // What is read, not how often: a new cadence restarts the refresh chain but keeps the boards in
+  // hand, where a new key would blank them until it answered.
+  const key =
+    sortedStopIds.length > 0 ? `${sortedStopIds.join(",")}|${sortedDirectionIds.join(",")}` : null;
   const loadOptions = useMemo<KeyedLoadOptions<DepartureBoard[]>>(
     () => ({ refreshMs, isFailure: hasFailedBoard }),
     [refreshMs],
   );
-  // An observation of the whole stop carries its trips, because the trips are what the network is
-  // read from; a reading of one line takes its rows here and its runs from the trip endpoint (see
-  // `createDepartureBoardsLoader`). A board another view fetched within this cadence answers
-  // instead of a request of its own. The runs' entry read looks past the trip cache all the same:
-  // the boards name which runs exist and the runs are what place the marks, so a diagram's first
-  // paint is placed from whatever reading the previous visit left unless the source is asked for a
-  // fresh one — and the reading that would correct it arrives a minute later, after the rider has
-  // started watching. After the entry read, the runs keep the caller's tolerance.
-  const load = useMemo(
-    () =>
-      createFreshEntryLoad((key, isEntryRead) =>
-        createDepartureBoardsLoader({
-          includeTripCalls: true,
-          maxAgeMs: refreshMs,
-          runMaxAgeMs: isEntryRead ? 0 : runMaxAgeMs,
-        })(key),
-      ),
-    [refreshMs, runMaxAgeMs],
+  // Two different readings. A stop's board is asked for the trips behind its rows, because those
+  // trips are what the network is observed from and nothing else will state them. A line's stops
+  // are not read that way: the same run is listed at every stop it has yet to leave, so asking each
+  // board for it again transfers one calling sequence fifteen times to learn it once.
+  // `getLineDepartureBoards` reads the rows and then the trips — see `transit-source.ts`.
+  //
+  // A board another view fetched within this cadence answers instead of a request of its own. The
+  // runs' entry read looks past the trip cache all the same: the boards name which runs exist and
+  // the runs are what place the marks, so a diagram's first paint is placed from whatever reading
+  // the previous visit left unless the source is asked for a fresh one.
+  const loaded = useKeyedLoad(
+    key,
+    (_key, isEntryRead) =>
+      sortedDirectionIds.length > 0
+        ? transitSource.getLineDepartureBoards(sortedStopIds, {
+            routeDirectionIds: sortedDirectionIds,
+            maxAgeMs: refreshMs,
+            runMaxAgeMs: isEntryRead ? 0 : runMaxAgeMs,
+          })
+        : Promise.all(
+            sortedStopIds.map((stopId) =>
+              transitSource.getDepartureBoard(stopId, {
+                includeTripCalls: true,
+                maxAgeMs: refreshMs,
+              }),
+            ),
+          ),
+    loadOptions,
   );
-  const loaded = useKeyedLoad(stopKey ? key : null, load, loadOptions);
-  const orderedStopIds = stopKey ? stopKey.split(",") : [];
   // Each post's failed refresh is already answered by its last live board (`refreshFailedAt`).
   const departureBoards = useLiveBoards(loaded ?? EMPTY_DEPARTURE_BOARDS);
-  return { departureBoards, coverage: getDepartureBoardCoverage(orderedStopIds, loaded) };
+  return { departureBoards, coverage: getDepartureBoardCoverage(sortedStopIds, loaded) };
 }
 
 /**

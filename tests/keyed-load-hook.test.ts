@@ -14,7 +14,7 @@ const setVisibility = (state: "visible" | "hidden") =>
 
 type Props = {
   key: string | null;
-  load: (key: string) => Promise<string>;
+  load: (key: string, isEntryRead: boolean) => Promise<string>;
   options?: KeyedLoadOptions<string>;
 };
 const render = (props: Props) =>
@@ -151,5 +151,32 @@ test("bumping the reload nonce reads again and keeps the last answer meanwhile",
   assert.equal(loaded.current, "first");
   await act(async () => answer("second"));
   assert.equal(loaded.current, "second");
+  await loaded.unmount();
+});
+
+test("a new load under the same key is used from the next refresh, without restarting", async () => {
+  const first = countingLoad();
+  const second = countingLoad();
+  const loaded = await render({ key: "a", load: first.load, options: { refreshMs: REFRESH_MS } });
+  await wait(0);
+  await loaded.rerender({ key: "a", load: second.load, options: { refreshMs: REFRESH_MS } });
+  assert.equal(first.calls.length, 1);
+  assert.equal(second.calls.length, 0);
+  await wait(REFRESH_MS * 2);
+  assert.equal(first.calls.length, 1);
+  assert.ok(second.calls.length >= 1);
+  await loaded.unmount();
+});
+
+test("only a mounted caller's first read is its entry read", async () => {
+  const entries: boolean[] = [];
+  const load = async (key: string, isEntryRead: boolean) => {
+    entries.push(isEntryRead);
+    return key;
+  };
+  const loaded = await render({ key: "a", load });
+  await loaded.rerender({ key: "b", load });
+  await wait(0);
+  assert.deepEqual(entries, [true, false]);
   await loaded.unmount();
 });

@@ -1,9 +1,4 @@
-/**
- * Which runs a view asks for, and how stale an answer each of them may be.
- *
- * The two are one decision and one key: a view's set of runs and its tolerances change together, so
- * the loader is re-keyed by both and the key is the whole statement of what was asked for.
- */
+/** Which runs a view asks for, and how stale an answer each of them may be. */
 
 /** One run to read, and the tolerance this view is asking it under. */
 export type RunReadingRequest = { rowId: string; maxAgeMs: number };
@@ -15,13 +10,10 @@ export type RunReadingBatchResult<T> = {
 };
 
 /**
- * The key is JSON because row ids may contain punctuation from provider names.
- *
- * The tolerances are stated once each rather than once per id: a set of forty runs has two of them
- * at most — the one the rider chose and every other — and a key that repeated a number per row
- * would be forty times the length for nothing.
+ * The runs a view reads, with their tolerances stated once each rather than once per run: a set of
+ * forty runs has two of them at most — the one the rider chose and every other.
  */
-export type RunReadingKey = {
+export type RunReadingPlan = {
   rowIds: readonly string[];
   maxAgeMs: number;
   /** The one run a rider chose, which is read on a tolerance of its own. */
@@ -29,23 +21,26 @@ export type RunReadingKey = {
   selectedMaxAgeMs?: number;
 };
 
-export const createRunReadingKey = (key: RunReadingKey): string => JSON.stringify(key);
-
 /**
- * The runs a key names, each under the tolerance that key states for it.
+ * The runs a plan names, each under the tolerance the plan states for it. An entry read asks every
+ * run for a fresh answer.
  *
  * Read per run and never collapsed across them. Taking the tightest tolerance in the set and
  * applying it to all of them is how the one run a rider chose came to re-read every other run on
  * the line with it — a whole line's sequences on the board's cadence rather than their own, which
  * is the bandwidth the tolerance exists to spend.
  */
-export function getRunReadingRequests(key: string, entryMaxAgeMs?: number): RunReadingRequest[] {
-  const { rowIds, maxAgeMs, selectedRowId, selectedMaxAgeMs } = JSON.parse(key) as RunReadingKey;
+export function getRunReadingRequests(
+  { rowIds, maxAgeMs, selectedRowId, selectedMaxAgeMs }: RunReadingPlan,
+  isEntryRead = false,
+): RunReadingRequest[] {
   return rowIds.map((rowId) => ({
     rowId,
-    maxAgeMs:
-      entryMaxAgeMs ??
-      (rowId === selectedRowId && selectedMaxAgeMs !== undefined ? selectedMaxAgeMs : maxAgeMs),
+    maxAgeMs: isEntryRead
+      ? 0
+      : rowId === selectedRowId && selectedMaxAgeMs !== undefined
+        ? selectedMaxAgeMs
+        : maxAgeMs,
   }));
 }
 
@@ -56,12 +51,11 @@ export function getRunReadingRequests(key: string, entryMaxAgeMs?: number): RunR
  * neighbours into a successful refresh and reset the batch's backoff.
  */
 export async function readRunBatch<T>(
-  key: string,
-  isEntryRead: boolean,
+  requests: readonly RunReadingRequest[],
   readRun: (rowId: string, maxAgeMs: number) => Promise<T | undefined>,
 ): Promise<RunReadingBatchResult<T>> {
   const answers = await Promise.all(
-    getRunReadingRequests(key, isEntryRead ? 0 : undefined).map(async (request) => ({
+    requests.map(async (request) => ({
       rowId: request.rowId,
       reading: await readRun(request.rowId, request.maxAgeMs).catch(() => undefined),
     })),

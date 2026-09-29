@@ -29,9 +29,6 @@ export type RetainedRun = {
   isRetained: boolean;
 };
 
-const loadRetainedRun = (rowId: string): Promise<Departure | undefined> =>
-  transitSource.getRun(rowId, DEPARTURE_BOARD_REFRESH_MS);
-
 const RETAINED_RUN_LOAD_OPTIONS: KeyedLoadOptions<Departure | undefined> = {
   refreshMs: DEPARTURE_BOARD_REFRESH_MS,
   // A run the source can no longer name was evicted, not ended: back off, and let the stored
@@ -41,7 +38,11 @@ const RETAINED_RUN_LOAD_OPTIONS: KeyedLoadOptions<Departure | undefined> = {
 
 /** Keeps the ride's own run being read while no board is reading it, on the board's own cadence. */
 function useRetainedRunRead(rowId: string | undefined): void {
-  useKeyedLoad(rowId ?? null, loadRetainedRun, RETAINED_RUN_LOAD_OPTIONS);
+  useKeyedLoad(
+    rowId ?? null,
+    (key) => transitSource.getRun(key, DEPARTURE_BOARD_REFRESH_MS),
+    RETAINED_RUN_LOAD_OPTIONS,
+  );
 }
 
 export function useRetainedRun(

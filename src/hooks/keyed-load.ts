@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import {
   extendFailureStreak,
   getBackoffDelayMs,
@@ -12,25 +12,15 @@ import {
 type LoadedValue<T> = { key: string; value: T | undefined };
 
 /**
- * Wraps a load so its first run for a caller looks past the source's cache.
+ * Reads the resource `key` names.
  *
- * A view's first paint is where a stale answer costs the most: a mark placed on entry is placed
- * from a reading the previous visit left behind, and the reading that corrects it arrives a minute
- * or more later — after the rider has started watching, which is when a correction reads as a
- * jump. So the first read asks the source for a fresh answer, and the correction it would
- * otherwise have brought lands before there is anything to correct; every run after it keeps the
- * tolerance the key states.
+ * `isEntryRead` is true for the first read a mounted caller makes. A view's first paint is where a
+ * stale answer costs the most: a mark placed on entry is placed from a reading the previous visit
+ * left behind, and the reading that corrects it arrives a minute or more later — after the rider
+ * has started watching, which is when a correction reads as a jump. A loader may use it to ask the
+ * source for a fresh answer; every read after it keeps the tolerance the caller states.
  */
-export function createFreshEntryLoad<T>(
-  load: (key: string, isEntryRead: boolean) => Promise<T>,
-): (key: string) => Promise<T> {
-  let hasEntryRead = false;
-  return (key) => {
-    const isEntryRead = !hasEntryRead;
-    hasEntryRead = true;
-    return load(key, isEntryRead);
-  };
-}
+export type KeyedLoad<T> = (key: string, isEntryRead: boolean) => Promise<T>;
 
 export type KeyedLoadOptions<T> = {
   refreshMs?: number;
@@ -52,6 +42,10 @@ export type KeyedLoadOptions<T> = {
 /**
  * Loads a keyed resource and only exposes a value that belongs to the current key.
  *
+ * The key is the identity of what is read: a new key starts a new refresh chain, and the load may
+ * close over anything the key stands for. The latest `load` and `isFailure` are always the ones
+ * called, so neither has to be stable.
+ *
  * `null` means nothing has resolved for this key yet. A resolved value may itself be `undefined`,
  * which is how a load says "asked, and there is nothing".
  *
@@ -66,10 +60,17 @@ export type KeyedLoadOptions<T> = {
  */
 export function useKeyedLoad<T>(
   key: string | null,
-  load: (key: string) => Promise<T>,
+  load: KeyedLoad<T>,
   { refreshMs, isFailure, reloadNonce }: KeyedLoadOptions<T> = {},
 ): T | undefined | null {
   const [loaded, setLoaded] = useState<LoadedValue<T> | null>(null);
+  const hasEntryRead = useRef(false);
+  const read = useEffectEvent((key: string) => {
+    const isEntryRead = !hasEntryRead.current;
+    hasEntryRead.current = true;
+    return load(key, isEntryRead);
+  });
+  const isFailedValue = useEffectEvent((value: T) => isFailure?.(value) ?? false);
 
   useEffect(() => {
     if (key === null) return;
@@ -112,8 +113,8 @@ export function useKeyedLoad<T>(
     const refresh = () => {
       const sequence = ++loadSequence;
       lastLoadStartedAt = Date.now();
-      load(key).then(
-        (value) => settle(sequence, value, isFailure?.(value) ? "unavailable" : undefined),
+      read(key).then(
+        (value) => settle(sequence, value, isFailedValue(value) ? "unavailable" : undefined),
         () => settle(sequence, undefined, "transient"),
       );
     };
@@ -155,7 +156,7 @@ export function useKeyedLoad<T>(
       window.removeEventListener("focus", resumeRefreshing);
       window.removeEventListener("online", resumeRefreshing);
     };
-  }, [key, load, refreshMs, isFailure, reloadNonce]);
+  }, [key, refreshMs, reloadNonce]);
 
   return loaded?.key === key ? loaded.value : null;
 }
