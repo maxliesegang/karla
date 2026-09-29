@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo } from "react";
 import { transitSource } from "../data/transit-source";
 import type { DepartureBoard, TransitNetwork, TransitStop } from "../data/transit-types";
 import {
@@ -13,29 +13,11 @@ import { useKeyedLoad } from "./keyed-load";
  * for the session; the lines are read from the live Zentrum observation, so the app never offers a
  * rider a line that is not running.
  */
-export function useTransitNetwork(observedNetwork: ObservedNetwork): TransitNetwork | null {
-  const stableNetwork = useStableTransitNetwork();
+export function useTransitNetwork(observedNetwork: ObservedNetwork): TransitNetwork {
   return useMemo(
-    () =>
-      stableNetwork ? { ...stableNetwork, lines: getObservedTransitLines(observedNetwork) } : null,
-    [stableNetwork, observedNetwork],
+    () => ({ ...transitSource.getNetwork(), lines: getObservedTransitLines(observedNetwork) }),
+    [observedNetwork],
   );
-}
-
-function useStableTransitNetwork(): TransitNetwork | null {
-  const [network, setNetwork] = useState<TransitNetwork | null>(null);
-
-  useEffect(() => {
-    let active = true;
-    transitSource.getNetwork().then((loadedNetwork) => {
-      if (active) setNetwork(loadedNetwork);
-    });
-    return () => {
-      active = false;
-    };
-  }, []);
-
-  return network;
 }
 
 /**
@@ -58,7 +40,6 @@ const resolveRemoteTransitStop = (stopId: string): Promise<RemoteStopResolution>
 
 /** Resolves local core-network stops immediately and provider-backed network stops on demand. */
 export function useTransitStop(
-  network: TransitNetwork | null,
   stopId: string | undefined,
   { reloadNonce }: { reloadNonce?: number } = {},
 ): {
@@ -71,13 +52,11 @@ export function useTransitStop(
   // through a board or through a trip's calls is known for the rest of the session. Walking along a
   // line diagram is the case this exists for — every stop of it was read from the trip drawing it,
   // so tapping one is a lookup and the view never has to render the not-knowing.
-  const local = network ? transitSource.getKnownStop(stopId ?? "") : undefined;
-  // The provider is only asked once the local network is in and has no answer of its own.
-  const remote = useKeyedLoad(
-    network && stopId && !local ? stopId : null,
-    resolveRemoteTransitStop,
-    { reloadNonce },
-  );
+  const local = stopId ? transitSource.getKnownStop(stopId) : undefined;
+  // The provider is only asked where the session has no answer of its own.
+  const remote = useKeyedLoad(stopId && !local ? stopId : null, resolveRemoteTransitStop, {
+    reloadNonce,
+  });
 
   if (local) return { stop: local, loading: false, failed: false };
   return {
@@ -91,12 +70,12 @@ export function useTransitStop(
  * The observed stops a rider could be located against, as the nearby ranking wants them.
  */
 export function useLocatableStops(
-  network: TransitNetwork | null,
+  network: TransitNetwork,
   departureBoards: readonly DepartureBoard[],
 ): readonly TransitStop[] {
   return useMemo(() => {
     const byId = new Map<string, TransitStop>();
-    for (const stop of network?.stops ?? []) {
+    for (const stop of network.stops) {
       if (stop.latitude !== undefined) byId.set(stop.id, stop);
     }
     // The authored stops carry the better names, so an observed position only fills a gap.

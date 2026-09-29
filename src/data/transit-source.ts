@@ -54,7 +54,7 @@ export { createDepartureId };
  */
 export interface TransitSource {
   /** Stops and lines: the stable local identities every view addresses a stop by. */
-  getNetwork(): Promise<TransitNetwork>;
+  getNetwork(): TransitNetwork;
   /** Resolves both local core-network stops and any stop exposed by the KVV network. */
   resolveStop(stopId: string): Promise<TransitStop | undefined>;
   /**
@@ -215,7 +215,7 @@ export class KvvTransitSource implements TransitSource {
     this.stops = new StopRegistry(network.stops);
   }
 
-  async getNetwork() {
+  getNetwork(): TransitNetwork {
     return this.network;
   }
 

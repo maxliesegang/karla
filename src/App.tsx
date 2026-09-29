@@ -157,7 +157,7 @@ export default function App() {
     navigateTo(routePaths.nearby());
   };
 
-  if (!network || selection.isStopLoading || selection.isAwaitingStopBoardTrip) {
+  if (selection.isStopLoading || selection.isAwaitingStopBoardTrip) {
     return <AppLoadingScreen />;
   }
 

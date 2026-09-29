@@ -126,10 +126,10 @@ export type ResolvedSelectionChain = {
 
 export function useSelectionChain(
   route: AppRoute,
-  network: TransitNetwork | null,
+  network: TransitNetwork,
   observationBoards: readonly DepartureBoard[] = [],
 ): ResolvedSelectionChain {
-  const observedLine = network ? findLineForRoute(network.lines, route.lineId) : undefined;
+  const observedLine = findLineForRoute(network.lines, route.lineId);
   const addressedStopId = route.stopId || observedLine?.zentrumCalls[0] || DEFAULT_STOP_ID;
   // A failed provider read is retried by bumping the nonce: the load re-runs for the same key, so
   // whatever the last attempt settled on stays visible until the new one answers.
@@ -138,7 +138,7 @@ export function useSelectionChain(
     stop: selectedStop,
     loading: isStopLoading,
     failed: isStopFailed,
-  } = useTransitStop(network, route.view === "stop" ? addressedStopId : undefined, {
+  } = useTransitStop(route.view === "stop" ? addressedStopId : undefined, {
     reloadNonce: stopReloadNonce,
   });
   // An address is a seed, not the stop's identity. A former dynamic link may resolve to a stable
@@ -328,14 +328,13 @@ export function useSelectionChain(
  */
 function findSelectedLine(
   route: AppRoute,
-  network: TransitNetwork | null,
+  network: TransitNetwork,
   departures: readonly Departure[],
   departureBoard: DepartureBoard | null,
   observedLine: TransitLine | undefined,
   stopDeparture: Departure | undefined,
 ): TransitLine | undefined {
   if (observedLine) return observedLine;
-  if (!network) return undefined;
 
   const lineDeparture = route.lineId
     ? departures.find((departure) => isSameLineFamily(departure.lineId, route.lineId))
@@ -376,11 +375,11 @@ const findRunInDepartureBoards = (
 function useBundledLines(
   bundledLineIds: readonly string[],
   selectedLine: TransitLine | undefined,
-  network: TransitNetwork | null,
+  network: TransitNetwork,
   departureBoard: DepartureBoard | null,
 ): readonly TransitLine[] {
   return useMemo(() => {
-    if (!selectedLine || !network || bundledLineIds.length === 0) return EMPTY_LINES;
+    if (!selectedLine || bundledLineIds.length === 0) return EMPTY_LINES;
     return getResolvedBundledLineIds(bundledLineIds, departureBoard).flatMap((lineId) => {
       if (isSameLineFamily(lineId, selectedLine.id)) return [];
       const running = departureBoard?.departures.find((departure) =>
