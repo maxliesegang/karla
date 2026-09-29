@@ -28,12 +28,13 @@ GitHub Actions tests, builds and deploys `dist` on push to `main`; don't commit 
 | [src/routing.ts](src/routing.ts) | hash routes and path builders |
 | [src/selection.ts](src/selection.ts) | resolving the stop / line / trip address against live data |
 | [src/view-layout.ts](src/view-layout.ts) | what an address means for the two panels |
+| [src/station-board.ts](src/station-board.ts) | the unattended board's `?display=` configuration |
 | [src/lib/](src/lib/) | pure domain logic |
-| [src/hooks/](src/hooks/) | React glue: polling, store subscriptions, device state |
+| [src/hooks/](src/hooks/) | React glue: polling (`useKeyedLoad`), store subscriptions, device state; imported by module |
 | [src/components/](src/components/) | views; German copy |
 | [src/data/](src/data/) | `TransitSource` boundary, run store, EFA client and parsers |
 | [src/data/generated/](src/data/generated/) | written by [scripts/](scripts/); never edited by hand |
-| [tests/](tests/) | `node --test`; no network. Hooks are tested with `tests/support/render-hook.ts` (happy-dom) |
+| [tests/](tests/) | `node --test`; no network. Type-checked by `npm run build`. Fixtures in `tests/support/fixtures.ts`; hooks are tested with `tests/support/render-hook.ts` (happy-dom) |
 
 ## Constraints
 

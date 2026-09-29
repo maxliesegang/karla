@@ -135,8 +135,8 @@ export default function App() {
 
   useViewShortcuts({ searchInputRef, isEnabled: !isStationBoardMode });
   useStationBoardReload(stationBoardConfig?.reloadMinutes);
-  // The app opens on the stop the rider last read, and on the Zentrum for a rider with no history —
-  // never on a permission prompt that can say nothing until it has been answered (A1).
+  // The app opens on the stop the rider last read, and on the home for a rider with no history —
+  // never on a permission prompt that can say nothing until it has been answered.
   useInitialLanding(!isStationBoardMode, recentStopId);
 
   const showNearbyStops = (returnStopId?: string) => {

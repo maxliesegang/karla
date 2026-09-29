@@ -135,9 +135,8 @@ export interface TransitSource {
   getServiceNotices(): Promise<ServiceNoticeBoard>;
 }
 
-/** How fresh a kept board must be for a caller that states no tolerance of its own. */
 /**
- * How stale a cached board may be before it is read again.
+ * How stale a cached board may be before it is read again, for a caller that states no tolerance.
  *
  * The innermost of the four lifetimes a run has (`RUN_ENDED_GRACE_MS`): a board served from cache
  * carries rows that were remembered when it was fetched, so it must never outlive their records in

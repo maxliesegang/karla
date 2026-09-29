@@ -11,8 +11,8 @@ import { navigateTo, routePaths } from "../routing";
  *
  * The full notice list is reached from here. It is a reference work, not a step in anyone's journey
  * — most riders should meet a notice filtered to the stop they are standing at, under the board it
- * concerns (W7) — so it keeps its address and sits with the other statements about where the data
- * came from, rather than costing a control in the bar on every screen (E3, F7).
+ * concerns — so it keeps its address and sits with the other statements about where the data
+ * came from, rather than costing a control in the bar on every screen.
  */
 export function DataProvenanceFooter({
   departureBoard,

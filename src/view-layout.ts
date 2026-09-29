@@ -26,7 +26,7 @@ export const isStationBoardStopView = (view: RouteView, isStationBoardMode: bool
 /**
  * Whether anything in view is actually read from the observation cycle, which is what decides the
  * cadence it runs at. Beside a departure board or a line diagram it only lends line signs, stop
- * positions and interchanges, which hold for hours. The home reads none of it: it names the other
+ * positions and the search list, which hold for hours. The home reads none of it: it names the other
  * pages and asks nothing of the network. The settings read none of it either.
  */
 export const readsObservedNetwork = (view: ActiveView): boolean =>

@@ -19,7 +19,7 @@
      module a probe compares the feed against, and nothing here may reach a component or a hook.
 
      The first four are the dependency closure of `KvvEfaClient`. The rest are the Zentrum's
-     authored drawing surface and the reading built on it, which `probe:zentrum` checks the feed
+     authored drawing surface and the reading built on it, which `solve:zentrum` checks the feed
      against — it has to make the app's own reading, not a second implementation of it. */
   "include": [
     "vite.config.ts",

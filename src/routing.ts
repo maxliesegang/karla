@@ -335,7 +335,7 @@ export const routePaths = {
  * prompt before the app says anything true.
  *
  * The recalled stop is a starting point, not a claim about where the rider is standing — it is the
- * stop they departed *from*, which is one they are not necessarily at (A7). The list under the
+ * stop they departed *from*, which is one they are not necessarily at. The list under the
  * search is what makes a wrong landing cost one tap.
  */
 export function getLandingPath(recentStopId?: string): string {

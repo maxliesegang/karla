@@ -14,9 +14,9 @@ function Clock() {
  *
  * What is left is the shell itself — where the rider is in the chain, and the two things true of
  * every view: the clock the board is read against, and the one control that answers a question the
- * bar is the right place for, "the stop I am standing at". Everything else moved to where its
- * answer is: the search to the top of the home, where choosing a stop is the whole point of the
- * view, and the operator's notices under the board they concern (F6, F7).
+ * bar is the right place for, "the stop I am standing at". Everything else is where its answer
+ * is: the search at the top of the home, where choosing a stop is the whole point of the
+ * view, and the operator's notices under the board they concern.
  *
  * A control in the bar is on every screen at every width, which is what makes it expensive: the
  * waiting glance is the surface this app exists for, and chrome above it is paid for by the rider

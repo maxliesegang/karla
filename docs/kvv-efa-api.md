@@ -1050,7 +1050,7 @@ Any new use of these APIs must preserve the following boundaries:
 2. Stable local stop IDs remain separate from provider IDs.
 3. The live network is observed from current trips, not authored from timetable endpoints.
 4. A plain board stays lightweight and polls only while visible; the shared core observation drops
-   to an idle cadence on views that only borrow its line signs, stop positions and interchanges
+   to an idle cadence on views that only borrow its line signs and stop positions
    (`readsObservedNetwork` in `src/view-layout.ts`).
 5. Batched whole-stop sequences stay on observation/topology cadences. A line's boards and its
    runs are two readings on two clocks: the boards name which runs exist and keep the line
