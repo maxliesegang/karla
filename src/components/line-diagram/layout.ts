@@ -164,10 +164,9 @@ export function useCurrentStopMove(currentStopIndex: number, chainKey: string): 
  *
  * So the trip is retained for as long as the address names it. This retains a reading, never a level:
  * the moment the address stops naming the trip the hold is dropped with it, and a trip the boards
- * answer for and no longer contain is a trip that has genuinely gone. What is retained is also exactly
- * what was already on the screen — no time is restated as fresher than it was read, because it is
- * the same reading, and the freshness the diagram states is read from it rather than from a board
- * that is momentarily absent.
+ * answer for and no longer contain is a trip that has genuinely gone. What is retained is the run's id, and
+ * the run is read back from the source's store, which dates every reading it holds — so no time is
+ * restated as fresher than it was read.
  */
 export type RetainedDiagramRun<T> = { addressId: string; departure: T } | null;
 
@@ -186,23 +185,6 @@ export function retainAddressedRun<T>(
   if (departure) return { drawn: departure, retained: { addressId, departure } };
   const kept = retained?.addressId === addressId ? retained : null;
   return { drawn: kept?.departure, retained: kept };
-}
-
-export function useRetainedDiagramRun<T>(
-  /** The run address names, which is what the hold belongs to. */
-  addressId: string | undefined,
-  departure: T | undefined,
-): T | undefined {
-  const [retained, setRetained] = useState<RetainedDiagramRun<T>>(null);
-
-  const next = retainAddressedRun(retained, addressId, departure);
-  if (
-    next.retained?.addressId !== retained?.addressId ||
-    next.retained?.departure !== retained?.departure
-  ) {
-    setRetained(next.retained);
-  }
-  return next.drawn;
 }
 
 /** A ride moves only when the rider explicitly asks to return to its position. */

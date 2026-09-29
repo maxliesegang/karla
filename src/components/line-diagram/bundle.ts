@@ -16,6 +16,7 @@ import {
 } from "../../lib/line-bundles";
 import { isSameLineFamily } from "../../lib/line-families";
 import type { TurnaroundIndex } from "../../lib/line-turnarounds";
+import type { RunMotions } from "../../lib/vehicle-positioning";
 import {
   buildLineDiagramStops,
   getLineDiagramRunDepartures,
@@ -194,6 +195,7 @@ export function useLineBundleBranchVehicles({
   joinedPortionPairs,
   selectedDeparture,
   feedNow,
+  motions,
   turnaroundIndex,
   showWaitingVehicles = true,
   areOtherRunsShown = true,
@@ -206,6 +208,8 @@ export function useLineBundleBranchVehicles({
   joinedPortionPairs: readonly JoinedRunPortionPair[];
   selectedDeparture: Departure | undefined;
   feedNow: number;
+  /** The diagram's own motion record: the legs place the same runs its trunk does. */
+  motions: RunMotions;
   turnaroundIndex: TurnaroundIndex;
   /** See `getLineDiagramVehicles`: whether a trip still waiting to set out carries a mark. */
   showWaitingVehicles?: boolean;
@@ -241,7 +245,7 @@ export function useLineBundleBranchVehicles({
             joinedPortionPairs,
             selectedDeparture,
             feedNow,
-            { turnaroundIndex, showWaitingVehicles },
+            { motions, turnaroundIndex, showWaitingVehicles },
           ),
           areOtherRunsShown,
         ),
@@ -254,6 +258,7 @@ export function useLineBundleBranchVehicles({
     feedNow,
     joinedPortionPairs,
     lineById,
+    motions,
     network,
     selectedDeparture,
     turnaroundIndex,

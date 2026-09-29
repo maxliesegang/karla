@@ -14,6 +14,7 @@ import { collapseTurnaroundCalls } from "./trip-calls";
 import { getDistinctTimetableTrips, getRunMarkKey } from "./trips";
 import {
   getRunPlacement,
+  type RunMotions,
   type RunPlacementMotion,
   type RunPlacementPhase,
   type RunSegmentTrajectory,
@@ -425,6 +426,7 @@ const getZentrumSchematicPlacedRuns = (
   reading: ZentrumSchematicReading,
   departures: readonly Departure[],
   feedNow: number,
+  motions: RunMotions,
 ): readonly ZentrumSchematicPlacedRun[] => {
   const edgeByKey = new Map(reading.edges.map((edge) => [edge.id, edge]));
   const trackIdByLineId = getTrackIdByLineId(reading.linePaths.map(({ lineId }) => lineId));
@@ -439,7 +441,7 @@ const getZentrumSchematicPlacedRuns = (
   for (const departure of departures) {
     if (departure.transportMode !== "tram" && departure.transportMode !== "lightRail") continue;
     const standFrom = turnarounds.standFromByDepartureKey.get(getRunMarkKey(departure));
-    const placement = getRunPlacement(departure, feedNow, standFrom);
+    const placement = getRunPlacement(motions, departure, feedNow, standFrom);
     if (!placement) continue;
 
     const calls = collapseTurnaroundCalls(departure.tripCalls ?? []);
@@ -650,8 +652,9 @@ export function getZentrumSchematicVehicles(
   reading: ZentrumSchematicReading,
   departures: readonly Departure[],
   feedNow: number,
+  motions: RunMotions,
 ): ZentrumSchematicVehicle[] {
-  return getZentrumSchematicPlacedRuns(reading, departures, feedNow).map(
+  return getZentrumSchematicPlacedRuns(reading, departures, feedNow, motions).map(
     ({
       departure,
       trackId,
@@ -740,12 +743,14 @@ export function getZentrumSchematicAheadEdgeIds(
   reading: ZentrumSchematicReading,
   departures: readonly Departure[],
   feedNow: number,
+  motions: RunMotions,
 ): ReadonlyMap<string, ReadonlySet<string>> {
   const aheadEdgeIdsByTrackId = new Map<string, Set<string>>();
   for (const { trackId, aheadEdgeIds } of getZentrumSchematicPlacedRuns(
     reading,
     departures,
     feedNow,
+    motions,
   )) {
     if (!trackId) continue;
     const lanes = aheadEdgeIdsByTrackId.get(trackId) ?? new Set<string>();

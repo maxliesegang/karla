@@ -1,37 +1,29 @@
 import type { Departure } from "../data/transit-types";
 import { findFinalCallInstant } from "./trip-calls";
-import { getDepartureReadInstant, getRunMarkKey } from "./trips";
+import { getRunMarkKey } from "./trips";
 
 /**
- * A finished run is kept briefly so a clock correction at its final call does not churn state.
- *
- * One of four nested lifetimes for the same run, and it must stay inside the grace the evidence is
- * held for: a mark still being drawn resolves through `findRun` on every frame, so a mark that
- * outlived its record would simply leave the plan. `RUN_ENDED_GRACE_MS` states the ordering.
+ * How long a finished run's mark is kept past its final call. One of four nested lifetimes; it must
+ * stay inside the store's `RUN_ENDED_GRACE_MS` (docs/adr/0002-run-key-without-date.md).
  */
 export const RUN_MARK_RETENTION_GRACE_MS = 2 * 60_000;
 /** The set followed is bounded even if a provider returns an unexpectedly large board. */
 export const FOLLOWED_RUN_CAPACITY = 256;
 
 /**
- * A run a line view is still following, named rather than copied.
+ * A run a line view is still following: its id, never a copy of its reading.
  *
- * What is kept is which run to keep drawing and until when — never the reading itself. A copy taken
- * when the boards last listed the run would go on being drawn from that moment however much has
- * been read since, so the reading is fetched by id at the moment it is drawn, and there is one of
- * it.
+ * The reading is fetched by id whenever it is needed (`findRun`), so there is one of it — and so is
+ * how long the run is kept: its expiry is read off the run as it stands at that moment, since every
+ * re-read may move its final call. Only a board naming a run changes this entry.
  *
- * Named by the row id, and never by a mark key. The mark key a run is drawn under can be refined
- * when its calling sequence lands (`getRunMarkKey`), so an identity frozen at follow time would
- * drift away from the one the run is compared under — the same run followed twice, and a
- * suppression test answering the wrong name. Row ids do not move; the mark key is read off the
- * reading at the moment it is compared (`getLineRunDepartures`).
+ * Named by the row id, and never by a mark key: the mark key can be refined when the run's
+ * sequence lands (`getRunMarkKey`), and is read off the reading at the moment it is compared.
  */
 export type FollowedRun = {
   rowId: string;
-  /** When this run was last named by a board, which is what the cap spends itself in favour of. */
+  /** When a board last named this run, which is what the cap spends itself in favour of. */
   observedAt: number;
-  expiresAt: number;
 };
 
 /** The final expected call, plus the grace a marker is held for. */
@@ -39,6 +31,10 @@ export function getRunRetentionExpiry(departure: Departure): number | undefined 
   const finalInstant = findFinalCallInstant(departure.tripCalls);
   return finalInstant === undefined ? undefined : finalInstant + RUN_MARK_RETENTION_GRACE_MS;
 }
+
+/** Whether a run is still worth drawing: known, not cancelled, and not past its final call. */
+const isStillRunning = (run: Departure | undefined, feedNow: number): boolean =>
+  run !== undefined && run.status !== "cancelled" && (getRunRetentionExpiry(run) ?? 0) > feedNow;
 
 /**
  * Adds the latest board observations to the bounded set of runs being followed.
@@ -50,49 +46,40 @@ export function updateFollowedRuns(
   previous: readonly FollowedRun[],
   observedDepartures: readonly Departure[],
   feedNow: number,
+  findRun: (rowId: string) => Departure | undefined,
   capacity = FOLLOWED_RUN_CAPACITY,
 ): FollowedRun[] {
   const followedByRowId = new Map(
     previous
-      .filter((followed) => followed.expiresAt > feedNow)
+      .filter((followed) => isStillRunning(findRun(followed.rowId), feedNow))
       .map((followed) => [followed.rowId, followed]),
   );
-
   for (const departure of observedDepartures) {
-    if (departure.status === "cancelled") {
-      followedByRowId.delete(departure.id);
+    if (!isStillRunning(departure, feedNow)) {
+      if (departure.status === "cancelled") followedByRowId.delete(departure.id);
       continue;
     }
-
-    const expiresAt = getRunRetentionExpiry(departure);
-    if (expiresAt === undefined || expiresAt <= feedNow) continue;
     followedByRowId.set(departure.id, {
       rowId: departure.id,
-      observedAt: getDepartureReadInstant(departure) ?? feedNow,
-      expiresAt,
+      observedAt: departure.readAt?.rowReadAt ?? feedNow,
     });
   }
-
   return [...followedByRowId.values()]
-    .sort((left, right) => right.observedAt - left.observedAt || left.expiresAt - right.expiresAt)
+    .sort((left, right) => right.observedAt - left.observedAt)
     .slice(0, capacity);
 }
 
-/** Whether two sets followed name the same runs to the same ends, so state need not move. */
+/** Whether two sets followed name the same runs, so state need not move. */
 export function areFollowedRunsEqual(
   left: readonly FollowedRun[],
   right: readonly FollowedRun[],
 ): boolean {
   return (
     left.length === right.length &&
-    left.every((entry, index) => {
-      const other = right[index];
-      return (
-        entry.rowId === other.rowId &&
-        entry.observedAt === other.observedAt &&
-        entry.expiresAt === other.expiresAt
-      );
-    })
+    left.every(
+      (entry, index) =>
+        entry.rowId === right[index].rowId && entry.observedAt === right[index].observedAt,
+    )
   );
 }
 
@@ -112,18 +99,12 @@ export function getLineRunDepartures(
   feedNow: number,
   findRun: (rowId: string) => Departure | undefined,
 ): Departure[] {
-  const resolvedObservedDepartures = observedDepartures.map(
-    (departure) => findRun(departure.id) ?? departure,
-  );
-  const current = resolvedObservedDepartures.filter(
-    (departure) => departure.status !== "cancelled",
-  );
+  const current = observedDepartures.filter((departure) => departure.status !== "cancelled");
   const claimedKeys = new Set(current.map(getRunMarkKey));
   const unlisted: Departure[] = [];
   for (const entry of followed) {
-    if (entry.expiresAt <= feedNow) continue;
     const run = findRun(entry.rowId);
-    if (!run || run.status === "cancelled") continue;
+    if (!run || !isStillRunning(run, feedNow)) continue;
     const markKey = getRunMarkKey(run);
     if (claimedKeys.has(markKey)) continue;
     claimedKeys.add(markKey);

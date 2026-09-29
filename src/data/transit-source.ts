@@ -116,6 +116,12 @@ export interface TransitSource {
    * every render, so a sequence that lands for one view is on every other view's next paint.
    */
   findRun(rowId: string): Departure | undefined;
+  /**
+   * This board with every row as the store reads it now: the same board object where nothing about
+   * its rows has been read since. A board is a snapshot of which runs a stop listed; what is known
+   * about each run moves on without it, and this is how a view that holds the board keeps up.
+   */
+  resolveBoard(board: DepartureBoard): DepartureBoard;
   /** Notifies when one of these rows' run readings changes. */
   subscribeToRuns(rowIds: readonly string[], listener: () => void): () => void;
   getRunVersion(rowIds: readonly string[]): string;
@@ -140,6 +146,8 @@ export interface TransitSource {
  * would ask for it separately.
  */
 export const DEFAULT_BOARD_MAX_AGE_MS = 30_000;
+/** How long the last live board stands in for failed refreshes before the failure is the answer. */
+const RETAINED_DEPARTURE_BOARD_LIMIT_MS = 10 * 60_000;
 /**
  * Notices are written by hand and published for days or weeks at a time, so they are worth far less
  * frequent asking than a board — and the answer is a large one, covering the whole KVV area.
@@ -317,8 +325,17 @@ export class KvvTransitSource implements TransitSource {
         : this.fetchDepartureBoard(stopId, includeTripCalls, request.routeDirectionIds)
       ).then((fetched) => {
         // Only a board that could be read is kept: an unavailable feed is asked again next refresh.
-        if (fetched.dataStatus === "live") this.departureBoardCache.set(cacheKey, fetched);
-        return this.publishBoard(fetched);
+        if (fetched.dataStatus === "live") {
+          this.departureBoardCache.set(cacheKey, fetched);
+          return this.publishBoard(fetched);
+        }
+        // A failed refresh is not evidence the last board was wrong: that board stands, saying
+        // when its refresh failed, until it is too old to act on and the failure is the answer.
+        const lastLive = this.departureBoardCache.get(cacheKey);
+        return lastLive?.dataStatus === "live" &&
+          fetched.receivedAt - lastLive.receivedAt <= RETAINED_DEPARTURE_BOARD_LIMIT_MS
+          ? this.publishBoard({ ...lastLive, refreshFailedAt: fetched.receivedAt })
+          : fetched;
       }),
     );
   }
@@ -335,10 +352,8 @@ export class KvvTransitSource implements TransitSource {
       stopIds.map((stopId) => this.getDepartureBoard(stopId, { routeDirectionIds, maxAgeMs })),
     );
 
-    // One request per *run*, not per row: the same run is listed at every stop it has yet to leave,
-    // and its calls are the same wherever they are asked for. The source's record key is used on
-    // both sides: a filtered row cannot state the dated mark identity a completed one does, while
-    // its private locator already names the record that owns its evidence and request.
+    // One request per *run*, not per row: the same run is listed at every stop it has yet to leave.
+    // Grouped by record key, since a filtered row carries no calls to derive a mark key from.
     const rows = boards.flatMap((board) => board.departures);
     const rowByRunRecordKey = new Map<string, Departure>();
     for (const row of rows) {
@@ -357,17 +372,8 @@ export class KvvTransitSource implements TransitSource {
         .map(([, row]) => this.getRun(row.id, runMaxAgeMs).catch(() => undefined)),
     );
 
-    // Read back out of the store rather than merged again here. The store has already merged every
-    // row of every run these requests answered, and merging a second time beside it would publish a
-    // second object for the one reading — equal in content, different in identity, and identity is
-    // what every view downstream memoises on. A row whose record was evicted meanwhile is answered
-    // by the board's own row, which is what the boards stated and still stands.
-    return boards.map((board) =>
-      this.publishBoard({
-        ...board,
-        departures: board.departures.map((row) => this.findRun(row.id) ?? row),
-      }),
-    );
+    // Published again now the runs are read, so each row carries the sequence its run just stated.
+    return boards.map((board) => this.publishBoard(board));
   }
 
   getLineRoute(rowId: string): Promise<readonly string[] | undefined> {
@@ -404,41 +410,27 @@ export class KvvTransitSource implements TransitSource {
     );
   }
 
-  /**
-   * This row completed by the run behind it: the stop's own facts, and the whole calling sequence.
-   *
-   * The two halves are readings on two clocks and the answer states both (`Departure.readAt`), so
-   * whatever is drawn from it can tell which half is the later evidence without being told.
-   */
+  /** This row completed by the run behind it; both halves keep their own clock (`readAt`). */
   getRun(rowId: string, maxAgeMs = DEFAULT_BOARD_MAX_AGE_MS): Promise<Departure | undefined> {
     const row = this.runReadings.findRow(rowId);
     if (!row) return Promise.resolve(undefined);
     const cached = this.runReadings.findSequence(rowId)?.sequence;
-    // Answered from the store rather than merged here, so the reading a caller awaits and the one
-    // every view reads on its next paint are the same object.
     const current = () => (cached ? this.findRun(rowId) : undefined);
 
-    // A detailed board is itself a complete run observation. Without a locator it is the only
-    // observation this run can ever have; with one it competes with individual reads by age below.
+    // Without a locator the board's own sequence is the only reading this run can ever have.
     if (!row.locator) return Promise.resolve(current());
 
-    // One record is shared by every stop row of the same dated run. A sequence still inside the
-    // caller's tolerance answers all of those aliases, and concurrent aliases share one request.
-    //
-    // The tolerance is asked of the calls alone (`getSequenceReadInstant`) and never of the reading as
-    // a whole: what a caller here is deciding is whether to re-read the sequence, and a row re-read
-    // beside it on a board's own faster cadence is not an answer to that question.
+    // Every row of a run shares one record and one in-flight request. The tolerance is asked of the
+    // calls' own clock: a row re-read on a board says nothing about whether the calls are stale.
     const readAt = cached?.readAt;
     if (readAt !== undefined && Date.now() - readAt < maxAgeMs) return Promise.resolve(current());
     const read =
       this.runRequests.find(this.runReadings.findRunRecordKey(rowId)) ??
       this.requestRun(rowId, row.locator);
-    // A run that could not be read is answered by nothing, not by the row it was asked about: the
-    // caller backs off on a failure, and a row restated as an answer is not one.
+    // A failed read answers nothing, so the caller backs off rather than counting the row as news.
     return read.then((sequence) => (sequence ? this.findRun(rowId) : undefined));
   }
 
-  // Every answer is the one reading store's, shared by every view.
   findRun(rowId: string): Departure | undefined {
     return this.runReadings.findRun(rowId);
   }
@@ -623,14 +615,18 @@ export class KvvTransitSource implements TransitSource {
     };
   }
 
-  /** Every board leaves the source through the canonical run objects and teaches session topology. */
-  private publishBoard(board: DepartureBoard): DepartureBoard {
+  resolveBoard(board: DepartureBoard): DepartureBoard {
     if (board.dataStatus !== "live") return board;
     const departures = board.departures.map((row) => this.findRun(row.id) ?? row);
-    const published = departures.every((departure, index) => departure === board.departures[index])
+    return departures.every((departure, index) => departure === board.departures[index])
       ? board
       : { ...board, departures };
-    this.observedNetwork.rememberBoard(published);
+  }
+
+  /** Every board leaves the source resolved through the store, and teaches session topology. */
+  private publishBoard(board: DepartureBoard): DepartureBoard {
+    const published = this.resolveBoard(board);
+    if (published.dataStatus === "live") this.observedNetwork.rememberBoard(published);
     return published;
   }
 
@@ -664,11 +660,8 @@ export class KvvTransitSource implements TransitSource {
       serviceNote: departure.serviceNote,
       vehicleAccess: departure.vehicleAccess,
       tripCalls,
-      // The boundary is where a reading is dated, and every departure published from here is dated
-      // here: a row that arrived carrying its own calls is one reading and states one instant
-      // twice. A row that carries none dates only itself — there is no sequence reading here to
-      // date, and a clock for one would be read as a sequence just taken. Everything downstream
-      // ranks, retains and places by this and never by a clock of its own (`Departure.readAt`).
+      // Dated here, once, and never downstream. A row without calls gets no sequence clock: one
+      // would read as a sequence just taken.
       readAt: {
         rowReadAt: receivedAt,
         ...(tripCalls?.length ? { sequenceReadAt: receivedAt } : {}),
@@ -686,10 +679,8 @@ export class KvvTransitSource implements TransitSource {
         .then((trip) => {
           const receivedAt = Date.now();
           const sequence = this.createSequenceReading(requestKey, trip, receivedAt);
-          // A request outlives the record it was shared under — the sweep and the cap do not wait
-          // for the provider — and a reading with nowhere to land is a reading nobody took. Said so
-          // rather than swallowed: answered with the row it was asked about, the caller counted a
-          // failure as a success, stopped backing off, and went on never re-reading the run.
+          // An answer whose record was evicted meanwhile landed nowhere, and is reported as a
+          // failure so the caller backs off (`rememberSequence`).
           return sequence && this.runReadings.rememberSequence(requestKey, sequence, receivedAt)
             ? sequence
             : undefined;
@@ -700,14 +691,9 @@ export class KvvTransitSource implements TransitSource {
   }
 
   /**
-   * A single-run response as the one thing it actually is: this run's calls, at this instant.
-   *
-   * A row of the run is still consulted, because the provider's trip response names no timetable
-   * trip of its own and the dated identity is derived from one. But nothing of that row survives
-   * into the reading. The response is evidence about the *run*, read on behalf of every stop of it,
-   * and shaping it like the one row that happened to discover it puts that row's id, stop, platform
-   * and countdown onto a copy every other stop then reads — facts about somewhere else, on the only
-   * object in the store that no single stop owns.
+   * A single-run response as this run's calls at this instant. A row of the run is consulted only
+   * for the timetable trip the dated identity is derived from; none of its stop facts are carried,
+   * since the reading is shared by every stop of the run.
    */
   private createSequenceReading(
     runKey: string,
@@ -721,14 +707,10 @@ export class KvvTransitSource implements TransitSource {
       getTripInstanceId(departure.tripId, tripCalls) ?? departure.tripInstanceId;
     return {
       tripCalls,
-      // Derived exactly as a board derives it. A single-run reading times its calls to the second
-      // and a board row publishes the same call to the minute, so an id built here from the raw
-      // timestamp named the same run differently from every board's reading of it.
+      // Derived exactly as a board derives it, or the same run would get two dated identities.
       ...(tripInstanceId ? { tripInstanceId } : {}),
       status: trip.status ?? departure.status,
-      // One instant, and it is the calls'. The row this was discovered through has a clock of its
-      // own and keeps it; a sequence that inherited it is how a stale prediction passed for a
-      // correction, and the type no longer has anywhere to put one.
+      // The calls' own clock; the row that discovered the run keeps its own.
       readAt: receivedAt,
     };
   }

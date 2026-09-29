@@ -20,6 +20,10 @@ import {
 import { getJoinedRunPortionPairs } from "../src/lib/joined-run-portions.ts";
 import { createLineSelection } from "../src/lib/line-bundles.ts";
 import { createCall, run } from "./support/calls.ts";
+import { createRunMotions } from "../src/lib/vehicle-positioning.ts";
+
+/** One drawing's motion record, shared across this file as the module global used to be. */
+const motions = createRunMotions();
 
 const start = Date.parse("2026-08-23T12:00:00Z");
 const call = createCall(start);
@@ -67,6 +71,7 @@ test("moves continuously across every visible row when an observed trip skips a 
     [],
     departure,
     start + 70_000,
+    { motions },
   );
 
   assert.ok(getVehicleRowCoordinate(vehicle) > 1.1 && getVehicleRowCoordinate(vehicle) < 1.4);
@@ -168,6 +173,7 @@ test("draws joined portions as one counted mark until the terminating portion en
     getJoinedRunPortionPairs([terminating, continuing]),
     terminating,
     start + 60_000,
+    { motions },
   );
   assert.equal(together.length, 1);
   assert.deepEqual(together[0]?.joinedDepartures.map(({ id }) => id).sort(), ["long", "short"]);
@@ -185,6 +191,7 @@ test("draws joined portions as one counted mark until the terminating portion en
     getJoinedRunPortionPairs([terminating, continuing]),
     undefined,
     start + 7 * 60_000,
+    { motions },
   );
   assert.equal(afterTerminus.length, 1);
   assert.deepEqual(
@@ -228,6 +235,7 @@ test("keeps inconsistent joined-portion positions separate", () => {
     getJoinedRunPortionPairs(departures),
     undefined,
     start + 3 * 60_000,
+    { motions },
   );
 
   assert.equal(vehicles.length, 2);
@@ -265,6 +273,7 @@ test("draws both published platform calls at the same stop", () => {
     [],
     departure,
     start + 3 * 60_000,
+    { motions },
   );
   assert.ok(getVehicleRowCoordinate(vehicle) > 1 && getVehicleRowCoordinate(vehicle) < 2);
 
@@ -274,6 +283,7 @@ test("draws both published platform calls at the same stop", () => {
     [],
     departure,
     start + 5 * 60_000,
+    { motions },
   );
   assert.ok(
     getVehicleRowCoordinate(betweenPlatforms) > 2 && getVehicleRowCoordinate(betweenPlatforms) < 3,
@@ -332,6 +342,7 @@ test("a chain names its own coordinates, and a row speaks for every mark behind 
     [],
     departure,
     start + 30_000,
+    { motions },
   );
   const both = { ...vehicle, joinedDepartures: [departure, joined] };
 
@@ -376,6 +387,7 @@ test("carries every trip's own destination on its mark, joined portions included
     [],
     undefined,
     start + 70_000,
+    { motions },
   );
 
   assert.equal(vehicle.destinationLabel, "Rüppurr Tulpenstraße");
@@ -403,6 +415,7 @@ test("speaks a mark standing at a terminus as the departure or the arrival it is
     [],
     undefined,
     start - 3 * 60_000,
+    { motions },
   );
 
   assert.equal(vehicles[0].phase, "beforeStart");
@@ -414,6 +427,7 @@ test("speaks a mark standing at a terminus as the departure or the arrival it is
     [],
     undefined,
     start + 2.5 * 60_000,
+    { motions },
   );
 
   assert.equal(arrived[0].phase, "afterEnd");
@@ -454,7 +468,9 @@ test("hides the turnaround stands with the line's other vehicles, but never the 
   };
 
   // Both runs stand at their first stop before either has begun.
-  const placements = getLineDiagramVehicles(diagramStops, [mine, turning], [], mine, start);
+  const placements = getLineDiagramVehicles(diagramStops, [mine, turning], [], mine, start, {
+    motions,
+  });
   assert.deepEqual(
     placements.map(({ departure, phase }) => [departure.tripId, phase]),
     [
@@ -476,7 +492,14 @@ test("hides the turnaround stands with the line's other vehicles, but never the 
 
   // Without a followed trip every stand is another run's beginning, so hiding the others clears
   // the diagram of them all.
-  const unaccompanied = getLineDiagramVehicles(diagramStops, [mine, turning], [], undefined, start);
+  const unaccompanied = getLineDiagramVehicles(
+    diagramStops,
+    [mine, turning],
+    [],
+    undefined,
+    start,
+    { motions },
+  );
   assert.deepEqual(
     getShownLineDiagramVehicles(unaccompanied, false).map(({ departure }) => departure.tripId),
     [],
@@ -520,6 +543,7 @@ test("places a mark on the nearer of two rows a chain names the same stop at", (
     [],
     departure,
     start + 60_000,
+    { motions },
   );
   assert.ok(getVehicleRowCoordinate(firstLeg) > 0 && getVehicleRowCoordinate(firstLeg) < 1);
   assert.equal(firstLeg.directionArrow, "↓");
@@ -533,6 +557,7 @@ test("places a mark on the nearer of two rows a chain names the same stop at", (
     [],
     departure,
     start + 5 * 60_000,
+    { motions },
   );
   assert.ok(Math.abs(getVehicleRowCoordinate(returning) - 2) < 1);
 });

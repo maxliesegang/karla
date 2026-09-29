@@ -24,6 +24,10 @@ import {
 import { getZentrumVehicleLinkKey } from "../src/lib/zentrum-plan-canvas.ts";
 import { getZentrumSchematicStopMarks } from "../src/lib/zentrum-schematic-stops.ts";
 import { run } from "./support/calls.ts";
+import { createRunMotions } from "../src/lib/vehicle-positioning.ts";
+
+/** One drawing's motion record, shared across this file as the module global used to be. */
+const motions = createRunMotions();
 
 const call = (localStopId: string, providerStopPointId: string, platformCode = "1"): TripCall => ({
   stopName: localStopId,
@@ -833,7 +837,7 @@ test("places a vehicle on the link its timings put it on, and keeps its directio
     reading,
     [trip],
     Date.parse("2026-09-04T12:01:00+02:00"),
-    reading.trackWidth,
+    motions,
   );
 
   assert.equal(vehicle?.from.id, "kronenplatz");
@@ -879,6 +883,7 @@ test("places a vehicle on the nearest occurrence when a route visits a stop twic
     reading,
     [trip],
     Date.parse("2026-09-04T12:05:00+02:00"),
+    motions,
   );
 
   assert.ok(vehicle);
@@ -921,6 +926,7 @@ test("keeps a vehicle standing before its Zentrum run starts", () => {
     reading,
     [trip],
     Date.parse("2026-09-04T11:56:00+02:00"),
+    motions,
   );
 
   assert.equal(vehicle?.phase, "beforeStart");
@@ -961,6 +967,7 @@ test("keeps a vehicle standing after its Zentrum run ends", () => {
     reading,
     [trip],
     Date.parse("2026-09-04T12:04:30+02:00"),
+    motions,
   );
 
   assert.equal(vehicle?.phase, "afterEnd");
@@ -1025,6 +1032,7 @@ test("keeps one stable marker through a Zentrum turnaround", () => {
     reading,
     [arriving, departing],
     Date.parse("2026-09-04T12:06:00+02:00"),
+    motions,
   );
 
   assert.deepEqual(
@@ -1079,19 +1087,19 @@ test("marks ride their line's lane, either way along the corridor", () => {
     reading,
     [westbound],
     Date.parse("2026-09-04T12:01:00+02:00"),
-    reading.trackWidth,
+    motions,
   );
   const [east] = getZentrumSchematicVehicles(
     reading,
     [eastbound],
     Date.parse("2026-09-04T12:03:00+02:00"),
-    reading.trackWidth,
+    motions,
   );
   const [tramMark] = getZentrumSchematicVehicles(
     reading,
     [tram],
     Date.parse("2026-09-04T12:01:00+02:00"),
-    reading.trackWidth,
+    motions,
   );
 
   // The same level corridor, walked in opposite directions.
@@ -1151,11 +1159,13 @@ test("hands a mark over between corridors exactly where its line's stroke turns"
     reading,
     [through],
     Date.parse("2026-09-04T12:01:59+02:00"),
+    motions,
   );
   const [departing] = getZentrumSchematicVehicles(
     reading,
     [through],
     Date.parse("2026-09-04T12:02:01+02:00"),
+    motions,
   );
   assert.equal(arriving?.to.id, "europaplatz");
   assert.equal(departing?.from.id, "europaplatz");
@@ -1200,6 +1210,7 @@ test("parks a mark inside a stop complex, pointing the way out", () => {
     reading,
     [crossing],
     Date.parse("2026-09-04T12:03:00+02:00"),
+    motions,
   );
 
   assert.ok(parked);
@@ -1252,6 +1263,7 @@ test("rides the line's lane through a stop the feed left untimed", () => {
     reading,
     [past],
     Date.parse("2026-09-04T12:01:00+02:00"),
+    motions,
   );
 
   assert.ok(vehicle);
@@ -1296,6 +1308,7 @@ test("lights the corridors ahead of a placed vehicle, and none behind it", () =>
     reading,
     [eastbound],
     Date.parse("2026-09-04T12:01:00+02:00"),
+    motions,
   );
   assert.deepEqual([...(vehicle?.aheadEdgeIds ?? [])].sort(), [
     "europaplatz\u0000marktplatz",
@@ -1308,6 +1321,7 @@ test("lights the corridors ahead of a placed vehicle, and none behind it", () =>
     reading,
     [eastbound],
     Date.parse("2026-09-04T12:01:00+02:00"),
+    motions,
   );
   assert.deepEqual([...(leaving.get("S1") ?? [])].sort(), [
     "europaplatz\u0000marktplatz",
@@ -1318,6 +1332,7 @@ test("lights the corridors ahead of a placed vehicle, and none behind it", () =>
     reading,
     [eastbound],
     Date.parse("2026-09-04T12:03:00+02:00"),
+    motions,
   );
   assert.deepEqual([...(past.get("S1") ?? [])], ["kronenplatz\u0000marktplatz"]);
 });

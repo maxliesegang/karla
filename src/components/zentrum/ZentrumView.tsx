@@ -1,8 +1,9 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DepartureBoard, DepartureBoardCoverage } from "../../data/transit-types";
 import { useZentrumVehicles } from "../../hooks";
 import { compareLineIds } from "../../lib/line-families";
 import type { ObservedNetwork } from "../../lib/observed-network";
+import { createRunMotions } from "../../lib/vehicle-positioning";
 import {
   buildZentrumSchematicReading,
   getZentrumSchematicVehicles,
@@ -80,7 +81,9 @@ export function ZentrumView({
   // under a mark still travelling on them.
   const schematic = useMemo(() => buildZentrumSchematicReading(runDepartures), [runDepartures]);
   // Every mark rides the lane its line is drawn in, because every line is drawn in a lane.
-  const vehicles = getZentrumSchematicVehicles(schematic, runDepartures, feedNow);
+  // The plan's own memory of how its marks are moving, kept for as long as the plan is mounted.
+  const [motions] = useState(createRunMotions);
+  const vehicles = getZentrumSchematicVehicles(schematic, runDepartures, feedNow, motions);
   // The feed states each line's mode, and the badge needs it for the lines that have no verified sign.
   const getSign = useMemo(() => createZentrumLineSignReader(network.lines), [network.lines]);
   const schematicLineIds = useMemo(

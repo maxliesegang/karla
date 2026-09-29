@@ -1,11 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { DepartureBoard } from "../src/data/transit-types.ts";
-import {
-  buildRetainedDepartureBoards,
-  getDepartureBoardCoverage,
-  RETAINED_DEPARTURE_BOARD_LIMIT_MS,
-} from "../src/lib/departure-board-collection.ts";
+import { getDepartureBoardCoverage, isFailedBoard } from "../src/lib/departure-board-collection.ts";
 
 const createBoard = (
   stopId: string,
@@ -22,31 +18,22 @@ const createBoard = (
       }
     : { stopId, dataStatus, receivedAt, departures: [], errorMessage: "nicht erreichbar" };
 
-test("retains a failed observation post independently while reporting partial coverage", () => {
+test("a board kept in place of a failed refresh counts against coverage", () => {
   const stopIds = ["a", "b"];
-  const first = buildRetainedDepartureBoards(
-    stopIds,
-    [createBoard("a", 1_000, "live"), createBoard("b", 1_000, "live")],
-    new Map(),
-  );
-  const refreshed = [createBoard("a", 2_000, "unavailable"), createBoard("b", 2_000, "live")];
-  const retained = buildRetainedDepartureBoards(stopIds, refreshed, first.liveBoardByStopId);
+  const kept = { ...createBoard("a", 1_000, "live"), refreshFailedAt: 2_000 } as DepartureBoard;
+  const boards = [kept, createBoard("b", 2_000, "live")];
 
-  assert.equal(retained.departureBoards[0].dataStatus, "live");
-  assert.equal(retained.departureBoards[0].receivedAt, 1_000);
-  assert.deepEqual(getDepartureBoardCoverage(stopIds, refreshed), {
+  assert.equal(isFailedBoard(kept), true);
+  assert.deepEqual(getDepartureBoardCoverage(stopIds, boards), {
     status: "partial",
     expectedBoardCount: 2,
     liveBoardCount: 1,
   });
 });
 
-test("makes an expired retained board unavailable", () => {
-  const stopIds = ["a"];
-  const first = buildRetainedDepartureBoards(stopIds, [createBoard("a", 1_000, "live")], new Map());
-  const failed = createBoard("a", 1_000 + RETAINED_DEPARTURE_BOARD_LIMIT_MS + 1, "unavailable");
-  const expired = buildRetainedDepartureBoards(stopIds, [failed], first.liveBoardByStopId);
+test("a board nothing could be read for is unavailable coverage", () => {
+  const failed = createBoard("a", 1_000, "unavailable");
 
-  assert.equal(expired.departureBoards[0].dataStatus, "unavailable");
-  assert.equal(getDepartureBoardCoverage(stopIds, [failed]).status, "unavailable");
+  assert.equal(isFailedBoard(failed), true);
+  assert.equal(getDepartureBoardCoverage(["a"], [failed]).status, "unavailable");
 });

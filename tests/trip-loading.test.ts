@@ -468,6 +468,10 @@ test("TransitSource merges one trip into the latest stop row and caches its sequ
   const cachedBoard = await source.getDepartureBoard("durlacher-tor", { maxAgeMs: 5 * 60_000 });
   assert.equal(cachedBoard.departures[0], source.findRun(rowId));
   assert.equal(cachedBoard.departures[0], first);
+  // A board a view already holds catches up the same way, without being fetched again.
+  assert.notEqual(board.departures[0], first);
+  assert.equal(source.resolveBoard(board).departures[0], first);
+  assert.equal(source.resolveBoard(cachedBoard), cachedBoard);
 });
 
 test("a detailed ordinary board publishes the canonical run object", async (t) => {
@@ -1223,4 +1227,33 @@ test("a board can never be served from cache after its rows have been forgotten"
   assert.equal(boardFetches, 2);
   assert.equal(reread.id, row.id);
   assert.ok(await source.getRun(row.id));
+});
+
+test("a failed refresh answers with the last live board until it is too old to act on", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-08-26T05:29:45.000Z") });
+  let isFeedDown = false;
+  const client = {
+    fetchDepartureBoard: async (providerStopId: string): Promise<KvvDepartureBoard> => {
+      if (isFeedDown) throw new Error("offline");
+      return {
+        stopPointId: providerStopId,
+        stopName: "Durlacher Tor/KIT-Campus Süd (U)",
+        serverTime: "2026-08-26T05:29:45.000Z",
+        servingLines: [],
+        departures: [createRememberedDeparture(0, "2026-08-26T05:35:00.000Z")],
+      };
+    },
+  } as unknown as KvvEfaClient;
+  const source = new KvvTransitSource(client);
+  const live = await source.getDepartureBoard("durlacher-tor");
+
+  isFeedDown = true;
+  t.mock.timers.tick(60_000);
+  const kept = await source.getDepartureBoard("durlacher-tor");
+  assert.equal(kept.dataStatus, "live");
+  assert.equal(kept.receivedAt, live.receivedAt, "the kept board states its real age");
+  assert.equal(kept.dataStatus === "live" && kept.refreshFailedAt, Date.now());
+
+  t.mock.timers.tick(10 * 60_000);
+  assert.equal((await source.getDepartureBoard("durlacher-tor")).dataStatus, "unavailable");
 });

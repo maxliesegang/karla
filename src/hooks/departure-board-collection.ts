@@ -1,4 +1,4 @@
-import { useMemo, useState, useSyncExternalStore } from "react";
+import { useMemo, useSyncExternalStore } from "react";
 import type { DepartureBoard, DepartureBoardCoverage } from "../data/transit-types";
 import {
   REACH_OBSERVATION_POST_STOP_IDS,
@@ -6,13 +6,11 @@ import {
   type ObservedNetwork,
 } from "../lib/observed-network";
 import { transitSource } from "../data/transit-source";
-import {
-  buildRetainedDepartureBoards,
-  getDepartureBoardCoverage,
-} from "../lib/departure-board-collection";
+import { getDepartureBoardCoverage, isFailedBoard } from "../lib/departure-board-collection";
 import { createSortedKey } from "../lib/collections";
 import { createDepartureBoardsLoader } from "./departure-board";
 import { createFreshEntryLoad, useKeyedLoad, type KeyedLoadOptions } from "./keyed-load";
+import { useLiveBoards } from "./run-reading-store";
 
 /**
  * The cadence for the boards that place a line's vehicles.
@@ -59,8 +57,7 @@ export const IDLE_OBSERVATION_REFRESH_MS = 30 * 60_000;
 const EMPTY_ROUTE_DIRECTION_IDS: readonly string[] = [];
 const EMPTY_DEPARTURE_BOARDS: readonly DepartureBoard[] = [];
 
-const hasUnavailableBoard = (boards: readonly DepartureBoard[]) =>
-  boards.some((board) => board.dataStatus === "unavailable");
+const hasFailedBoard = (boards: readonly DepartureBoard[]) => boards.some(isFailedBoard);
 
 export type DepartureBoardCollection = {
   departureBoards: readonly DepartureBoard[];
@@ -110,7 +107,7 @@ export function useDepartureBoardCollection(
   const lineKey = createSortedKey(routeDirectionIds);
   const key = lineKey ? `${stopKey}|${lineKey}` : stopKey;
   const loadOptions = useMemo<KeyedLoadOptions<DepartureBoard[]>>(
-    () => ({ refreshMs, isFailure: hasUnavailableBoard }),
+    () => ({ refreshMs, isFailure: hasFailedBoard }),
     [refreshMs],
   );
   // An observation of the whole stop carries its trips, because the trips are what the network is
@@ -134,30 +131,9 @@ export function useDepartureBoardCollection(
   );
   const loaded = useKeyedLoad(stopKey ? key : null, load, loadOptions);
   const orderedStopIds = stopKey ? stopKey.split(",") : [];
-  const [retention, setRetention] = useState<{
-    key: string;
-    loaded: readonly DepartureBoard[] | undefined | null;
-    departureBoards: readonly DepartureBoard[];
-    liveBoardByStopId: Map<string, DepartureBoard>;
-  }>({ key, loaded: null, departureBoards: EMPTY_DEPARTURE_BOARDS, liveBoardByStopId: new Map() });
-
-  let currentRetention = retention;
-  if (retention.key !== key || retention.loaded !== loaded) {
-    const previousLiveBoardByStopId =
-      retention.key === key ? retention.liveBoardByStopId : new Map();
-    const { departureBoards, liveBoardByStopId } = buildRetainedDepartureBoards(
-      orderedStopIds,
-      loaded,
-      previousLiveBoardByStopId,
-    );
-    currentRetention = { key, loaded, departureBoards, liveBoardByStopId };
-    setRetention(currentRetention);
-  }
-
-  return {
-    departureBoards: loaded === null ? EMPTY_DEPARTURE_BOARDS : currentRetention.departureBoards,
-    coverage: getDepartureBoardCoverage(orderedStopIds, loaded),
-  };
+  // Each post's failed refresh is already answered by its last live board (`refreshFailedAt`).
+  const departureBoards = useLiveBoards(loaded ?? EMPTY_DEPARTURE_BOARDS);
+  return { departureBoards, coverage: getDepartureBoardCoverage(orderedStopIds, loaded) };
 }
 
 /**

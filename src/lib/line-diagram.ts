@@ -16,6 +16,7 @@ import {
 import {
   createSoonestPassageComparator,
   getRunPlacement,
+  type RunMotions,
   type RunPlacementMotion,
   type RunPlacementPhase,
   type RunSegmentTrajectory,
@@ -101,6 +102,8 @@ export type LineDiagramVehicle = {
 };
 
 export type LineDiagramVehicleOptions = {
+  /** The drawing's own record of its marks' motion (`createRunMotions`), shared with its legs. */
+  motions: RunMotions;
   /** Share this across a bundled trunk and its legs; it changes only with the observations. */
   turnaroundIndex?: TurnaroundIndex;
   /**
@@ -342,6 +345,7 @@ function getRowsByStopId(
 
 /** Every observed vehicle whose current link exists in this diagram, on the rows it falls on. */
 function placeVehicles(
+  motions: RunMotions,
   rowsByStopId: ReadonlyMap<string, readonly number[]>,
   runDepartures: readonly Departure[],
   turnarounds: TurnaroundIndex,
@@ -359,6 +363,7 @@ function placeVehicles(
   const placed: PlacedLineDiagramVehicle[] = [];
   for (const candidate of [...runDepartures].sort(createSoonestPassageComparator(feedNow))) {
     const placement = getRunPlacement(
+      motions,
       candidate,
       feedNow,
       turnarounds.standFromByDepartureKey.get(getRunMarkKey(candidate)),
@@ -525,13 +530,19 @@ export function getLineDiagramVehicles(
   joinedPortionPairs: readonly JoinedRunPortionPair[],
   selectedDeparture: Departure | undefined,
   feedNow: number,
-  { turnaroundIndex, showWaitingVehicles = true }: LineDiagramVehicleOptions = {},
+  { motions, turnaroundIndex, showWaitingVehicles = true }: LineDiagramVehicleOptions,
 ): LineDiagramVehicle[] {
   // A vehicle turning at a terminus is two trips in the feed and one thing on the platform. The
   // stand is drawn once, as the departure that leaves it — see `lib/line-turnarounds.ts` for what
   // that pairing does and does not claim.
   const turnarounds = turnaroundIndex ?? findTurnarounds(runDepartures);
-  const placed = placeVehicles(getRowsByStopId(diagramStops), runDepartures, turnarounds, feedNow);
+  const placed = placeVehicles(
+    motions,
+    getRowsByStopId(diagramStops),
+    runDepartures,
+    turnarounds,
+    feedNow,
+  );
   const drawn = arbitratePlatforms(
     placed,
     runDepartures,

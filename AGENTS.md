@@ -25,7 +25,7 @@ npm run solve:zentrum  # measures the Zentrum plan against the feed, and solves 
 | [src/routing.ts](src/routing.ts) | hash routes and path builders |
 | [src/selection.ts](src/selection.ts) | resolving the stop / line / trip chain against live data |
 | [src/view-layout.ts](src/view-layout.ts) | what an address means for the two panels |
-| [src/lib/](src/lib/) | domain logic: observed network, feed clock, trip progress, notices |
+| [src/lib/](src/lib/) | domain logic: observed network, feed clock, ride progress, notices |
 | [src/data/](src/data/) | `TransitSource` boundary, EFA client and parsers |
 | [src/data/generated/](src/data/generated/) | written by [scripts/](scripts/) from published data; never edited by hand |
 | [tests/](tests/) | `node --test` over the pure modules; no DOM, no network |
@@ -51,10 +51,14 @@ spelling verbatim (`trainNum`, `stopSeqCoords`).
   stop nothing calls at today contributes an empty board and leaves the diagram by itself.
 - **A filter is sent whole or not at all.** A one-direction board is silently incomplete; wait until
   both directions are named from the stop's own `servingLines`.
-- **One reading of a run, and the source holds it.** `RunReadingStore` keeps one record per run;
-  views keep the *ids* of the runs they follow and read them through `findRun`; `Departure.readAt`
-  is set once and never rewritten. Every path out of the source ends at `findRun`, boards included,
-  so one reading is one *object* and not merely one set of facts.
+- **One reading of a run, and the source holds it** ([ADR 0001](docs/adr/0001-one-run-reading-store.md)).
+  `RunReadingStore` keeps one record per run; views keep only the *ids* of runs (`useRuns`), and
+  every board hook hands out boards through `useLiveBoards`, so a row is never looked up again by
+  hand. `Departure.readAt` is set once and never rewritten.
+- **Boards change whenever a run is re-read.** State derived from boards compares before it sets,
+  never inside an updater: an effect that set state per board tripped React's nested-update limit.
+- **A drawing owns its marks' motion.** `getRunPlacement` takes the drawing's `RunMotions`
+  (`createRunMotions`); there is no module-level placement state.
 - **A run's calls are the record's, a stop's facts are the row's.** A `RunSequence` is what a run
   states about itself — the calls, one clock, the identity they refine — and carries nothing about
   any stop. A `Departure` becomes one through `toRunSequence`, which is where the discovering row's
@@ -62,9 +66,8 @@ spelling verbatim (`trainNum`, `stopSeqCoords`).
 - **A reading that lands nowhere is a failure and says so.** A request outlives the record it was
   shared under; `rememberSequence` reports whether it landed, so a caller backs off instead of
   counting a swallowed answer as a success.
-- **A run is keyed by the provider's address for it: `line|tripCode`.** No date in the key — that
-  splits a run at midnight to defend against a collision a day away. A record retires when its
-  calls run out.
+- **A run is keyed by the provider's address for it: `line|tripCode`**, with no date; a record
+  retires when its calls run out ([ADR 0002](docs/adr/0002-run-key-without-date.md)).
 - **Only a run's own sequence places a vehicle.** A board row is a prediction about one call; the
   sequence is the only reading that states the whole run. The row corrects the sequence at its
   boarding call alone, and not once it is the older reading (`isRowSupersededBySequence`) or the
@@ -84,7 +87,8 @@ spelling verbatim (`trainNum`, `stopSeqCoords`).
 
 - Never claim realtime for data that isn't; without a prediction a departure reads "nach Fahrplan".
 - Count minutes against the feed's clock (`lib/feed-clock.ts`), never the device's.
-- A failed refresh is not evidence the last board was wrong: keep it and state its age.
+- A failed refresh is not evidence the last board was wrong: the source answers it with the last
+  live board, marked `refreshFailedAt`, and the board states its age.
 - One published time per row: countdown, printed time, and board order all come from the feed's
   predicted instant (`findExpectedDepartureInstant`), never from the delay stated beside it.
 - Quote service notices, never rewrite them.

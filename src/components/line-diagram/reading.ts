@@ -9,8 +9,9 @@ import type {
 } from "../../data/transit-types";
 import { getFarthestLineRun, getLineTermini } from "../../lib/stop-services";
 import { findTurnarounds } from "../../lib/line-turnarounds";
+import { createRunMotions } from "../../lib/vehicle-positioning";
 import { buildInterchangeIndex } from "../../lib/interchanges";
-import { useAppSettings, useLineRunDepartures } from "../../hooks";
+import { useAppSettings, useLineRunDepartures, useRuns } from "../../hooks";
 import { getLineDiagramStatusLabel, getRunPositionHint } from "../../lib/departure-presentation";
 import {
   buildLineDiagramStops,
@@ -36,10 +37,11 @@ import {
   useLineBundleBranchVehicles,
   useLineDiagramFork,
 } from "./bundle";
-import { useRetainedDiagramRun } from "./layout";
+import { retainAddressedRun, type RetainedDiagramRun } from "./layout";
 
 const EMPTY_TRIP_CALLS: readonly TripCall[] = [];
 const EMPTY_DEPARTURES: readonly Departure[] = [];
+const NO_ROW_IDS: readonly string[] = [];
 const EMPTY_LINES: readonly TransitLine[] = [];
 const EMPTY_OFFERS: readonly LineBundleOffer[] = [];
 /** Fine enough that a call turns over within a few seconds of the minute it belongs to. */
@@ -159,7 +161,13 @@ export function useLineDiagramReading({
       lineDepartureBoards.find((board) => board.stopId === stop.id)?.departures ?? EMPTY_DEPARTURES,
     [lineDepartureBoards, stop.id],
   );
-  const [retainedLineRun, setRetainedLineRun] = useState<Departure | undefined>(undefined);
+  // Held by id and read back from the store, like every run a view follows.
+  const [retainedLineRunId, setRetainedLineRunId] = useState<string>();
+  const retainedLineRunIds = useMemo(
+    () => (retainedLineRunId ? [retainedLineRunId] : NO_ROW_IDS),
+    [retainedLineRunId],
+  );
+  const [retainedLineRun] = useRuns(retainedLineRunIds);
   const diagramDeparture = useMemo(
     () =>
       chooseLineDiagramRun({
@@ -185,8 +193,8 @@ export function useLineDiagramReading({
   // diagram has to find it already there, or it would draw one frame of the line facing another way.
   // A moment with no board to draw from is not a reason to forget the last trip — it is exactly the
   // moment the hold exists for — so nothing is ever held back to `undefined`.
-  if (diagramDeparture && diagramDeparture !== retainedLineRun)
-    setRetainedLineRun(diagramDeparture);
+  if (diagramDeparture && diagramDeparture.id !== retainedLineRunId)
+    setRetainedLineRunId(diagramDeparture.id);
   const drawnCalls = diagramDeparture?.tripCalls ?? EMPTY_TRIP_CALLS;
   // A line selection with no pinned trip describes the whole observed line, whether it is being
   // read alone or beside a sibling. Extend the primary chain before finding the shared trunk: if
@@ -288,6 +296,8 @@ export function useLineDiagramReading({
     () => findTurnarounds(visibleRunDepartures),
     [visibleRunDepartures],
   );
+  // The diagram's own memory of how its marks are moving, kept for as long as it is mounted.
+  const [motions] = useState(createRunMotions);
   const vehicles = useMemo(
     () =>
       getShownLineDiagramVehicles(
@@ -297,7 +307,7 @@ export function useLineDiagramReading({
           joinedPortionPairs,
           departure,
           feedNow,
-          { turnaroundIndex },
+          { motions, turnaroundIndex },
         ),
         isShowingOtherLineRuns,
       ),
@@ -307,6 +317,7 @@ export function useLineDiagramReading({
       joinedPortionPairs,
       departure,
       feedNow,
+      motions,
       turnaroundIndex,
       isShowingOtherLineRuns,
     ],
@@ -320,6 +331,7 @@ export function useLineDiagramReading({
     joinedPortionPairs,
     selectedDeparture: departure,
     feedNow,
+    motions,
     turnaroundIndex,
     areOtherRunsShown: isShowingOtherLineRuns,
     trunkVehicles: vehicles,
@@ -395,4 +407,28 @@ export function useLineDiagramReading({
     // a bare arrow says less than the line's own name.
     hasTermini: Boolean(termini.firstTerminus && termini.lastTerminus),
   };
+}
+
+/** The addressed run, held by id across a moment no board answers for it (`retainAddressedRun`). */
+export function useRetainedDiagramRun(
+  /** The run address names, which is what the hold belongs to. */
+  addressId: string | undefined,
+  departure: Departure | undefined,
+): Departure | undefined {
+  // The hold is the run's *id*: while nothing answers for it, the run is read from the store, so
+  // what is drawn is still the freshest reading anything has taken of it.
+  const [retained, setRetained] = useState<RetainedDiagramRun<string>>(null);
+  const next = retainAddressedRun(retained, addressId, departure?.id);
+  if (
+    next.retained?.addressId !== retained?.addressId ||
+    next.retained?.departure !== retained?.departure
+  ) {
+    setRetained(next.retained);
+  }
+  const heldRowIds = useMemo(
+    () => (!departure && next.drawn ? [next.drawn] : NO_ROW_IDS),
+    [departure, next.drawn],
+  );
+  const [held] = useRuns(heldRowIds);
+  return departure ?? held;
 }

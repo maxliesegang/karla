@@ -9,6 +9,10 @@ import type {
 import { buildLineDiagramStops, getLineDiagramVehicles } from "../src/lib/line-diagram.ts";
 import { getDrawableLineBundleOffers, getLineBundleTrunk } from "../src/lib/line-bundles.ts";
 import { createCall } from "./support/calls.ts";
+import { createRunMotions } from "../src/lib/vehicle-positioning.ts";
+
+/** One drawing's motion record, shared across this file as the module global used to be. */
+const motions = createRunMotions();
 
 /**
  * The handover between the trunk and its legs.
@@ -84,7 +88,7 @@ const placedOn = (
   line: TransitLine,
   vehicles: readonly Departure[],
   feedNow: number,
-) => getLineDiagramVehicles(stopsOf(calls, line), vehicles, [], undefined, feedNow);
+) => getLineDiagramVehicles(stopsOf(calls, line), vehicles, [], undefined, feedNow, { motions });
 
 test("a vehicle still on the shared stretch stands on the trunk and on no leg", () => {
   assert.ok(trunk);

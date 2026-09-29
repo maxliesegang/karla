@@ -275,6 +275,11 @@ export type DepartureBoard = DepartureBoardReading &
         dataStatus: "live";
         /** Time the data was produced, taken from the feed's own server clock. */
         feedUpdatedAt: string;
+        /**
+         * Set where this is the last live reading, kept because a later refresh failed: when that
+         * refresh failed. The board is still worth showing, but it is not a successful reading.
+         */
+        refreshFailedAt?: number;
       }
     | {
         dataStatus: "unavailable";

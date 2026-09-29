@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { useLiveBoard } from "./run-reading-store";
 import { transitSource, type DepartureBoardRequest } from "../data/transit-source";
 import type { DepartureBoard, ServiceNoticeBoard } from "../data/transit-types";
-import { RETAINED_DEPARTURE_BOARD_LIMIT_MS } from "../lib/departure-board-collection";
+import { isFailedBoard } from "../lib/departure-board-collection";
 import { createSortedKey } from "../lib/collections";
 import { useKeyedLoad, type KeyedLoadOptions } from "./keyed-load";
 
@@ -113,11 +114,10 @@ const loadStopTopologyBoard = createDepartureBoardLoader({
   includeTripCalls: true,
   maxAgeMs: STOP_TOPOLOGY_REFRESH_MS,
 });
-const isUnavailableBoard = (board: DepartureBoard) => board.dataStatus === "unavailable";
 
 const SINGLE_BOARD_LOAD_OPTIONS: KeyedLoadOptions<DepartureBoard> = {
   refreshMs: DEPARTURE_BOARD_REFRESH_MS,
-  isFailure: isUnavailableBoard,
+  isFailure: isFailedBoard,
 };
 
 const loadServiceNotices = () => transitSource.getServiceNotices();
@@ -128,52 +128,22 @@ const SERVICE_NOTICE_LOAD_OPTIONS: KeyedLoadOptions<ServiceNoticeBoard> = {
 };
 
 /**
- * The last board of this stop that could actually be read.
+ * The last live board this hook read for this stop, for a new key that has not answered yet.
  *
- * Kept while a refresh fails, because a failed request says nothing about whether the board before
- * it was right. Adjusted while rendering rather than in an effect, so a board that failed is never
- * shown for one paint before the kept one replaces it, and dropped the moment the view moves on:
- * another stop's board is not a refresh of this one and must never stand in for it.
+ * A rider changing how a stop is read — another order, a line filter learned — asks a new key, and
+ * this stop's last reading is still true meanwhile, so it stands rather than the view emptying for
+ * one request. A failed refresh needs nothing here: the source already answers it with the last
+ * live board (`refreshFailedAt`). Dropped the moment the view moves to another stop, whose board is
+ * never a refresh of this one.
  */
 function useLastLiveBoard(
   stopId: string | undefined,
   loaded: DepartureBoard | null,
 ): DepartureBoard | null {
-  const [lastLiveBoard, setLastLiveBoard] = useState<DepartureBoard | null>(null);
-
-  if (loaded?.dataStatus === "live" && lastLiveBoard !== loaded) setLastLiveBoard(loaded);
-  else if (lastLiveBoard && lastLiveBoard.stopId !== stopId) setLastLiveBoard(null);
-
-  return lastLiveBoard?.stopId === stopId ? lastLiveBoard : null;
-}
-
-/**
- * The board a view shows, keeping the last one that could be read.
- *
- * A request that failed says nothing about whether the board before it was right, so blanking the
- * view on one timeout throws away good data and answers the rider with nothing. The retained board
- * keeps its own `feedUpdatedAt` and `receivedAt`, so it states its real age and every countdown read from
- * it stays honest — no local data is substituted, and nothing is presented as fresher than it is.
- * Past `RETAINED_DEPARTURE_BOARD_LIMIT_MS` the board is too old to act on and the failure is the answer.
- */
-function useRetainedDepartureBoard(
-  stopId: string | undefined,
-  loaded: DepartureBoard | null,
-): DepartureBoard | null {
-  const retained = useLastLiveBoard(stopId, loaded);
-
-  if (loaded?.dataStatus === "live") return loaded;
-  // Nothing has resolved under this key yet, which at a stop already read means the rider changed
-  // how they are reading it. The board in hand is the same stop's own last reading and still true,
-  // so it stands rather than the view emptying for the length of one request. Only a key change can
-  // reach here with a board retained: the first load of a stop has none, and moving to another stop
-  // drops it.
-  if (!loaded) return retained;
-  // The failed read carries the instant it failed, so how old the retained board is by now is a
-  // subtraction between two boards rather than a reading of the device clock while rendering.
-  return retained && loaded.receivedAt - retained.receivedAt <= RETAINED_DEPARTURE_BOARD_LIMIT_MS
-    ? retained
-    : loaded;
+  const [lastLive, setLastLive] = useState<DepartureBoard | null>(null);
+  if (loaded?.dataStatus === "live" && lastLive !== loaded) setLastLive(loaded);
+  else if (lastLive && lastLive.stopId !== stopId) setLastLive(null);
+  return lastLive?.stopId === stopId ? lastLive : null;
 }
 
 /**
@@ -189,8 +159,6 @@ export type DepartureBoardReading = {
    */
   readingCount: number;
 };
-
-const UNANSWERED_BOARD_READING: DepartureBoardReading = { board: null, readingCount: 0 };
 
 /**
  * Loads and periodically refreshes one stop's board, keeping the last good board while reloading.
@@ -227,15 +195,15 @@ export function useDepartureBoard(
     ...SINGLE_BOARD_LOAD_OPTIONS,
     reloadNonce,
   });
-  const board = useRetainedDepartureBoard(stopId, loaded ?? null);
-  const [reading, setReading] = useState<{
+  const lastLive = useLastLiveBoard(stopId, loaded ?? null);
+  const board = useLiveBoard(loaded ?? lastLive);
+  const [counted, setCounted] = useState<{
     loaded: DepartureBoard | undefined | null;
-    counted: DepartureBoardReading;
-  }>({ loaded: null, counted: UNANSWERED_BOARD_READING });
-  if (reading.loaded === loaded) return reading.counted;
-  const counted = { board, readingCount: reading.counted.readingCount + 1 };
-  setReading({ loaded, counted });
-  return counted;
+    readingCount: number;
+  }>({ loaded: null, readingCount: 0 });
+  const readingCount = counted.loaded === loaded ? counted.readingCount : counted.readingCount + 1;
+  if (counted.loaded !== loaded) setCounted({ loaded, readingCount });
+  return useMemo(() => ({ board, readingCount }), [board, readingCount]);
 }
 
 /**
@@ -249,12 +217,12 @@ export function useStopTopologyBoard(stopId: string | undefined): DepartureBoard
   const loaded =
     useKeyedLoad(stopId ?? null, loadStopTopologyBoard, {
       refreshMs: STOP_TOPOLOGY_REFRESH_MS,
-      isFailure: isUnavailableBoard,
+      isFailure: isFailedBoard,
     }) ?? null;
   // Kept without the age limit a shown board has: a route sequence does not become wrong by sitting
   // there, and nothing here is published to a rider as a time.
   const lastLive = useLastLiveBoard(stopId, loaded);
-  return loaded?.dataStatus === "live" ? loaded : (lastLive ?? loaded);
+  return useLiveBoard(loaded?.dataStatus === "live" ? loaded : (lastLive ?? loaded));
 }
 
 /**
@@ -272,10 +240,10 @@ export function useLineStopBoard(
 ): DepartureBoard | null {
   const key = stopId ? `${stopId}|${createSortedKey(routeDirectionIds)}` : null;
   const loaded = useKeyedLoad(key, loadLineStopBoard, SINGLE_BOARD_LOAD_OPTIONS) ?? null;
-  // Retained across a change of line ids as well as a failed refresh: the directions are learned
-  // from the board itself, so the first reading is always the one that names them.
+  // Held across a change of line ids: the directions are learned from the board itself, so the
+  // first reading is always the one that names them.
   const lastLive = useLastLiveBoard(stopId, loaded);
-  return loaded?.dataStatus === "live" ? loaded : (lastLive ?? loaded);
+  return useLiveBoard(loaded ?? lastLive);
 }
 
 /**

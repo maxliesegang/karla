@@ -8,64 +8,31 @@ export const RUN_READING_STORE_CAPACITY = 1_024;
 
 /**
  * How long after a run's last call its evidence is kept, so a mark can outlive the boards.
- *
- * A vehicle stops being a row on any board the moment it leaves its last one, and the diagram goes
- * on drawing it until its own calls run out (`lib/line-run-departures.ts`). The grace is what
- * that retention reads from; past it the run is over and nothing asks about it again.
- *
- * Four lifetimes describe the same run and they are not independent:
- *
- *     board cache  <  mark retention  <  RUN_ENDED_GRACE_MS  <  RUN_READING_MAX_AGE_MS
- *
- * A board cache (`DEFAULT_BOARD_MAX_AGE_MS`) outliving the records of the rows it hands back would
- * send `findRunRecordKey` to the bare-row fallback and restore the per-stop fan-out this store
- * exists to remove, silently. A drawn mark (`RUN_MARK_RETENTION_GRACE_MS`) must resolve through
- * `findRun` for as long as it is drawn. `RUN_READING_MAX_AGE_MS` is the outermost backstop.
- * Asserted in `tests/trip-loading.test.ts`; exported for that and nothing else.
+ * One of four nested lifetimes (docs/adr/0002-run-key-without-date.md); exported for the test
+ * that asserts their order.
  */
 export const RUN_ENDED_GRACE_MS = 10 * 60_000;
 
 /**
  * How long a record may stand on its newest reading alone, for a run whose end is not known.
- *
- * A run with no sequence behind it times no end, so nothing but age can retire it. Four hours is
- * longer than any run KVV operates — Karlsruhe to Freudenstadt is under three — and far short of
- * the day at which `tripCode` comes round again, which is what the key relies on. See
- * `getRunRecordKey` and `npm run probe:run-identity`.
+ * Longer than any KVV run, far shorter than the day after which its `tripCode` is reused.
  */
 export const RUN_READING_MAX_AGE_MS = 4 * 60 * 60_000;
 
 /** How often the store looks for evidence to retire, rather than on every row of every board. */
 const EVICTION_SWEEP_INTERVAL_MS = 60_000;
 
-/**
- * The most rows one record keeps, least recently read first out.
- *
- * A bound against a provider that keeps naming new ones, not a working limit: no KVV run calls at
- * anything near this many places. Without it a single long-lived record is unbounded in a store
- * whose only cap counts records.
- */
+/** A bound against a provider that keeps naming new rows for one run; no KVV run comes close. */
 const RUN_RECORD_ROW_CAPACITY = 64;
 
-/**
- * How far into the least-recent end of the store the cap looks for a run that is already over.
- *
- * Bounded because this runs on every row of every board once the store is full, and unbounded it
- * was the whole store walked per row. The preference it serves is a nicety, so it is worth a short
- * look and not a long one.
- */
+/** How far into the least-recent end the cap looks for a finished run before taking the oldest. */
 const ENDED_RUN_SCAN_DEPTH = 32;
 
 /**
- * One stop's row of a run, with the private locator the run can be read by where one was returned.
+ * One stop's row of a run, with the locator the run can be read by where one was returned.
  *
- * The row dates itself (`Departure.readAt`), so nothing here carries a clock beside it: a row and
- * its age cannot come apart, and every ranking in this file asks the row rather than a caller.
- *
- * It is kept *without* its calling sequence: a row that arrived carrying calls has had them
- * promoted to the record's sequence, where the whole run is ranked and kept once. Leaving a copy on
- * each of the run's forty rows is forty copies of one forty-call array that nothing reads, since
- * `findRun` merges the record's sequence over every row of it.
+ * Kept without its calls: a row that arrived with calls had them promoted to the record's sequence,
+ * which `findRun` merges back over every row of the run.
  */
 export type RunRowReading = { departure: Departure; locator?: KvvTripLocator };
 
@@ -76,12 +43,8 @@ type RunReadingRecord = {
   key: string;
   rowsById: Map<string, RunRowReading>;
   /**
-   * Each row of this record completed by the sequence above it, kept until the record next changes.
-   *
-   * Every view reads its vehicles from here on every render, and a merge that allocated each time
-   * would hand back a new object for an unchanged reading — a `useMemo` recomputed and a mark
-   * redrawn for a run nothing has said anything new about. Cleared as a whole on any write to the
-   * record, because a new sequence completes every row of it and not only the one that carried it.
+   * Each row merged with the record's sequence, cached so `findRun` returns the same object until
+   * the record changes; views memoize on that identity. Cleared on any write to the record.
    */
   mergedByRowId: Map<string, Departure>;
   latestSequence?: RunSequenceReading;
@@ -92,46 +55,22 @@ type RunReadingRecord = {
 };
 
 /**
- * The key one run is followed, requested and drawn under.
- *
- * The provider's own address for a run: the line-direction and the trip code its locator names,
- * which is the tuple the trip endpoint is asked with. Measured against the live feed
- * (`npm run probe:run-identity`, 6 September 2026): of 57 runs seen at more than one of the
- * Zentrum's posts, none was named by two different codes, and within a single reading 112 codes
- * named 112 runs. Every row of every board carried one, filtered or not.
- *
- * What it is *not* is a dated identity: half the codes read at one stop came round again the next
- * day, on the same line at the same minute. Adding a date would part a run at midnight to defend
- * against a collision a whole day away, so the lifetime does that job instead — a record dies when
- * its run ends (`RUN_ENDED_GRACE_MS`) or ages out (`RUN_READING_MAX_AGE_MS`), both long before the
- * code is issued again. The dated identity belongs to the mark (`getRunMarkKey`), which is refined
- * by the sequence a record goes on to hold; a key that moved with it would be two keys for one
- * record.
- *
- * The fallback is for readings the provider gave no locator: a fixture, or a board row it declined
- * to make addressable. It keeps such a row reachable on its own id and joins two of them on nothing
- * weaker than the identity the feed itself stated.
+ * The key a run's evidence and requests are shared under: the provider's `line|tripCode`, with no
+ * date (docs/adr/0002-run-key-without-date.md). A row the feed gave no locator stands on its own id.
  */
 const getRunRecordKey = (departure: Departure, locator: KvvTripLocator | undefined): string =>
   locator ? `run:${locator.line}|${locator.tripCode}` : getRowRecordKey(departure.id);
 
-/**
- * The key a row the feed named no run for stands under: its own id, joining it to nothing.
- *
- * `findRunRecordKey` hands out the same string, so a second spelling would be two records for one
- * row on the day they drifted.
- */
+/** The key a row the feed named no run for stands under, shared with `findRunRecordKey`. */
 const getRowRecordKey = (rowId: string): string => `row:${rowId}`;
 
 /**
- * Session-level evidence about the runs out on the network, with the provenance of every reading.
+ * Everything read about the runs out on the network, one record per run
+ * (docs/adr/0001-one-run-reading-store.md).
  *
- * Rows and complete trips answer different questions and are deliberately never flattened here.
- * A row owns stop-specific facts and the private locator needed to read the run; the freshest
- * complete reading owns its calling sequence. Consumers choose the evidence their question needs.
- *
- * One record is one run (`getRunRecordKey`). There is no second identity to reconcile and no record
- * ever merges into another, so the key a request is shared under is the key its answer lands on.
+ * Rows own stop-specific facts and the locator; the best sequence owns the calls. The two are kept
+ * apart and merged only on the way out (`findRun`). No record ever merges into another, so the key
+ * a request is shared under is the key its answer lands on.
  */
 export class RunReadingStore {
   /** Keyed by run. Insertion order is write recency, which is what the cap falls back on. */
@@ -153,25 +92,22 @@ export class RunReadingStore {
     this.capacity = capacity;
   }
 
-  /** `now` dates nothing here — the row dates itself — and only says which runs are over. */
+  /** `now` only says which runs are over; the row dates itself (`Departure.readAt`). */
   rememberRow(departure: Departure, locator: KvvTripLocator | undefined, now = Date.now()): void {
-    // Before the record is opened, never after: a record left standing past its own run would be
-    // reopened by tomorrow's row and answer it with yesterday's sequence (`sweep`).
+    // Sweep before opening the record: a record left standing past its run would be reopened by
+    // tomorrow's row with the same key and answer it with yesterday's sequence.
     this.sweep(now);
     const recordKey = getRunRecordKey(departure, locator);
     const record = this.openRecord(recordKey, now);
 
-    // A row that has learned its locator moves to the run it names, rather than staying on the
-    // record its bare id opened. It is one row either way and must never be on two.
+    // A row that has learned its locator moves to the run it names; it is never on two records.
     const previousKey = this.rowRecordKeys.get(departure.id);
     if (previousKey !== undefined && previousKey !== recordKey) this.detachRow(departure.id);
 
-    // Promoted before the row is stored, and stored without them (`RunRowReading`).
     const sequence = toRunSequence(departure);
     if (sequence) this.rememberSequenceReading(record, { sequence, source: "board" });
 
-    // Re-inserted rather than overwritten, so a record's rows are in read-recency order too and the
-    // row cap below can take the least recently read without a search.
+    // Re-inserted rather than overwritten, so the row cap can take the least recently read first.
     record.rowsById.delete(departure.id);
     record.rowsById.set(departure.id, {
       departure: sequence ? withoutCalls(departure) : departure,
@@ -185,12 +121,9 @@ export class RunReadingStore {
   }
 
   /**
-   * Keyed by the run rather than by the row that asked for it: see `findRunRecordKey`.
-   *
-   * @returns whether a record was still there to receive it. A request outlives the sweep and the
-   * cap, so the record it was shared under can be gone by the time it answers — and an answer that
-   * lands nowhere must be *said* to have landed nowhere. Reported as a failure the caller can back
-   * off on rather than swallowed, which is how a run went on being asked for and never re-read.
+   * @returns whether a record was still there to receive it. A request can outlive its record (the
+   * sweep and the cap do not wait for the provider), and an answer that lands nowhere is reported
+   * as a failure so the caller backs off instead of counting it as a success.
    */
   rememberSequence(runKey: string, sequence: RunSequence, now = Date.now()): boolean {
     const record = this.records.get(runKey);
@@ -212,10 +145,7 @@ export class RunReadingStore {
 
   /**
    * This row as everything read so far describes it: the stop's own facts under the whole run.
-   *
-   * The one answer to "what is known about this vehicle right now", and the only one any view is
-   * given. It asks for nothing — a row nothing has been read for is answered by the row — so a view
-   * may call it every render, and the same object comes back until something is actually read.
+   * Requests nothing, and returns the same object until something about the run is read.
    */
   findRun(rowId: string): Departure | undefined {
     const record = this.findRecord(rowId);
@@ -228,10 +158,6 @@ export class RunReadingStore {
     return merged;
   }
 
-  /**
-   * Runs are read into this store by whatever asked first, and drawn by everything at once, so a
-   * reading that lands for one view is news for every other view following the same row.
-   */
   subscribe(rowIds: readonly string[], listener: () => void): () => void {
     for (const rowId of rowIds) {
       const listeners = this.listenersByRowId.get(rowId);
@@ -252,12 +178,8 @@ export class RunReadingStore {
   }
 
   /**
-   * The freshest row still known for a run, addressed by the key its request was shared under.
-   *
-   * A request outlives the row that asked for it: a board refresh may drop that row while the
-   * provider is still answering, and what comes back is about the run rather than about the row
-   * that happened to discover it. Resolved against the row that asked, one dropped row threw away
-   * a sequence every other stop of the same tram was waiting on.
+   * The freshest row still known for a run, by the key its request was shared under. A request can
+   * outlive the row that asked for it, and its answer is about the run, not about that row.
    */
   findRunRow(runKey: string): RunRowReading | undefined {
     let freshest: RunRowReading | undefined;
@@ -299,9 +221,8 @@ export class RunReadingStore {
     const latest = record.latestSequence;
     if (!latest || isBetterSequence(reading.sequence, latest.sequence))
       record.latestSequence = reading;
-    // Only ever learned, never unlearned: a later reading may carry a sequence read part-way
-    // through the run, and the end a longer one stated is still the truer statement of when this
-    // run is over — which is what retires the record.
+    // Only ever learned, never unlearned: a later sequence read part-way through the run does not
+    // move the end a fuller one stated, and that end is what retires the record.
     const endsAt = findFinalCallInstant(reading.sequence.tripCalls);
     if (endsAt !== undefined) record.runEndsAt = Math.max(record.runEndsAt ?? endsAt, endsAt);
   }
@@ -314,11 +235,8 @@ export class RunReadingStore {
   }
 
   /**
-   * Records the write, and tells the views about it once for the batch it arrived in.
-   *
-   * A board is remembered a row at a time, so a notification per write is forty sweeps of every
-   * subscriber for one refresh that says one thing: the boards came back. The notification waits
-   * for the end of the turn, which is still before anything is painted.
+   * Records the write, and notifies once per batch: a board is remembered a row at a time, and the
+   * notification waits for the end of the turn, which is still before anything is painted.
    */
   private publish(record: RunReadingRecord): void {
     record.mergedByRowId.clear();
@@ -333,28 +251,20 @@ export class RunReadingStore {
   }
 
   /**
-   * Retires the runs that are over, which is what keeps the key honest.
-   *
-   * A trip code comes round again (`getRunRecordKey`), so what separates two runs of it is that the
-   * first one's record is gone before the second's row arrives. That makes this the rule rather
-   * than a tidy-up, and the cap below only a backstop. It walks every record, so it runs on a
-   * cadence of its own rather than once per row of a board.
+   * Retires the runs that are over. This is what keeps a date-free key honest: the first run of a
+   * `tripCode` must be gone before the next one's row arrives. Walks every record, so it runs on
+   * its own cadence rather than once per row.
    */
   private sweep(now: number): void {
     if (now - this.lastSweptAt < EVICTION_SWEEP_INTERVAL_MS) return;
     this.lastSweptAt = now;
-    // Walked over the map itself: deleting the entry the iterator is standing on is defined, and a
-    // copy taken to avoid it would be a thousand records copied every minute for nothing.
+    // Deleting the entry the iterator stands on is defined for a Map, so no copy is taken.
     for (const record of this.records.values()) {
       if (isRetired(record, now)) this.evictRecord(record);
     }
   }
 
-  /**
-   * Holds the store to its cap, for a session nothing is retiring runs out of.
-   *
-   * Checked on every write, unlike the sweep: a bound that is only enforced on a cadence is not one.
-   */
+  /** Holds the store to its cap on every write; a bound enforced only on a cadence is not one. */
   private enforceCapacity(now: number): void {
     while (this.records.size > this.capacity) {
       const evicted = this.findEvictionCandidate(now);
@@ -364,12 +274,8 @@ export class RunReadingStore {
   }
 
   /**
-   * The record to spend, found without walking the store.
-   *
-   * Insertion order is write recency, so the least recently written record is the *first* entry and
-   * costs nothing to reach. A run whose calls have run out is taken ahead of it — the only
-   * preference the cap has — but the search for one is bounded to the least-recent end, which is
-   * the only end it was ever going to be found at (`ENDED_RUN_SCAN_DEPTH`).
+   * A finished run near the least-recent end if there is one, else the least recent record, found
+   * without walking the whole store (`ENDED_RUN_SCAN_DEPTH`).
    */
   private findEvictionCandidate(now: number): RunReadingRecord | undefined {
     let leastRecent: RunReadingRecord | undefined;
@@ -408,10 +314,8 @@ export class RunReadingStore {
   }
 
   /**
-   * Forgets what this store knows *about* a row, without touching the record that held it.
-   *
-   * The index is cleared only where it still points at this record: a row that moved on has already
-   * been re-pointed, and clearing it here would unaddress a row that is perfectly well known.
+   * Forgets what this store knows about a row. The index is cleared only where it still points at
+   * this record: a row that moved on has already been re-pointed.
    */
   private forgetRow(record: RunReadingRecord, rowId: string): void {
     if (this.rowRecordKeys.get(rowId) === record.key) this.rowRecordKeys.delete(rowId);
@@ -443,19 +347,13 @@ export class RunReadingStore {
   }
 }
 
-/** This row as the store keeps it: its stop's facts, and none of the run's calls (`RunRowReading`). */
+/** This row as the store keeps it: its stop's facts, and none of the run's calls. */
 const withoutCalls = (departure: Departure): Departure => ({ ...departure, tripCalls: undefined });
 
 /**
- * Whether this run's evidence has stopped being about a vehicle anybody can still see.
- *
- * Two ways, because only one of them is ever known: a run whose calls have run out is over at its
- * last call plus the grace, and a run no sequence has described times no end at all.
- *
- * Either way the boards have the last word: a monitored vehicle sitting at its final stop states a
- * last call in the past and is a row on a board all the same, so a record written to within the
- * grace is never retired — and a reading can never be evicted by the sweep its own arrival
- * triggered.
+ * Whether a record is about a run nobody can still see: past its last call plus the grace, or, with
+ * no known end, past the max age. A record written within the grace is never retired, since a
+ * vehicle standing at its final stop is still a row on a board.
  */
 const isRetired = (record: RunReadingRecord, now: number): boolean => {
   if (record.writtenAt + RUN_ENDED_GRACE_MS > now) return false;
@@ -464,12 +362,6 @@ const isRetired = (record: RunReadingRecord, now: number): boolean => {
     : record.writtenAt + RUN_READING_MAX_AGE_MS <= now;
 };
 
-/**
- * Whether this run's own calls have run out, which is the only preference the cap has.
- *
- * Asked without the grace above, because a cap being exceeded is not a question about whether
- * anything is still reading a run: it is one about which of the runs in hand is likeliest to be
- * finished with, and a vehicle whose last call is behind it is that run whenever it was last read.
- */
+/** Whether a run's calls have run out; asked without the grace, since the cap only ranks. */
 const hasRunEnded = (record: RunReadingRecord, now: number): boolean =>
   record.runEndsAt !== undefined && record.runEndsAt <= now;

@@ -624,17 +624,26 @@ type RunMotion = {
   shown: RunPlacement;
 };
 
-/** One event-driven trajectory per vehicle, shared by every diagram that paints it. */
-const runMotions = new Map<string, RunMotion>();
+/**
+ * What one drawing remembers of the marks it has painted, keyed by mark: the trajectory each is on,
+ * so a refresh continues a mark's motion instead of placing it afresh.
+ *
+ * Owned by the drawing that paints the marks (`createRunMotions`) and handed to every placement it
+ * makes, so continuity is explicit state rather than a module global — and every placement in one
+ * paint shares it, as a bundle's trunk and branches place the same run.
+ */
+export type RunMotions = Map<string, RunMotion>;
 
-function sweepRunMotions(feedNow: number) {
-  if (runMotions.size <= RUN_MOTION_CAPACITY) return;
-  for (const [key, motion] of runMotions) {
-    if (feedNow - motion.shownAt > RUN_MOTION_STALE_MS) runMotions.delete(key);
+export const createRunMotions = (): RunMotions => new Map();
+
+function sweepRunMotions(motions: RunMotions, feedNow: number) {
+  if (motions.size <= RUN_MOTION_CAPACITY) return;
+  for (const [key, motion] of motions) {
+    if (feedNow - motion.shownAt > RUN_MOTION_STALE_MS) motions.delete(key);
   }
-  for (const key of runMotions.keys()) {
-    if (runMotions.size <= RUN_MOTION_CAPACITY) break;
-    runMotions.delete(key);
+  for (const key of motions.keys()) {
+    if (motions.size <= RUN_MOTION_CAPACITY) break;
+    motions.delete(key);
   }
 }
 
@@ -988,9 +997,9 @@ function reconcileWithDrawnMark(
 }
 
 /** Newest last, so the sweep's eviction order is the order the marks were last spoken for. */
-function rememberMotion(key: string, motion: RunMotion) {
-  runMotions.delete(key);
-  runMotions.set(key, motion);
+function rememberMotion(motions: RunMotions, key: string, motion: RunMotion) {
+  motions.delete(key);
+  motions.set(key, motion);
 }
 
 /**
@@ -1024,15 +1033,16 @@ function getPlacementTravel(
  * corrects the estimate by placing the marker back at the stop, without animating a reverse trip.
  */
 export function getRunPlacement(
+  motions: RunMotions,
   departure: Departure,
   feedNow: number,
   standFrom?: number,
 ): RunPlacement | null {
   const key = getRunMarkKey(departure);
-  const previous = runMotions.get(key);
+  const previous = motions.get(key);
   if (previous?.shownAt === feedNow) return previous.shown;
   if (departure.status === "cancelled") {
-    runMotions.delete(key);
+    motions.delete(key);
     return null;
   }
 
@@ -1047,7 +1057,7 @@ export function getRunPlacement(
   // A run the feed says is over takes its mark with it, and its trajectory: whatever was drawn for
   // it, there is no vehicle there to draw any more.
   if (reading === "finished") {
-    runMotions.delete(key);
+    motions.delete(key);
     return null;
   }
   if (reading === "unplaceable") {
@@ -1074,7 +1084,7 @@ export function getRunPlacement(
     const shown = placementFromSegment(segment, feedNow, "running", "travelled");
     // `readAt` deliberately stays where it was: this reading placed nothing, and the grace a held
     // mark is kept for is measured from the last reading that did.
-    rememberMotion(key, { ...previous, timelineKey, segment, shownAt: feedNow, shown });
+    rememberMotion(motions, key, { ...previous, timelineKey, segment, shownAt: feedNow, shown });
     return shown;
   }
 
@@ -1094,14 +1104,14 @@ export function getRunPlacement(
       ? getPlacementTravel(calls, previous, reading, feedNow)
       : undefined,
   );
-  rememberMotion(key, {
+  rememberMotion(motions, key, {
     timelineKey,
     segment: drawn.segment,
     shownAt: Math.max(previous?.shownAt ?? feedNow, feedNow),
     readAt: feedNow,
     shown,
   });
-  sweepRunMotions(feedNow);
+  sweepRunMotions(motions, feedNow);
   return shown;
 }
 

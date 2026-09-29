@@ -9,6 +9,10 @@ import {
 } from "../src/lib/line-diagram.ts";
 import type { TransitLine, TransitNetwork } from "../src/data/transit-types.ts";
 import { createCall, run } from "./support/calls.ts";
+import { createRunMotions } from "../src/lib/vehicle-positioning.ts";
+
+/** One drawing's motion record, shared across this file as the module global used to be. */
+const motions = createRunMotions();
 
 const start = Date.parse("2026-08-23T12:00:00Z");
 const call = createCall(start);
@@ -88,7 +92,7 @@ test("draws an arrival and a same-instant departure as the two vehicles they are
     [],
     undefined,
     start + 8 * 60_000,
-    { turnaroundIndex },
+    { motions, turnaroundIndex },
   );
 
   assert.deepEqual(vehicles.map(({ departure }) => departure.id).sort(), [
@@ -271,6 +275,7 @@ test("draws a turnaround as one standing mark rather than an arrival beside a de
     [],
     undefined,
     start + 7 * 60_000,
+    { motions },
   );
   assert.equal(approaching.departure.id, "in");
 
@@ -281,6 +286,7 @@ test("draws a turnaround as one standing mark rather than an arrival beside a de
     [],
     undefined,
     start + 9 * 60_000,
+    { motions },
   );
 
   assert.equal(vehicles.length, 1);
@@ -346,6 +352,7 @@ test("keeps the arriving mark when the departure it turns into cannot be drawn h
     [],
     undefined,
     start + 9 * 60_000,
+    { motions },
   );
 
   assert.equal(vehicles.length, 1);
@@ -434,6 +441,7 @@ test("draws one mark where an arrival and a waiting departure share a terminus u
     [],
     undefined,
     start + 8.5 * 60_000,
+    { motions },
   );
 
   assert.deepEqual(
@@ -460,6 +468,7 @@ test("draws no waiting mark at a terminus the vehicle has not reached yet", () =
     [],
     undefined,
     start + 5 * 60_000,
+    { motions },
   );
 
   assert.deepEqual(
@@ -486,6 +495,7 @@ test("stands a lone waiting trip at its terminus for the whole of a long turn", 
     [],
     undefined,
     start + 13 * 60_000,
+    { motions },
   );
 
   const terminusIndex = terminusDiagram().findIndex(({ stopId }) => stopId === "c");

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Departure, TripCall } from "../src/data/transit-types.ts";
-import { getCallsAfterStop, mergeRunReading, mergeRunSequences } from "../src/lib/trip-calls.ts";
+import { getCallsAfterStop, mergeRunReading } from "../src/lib/trip-calls.ts";
 
 test("keeps every published call after the current stop", () => {
   const tripCalls: TripCall[] = [
@@ -42,31 +42,26 @@ const row = (id: string, stopName: string): Departure =>
     tripCalls: [{ stopName, isCurrentStop: true }],
   }) as Departure;
 
-test("completes each row with the trip read for it and keeps the row's own facts", () => {
-  const rows = [row("a", "Europaplatz"), row("b", "Karlstor")];
-  const readings = [
-    {
-      ...row("b", "Karlstor"),
-      tripCalls: [
-        { stopName: "Karlstor", isCurrentStop: true },
-        { stopName: "Marktplatz (Kaiserstraße U)", scheduledDepartureTime: "2026-09-05T10:04:00" },
-      ],
-    },
-  ] as Departure[];
+test("completes a row with the run read for it and keeps the row's own facts", () => {
+  const reading = {
+    ...row("b", "Karlstor"),
+    tripCalls: [
+      { stopName: "Karlstor", isCurrentStop: true },
+      { stopName: "Marktplatz (Kaiserstraße U)", scheduledDepartureTime: "2026-09-05T10:04:00" },
+    ],
+  } as Departure;
 
-  const merged = mergeRunSequences(rows, readings);
+  const merged = mergeRunReading(row("b", "Karlstor"), reading);
 
-  // The row without a reading stands as its board stated it, in its place.
-  assert.equal(merged[0], rows[0]);
-  assert.equal(merged[1].tripCalls?.length, 2);
-  // The stop row stays the departure fact; the trip contributes only the sequence behind it.
-  assert.equal(merged[1].destination, "Hochstetten");
+  assert.equal(merged.tripCalls?.length, 2);
+  // The stop row stays the departure fact; the run contributes only the sequence behind it.
+  assert.equal(merged.destination, "Hochstetten");
 });
 
-test("rows stand when no reading has arrived", () => {
-  const rows = [row("a", "Europaplatz"), row("b", "Karlstor")];
+test("a row stands when no reading has arrived", () => {
+  const stopRow = row("a", "Europaplatz");
 
-  assert.equal(mergeRunSequences(rows, []), rows);
+  assert.equal(mergeRunReading(stopRow, undefined), stopRow);
 });
 
 /**

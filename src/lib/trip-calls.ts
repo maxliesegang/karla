@@ -383,23 +383,6 @@ const isExceptionalStatus = (status: DepartureStatus): boolean =>
   status === "cancelled" || status === "diverted";
 
 /**
- * Several rows, each completed by the run read for it where one has been read.
- *
- * A reading arrives when it arrives: the first ones land seconds after the rows do, and a row the
- * source could not read is answered by no reading at all. The row is what the boards already
- * stated, and a reading that has not landed is no reason to take a vehicle off a map, so each row
- * stands and is completed in place where its reading allows.
- */
-export function mergeRunSequences(
-  rows: readonly Departure[],
-  readings: readonly Departure[],
-): readonly Departure[] {
-  if (readings.length === 0) return rows;
-  const readingByRowId = new Map(readings.map((reading) => [reading.id, reading]));
-  return rows.map((row) => mergeRunReading(row, readingByRowId.get(row.id)));
-}
-
-/**
  * One stop's row completed by another reading of the same run, whatever shape that reading is in.
  *
  * The row-shaped door onto `mergeRunSequence`, for the callers holding a whole `Departure` rather
