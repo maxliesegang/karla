@@ -7,6 +7,7 @@ import {
   updateFollowedRuns,
 } from "../src/lib/line-run-departures.ts";
 import { createCall } from "./support/calls.ts";
+import { createDeparture } from "./support/fixtures.ts";
 
 const start = Date.parse("2026-08-23T12:00:00Z");
 /** The source's part: a followed run is named here and its reading is fetched by id when drawn. */
@@ -21,7 +22,7 @@ function departure(
   /** Every row the source publishes is dated; retention reads its age off the row. */
   readAt: number = start,
 ): Departure {
-  const built: Departure = {
+  const built: Departure = createDeparture({
     readAt: { rowReadAt: readAt, sequenceReadAt: readAt },
     id,
     tripId: id,
@@ -35,7 +36,7 @@ function departure(
     status,
     scheduledDepartureTime: new Date(start).toISOString(),
     tripCalls: calls,
-  };
+  });
   known.set(id, built);
   return built;
 }

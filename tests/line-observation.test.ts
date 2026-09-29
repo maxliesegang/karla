@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { Departure, TransitLine } from "../src/data/transit-types.ts";
+import type { Departure } from "../src/data/transit-types.ts";
 import {
   EMPTY_LINE_OBSERVATION,
   extendLineCallStopIds,
@@ -18,9 +18,10 @@ import {
 } from "../src/lib/line-observation.ts";
 import { createLineSelection } from "../src/lib/line-bundles.ts";
 import { withStopVisit } from "../src/lib/recent-stops.ts";
+import { createDeparture, createLine } from "./support/fixtures.ts";
 
 /** The line as the network states it, before any board has been read for it. */
-const line3 = { id: "3", zentrumCalls: ["kronenplatz", "europaplatz"] } as TransitLine;
+const line3 = createLine({ id: "3", zentrumCalls: ["kronenplatz", "europaplatz"] });
 
 /** Linie 3 as the observation sees it: ten stops along the line, three of them observation posts. */
 const lineStopIds = [
@@ -37,7 +38,7 @@ const lineStopIds = [
 ];
 
 function lineDeparture(lineId: string, routeDirectionId: string | undefined): Departure {
-  return {
+  return createDeparture({
     id: `${lineId}-${routeDirectionId ?? "none"}`,
     lineId,
     transportMode: "tram",
@@ -45,14 +46,14 @@ function lineDeparture(lineId: string, routeDirectionId: string | undefined): De
     minutesUntilDeparture: 4,
     status: "realtime",
     ...(routeDirectionId ? { routeDirectionId } : {}),
-  } as Departure;
+  }) as Departure;
 }
 
 function tripWithCalls(stopIds: readonly string[]): Departure {
-  return {
+  return createDeparture({
     ...lineDeparture("3", "kvv:21003:E:H:s26"),
     tripCalls: stopIds.map((stopId) => ({ stopName: stopId.toUpperCase(), localStopId: stopId })),
-  } as Departure;
+  }) as Departure;
 }
 
 test("reads every known stop of a line, so no trip can hide between observations", () => {

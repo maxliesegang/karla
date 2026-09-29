@@ -8,6 +8,7 @@ import {
   updateStopBoardingObservations,
 } from "../src/lib/boarding-places.ts";
 import { groupDeparturesByBoardingPlace } from "../src/lib/departure-order.ts";
+import { createDeparture } from "./support/fixtures.ts";
 
 /**
  * The two stops this exists for, as the feed really answers them — coordinates and all, because the
@@ -194,15 +195,16 @@ test("a vehicle turning round is not two places, from whichever end it is read",
     scheduledDepartureTime: "2026-09-04T07:29:00+02:00",
     ...overrides,
   });
-  const stand = (platformCode: string, tripCalls: readonly TripCall[]): Departure => ({
-    ...departure("A"),
-    platformCode,
-    platformKind: "stand",
-    boardingLocalStopId: "turmberg",
-    boardingProviderStopPointId: "7000018",
-    boardingProviderStopPointName: "Turmberg",
-    tripCalls,
-  });
+  const stand = (platformCode: string, tripCalls: readonly TripCall[]): Departure =>
+    createDeparture({
+      ...departure("A"),
+      platformCode,
+      platformKind: "stand",
+      boardingLocalStopId: "turmberg",
+      boardingProviderStopPointId: "7000018",
+      boardingProviderStopPointName: "Turmberg",
+      tripCalls,
+    });
 
   // The reading whose own row is the second call: the first states a departure and no arrival,
   // which is the feed saying the run begins there.

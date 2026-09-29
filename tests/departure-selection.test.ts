@@ -3,6 +3,7 @@ import test from "node:test";
 import type { Departure } from "../src/data/transit-types.ts";
 import { isDeparturePinned, isDepartureSelected } from "../src/lib/departure-presentation.ts";
 import { createLineSelection } from "../src/lib/line-bundles.ts";
+import { createDeparture as createFixture } from "./support/fixtures.ts";
 
 /**
  * The pair this exists for is real: Europaplatz publishes one vehicle once per place it calls at,
@@ -12,7 +13,7 @@ import { createLineSelection } from "../src/lib/line-bundles.ts";
 const TRIP_ID = "de:kvv:00003_:.kvv-21-3-E.11.T0.453.s26";
 
 const createDeparture = (overrides: Partial<Departure> = {}): Departure =>
-  ({
+  createFixture({
     id: "",
     tripId: TRIP_ID,
     lineId: "3",

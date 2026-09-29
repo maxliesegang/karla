@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { Departure, TripCall } from "../src/data/transit-types.ts";
 import { getJoinedRunPortionPairs } from "../src/lib/joined-run-portions.ts";
+import { createDeparture } from "./support/fixtures.ts";
 
 const start = Date.parse("2026-08-26T12:00:00Z");
 
@@ -16,7 +17,7 @@ function call(stopId: string, minute: number, hasDeparture = true): TripCall {
 }
 
 function departure(id: string, destination: string, calls: readonly TripCall[]): Departure {
-  return {
+  return createDeparture({
     id,
     tripId: id,
     tripInstanceId: `${id}@today`,
@@ -30,7 +31,7 @@ function departure(id: string, destination: string, calls: readonly TripCall[]):
     status: "realtime",
     scheduledDepartureTime: new Date(start).toISOString(),
     tripCalls: calls,
-  };
+  });
 }
 
 test("recognises a separately addressed portion that terminates along a shared timed route", () => {

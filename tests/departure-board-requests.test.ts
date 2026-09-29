@@ -218,7 +218,7 @@ test("a full second answer that still starves a direction earns a third pass", a
     ],
   );
   const rowsByDirection = new Map<string, number>();
-  for (const { routeDirectionId } of board.departures)
+  for (const { routeDirectionId = "" } of board.departures)
     rowsByDirection.set(routeDirectionId, (rowsByDirection.get(routeDirectionId) ?? 0) + 1);
   assert.deepEqual(
     [...rowsByDirection].sort(([left], [right]) => left.localeCompare(right)),

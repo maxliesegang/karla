@@ -21,6 +21,7 @@ import { getJoinedRunPortionPairs } from "../src/lib/joined-run-portions.ts";
 import { createLineSelection } from "../src/lib/line-bundles.ts";
 import { createCall, run } from "./support/calls.ts";
 import { createRunMotions } from "../src/lib/vehicle-positioning.ts";
+import { createDeparture as createFixture } from "./support/fixtures.ts";
 
 /** One drawing's motion record, shared across this file as the module global used to be. */
 const motions = createRunMotions();
@@ -51,7 +52,7 @@ test("moves continuously across every visible row when an observed trip skips a 
     [call("a", 0), call("b", 1), call("c", 2)],
     null,
   );
-  const departure: Departure = {
+  const departure: Departure = createFixture({
     id: "diagram-skipped-call",
     tripId: "diagram-skipped-call",
     lineId: "2",
@@ -63,7 +64,7 @@ test("moves continuously across every visible row when an observed trip skips a 
     status: "realtime",
     scheduledDepartureTime: new Date(start).toISOString(),
     tripCalls: [call("a", 0), call("c", 2)],
-  };
+  });
 
   const [vehicle] = getLineDiagramVehicles(
     diagramStops,
@@ -95,7 +96,7 @@ test("keeps the freshest board's reading of a vehicle, not the first board's", (
   // the line's own boards on tens of seconds, and the same trip is usually on both. A contest
   // between their copies is about age — the copy a mark is drawn from decides whether it runs with
   // the deviations the feed has since stated or with the ones it knew five minutes ago.
-  const base: Departure = {
+  const base: Departure = createFixture({
     id: "diagram-freshness",
     tripId: "diagram-freshness",
     tripInstanceId: "diagram-freshness@today",
@@ -108,15 +109,15 @@ test("keeps the freshest board's reading of a vehicle, not the first board's", (
     status: "realtime",
     scheduledDepartureTime: new Date(start).toISOString(),
     tripCalls: [call("a", 0), call("b", 2), call("c", 4)],
-  };
+  });
   const stale: Departure = { ...base, readAt: { rowReadAt: 1, sequenceReadAt: 1 } };
-  const fresh: Departure = {
+  const fresh: Departure = createFixture({
     ...base,
     readAt: { rowReadAt: 2, sequenceReadAt: 2 },
     tripCalls: base.tripCalls?.map((tripCall, index) =>
       index === 0 ? tripCall : { ...tripCall, delayMinutes: 2 },
     ),
-  };
+  });
 
   const selection = createLineSelection("2");
   const [winner] = getLineDiagramRunDepartures(selection, [stale, fresh]);
@@ -133,21 +134,22 @@ test("draws joined portions as one counted mark until the terminating portion en
     id: string,
     destination: string,
     tripCalls: readonly TripCall[],
-  ): Departure => ({
-    id,
-    tripId: id,
-    tripInstanceId: `${id}@today`,
-    trainNumber: "85653",
-    lineId: "2",
-    transportMode: "tram",
-    destination,
-    minutesUntilDeparture: 0,
-    platformCode: "1",
-    boardingLocalStopId: "a",
-    status: "realtime",
-    scheduledDepartureTime: new Date(start).toISOString(),
-    tripCalls,
-  });
+  ): Departure =>
+    createFixture({
+      id,
+      tripId: id,
+      tripInstanceId: `${id}@today`,
+      trainNumber: "85653",
+      lineId: "2",
+      transportMode: "tram",
+      destination,
+      minutesUntilDeparture: 0,
+      platformCode: "1",
+      boardingLocalStopId: "a",
+      status: "realtime",
+      scheduledDepartureTime: new Date(start).toISOString(),
+      tripCalls,
+    });
   const terminating = createDeparture(
     "short",
     "D",
@@ -207,27 +209,24 @@ test("draws joined portions as one counted mark until the terminating portion en
 
 test("keeps inconsistent joined-portion positions separate", () => {
   const sharedCalls = [call("a", 0), call("b", 2), call("c", 4), call("d", 6)];
-  const createDeparture = (id: string, destination: string, tripCalls: readonly TripCall[]) => ({
-    id,
-    tripId: id,
-    tripInstanceId: `${id}@today`,
-    trainNumber: "85653",
-    lineId: "2",
-    transportMode: "tram" as const,
-    destination,
-    minutesUntilDeparture: 0,
-    platformCode: "1",
-    boardingLocalStopId: "a",
-    status: "realtime" as const,
-    scheduledDepartureTime: new Date(start).toISOString(),
-    tripCalls,
-  });
+  const createDeparture = (id: string, destination: string, tripCalls: readonly TripCall[]) =>
+    createFixture({
+      id,
+      tripId: id,
+      tripInstanceId: `${id}@today`,
+      trainNumber: "85653",
+      lineId: "2",
+      destination,
+      boardingLocalStopId: "a",
+      scheduledDepartureTime: new Date(start).toISOString(),
+      tripCalls,
+    });
   const terminating = createDeparture("delayed-short", "D", [
     ...sharedCalls.map((tripCall) => ({ ...tripCall, delayMinutes: 2 })),
   ]);
   const continuing = createDeparture("punctual-long", "E", [...sharedCalls, call("e", 8)]);
   const departures = [terminating, continuing];
-  const diagramStops = buildLineDiagramStops(network, line, continuing.tripCalls, null);
+  const diagramStops = buildLineDiagramStops(network, line, continuing.tripCalls ?? [], null);
 
   const vehicles = getLineDiagramVehicles(
     diagramStops,
@@ -252,7 +251,7 @@ test("draws both published platform calls at the same stop", () => {
     ["a", "b", "c", "c"],
   );
 
-  const departure: Departure = {
+  const departure: Departure = createFixture({
     id: "turning-terminus",
     tripId: "turning-terminus",
     lineId: "2",
@@ -264,7 +263,7 @@ test("draws both published platform calls at the same stop", () => {
     status: "realtime",
     scheduledDepartureTime: new Date(start).toISOString(),
     tripCalls,
-  };
+  });
 
   // The carried link still ends at the first C call; the second is the separately published stand.
   const [vehicle] = getLineDiagramVehicles(
@@ -322,7 +321,7 @@ test("a chain names its own coordinates, and a row speaks for every mark behind 
   const diagramStops = buildLineDiagramStops(network, line, [call("a", 0), call("b", 1)], null);
   assert.equal(getLineDiagramCoordinateKey("2", diagramStops), "2:a>b");
 
-  const departure: Departure = {
+  const departure: Departure = createFixture({
     id: "trip",
     tripId: "trip",
     lineId: "2",
@@ -334,7 +333,7 @@ test("a chain names its own coordinates, and a row speaks for every mark behind 
     status: "realtime",
     scheduledDepartureTime: new Date(start).toISOString(),
     tripCalls: [call("a", 0), call("b", 1)],
-  };
+  });
   const joined: Departure = { ...departure, id: "portion", destination: "D" };
   const [vehicle] = getLineDiagramVehicles(
     diagramStops,
@@ -367,7 +366,7 @@ test("carries every trip's own destination on its mark, joined portions included
   );
   // A working that turns back at C, on a diagram drawn all the way to D: the one case the diagram
   // itself cannot show, and the mark answers it when it is asked.
-  const shortWorking: Departure = {
+  const shortWorking: Departure = createFixture({
     id: "diagram-short-working",
     tripId: "diagram-short-working",
     lineId: "2",
@@ -379,7 +378,7 @@ test("carries every trip's own destination on its mark, joined portions included
     status: "realtime",
     scheduledDepartureTime: new Date(start).toISOString(),
     tripCalls: [call("a", 0), call("b", 1), call("c", 2)],
-  };
+  });
 
   const [vehicle] = getLineDiagramVehicles(
     diagramStops,
@@ -395,7 +394,7 @@ test("carries every trip's own destination on its mark, joined portions included
 
 test("speaks a mark standing at a terminus as the departure or the arrival it is", () => {
   const diagramStops = buildLineDiagramStops(network, line, [call("a", 0), call("b", 2)], null);
-  const waiting: Departure = {
+  const waiting: Departure = createFixture({
     id: "diagram-waiting",
     tripId: "diagram-waiting",
     lineId: "2",
@@ -407,7 +406,7 @@ test("speaks a mark standing at a terminus as the departure or the arrival it is
     status: "realtime",
     scheduledDepartureTime: new Date(start).toISOString(),
     tripCalls: run([call("a", 0), call("b", 2)]),
-  };
+  });
 
   const vehicles = getLineDiagramVehicles(
     diagramStops,
@@ -445,7 +444,7 @@ test("hides the turnaround stands with the line's other vehicles, but never the 
     [call("a", 0), call("b", 2), call("c", 4)],
     null,
   );
-  const mine: Departure = {
+  const mine: Departure = createFixture({
     id: "shown-mine",
     tripId: "shown-mine",
     lineId: "2",
@@ -457,15 +456,15 @@ test("hides the turnaround stands with the line's other vehicles, but never the 
     status: "realtime",
     scheduledDepartureTime: new Date(start + 2 * 60_000).toISOString(),
     tripCalls: run([call("a", 2), call("b", 4), call("c", 6)]),
-  };
+  });
   // The next run out of the same terminus, standing there for its own turn.
-  const turning: Departure = {
+  const turning: Departure = createFixture({
     ...mine,
     id: "shown-turning",
     tripId: "shown-turning",
     scheduledDepartureTime: new Date(start + 5 * 60_000).toISOString(),
     tripCalls: run([call("a", 5), call("b", 7), call("c", 9)]),
-  };
+  });
 
   // Both runs stand at their first stop before either has begun.
   const placements = getLineDiagramVehicles(diagramStops, [mine, turning], [], mine, start, {
@@ -522,7 +521,7 @@ test("places a mark on the nearer of two rows a chain names the same stop at", (
     ["a", "b", "c", "b", "d"],
   );
 
-  const departure: Departure = {
+  const departure: Departure = createFixture({
     id: "diagram-loop",
     tripId: "diagram-loop",
     lineId: "2",
@@ -534,7 +533,7 @@ test("places a mark on the nearer of two rows a chain names the same stop at", (
     status: "realtime",
     scheduledDepartureTime: new Date(start).toISOString(),
     tripCalls: chain,
-  };
+  });
 
   // A minute into the first link: between the first A and the *first* B, not the one after the loop.
   const [firstLeg] = getLineDiagramVehicles(

@@ -9,19 +9,21 @@ import {
 } from "../src/lib/departure-presentation.ts";
 import { parseDepartureBoardResponse } from "../src/data/kvv-efa-parsers.ts";
 import { sortDeparturesByExpectedInstant } from "../src/lib/departure-order.ts";
+import { createDeparture as createFixture } from "./support/fixtures.ts";
 
-const createDeparture = (overrides: Partial<Departure> = {}): Departure => ({
-  id: "trip-1",
-  lineId: "1",
-  transportMode: "tram",
-  destination: "Durlach Turmberg",
-  minutesUntilDeparture: 7,
-  platformCode: "1",
-  boardingLocalStopId: "marktplatz",
-  status: "realtime",
-  scheduledDepartureTime: "2026-08-30T17:32:00+02:00",
-  ...overrides,
-});
+const createDeparture = (overrides: Partial<Departure> = {}): Departure =>
+  createFixture({
+    id: "trip-1",
+    lineId: "1",
+    transportMode: "tram",
+    destination: "Durlach Turmberg",
+    minutesUntilDeparture: 7,
+    platformCode: "1",
+    boardingLocalStopId: "marktplatz",
+    status: "realtime",
+    scheduledDepartureTime: "2026-08-30T17:32:00+02:00",
+    ...overrides,
+  });
 
 /**
  * The feed's clock carries seconds and its own board does not count them: EFA publishes `17:34`

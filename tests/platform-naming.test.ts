@@ -11,6 +11,7 @@ import {
   getPlatformHeadingParts,
   getPlatformWord,
 } from "../src/lib/platform-naming.ts";
+import { createDeparture as createFixture } from "./support/fixtures.ts";
 
 // `routing.ts` reads the address at import time, so it is loaded after a window exists.
 Object.defineProperty(globalThis, "window", { value: { location: { search: "" } } });
@@ -22,18 +23,19 @@ const { normalizePlatformCode } = await import("../src/routing.ts");
  * reported at `Gleis 24` at the Hauptbahnhof, which is why the word cannot be read off the mode.
  */
 
-const createDeparture = (overrides: Partial<Departure> = {}): Departure => ({
-  id: "trip",
-  lineId: "S1",
-  transportMode: "lightRail",
-  destination: "Bad Herrenalb",
-  minutesUntilDeparture: 4,
-  platformCode: "1",
-  boardingLocalStopId: "europaplatz",
-  status: "realtime",
-  scheduledDepartureTime: "2026-08-24T14:34:00+02:00",
-  ...overrides,
-});
+const createDeparture = (overrides: Partial<Departure> = {}): Departure =>
+  createFixture({
+    id: "trip",
+    lineId: "S1",
+    transportMode: "lightRail",
+    destination: "Bad Herrenalb",
+    minutesUntilDeparture: 4,
+    platformCode: "1",
+    boardingLocalStopId: "europaplatz",
+    status: "realtime",
+    scheduledDepartureTime: "2026-08-24T14:34:00+02:00",
+    ...overrides,
+  });
 
 const createFeedDeparture = (platform: string, pointType?: string) => ({
   stopID: "7000037",

@@ -14,11 +14,12 @@ import {
   isSelectedLine,
   parseLineSelection,
 } from "../src/lib/line-bundles.ts";
+import { createDeparture } from "./support/fixtures.ts";
 
 function departure(
   overrides: Partial<Departure> & Pick<Departure, "id" | "destination">,
 ): Departure {
-  return {
+  return createDeparture({
     tripId: overrides.id,
     lineId: "S1",
     transportMode: "lightRail",
@@ -28,7 +29,7 @@ function departure(
     status: "realtime",
     scheduledDepartureTime: "2026-08-24T12:04:00+02:00",
     ...overrides,
-  };
+  });
 }
 
 const calls = (...stopNames: string[]): TripCall[] =>

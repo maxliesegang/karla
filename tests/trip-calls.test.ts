@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { Departure, TripCall } from "../src/data/transit-types.ts";
 import { getCallsAfterStop, mergeRunReading } from "../src/lib/trip-calls.ts";
+import { createDeparture } from "./support/fixtures.ts";
 
 test("keeps every published call after the current stop", () => {
   const tripCalls: TripCall[] = [
@@ -10,10 +11,10 @@ test("keeps every published call after the current stop", () => {
     { stopName: "Marktplatz (Pyramide U)", localStopId: "marktplatz" },
     { stopName: "Europaplatz", localStopId: "europaplatz" },
   ];
-  const departure = {
+  const departure = createDeparture({
     boardingLocalStopId: "ostendorfplatz",
     tripCalls,
-  } as Departure;
+  });
 
   assert.deepEqual(
     getCallsAfterStop(departure, "ostendorfplatz").map(({ stopName }) => stopName),
@@ -27,16 +28,16 @@ test("keeps a second published call at the current physical stop", () => {
     { stopName: "Hauptfriedhof", localStopId: "hauptfriedhof", platformCode: "2" },
     { stopName: "Karl-Wilhelm-Platz", localStopId: "karl-wilhelm-platz" },
   ];
-  const departure = {
+  const departure = createDeparture({
     boardingLocalStopId: "hauptfriedhof",
     tripCalls,
-  } as Departure;
+  });
 
   assert.deepEqual(getCallsAfterStop(departure, "hauptfriedhof"), tripCalls.slice(1));
 });
 
 const row = (id: string, stopName: string): Departure =>
-  ({
+  createDeparture({
     id,
     destination: "Hochstetten",
     tripCalls: [{ stopName, isCurrentStop: true }],
@@ -71,7 +72,7 @@ test("a row stands when no reading has arrived", () => {
  * the clock of the reading that took them, not of the one that happened to be offered beside it.
  */
 test("calls kept from the row are dated by the row that read them", () => {
-  const row: Departure = {
+  const row: Departure = createDeparture({
     id: "row",
     lineId: "1",
     transportMode: "tram",
@@ -88,14 +89,14 @@ test("calls kept from the row are dated by the row that read them", () => {
       },
     ],
     readAt: { rowReadAt: 1_000_000, sequenceReadAt: 1_000_000 },
-  };
+  });
   // The same run on a line board, read two minutes later and carrying no sequence at all.
-  const callLess: Departure = {
+  const callLess: Departure = createDeparture({
     ...row,
     id: "other",
     tripCalls: undefined,
     readAt: { rowReadAt: 1_120_000 },
-  };
+  });
 
   const merged = mergeRunReading(row, callLess);
 
@@ -105,7 +106,7 @@ test("calls kept from the row are dated by the row that read them", () => {
 
 /** A row with no calls behind it states one clock, because only one reading was ever taken. */
 test("a row carrying no sequence is dated on one clock, not on two", () => {
-  const row: Departure = {
+  const row: Departure = createDeparture({
     id: "row",
     lineId: "1",
     transportMode: "tram",
@@ -115,8 +116,8 @@ test("a row carrying no sequence is dated on one clock, not on two", () => {
     status: "realtime",
     scheduledDepartureTime: "2026-08-29T21:30:00Z",
     readAt: { rowReadAt: 1_000_000 },
-  };
-  const sequence: Departure = {
+  });
+  const sequence: Departure = createDeparture({
     ...row,
     id: "sequence",
     tripCalls: [
@@ -127,7 +128,7 @@ test("a row carrying no sequence is dated on one clock, not on two", () => {
       },
     ],
     readAt: { rowReadAt: 1_000_000, sequenceReadAt: 1_120_000 },
-  };
+  });
 
   assert.deepEqual(mergeRunReading(row, undefined).readAt, { rowReadAt: 1_000_000 });
   // A sequence genuinely read later than the row still says so: that is the case the stamp is for.

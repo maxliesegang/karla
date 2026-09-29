@@ -25,6 +25,7 @@ import { getZentrumVehicleLinkKey } from "../src/lib/zentrum-plan-canvas.ts";
 import { getZentrumSchematicStopMarks } from "../src/lib/zentrum-schematic-stops.ts";
 import { run } from "./support/calls.ts";
 import { createRunMotions } from "../src/lib/vehicle-positioning.ts";
+import { createDeparture } from "./support/fixtures.ts";
 
 /** One drawing's motion record, shared across this file as the module global used to be. */
 const motions = createRunMotions();
@@ -40,21 +41,22 @@ const departure = (
   lineId: string,
   tripCalls: readonly TripCall[],
   overrides: Partial<Departure> = {},
-): Departure => ({
-  id: `${lineId}-departure`,
-  lineId,
-  transportMode: "tram",
-  destination: "Testziel",
-  minutesUntilDeparture: 3,
-  platformCode: "1",
-  boardingLocalStopId: tripCalls[0]?.localStopId ?? "",
-  boardingProviderStopPointId: tripCalls[0]?.providerStopPointId ?? "",
-  boardingProviderStopPointName: tripCalls[0]?.stopName ?? "",
-  status: "realtime",
-  scheduledDepartureTime: "2026-09-04T12:00:00+02:00",
-  tripCalls,
-  ...overrides,
-});
+): Departure =>
+  createDeparture({
+    id: `${lineId}-departure`,
+    lineId,
+    transportMode: "tram",
+    destination: "Testziel",
+    minutesUntilDeparture: 3,
+    platformCode: "1",
+    boardingLocalStopId: tripCalls[0]?.localStopId ?? "",
+    boardingProviderStopPointId: tripCalls[0]?.providerStopPointId ?? "",
+    boardingProviderStopPointName: tripCalls[0]?.stopName ?? "",
+    status: "realtime",
+    scheduledDepartureTime: "2026-09-04T12:00:00+02:00",
+    tripCalls,
+    ...overrides,
+  });
 
 const board = (...departures: readonly Departure[]): DepartureBoard => ({
   stopId: "europaplatz",
@@ -544,7 +546,7 @@ test("lays neighbouring lanes exactly one lane width apart", () => {
   }
   // And the band stays centred on the corridor the stops name, so a lane's neighbours changing
   // moves it sideways by lanes rather than moving the corridor.
-  assert.equal((laneOffsets[0] + laneOffsets.at(-1)) / 2, 154);
+  assert.equal((laneOffsets[0] + laneOffsets[laneOffsets.length - 1]) / 2, 154);
 });
 
 /*
@@ -1241,7 +1243,7 @@ test("rides the line's lane through a stop the feed left untimed", () => {
   const timedCall = (
     localStopId: string,
     providerStopPointId: string,
-    minute: number,
+    minute: number | undefined,
   ): TripCall => ({
     ...call(localStopId, providerStopPointId),
     scheduledArrivalTime: minute === undefined ? undefined : `2026-09-04T12:0${minute}:00+02:00`,

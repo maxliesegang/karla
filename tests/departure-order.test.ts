@@ -6,6 +6,7 @@ import {
   groupDeparturesByPlatform,
   sortDeparturesByExpectedInstant,
 } from "../src/lib/departure-order.ts";
+import { createDeparture as createFixture } from "./support/fixtures.ts";
 
 const BASE = Date.parse("2026-08-24T14:30:00+02:00");
 
@@ -14,18 +15,19 @@ const createDeparture = (
   lineId: string,
   minutes: number,
   overrides: Partial<Departure> = {},
-): Departure => ({
-  id,
-  lineId,
-  transportMode: "tram",
-  destination: "Durlach Turmberg",
-  minutesUntilDeparture: minutes,
-  platformCode: "1",
-  boardingLocalStopId: "marktplatz",
-  status: "realtime",
-  scheduledDepartureTime: new Date(BASE + minutes * 60_000).toISOString(),
-  ...overrides,
-});
+): Departure =>
+  createFixture({
+    id,
+    lineId,
+    transportMode: "tram",
+    destination: "Durlach Turmberg",
+    minutesUntilDeparture: minutes,
+    platformCode: "1",
+    boardingLocalStopId: "marktplatz",
+    status: "realtime",
+    scheduledDepartureTime: new Date(BASE + minutes * 60_000).toISOString(),
+    ...overrides,
+  });
 
 test("orders a board by the time its countdowns are counted to, not by the schedule", () => {
   const delayed = createDeparture("delayed", "1", 3, { delayMinutes: 6 });

@@ -3,11 +3,12 @@ import test from "node:test";
 import type { Departure, TripCall } from "../src/data/transit-types.ts";
 import { updateStopCorridorPatterns } from "../src/lib/stop-corridor-patterns.ts";
 import { getStopServiceCorridorLineGroups } from "../src/lib/stop-corridors.ts";
+import { createDeparture } from "./support/fixtures.ts";
 
 function departure(
   overrides: Partial<Departure> & Pick<Departure, "id" | "destination">,
 ): Departure {
-  return {
+  return createDeparture({
     tripId: overrides.id,
     lineId: "2",
     transportMode: "tram",
@@ -17,7 +18,7 @@ function departure(
     status: "realtime",
     scheduledDepartureTime: "2026-08-24T12:04:00+02:00",
     ...overrides,
-  };
+  });
 }
 
 const calls = (...stopNames: string[]): TripCall[] =>

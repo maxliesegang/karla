@@ -3,6 +3,7 @@ import test from "node:test";
 import { ObservedNetworkStore } from "../src/data/observed-network-store.ts";
 import { RUN_ENDED_GRACE_MS } from "../src/data/run-reading-store.ts";
 import type { Departure, DepartureBoard, TripCall } from "../src/data/transit-types.ts";
+import { createDeparture } from "./support/fixtures.ts";
 
 const call = (stopName: string, localStopId: string): TripCall => ({ stopName, localStopId });
 
@@ -12,22 +13,23 @@ const departure = (
   destination: string,
   tripCalls: readonly TripCall[],
   status: Departure["status"] = "realtime",
-): Departure => ({
-  id,
-  tripId: id,
-  lineId,
-  transportMode: "tram",
-  destination,
-  minutesUntilDeparture: 2,
-  platformCode: "1",
-  boardingLocalStopId: tripCalls[0]?.localStopId ?? "europaplatz",
-  boardingProviderStopPointId: "provider-stop",
-  boardingProviderStopPointName: "Provider stop",
-  status,
-  scheduledDepartureTime: "2026-09-07T12:00:00+02:00",
-  tripCalls,
-  readAt: { rowReadAt: 1, sequenceReadAt: 1 },
-});
+): Departure =>
+  createDeparture({
+    id,
+    tripId: id,
+    lineId,
+    transportMode: "tram",
+    destination,
+    minutesUntilDeparture: 2,
+    platformCode: "1",
+    boardingLocalStopId: tripCalls[0]?.localStopId ?? "europaplatz",
+    boardingProviderStopPointId: "provider-stop",
+    boardingProviderStopPointName: "Provider stop",
+    status,
+    scheduledDepartureTime: "2026-09-07T12:00:00+02:00",
+    tripCalls,
+    readAt: { rowReadAt: 1, sequenceReadAt: 1 },
+  });
 
 const board = (stopId: string, departures: readonly Departure[]): DepartureBoard => ({
   stopId,

@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { Departure, DepartureBoard, TripCall } from "../src/data/transit-types.ts";
 import { findBestRunReading, getDepartureReadInstant } from "../src/lib/trips.ts";
+import { createDeparture } from "./support/fixtures.ts";
 
 const readAt = Date.parse("2026-08-29T21:40:00Z");
 
@@ -21,20 +22,21 @@ const callsWithDelay = (delayMinutes: number): TripCall[] => [
   },
 ];
 
-const departure = (tripCalls?: TripCall[]): Departure => ({
-  id: "trip-at-durlacher-tor",
-  tripId: "trip",
-  tripInstanceId: "trip@2026-08-29T21:30:00Z",
-  lineId: "1",
-  transportMode: "tram",
-  destination: "Durlach",
-  minutesUntilDeparture: 2,
-  platformCode: "1",
-  boardingLocalStopId: "durlacher-tor",
-  status: "realtime",
-  scheduledDepartureTime: "2026-08-29T21:30:00Z",
-  tripCalls,
-});
+const departure = (tripCalls?: TripCall[]): Departure =>
+  createDeparture({
+    id: "trip-at-durlacher-tor",
+    tripId: "trip",
+    tripInstanceId: "trip@2026-08-29T21:30:00Z",
+    lineId: "1",
+    transportMode: "tram",
+    destination: "Durlach",
+    minutesUntilDeparture: 2,
+    platformCode: "1",
+    boardingLocalStopId: "durlacher-tor",
+    status: "realtime",
+    scheduledDepartureTime: "2026-08-29T21:30:00Z",
+    tripCalls,
+  });
 
 /**
  * Rows are dated by the board they came off, exactly as the source dates the ones it publishes —

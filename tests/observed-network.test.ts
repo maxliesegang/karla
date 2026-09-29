@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { Departure, DepartureBoard, TripCall } from "../src/data/transit-types.ts";
 import { buildObservedNetwork, getObservedTransitLines } from "../src/lib/observed-network.ts";
+import { createDeparture } from "./support/fixtures.ts";
 
 const call = (stopName: string, localStopId: string, placeName?: string): TripCall => ({
   stopName,
@@ -14,16 +15,17 @@ const trip = (
     Pick<Departure, "id" | "tripId" | "destination"> & {
       tripCalls: readonly TripCall[];
     },
-): Departure => ({
-  lineId: "2",
-  transportMode: "tram",
-  minutesUntilDeparture: 4,
-  platformCode: "1",
-  boardingLocalStopId: "europaplatz",
-  status: "realtime",
-  scheduledDepartureTime: "2026-09-05T12:04:00+02:00",
-  ...overrides,
-});
+): Departure =>
+  createDeparture({
+    lineId: "2",
+    transportMode: "tram",
+    minutesUntilDeparture: 4,
+    platformCode: "1",
+    boardingLocalStopId: "europaplatz",
+    status: "realtime",
+    scheduledDepartureTime: "2026-09-05T12:04:00+02:00",
+    ...overrides,
+  });
 
 const board = (departures: readonly Departure[]): DepartureBoard[] => [
   {

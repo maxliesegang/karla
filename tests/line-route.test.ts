@@ -20,6 +20,7 @@ import {
   MAX_LINE_OBSERVATION_STOPS,
   sampleLineObservationStopIds,
 } from "../src/lib/line-observation.ts";
+import { createDeparture } from "./support/fixtures.ts";
 
 const locator: KvvTripLocator = {
   tripCode: "35",
@@ -187,7 +188,7 @@ test("a route that cannot be read leaves the reading where it stood", async () =
 });
 
 function selectionDeparture(routeDirectionId: string, id: string, lineId = "3"): Departure {
-  return {
+  return createDeparture({
     id,
     lineId,
     transportMode: "tram",
@@ -197,7 +198,7 @@ function selectionDeparture(routeDirectionId: string, id: string, lineId = "3"):
     status: "realtime",
     scheduledDepartureTime: "2026-09-04T07:00:00.000Z",
     routeDirectionId,
-  } as Departure;
+  }) as Departure;
 }
 
 test("one route is asked for per direction, however many rows of it a board carries", () => {

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createDeparture } from "./support/fixtures.ts";
 
 const { describeCurrentStopMove, getVehicleLeftOffset, getMeasuredNodeCenterOffset } = await import(
   "../src/components/line-diagram/layout.ts"
@@ -65,18 +66,15 @@ const { chooseLineDiagramRun, getCurrentStopIndex, isCurrentLineDiagramStop } = 
 );
 
 /** A trip of line 2, stated by the stops it calls at in travel order. */
-const trip = (id: string, destination: string, stopIds: readonly string[]) => ({
-  id,
-  tripId: id,
-  lineId: "2",
-  transportMode: "tram" as const,
-  destination,
-  minutesUntilDeparture: 0,
-  platformCode: "1",
-  boardingLocalStopId: stopIds[0],
-  status: "scheduled" as const,
-  tripCalls: stopIds.map((localStopId) => ({ stopName: localStopId.toUpperCase(), localStopId })),
-});
+const trip = (id: string, destination: string, stopIds: readonly string[]) =>
+  createDeparture({
+    id,
+    tripId: id,
+    destination,
+    boardingLocalStopId: stopIds[0],
+    status: "scheduled",
+    tripCalls: stopIds.map((localStopId) => ({ stopName: localStopId.toUpperCase(), localStopId })),
+  });
 
 const OUTBOUND = trip("outbound", "Wörth", ["a", "b", "c", "d"]);
 const INBOUND = trip("inbound", "Durlach", ["d", "c", "b", "a"]);

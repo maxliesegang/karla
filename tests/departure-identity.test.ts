@@ -40,7 +40,7 @@ test("tells two trips apart when line, Steig, destination and scheduled minute a
 
 test("keeps a trip's id across refreshes, whatever the feed reports about it now", () => {
   const first = createDeparture({ minutesUntilDeparture: 44 });
-  const later = createDeparture({ minutesUntilDeparture: 12, delayMinutes: 2, status: "delayed" });
+  const later = createDeparture({ minutesUntilDeparture: 12, delayMinutes: 2, status: "diverted" });
 
   assert.equal(
     createDepartureId(first, "augartenstrasse"),

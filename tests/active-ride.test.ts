@@ -7,9 +7,10 @@ import {
   getActiveRideExpiry,
   rememberActiveRideObservation,
 } from "../src/lib/active-ride.ts";
+import { createDeparture } from "./support/fixtures.ts";
 
 const observedAt = Date.parse("2026-08-23T16:00:00Z");
-const departure: Departure = {
+const departure: Departure = createDeparture({
   id: "departure",
   tripId: "trip",
   lineId: "2",
@@ -27,7 +28,7 @@ const departure: Departure = {
       delayMinutes: 3,
     },
   ],
-};
+});
 
 function installStorage() {
   const values = new Map<string, string>();

@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.app.json",
+  "compilerOptions": {
+    "composite": true,
+    "types": ["node", "vite/client"],
+    /* Tests run under Node's type stripping, which resolves the extension each import is written with. */
+    "allowImportingTsExtensions": true
+  },
+  "include": ["tests", "src"]
+}

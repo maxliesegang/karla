@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { Departure, DepartureBoard, TripCall } from "../src/data/transit-types.ts";
 import { getZentrumRunObservation } from "../src/lib/zentrum-run-observation.ts";
+import { createDeparture } from "./support/fixtures.ts";
 
 const call = (localStopId: string): TripCall => ({
   stopName: localStopId,
@@ -10,39 +11,45 @@ const call = (localStopId: string): TripCall => ({
   platformCode: "1",
 });
 
-const departure = (id: string, overrides: Partial<Departure> = {}): Departure => ({
-  id,
-  lineId: "S1",
-  transportMode: "tram",
-  destination: "Testziel",
-  minutesUntilDeparture: 3,
-  platformCode: "1",
-  boardingLocalStopId: "europaplatz",
-  boardingProviderStopPointId: "europaplatz-1",
-  boardingProviderStopPointName: "Europaplatz",
-  status: "realtime",
-  scheduledDepartureTime: "2026-09-04T12:00:00+02:00",
-  tripCalls: [call("europaplatz"), call("marktplatz")],
-  tripId: id,
-  ...overrides,
-});
+const departure = (id: string, overrides: Partial<Departure> = {}): Departure =>
+  createDeparture({
+    id,
+    lineId: "S1",
+    transportMode: "tram",
+    destination: "Testziel",
+    minutesUntilDeparture: 3,
+    platformCode: "1",
+    boardingLocalStopId: "europaplatz",
+    boardingProviderStopPointId: "europaplatz-1",
+    boardingProviderStopPointName: "Europaplatz",
+    status: "realtime",
+    scheduledDepartureTime: "2026-09-04T12:00:00+02:00",
+    tripCalls: [call("europaplatz"), call("marktplatz")],
+    tripId: id,
+    ...overrides,
+  });
 
 const board = (
   stopId: string,
   receivedAt: number,
   departures: readonly Departure[],
   dataStatus: DepartureBoard["dataStatus"] = "live",
-): DepartureBoard => ({
-  stopId,
-  receivedAt,
-  dataStatus,
-  feedUpdatedAt: "2026-09-04T11:57:00+02:00",
+): DepartureBoard => {
   // Dated by the board they came off, exactly as the source dates every row it publishes.
-  departures: departures.map((departure) => ({
+  const rows = departures.map((departure) => ({
     ...departure,
     readAt: { rowReadAt: receivedAt, sequenceReadAt: receivedAt },
-  })),
-});
+  }));
+  return dataStatus === "live"
+    ? {
+        stopId,
+        receivedAt,
+        dataStatus,
+        feedUpdatedAt: "2026-09-04T11:57:00+02:00",
+        departures: rows,
+      }
+    : { stopId, receivedAt, dataStatus, errorMessage: "unavailable", departures: rows };
+};
 
 test("reads the vehicles the Zentrum's own posts placed, and nothing else", () => {
   const observation = getZentrumRunObservation([

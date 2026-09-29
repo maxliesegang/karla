@@ -10,6 +10,7 @@ import { buildLineDiagramStops, getLineDiagramVehicles } from "../src/lib/line-d
 import { getDrawableLineBundleOffers, getLineBundleTrunk } from "../src/lib/line-bundles.ts";
 import { createCall } from "./support/calls.ts";
 import { createRunMotions } from "../src/lib/vehicle-positioning.ts";
+import { createDeparture } from "./support/fixtures.ts";
 
 /** One drawing's motion record, shared across this file as the module global used to be. */
 const motions = createRunMotions();
@@ -43,19 +44,20 @@ const lineOf = (id: string): TransitLine => ({
   zentrumCalls: [],
 });
 
-const trip = (id: string, lineId: string, calls: readonly TripCall[]): Departure => ({
-  id,
-  tripId: id,
-  lineId,
-  transportMode: "lightRail",
-  destination: calls[calls.length - 1].stopName,
-  minutesUntilDeparture: 0,
-  platformCode: "1",
-  boardingLocalStopId: "hochstetten",
-  status: "realtime",
-  scheduledDepartureTime: new Date(start).toISOString(),
-  tripCalls: calls,
-});
+const trip = (id: string, lineId: string, calls: readonly TripCall[]): Departure =>
+  createDeparture({
+    id,
+    tripId: id,
+    lineId,
+    transportMode: "lightRail",
+    destination: calls[calls.length - 1].stopName,
+    minutesUntilDeparture: 0,
+    platformCode: "1",
+    boardingLocalStopId: "hochstetten",
+    status: "realtime",
+    scheduledDepartureTime: new Date(start).toISOString(),
+    tripCalls: calls,
+  });
 
 // Together to Busenbach, apart past it.
 const s1Calls = [

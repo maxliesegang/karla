@@ -82,6 +82,12 @@ function getPublishedTimeReading(
   };
 }
 
+/** The fields a departure's time is read from. */
+type DepartureTimeFacts = Pick<
+  Departure,
+  "scheduledDepartureTime" | "predictedDepartureTime" | "delayMinutes"
+>;
+
 /**
  * The deviation this row publishes, measured against the time the feed actually expects the vehicle
  * at (`findExpectedDepartureInstant`) rather than read off its stated delay.
@@ -96,7 +102,7 @@ function getPublishedTimeReading(
  * it as the evidence it moved. A prediction is stated to the minute, so the sum comes back to
  * exactly the prediction.
  */
-function findPublishedDelayMinutes(departure: Departure): number | undefined {
+function findPublishedDelayMinutes(departure: DepartureTimeFacts): number | undefined {
   const scheduled = Date.parse(departure.scheduledDepartureTime);
   const expected = findExpectedDepartureInstant(
     departure.scheduledDepartureTime,
@@ -114,7 +120,9 @@ function findPublishedDelayMinutes(departure: Departure): number | undefined {
  * The time one departure row publishes. A trip that will not run has no deviation to apply: adding
  * three minutes to a cancelled departure would state a time it is expected at.
  */
-export function getDepartureTimeReading(departure: Departure): DepartureTimeReading | undefined {
+export function getDepartureTimeReading(
+  departure: DepartureTimeFacts & Pick<Departure, "status">,
+): DepartureTimeReading | undefined {
   return getPublishedTimeReading(
     departure.scheduledDepartureTime,
     departure.status === "cancelled" ? undefined : findPublishedDelayMinutes(departure),

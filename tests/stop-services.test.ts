@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { createDeparture, createLine } from "./support/fixtures.ts";
 import type { Departure, TripCall } from "../src/data/transit-types.ts";
 import {
   getFarthestLineRun,
@@ -14,17 +15,13 @@ import { transitNetwork } from "../src/data/transit-network.ts";
 function departure(
   overrides: Partial<Departure> & Pick<Departure, "id" | "destination">,
 ): Departure {
-  return {
+  return createDeparture({
     tripId: overrides.id,
-    lineId: "2",
-    transportMode: "tram",
     minutesUntilDeparture: 4,
-    platformCode: "1",
     boardingLocalStopId: "europaplatz",
-    status: "realtime",
     scheduledDepartureTime: "2026-08-24T12:04:00+02:00",
     ...overrides,
-  };
+  });
 }
 
 const calls = (...stopNames: string[]): TripCall[] =>
@@ -88,10 +85,10 @@ test("names a whole line by the farthest observed run instead of the drawn short
     destination: "A",
     tripCalls: calls("D", "C", "B", "A"),
   });
-  const line = {
+  const line = createLine({
     id: "2",
     destinations: ["D", "C"],
-  } as Parameters<typeof getFarthestLineRun>[0];
+  });
 
   // The diagram is displayed destination-first as D, C, B. The full observation happens to have
   // been made in the other direction, but D remains the heading at the top of the view — and its
@@ -109,10 +106,10 @@ test("a run observed heading the diagram's own way comes back in the diagram's o
     destination: "D",
     tripCalls: calls("A", "B", "C", "D"),
   });
-  const line = {
+  const line = createLine({
     id: "2",
     destinations: ["D", "A"],
-  } as Parameters<typeof getFarthestLineRun>[0];
+  });
   const drawn = calls("D", "C", "B");
 
   // The farthest run ends where the diagram's top row is, so its origin end is the one the view
@@ -134,10 +131,10 @@ test("qualifies a bare terminus name with the district it belongs to", () => {
       { stopName: "Nord", localStopId: "knielingen-nord", placeName: "Knielingen" },
     ],
   });
-  const line = {
+  const line = createLine({
     id: "2",
     destinations: ["Rheinhafen", "Knielingen Nord"],
-  } as Parameters<typeof getFarthestLineRun>[0];
+  });
 
   assert.deepEqual(getFarthestLineRun(line, [lineTwo], [...lineTwo.tripCalls!].reverse()), {
     firstTerminus: "Knielingen Nord",
@@ -147,10 +144,10 @@ test("qualifies a bare terminus name with the district it belongs to", () => {
 });
 
 test("falls back to the line's observed destinations until a complete run is in hand", () => {
-  const line = {
+  const line = createLine({
     id: "2",
     destinations: ["Durlach", "Knielingen Nord", "Rheinstetten"],
-  } as Parameters<typeof getFarthestLineRun>[0];
+  });
 
   assert.deepEqual(getFarthestLineRun(line, [], []), {
     firstTerminus: "Durlach",
@@ -183,11 +180,11 @@ test("reads a line's extent off the farthest run observed for it", () => {
   ]);
   // The pair the observation states stands in for the whole view wherever the line's ends are
   // asked for, before the signs' short workings are read.
-  const observedLine = {
+  const observedLine = createLine({
     id: "2",
     destinations: ["Knielingen Nord", "Rheinhafen über Kühler Krug"],
     farthestRunTermini: getFarthestLineRunTermini("2", [short, full]),
-  } as Parameters<typeof getLineTermini>[0];
+  });
   assert.deepEqual(getLineTermini(observedLine), ["Knielingen Nord", "Rheinhafen"]);
 });
 
@@ -201,10 +198,12 @@ test("a run that turns on itself names one place and no extent", () => {
   assert.equal(getFarthestLineRunTermini("23", [loop]), undefined);
   // The destinations still say which place the loop serves.
   assert.deepEqual(
-    getLineTermini({
-      id: "23",
-      destinations: ["Stupferich"],
-    } as Parameters<typeof getLineTermini>[0]),
+    getLineTermini(
+      createLine({
+        id: "23",
+        destinations: ["Stupferich"],
+      }),
+    ),
     ["Stupferich"],
   );
 });

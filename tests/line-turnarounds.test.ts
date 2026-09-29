@@ -10,6 +10,7 @@ import {
 import type { TransitLine, TransitNetwork } from "../src/data/transit-types.ts";
 import { createCall, run } from "./support/calls.ts";
 import { createRunMotions } from "../src/lib/vehicle-positioning.ts";
+import { createDeparture } from "./support/fixtures.ts";
 
 /** One drawing's motion record, shared across this file as the module global used to be. */
 const motions = createRunMotions();
@@ -19,20 +20,16 @@ const call = createCall(start);
 
 function departure(id: string, lineId: string, calls: readonly TripCall[]): Departure {
   const runCalls = run(calls);
-  return {
+  return createDeparture({
     id,
     tripId: id,
     tripInstanceId: `${id}@today`,
     lineId,
-    transportMode: "tram",
     destination: calls[calls.length - 1].stopName,
-    minutesUntilDeparture: 0,
-    platformCode: "1",
     boardingLocalStopId: calls[0].localStopId ?? "a",
-    status: "realtime",
     scheduledDepartureTime: calls[0].scheduledDepartureTime ?? new Date(start).toISOString(),
     tripCalls: runCalls,
-  };
+  });
 }
 
 test("pairs an arrival with the departure that turns out of it, once", () => {
@@ -364,10 +361,11 @@ test("never pairs at a stop where neither run actually ends", () => {
   // Both readings are timed at both ends of every call, which is what the feed publishes where the
   // vehicle runs on past them: a sequence cut short, or one read without complete stop sequences.
   // C is a stop each of them passes through, and nothing turns at a stop it passes through.
-  const passing = (id: string, calls: readonly TripCall[]): Departure => ({
-    ...departure(id, "2", calls),
-    tripCalls: calls,
-  });
+  const passing = (id: string, calls: readonly TripCall[]): Departure =>
+    createDeparture({
+      ...departure(id, "2", calls),
+      tripCalls: calls,
+    });
   const arriving = passing("in-passing", [call("a", 0), call("b", 4), call("c", 8)]);
   const leaving = passing("out-passing", [call("c", 12), call("b", 16), call("a", 20)]);
 

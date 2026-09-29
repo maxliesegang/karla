@@ -8,6 +8,7 @@ import {
   type KvvDeparture,
   type KvvDepartureBoard,
   type KvvTrip,
+  type KvvTripCall,
   type KvvTripLocator,
 } from "../src/data/kvv-efa-parsers.ts";
 import { KvvTransitSource } from "../src/data/transit-source.ts";
@@ -553,6 +554,7 @@ function createRememberedDeparture(
     transportMode: "lightRail",
     destination: "Karlsruhe Albtalbahnhof",
     minutesUntilDeparture: 1,
+    platformCode: "",
     status: "realtime",
     scheduledDepartureTime: "2026-08-26T05:30:00.000Z",
     tripCalls: [
@@ -605,6 +607,7 @@ test("a reading answered from memory is dated when it was taken, not when it was
           transportMode: "lightRail",
           destination: "Karlsruhe Albtalbahnhof",
           minutesUntilDeparture: 1,
+          platformCode: "",
           status: "realtime",
           scheduledDepartureTime: "2026-08-26T05:30:00.000Z",
           tripLocator: locator,
@@ -853,6 +856,7 @@ test("a line's stops are read as rows, and each trip's calls are fetched once fo
     transportMode: "tram",
     destination: "Hochstetten",
     minutesUntilDeparture: minute,
+    platformCode: "",
     status: "realtime",
     scheduledDepartureTime: "2026-08-26T07:30:00.000Z",
     // Every row of a run carries a locator naming its own stop; any one of them reads the trip.
@@ -939,6 +943,7 @@ test("a line's runs are re-read at their own tolerance, apart from the boards th
             transportMode: "tram",
             destination: "Hochstetten",
             minutesUntilDeparture: 2,
+            platformCode: "",
             status: "realtime",
             scheduledDepartureTime: "2026-08-26T07:30:00.000Z",
             tripLocator: locator,

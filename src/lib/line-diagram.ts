@@ -696,7 +696,7 @@ const callsAtStop = (departure: Departure, lineId: string, stopIds: readonly str
  * there is no note travelling anywhere and nothing to blink.
  */
 export function getCurrentStopIndex(
-  diagramStops: readonly LineDiagramStop[],
+  diagramStops: readonly Pick<LineDiagramStop, "stopId">[],
   stopId: string,
   /** Local, because the rows are: a provider stop point id matches no `stopId` of this chain. */
   boardingLocalStopId: string | undefined,
@@ -714,7 +714,7 @@ export function getCurrentStopIndex(
  * placement anchor returned above; this only answers how every row is presented.
  */
 export function isCurrentLineDiagramStop(
-  diagramStops: readonly LineDiagramStop[],
+  diagramStops: readonly Pick<LineDiagramStop, "stopId">[],
   currentStopIndex: number,
   rowIndex: number,
 ): boolean {

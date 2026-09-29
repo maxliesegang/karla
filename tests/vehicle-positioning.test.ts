@@ -7,6 +7,7 @@ import {
 } from "../src/lib/vehicle-positioning.ts";
 import { createCall, run } from "./support/calls.ts";
 import { createRunMotions } from "../src/lib/vehicle-positioning.ts";
+import { createDeparture } from "./support/fixtures.ts";
 
 /** One drawing's motion record, shared across this file as the module global used to be. */
 const motions = createRunMotions();
@@ -15,7 +16,7 @@ const start = Date.parse("2026-08-23T10:00:00Z");
 const call = createCall(start);
 
 function departure(id: string, calls: readonly TripCall[]): Departure {
-  return {
+  return createDeparture({
     id,
     tripId: id,
     lineId: "2",
@@ -27,7 +28,7 @@ function departure(id: string, calls: readonly TripCall[]): Departure {
     status: "realtime",
     scheduledDepartureTime: new Date(start).toISOString(),
     tripCalls: calls,
-  };
+  });
 }
 
 /** How far along a four-stop A-B-C-D chain a placement is, as one number, for readability below. */
@@ -793,14 +794,14 @@ test("a row read minutes before its own sequence corrects nothing", () => {
   // the post — the mark hauled back off the link it was travelling, held at a platform its vehicle
   // had left, then thrown a whole link forward when the stale prediction finally elapsed.
   const calls = [call("a", 0), call("b", 2), call("c", 4), call("d", 6), call("e", 8)];
-  const post: Departure = {
+  const post: Departure = createDeparture({
     ...departure("position-stale-row", calls),
     boardingLocalStopId: "c",
     scheduledDepartureTime: new Date(start + 4 * 60_000).toISOString(),
     // The post's row, read five minutes ago, still predicts this vehicle out of C two minutes late.
     predictedDepartureTime: new Date(start + 6 * 60_000).toISOString(),
     delayMinutes: 2,
-  };
+  });
   const readAt = { rowReadAt: start, sequenceReadAt: start + 4.5 * 60_000 };
 
   // Travelling on the sequence, well past the post.
@@ -867,7 +868,7 @@ test("a row merged with a reading taken elsewhere is timed from its own stop's c
   // against the reading's own call at Waidweg read Hammweg's prediction as a two-minute correction
   // and had the mark reach Hammweg a minute behind the row printed beside it. The row's stop is
   // the question; the marker answers it only at the stop it was made for.
-  const trip: Departure = {
+  const trip: Departure = createDeparture({
     ...departure("position-boarding-elsewhere", [
       { ...call("waidweg", 4), isCurrentStop: true },
       { ...call("hammweg", 6), scheduledArrivalTime: new Date(start + 342_000).toISOString() },
@@ -878,7 +879,7 @@ test("a row merged with a reading taken elsewhere is timed from its own stop's c
     boardingLocalStopId: "hammweg",
     platformCode: "2",
     predictedDepartureTime: new Date(start + 6 * 60_000).toISOString(),
-  };
+  });
 
   const placement = getSmoothTripPlacement(motions, trip, start + 370_000);
 

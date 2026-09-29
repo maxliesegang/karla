@@ -3,6 +3,7 @@ import test from "node:test";
 import type { KvvTripLocator } from "../src/data/kvv-efa-parsers.ts";
 import type { Departure, RunSequence, TripCall } from "../src/data/transit-types.ts";
 import { RunReadingStore } from "../src/data/run-reading-store.ts";
+import { createDeparture } from "./support/fixtures.ts";
 
 /** The provider's address for one run: `line` and `tripCode` are what the store keys it by. */
 const locator: KvvTripLocator = {
@@ -36,10 +37,11 @@ const calls = (delayMinutes: number): TripCall[] => [
 ];
 
 /** Every row the source publishes is dated; a fixture that ranks readings has to date them too. */
-const stamp = (departure: Departure, readAt: number): Departure => ({
-  ...departure,
-  readAt: { rowReadAt: readAt, sequenceReadAt: readAt },
-});
+const stamp = (departure: Departure, readAt: number): Departure =>
+  createDeparture({
+    ...departure,
+    readAt: { rowReadAt: readAt, sequenceReadAt: readAt },
+  });
 
 /** What the source hands the store for a run read on its own: the calls, and when they were read. */
 const sequence = (tripCalls: readonly TripCall[], readAt: number): RunSequence => ({
@@ -48,19 +50,20 @@ const sequence = (tripCalls: readonly TripCall[], readAt: number): RunSequence =
   readAt,
 });
 
-const departure = (id: string, stopId: string, overrides: Partial<Departure> = {}): Departure => ({
-  id,
-  tripId: "provider-trip",
-  lineId: "2",
-  transportMode: "tram",
-  destination: "B",
-  minutesUntilDeparture: 1,
-  platformCode: "1",
-  boardingLocalStopId: stopId,
-  status: "realtime",
-  scheduledDepartureTime: "2026-09-06T10:00:00.000Z",
-  ...overrides,
-});
+const departure = (id: string, stopId: string, overrides: Partial<Departure> = {}): Departure =>
+  createDeparture({
+    id,
+    tripId: "provider-trip",
+    lineId: "2",
+    transportMode: "tram",
+    destination: "B",
+    minutesUntilDeparture: 1,
+    platformCode: "1",
+    boardingLocalStopId: stopId,
+    status: "realtime",
+    scheduledDepartureTime: "2026-09-06T10:00:00.000Z",
+    ...overrides,
+  });
 
 const RUN_ENDS_AT = Date.parse("2026-09-06T10:05:00.000Z");
 
