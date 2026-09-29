@@ -13,16 +13,12 @@ Object.defineProperty(globalThis, "window", {
   },
 });
 
-const {
-  DEFAULT_APP_SETTINGS,
-  getAppSettingsFromStored,
-  readAppSettings,
-  subscribeToAppSettings,
-  writeAppSettings,
-} = await import("../src/lib/app-settings.ts");
+const { DEFAULT_APP_SETTINGS, appSettings, getAppSettingsFromStored } = await import(
+  "../src/lib/app-settings.ts"
+);
 
 test("a rider who has chosen nothing is given the defaults", () => {
-  assert.deepEqual(readAppSettings(), DEFAULT_APP_SETTINGS);
+  assert.deepEqual(appSettings.read(), DEFAULT_APP_SETTINGS);
   assert.deepEqual(DEFAULT_APP_SETTINGS, {
     landing: "recent-stop",
     isRememberingStops: true,
@@ -33,15 +29,15 @@ test("a rider who has chosen nothing is given the defaults", () => {
 
 test("a choice is announced to everything reading it, and kept for the next visit", () => {
   let notified = 0;
-  const stopListening = subscribeToAppSettings(() => {
+  const stopListening = appSettings.subscribe(() => {
     notified += 1;
   });
 
   const settings = { ...DEFAULT_APP_SETTINGS, landing: "home", stackedDepartureLimit: 12 } as const;
-  writeAppSettings(settings);
+  appSettings.write(settings);
 
   assert.equal(notified, 1);
-  assert.deepEqual(readAppSettings(), settings);
+  assert.deepEqual(appSettings.read(), settings);
   assert.deepEqual(JSON.parse(values.get("karla:settings")!), settings);
   stopListening();
 });

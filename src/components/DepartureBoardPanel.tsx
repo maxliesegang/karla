@@ -34,7 +34,6 @@ import { classNames } from "../lib/class-names";
 import { findNextCompatibleDeparture } from "../lib/stop-services";
 import {
   groupDeparturesByBoardingPlace,
-  type DepartureBoardOrder,
   type DepartureBoardingPlaceGroup,
   type DeparturePlatformGroup,
 } from "../lib/departure-order";
@@ -43,9 +42,10 @@ import {
   type BoardingPlace,
   type StopBoardingPlaces,
 } from "../lib/boarding-places";
-import { useAppSettings } from "../hooks/app-settings";
+import { useStoredPreference } from "../hooks/stored-preference";
+import { appSettings } from "../lib/app-settings";
 import { useBoardingPlaceSections } from "../hooks/boarding-place-sections";
-import { useDepartureBoardOrder, writeDepartureBoardOrder } from "../hooks/departure-order";
+import { departureBoardOrder, type DepartureBoardOrder } from "../lib/departure-board-order";
 import { usePullToRefresh } from "../hooks/pull-to-refresh";
 import { useTransientScrollbar } from "../hooks/scrollbar";
 import {
@@ -394,7 +394,7 @@ export function DepartureBoardPanel({
   const [isExpanded, setIsExpanded] = useState(false);
   // Read from the shared preference rather than held here: the board request depends on it too, and
   // a copy of it in this panel would leave the two disagreeing about what was asked for.
-  const departureOrder = useDepartureBoardOrder();
+  const departureOrder = useStoredPreference(departureBoardOrder);
   const departureListRef = useRef<HTMLDivElement>(null);
   useTransientScrollbar(departureListRef);
   const pullIndicatorRef = useRef<HTMLDivElement>(null);
@@ -420,7 +420,7 @@ export function DepartureBoardPanel({
   });
   // Where the stacked board ends before "mehr anzeigen" gathers the rest: the rider's own choice,
   // read from the same preference the settings name, not a constant of this panel.
-  const stackedDepartureLimit = useAppSettings().stackedDepartureLimit;
+  const { stackedDepartureLimit } = useStoredPreference(appSettings);
   const visibleDepartures = useMemo(
     () => (!isStacked || isExpanded ? departures : departures.slice(0, stackedDepartureLimit)),
     [departures, isExpanded, isStacked, stackedDepartureLimit],
@@ -488,7 +488,7 @@ export function DepartureBoardPanel({
           {stop.alias && <p className="departure-board-stop-meta">{stop.alias}</p>}
         </div>
         <div className="departure-board-heading-actions">
-          <DepartureOrderControl order={departureOrder} onOrderChange={writeDepartureBoardOrder} />
+          <DepartureOrderControl order={departureOrder} onOrderChange={departureBoardOrder.write} />
           <DepartureBoardStatusChip departureBoard={departureBoard} feedNow={feedNow} />
         </div>
       </div>

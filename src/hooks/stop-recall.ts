@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { TransitStop } from "../data/transit-types";
-import { useAppSettings } from "./app-settings";
+import { useStoredPreference } from "./stored-preference";
+import { appSettings } from "../lib/app-settings";
 import {
   findRecentStops,
   rememberStopVisit,
@@ -26,7 +27,7 @@ export function useStopRecall(visitedStop: TransitStop | undefined): {
   /** The stops to offer as a shortcut, most recent first, the one in view left out. */
   recentStops: readonly RecentStop[];
 } {
-  const settings = useAppSettings();
+  const settings = useStoredPreference(appSettings);
   const [landingStopId] = useState(() =>
     settings.landing === "recent-stop" ? findRecentStops()[0]?.stopId : undefined,
   );

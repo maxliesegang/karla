@@ -1,3 +1,5 @@
+import { createStoredPreference } from "./stored-preference";
+
 /**
  * The choices a rider makes about the app itself, rather than about one board or one visit.
  *
@@ -52,56 +54,9 @@ export function getAppSettingsFromStored(stored: unknown): AppSettings {
   };
 }
 
-/**
- * Storage is unavailable in a private window, when site data is blocked, and inside the artifact
- * sandboxes this page may be viewed in — reading it must never be what stops the app rendering.
- */
-function readStorage(): Storage | null {
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-}
-
-/** An unreadable or half-written store is the same as never having set anything. */
-function readKeptAppSettings(): AppSettings {
-  try {
-    const kept: unknown = JSON.parse(readStorage()?.getItem(APP_SETTINGS_STORAGE_KEY) ?? "null");
-    return getAppSettingsFromStored(kept);
-  } catch {
-    return DEFAULT_APP_SETTINGS;
-  }
-}
-
-/**
- * The settings in hand, so that a choice storage would not keep is still honoured for this session
- * — and so that reading them is the same value every time rather than a fresh trip to storage.
- */
-let currentAppSettings: AppSettings | undefined;
-
-/** Everything currently reading the settings, so that changing one moves the whole app at once. */
-const appSettingsListeners = new Set<() => void>();
-
-export function readAppSettings(): AppSettings {
-  currentAppSettings ??= readKeptAppSettings();
-  return currentAppSettings;
-}
-
-export function subscribeToAppSettings(listener: () => void): () => void {
-  appSettingsListeners.add(listener);
-  return () => {
-    appSettingsListeners.delete(listener);
-  };
-}
-
-export function writeAppSettings(settings: AppSettings): void {
-  currentAppSettings = settings;
-  try {
-    readStorage()?.setItem(APP_SETTINGS_STORAGE_KEY, JSON.stringify(settings));
-  } catch {
-    // A choice that cannot be kept is still honoured for this session; nothing here is a claim.
-  }
-  // Announced whether or not storage took it: a rider who cannot keep a setting still chose it.
-  for (const listener of appSettingsListeners) listener();
-}
+/** The rider's choices about the app; anything unreadable in storage is the default. */
+export const appSettings = createStoredPreference<AppSettings>({
+  key: APP_SETTINGS_STORAGE_KEY,
+  parse: (stored) => getAppSettingsFromStored(JSON.parse(stored ?? "null")),
+  serialize: JSON.stringify,
+});

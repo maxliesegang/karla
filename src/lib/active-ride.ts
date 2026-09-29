@@ -1,3 +1,4 @@
+import { readStorage } from "./stored-preference";
 import type { Departure } from "../data/transit-types";
 import { findFinalCallInstant } from "./trip-calls";
 
@@ -12,14 +13,6 @@ export type ActiveRideObservation = {
   observedAt: number;
   expiresAt: number;
 };
-
-function readStorage(): Storage | null {
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-}
 
 /** The final expected call plus an hour, or a conservative lifetime when the trip has no times. */
 export function getActiveRideExpiry(departure: Departure, observedAt: number): number {

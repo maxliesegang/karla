@@ -12,6 +12,8 @@
  * whether that stop has service today is still read from the live feed like any other.
  */
 
+import { readStorage } from "./stored-preference";
+
 const RECENT_STOPS_STORAGE_KEY = "karla:recent-stops";
 /** The single-stop key earlier versions wrote, still read once so a returning rider lands where they left off. */
 const LEGACY_RECENT_STOP_STORAGE_KEY = "karla:recent-stop";
@@ -31,18 +33,6 @@ export type RecentStop = {
   stopName?: string;
   visitedAt: number;
 };
-
-/**
- * Storage is unavailable in a private window, when site data is blocked, and inside the artifact
- * sandboxes this page may be viewed in — reading it must never be what stops the app rendering.
- */
-function readStorage(): Storage | null {
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-}
 
 const isRecentStop = (value: unknown): value is RecentStop => {
   const visit = value as Partial<RecentStop> | null;

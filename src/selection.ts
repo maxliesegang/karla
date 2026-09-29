@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useDepartureBoard } from "./hooks/departure-board";
-import { useDepartureBoardOrder } from "./hooks/departure-order";
+import { useStoredPreference } from "./hooks/stored-preference";
+import { departureBoardOrder } from "./lib/departure-board-order";
 import { useHeldRun } from "./hooks/run-reading-store";
 import { useLineReading } from "./hooks/line-reading";
 import { useRetainedRun } from "./hooks/retained-run";
@@ -152,10 +153,10 @@ export function useSelectionChain(
   // Only the line order pays for the per-direction completion. It is the reading where a direction
   // the plain board never reached is not a shorter list but a line missing from the answer to "what
   // runs from here?", and it is chosen deliberately — the other two orders keep the light board.
-  const departureBoardOrder = useDepartureBoardOrder();
+  const boardOrder = useStoredPreference(departureBoardOrder);
   const departureBoardReading = useDepartureBoard(
     selectedStop ? stopId : undefined,
-    NEEDS_BOARD_CALLS ? "calls" : departureBoardOrder === "line" ? "covered" : "plain",
+    NEEDS_BOARD_CALLS ? "calls" : boardOrder === "line" ? "covered" : "plain",
     boardReloadNonce,
   );
   const departureBoard = departureBoardReading.board;

@@ -1,4 +1,5 @@
-import { useAppSettings, writeAppSettings, type AppSettings } from "../hooks/app-settings";
+import { useStoredPreference } from "../hooks/stored-preference";
+import { appSettings, type AppSettings } from "../lib/app-settings";
 import { type AppLanding } from "../lib/app-settings";
 import { SegmentedControl, type SegmentedControlItem } from "./SegmentedControl";
 
@@ -61,8 +62,8 @@ const otherRunsItems: readonly SegmentedControlItem<"on" | "off">[] = [
  * a new behaviour, only the place where the behaviour the app guessed at becomes a choice.
  */
 export function SettingsView() {
-  const settings = useAppSettings();
-  const write = (partial: Partial<AppSettings>) => writeAppSettings({ ...settings, ...partial });
+  const settings = useStoredPreference(appSettings);
+  const write = (partial: Partial<AppSettings>) => appSettings.write({ ...settings, ...partial });
 
   return (
     <section className="settings-view" aria-labelledby="settings-title">

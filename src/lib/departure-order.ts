@@ -64,18 +64,6 @@ export type DeparturePlatformGroup = {
 };
 
 /**
- * The three complete readings of one departure board.
- *
- * Each is the whole board — nothing is hidden and nothing is re-sorted, the rows are only gathered
- * differently — so a rider moving between them is reading the same list a second and third way
- * rather than moving to another view. `time` is what leaves next, `platform` is what leaves from
- * where they are standing, `line` is where each line goes from here.
- */
-export type DepartureBoardOrder = "time" | "platform" | "line";
-
-const DEPARTURE_BOARD_ORDERS: readonly DepartureBoardOrder[] = ["time", "platform", "line"];
-
-/**
  * The same board, gathered by the platform each trip leaves from.
  *
  * A rider standing at a stop with six platforms reads the board twice: once for what leaves soonest,
@@ -107,76 +95,6 @@ export function groupDeparturesByPlatform(
       }
       return compareGermanNames(left.platformCode, right.platformCode);
     });
-}
-
-/**
- * Which of the three orders this rider reads a board in, kept between visits.
- *
- * Grouping is not a passing glance at one board: reading by platform is how somebody who uses a stop
- * with six platforms reads every board, reading by line is how somebody who knows which line they
- * want reads every board, and it is the same rider every day. Re-asking them for it on each visit
- * would make the useful order the one they never see. Time order stays the default, because it is
- * the one a rider who has expressed no preference is asking for.
- */
-const DEPARTURE_GROUPING_STORAGE_KEY = "karla:departure-grouping";
-
-/**
- * Storage is unavailable in a private window, when site data is blocked, and inside the artifact
- * sandboxes this page may be viewed in — reading it must never be what stops the app rendering.
- */
-function readStorage(): Storage | null {
-  try {
-    return window.localStorage;
-  } catch {
-    return null;
-  }
-}
-
-/** Time order is the default: an unreadable preference is the same as never having set one. */
-function readKeptDepartureBoardOrder(): DepartureBoardOrder {
-  try {
-    const kept = readStorage()?.getItem(DEPARTURE_GROUPING_STORAGE_KEY);
-    return DEPARTURE_BOARD_ORDERS.find((order) => order === kept) ?? "time";
-  } catch {
-    return "time";
-  }
-}
-
-/**
- * The order in hand, so that a preference storage would not keep is still honoured for this session
- * — and so that reading it is the same value every time rather than a fresh trip to storage.
- */
-let currentDepartureBoardOrder: DepartureBoardOrder | undefined;
-
-/**
- * Everything currently reading the preference, so that changing it moves the whole app at once.
- *
- * The order also decides what the board is asked for, and that request is made above the panel, so
- * the preference is one value the app shares rather than copies that could disagree.
- */
-const departureBoardOrderListeners = new Set<() => void>();
-
-export function readDepartureBoardOrder(): DepartureBoardOrder {
-  currentDepartureBoardOrder ??= readKeptDepartureBoardOrder();
-  return currentDepartureBoardOrder;
-}
-
-export function subscribeToDepartureBoardOrder(listener: () => void): () => void {
-  departureBoardOrderListeners.add(listener);
-  return () => {
-    departureBoardOrderListeners.delete(listener);
-  };
-}
-
-export function writeDepartureBoardOrder(order: DepartureBoardOrder): void {
-  currentDepartureBoardOrder = order;
-  try {
-    readStorage()?.setItem(DEPARTURE_GROUPING_STORAGE_KEY, order);
-  } catch {
-    // A preference that cannot be kept is still honoured for this session; nothing here is a claim.
-  }
-  // Announced whether or not storage took it: a rider who cannot keep the preference still chose it.
-  for (const listener of departureBoardOrderListeners) listener();
 }
 
 /** The platforms of one place to stand, under the place a rider walks to before reading them. */

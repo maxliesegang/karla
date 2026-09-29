@@ -10,7 +10,8 @@ import type {
 import { getFarthestLineRun, getLineTermini } from "../../lib/stop-services";
 import { findTurnarounds } from "../../lib/line-turnarounds";
 import { createRunMotions } from "../../lib/vehicle-positioning";
-import { useAppSettings } from "../../hooks/app-settings";
+import { useStoredPreference } from "../../hooks/stored-preference";
+import { appSettings } from "../../lib/app-settings";
 import { useLineRunDepartures } from "../../hooks/line-run-departures";
 import { useRuns } from "../../hooks/run-reading-store";
 import { getLineDiagramStatusLabel, getRunPositionHint } from "../../lib/departure-presentation";
@@ -85,7 +86,7 @@ export function useLineDiagramReading({
   rideNextCall,
 }: LineDiagramReadingInput) {
   // The rider's own choice about the line's other vehicles, read where the drawing is derived.
-  const { isShowingOtherLineRuns } = useAppSettings();
+  const { isShowingOtherLineRuns } = useStoredPreference(appSettings);
   const vehicleObservationBoards = useMemo(
     () => [...observationBoards, ...lineDepartureBoards],
     [observationBoards, lineDepartureBoards],
