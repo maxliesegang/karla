@@ -1,4 +1,5 @@
-import { useCurrentTime, type NearbyStopsController } from "../hooks";
+import { useCurrentTime } from "../hooks/clock";
+import type { NearbyStopsController } from "../hooks/nearby-stops";
 import { formatClockTime } from "../lib/departure-presentation";
 import { navigateTo, routePaths } from "../routing";
 import { NearbyStopButton } from "./NearbyStopButton";

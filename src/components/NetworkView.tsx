@@ -11,7 +11,7 @@ import { ObservationEmptyState } from "./ObservationEmptyState";
 import { getGroupedLines } from "../lib/line-families";
 import { LineTermini, getLineTerminiLabel } from "./LineTermini";
 import { SegmentedControl, type SegmentedControlItem } from "./SegmentedControl";
-import { useNetworkBandNavigation } from "../hooks";
+import { useNetworkBandNavigation } from "../hooks/network-band-navigation";
 
 /**
  * The list a rider scans, one heading per mode: the rail modes together first — the trams of the

@@ -1,4 +1,4 @@
-import type { NearbyStopsController } from "../hooks";
+import type { NearbyStopsController } from "../hooks/nearby-stops";
 import type { RecentStop } from "../lib/recent-stops";
 import { routePaths } from "../routing";
 import { HomeMenu } from "./HomeMenu";

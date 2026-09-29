@@ -1,5 +1,8 @@
 import { type CSSProperties, useMemo, useRef, type RefObject } from "react";
-import { useVehicleTrajectoryAnimations, type TrajectoryAnimationFields } from "../../hooks";
+import {
+  useVehicleTrajectoryAnimations,
+  type TrajectoryAnimationFields,
+} from "../../hooks/vehicle-trajectory-animation";
 import {
   getZentrumVehicleLinkKey,
   getZentrumVehicleTransform,

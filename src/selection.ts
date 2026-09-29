@@ -1,13 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  useDepartureBoard,
-  useDepartureBoardOrder,
-  useHeldRun,
-  useLineReading,
-  useRetainedRun,
-  useTransitStop,
-  useRunReadings,
-} from "./hooks";
+import { useDepartureBoard } from "./hooks/departure-board";
+import { useDepartureBoardOrder } from "./hooks/departure-order";
+import { useHeldRun } from "./hooks/run-reading-store";
+import { useLineReading } from "./hooks/line-reading";
+import { useRetainedRun } from "./hooks/retained-run";
+import { useTransitStop } from "./hooks/transit-network";
+import { useRunReadings } from "./hooks/run-reading-loader";
 import { mergeRunReading } from "./lib/trip-calls";
 import { findBestRunReading } from "./lib/trips";
 import { getLineSign } from "./data/line-signs";

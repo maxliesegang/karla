@@ -1,4 +1,4 @@
-import type { NearbyStopsController } from "../hooks";
+import type { NearbyStopsController } from "../hooks/nearby-stops";
 import { navigateTo, routePaths } from "../routing";
 import { formatDistance } from "../lib/geo";
 

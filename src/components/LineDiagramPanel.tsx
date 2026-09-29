@@ -8,7 +8,7 @@ import type {
   TripCall,
 } from "../data/transit-types";
 import { getDepartureAddressId, getSelectionPath, navigateTo, routePaths } from "../routing";
-import { useTransientScrollbar } from "../hooks";
+import { useTransientScrollbar } from "../hooks/scrollbar";
 import { classNames } from "../lib/class-names";
 import {
   getLineBundleBranchKey,

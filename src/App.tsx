@@ -14,25 +14,18 @@ import { RideStatusPanel } from "./components/RideStatusPanel";
 import { HomeEntry } from "./components/HomeEntry";
 import { ServiceNoticesView } from "./components/ServiceNoticesView";
 import { SettingsView } from "./components/SettingsView";
-import {
-  useZentrumNetwork,
-  useAppRoute,
-  useFeedNow,
-  useInitialLanding,
-  useIsNarrowViewport,
-  useStationBoardReload,
-  useLocatableStops,
-  useNearbyStops,
-  useRidePosition,
-  useServiceNotices,
-  useStopRecall,
-  usePanelChange,
-  useStopCorridorPatterns,
-  useStopBoardingPlaces,
-  useStopTopologyBoard,
-  useTransitNetwork,
-  useViewShortcuts,
-} from "./hooks";
+import { useZentrumNetwork } from "./hooks/departure-board-collection";
+import { useAppRoute } from "./hooks/route";
+import { useFeedNow } from "./hooks/clock";
+import { useInitialLanding, useStopRecall } from "./hooks/stop-recall";
+import { useIsNarrowViewport } from "./hooks/viewport";
+import { useStationBoardReload, usePanelChange, useViewShortcuts } from "./hooks/shell";
+import { useLocatableStops, useTransitNetwork } from "./hooks/transit-network";
+import { useNearbyStops } from "./hooks/nearby-stops";
+import { useRidePosition } from "./hooks/ride-position";
+import { useServiceNotices, useStopTopologyBoard } from "./hooks/departure-board";
+import { useStopCorridorPatterns } from "./hooks/stop-corridor-patterns";
+import { useStopBoardingPlaces } from "./hooks/boarding-places";
 import { useSelectionChain } from "./selection";
 import { getRideProgress } from "./lib/ride-progress";
 import { classNames } from "./lib/class-names";

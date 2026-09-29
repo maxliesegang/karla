@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DepartureBoard, DepartureBoardCoverage } from "../../data/transit-types";
-import { useZentrumVehicles } from "../../hooks";
+import { useZentrumVehicles } from "../../hooks/zentrum-vehicles";
 import { compareLineIds } from "../../lib/line-families";
 import type { ObservedNetwork } from "../../lib/observed-network";
 import { createRunMotions } from "../../lib/vehicle-positioning";

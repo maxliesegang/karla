@@ -1,4 +1,4 @@
-import { useAppSettings, writeAppSettings, type AppSettings } from "../hooks";
+import { useAppSettings, writeAppSettings, type AppSettings } from "../hooks/app-settings";
 import { type AppLanding } from "../lib/app-settings";
 import { SegmentedControl, type SegmentedControlItem } from "./SegmentedControl";
 

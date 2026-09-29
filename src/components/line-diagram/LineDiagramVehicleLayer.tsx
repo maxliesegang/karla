@@ -4,7 +4,7 @@ import type { TransitLine } from "../../data/transit-types";
 import { getVehicleRowCoordinate, type LineDiagramVehicle } from "../../lib/line-diagram";
 import { classNames } from "../../lib/class-names";
 import { assignStableVehicleLanes } from "../../lib/vehicle-lanes";
-import { useVehicleTrajectoryAnimations } from "../../hooks";
+import { useVehicleTrajectoryAnimations } from "../../hooks/vehicle-trajectory-animation";
 import { getVehicleLeftOffset, type VehicleLayerGeometry } from "./layout";
 
 /**

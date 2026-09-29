@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { useZentrumPlanCanvas } from "../../hooks";
+import { useZentrumPlanCanvas } from "../../hooks/zentrum-plan-canvas";
 import type { ZentrumSchematicVehicle } from "../../lib/zentrum-schematic";
 import type {
   ZentrumSchematicBoardingPlace,

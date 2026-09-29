@@ -10,7 +10,9 @@ import type {
 import { getFarthestLineRun, getLineTermini } from "../../lib/stop-services";
 import { findTurnarounds } from "../../lib/line-turnarounds";
 import { createRunMotions } from "../../lib/vehicle-positioning";
-import { useAppSettings, useLineRunDepartures, useRuns } from "../../hooks";
+import { useAppSettings } from "../../hooks/app-settings";
+import { useLineRunDepartures } from "../../hooks/line-run-departures";
+import { useRuns } from "../../hooks/run-reading-store";
 import { getLineDiagramStatusLabel, getRunPositionHint } from "../../lib/departure-presentation";
 import {
   buildLineDiagramStops,
