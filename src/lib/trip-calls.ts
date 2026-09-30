@@ -125,22 +125,28 @@ export function alignSameRouteCalls(
 export const getCallSequenceKey = (calls: readonly TripCall[]): string =>
   calls.map(getCallKey).join(">");
 
+/** The calls a trip makes after the given stop, or none where this reading does not reach it. */
+export const getCallsAfterStop = (departure: Departure, stopId: string): readonly TripCall[] =>
+  getCallsPastIndex(departure.tripCalls ?? [], findStopCallIndex(departure, stopId));
+
 /**
- * The calls a trip makes after the given stop, or none where this reading does not reach it.
+ * Which of a departure's calls is its call at the given stop, or -1 where it reaches none.
  *
  * The board that produced a departure marks its own call, and a departure read elsewhere is located
  * by the local id instead — the same trip seen from two boards must yield the same route onwards.
+ *
+ * A run is read once and merged into every stop's row of it, so a row may carry the marker another
+ * stop's board set. The marker is only this row's where it stands at this stop, or where it is the
+ * only statement there is — the call it marks resolved to no local stop.
  */
-export function getCallsAfterStop(departure: Departure, stopId: string): readonly TripCall[] {
+export function findStopCallIndex(departure: Departure, stopId: string): number {
   const calls = departure.tripCalls ?? [];
   const markedCurrentIndex =
     departure.boardingLocalStopId === stopId ? calls.findIndex((call) => call.isCurrentStop) : -1;
-  return getCallsPastIndex(
-    calls,
-    markedCurrentIndex >= 0
-      ? markedCurrentIndex
-      : calls.findIndex((call) => call.localStopId === stopId),
-  );
+  const markedStopId = calls[markedCurrentIndex]?.localStopId;
+  const isMarkedHere =
+    markedCurrentIndex >= 0 && (markedStopId === undefined || markedStopId === stopId);
+  return isMarkedHere ? markedCurrentIndex : calls.findIndex((call) => call.localStopId === stopId);
 }
 
 /**

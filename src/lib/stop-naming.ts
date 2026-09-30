@@ -22,12 +22,20 @@ export const getBaseName = (name: string): string => name.replace(/\s*\(.*$/, ""
 
 /**
  * The municipality the diagram is read from, whose stops need no qualifier. The rider's own stop
- * states it; a trip read on its own names no stop, so the municipality most of its calls are in
- * stands in — on a KVV trip that is the city the line runs through, which is the same answer.
+ * states it; without one, the municipality most of the calls are in stands in — on a KVV trip that
+ * is the city the line runs through, which is the same answer.
+ *
+ * The stop is asked for rather than read off the current-stop marker: one reading of a run is
+ * shared by every stop's row of it, so the marker names whichever stop last read the run.
  */
-export function findHomePlaceName(tripCalls: readonly TripCall[]): string | undefined {
-  const currentCall = tripCalls.find(({ isCurrentStop }) => isCurrentStop);
-  if (currentCall?.placeName) return getBaseName(currentCall.placeName);
+export function findHomePlaceName(
+  tripCalls: readonly TripCall[],
+  riderStopId?: string,
+): string | undefined {
+  const riderCall = riderStopId
+    ? tripCalls.find(({ localStopId, placeName }) => localStopId === riderStopId && placeName)
+    : undefined;
+  if (riderCall?.placeName) return getBaseName(riderCall.placeName);
 
   const callCountByPlaceName = new Map<string, number>();
   for (const { placeName } of tripCalls) {

@@ -159,11 +159,13 @@ function isOnSharedLink(
 export function buildLineDiagramStops(
   network: TransitNetwork,
   calls: readonly TripCall[],
+  /** The stop the diagram is read from, whose municipality needs no qualifier, where there is one. */
+  riderStopId?: string,
 ): LineDiagramStop[] {
   // A turnaround is one call reported twice; every other repeat is a stop the route really does
   // reach twice, and drawing it once would take a link a rider rides off the diagram.
   const tripCalls = collapseTurnaroundCalls(calls);
-  const homePlaceName = findHomePlaceName(tripCalls);
+  const homePlaceName = findHomePlaceName(tripCalls, riderStopId);
   const callKeys = tripCalls.map(getCallKey);
   const stops = tripCalls.map((tripCall, index) => {
     const stopId =

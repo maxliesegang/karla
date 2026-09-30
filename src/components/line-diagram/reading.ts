@@ -252,8 +252,8 @@ export function useLineDiagramReading({
       ? { firstTerminus: farthestRun.firstTerminus, lastTerminus: farthestRun.lastTerminus }
       : drawnTermini;
   const diagramStops = useMemo(
-    () => buildLineDiagramStops(network, diagramCalls),
-    [network, diagramCalls],
+    () => buildLineDiagramStops(network, diagramCalls, stop.id),
+    [network, diagramCalls, stop.id],
   );
   // Row names for the vehicle marks' debug reading; a list keeps the layer memoized across ticks.
   const diagramStopNames = useMemo(

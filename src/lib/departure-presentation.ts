@@ -3,7 +3,7 @@ import type { Departure, DepartureBoard, TripCall } from "../data/transit-types"
 import { findExpectedDepartureInstant, getBoardAgeMs, getCountdownMinutes } from "./feed-clock";
 import { formatSpokenPlatformLabel } from "./platform-naming";
 import { isSelectedLine, type LineSelection } from "./line-bundles";
-import { getTripCallInstant } from "./trip-calls";
+import { getCallsAfterCurrentStop, getTripCallInstant } from "./trip-calls";
 import { isSameRun } from "./trips";
 
 /** Departure times are Karlsruhe clock times, so they are read off that clock wherever the viewer is. */
@@ -232,10 +232,10 @@ export function isDeparturePinned(
 
 /** The next few calls a trip makes after this stop: the `über …` a rider checks before boarding. */
 export function getViaSummary(departure: Departure, callCount = 3): string {
-  const calls = departure.tripCalls ?? [];
-  const currentIndex = calls.findIndex((call) => call.isCurrentStop);
-  if (currentIndex < 0) return "";
-  const via = calls.slice(currentIndex + 1, -1).map((call) => call.stopName);
+  // The last call is the destination the row already states.
+  const via = getCallsAfterCurrentStop(departure)
+    .slice(0, -1)
+    .map((call) => call.stopName);
   return via.slice(0, callCount).join(" · ");
 }
 

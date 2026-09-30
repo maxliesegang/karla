@@ -1124,3 +1124,23 @@ test("two places sharing a name do not lend each other connections", () => {
   // A line seen at the same place on the ground is the connection that makes it worth naming.
   assert.deepEqual(wayOfS8(namesake(murgtal)), ["Friedrichstal", "Freudenstadt"]);
 });
+
+test("reads the board's place at its own stop, not at another stop's marker on a shared reading", () => {
+  const patterns = updateStopCorridorPatterns(null, "europaplatz", [
+    departure({
+      id: "shared",
+      destination: "Durlach",
+      tripCalls: [
+        {
+          stopName: "Rheinstrandhalle",
+          localStopId: "rheinstrandhalle",
+          placeName: "Daxlanden",
+          isCurrentStop: true,
+        },
+        { stopName: "Europaplatz", localStopId: "europaplatz", placeName: "Karlsruhe" },
+      ],
+    }),
+  ]);
+
+  assert.equal(patterns.boardPlaceName, "Karlsruhe");
+});

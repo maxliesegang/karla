@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Departure, TripCall } from "../src/data/transit-types.ts";
+import { getViaSummary } from "../src/lib/departure-presentation.ts";
+import { findHomePlaceName } from "../src/lib/stop-naming.ts";
 import { getCallsAfterStop, mergeRunReading } from "../src/lib/trip-calls.ts";
 import { createDeparture } from "./support/fixtures.ts";
 
@@ -34,6 +36,56 @@ test("keeps a second published call at the current physical stop", () => {
   });
 
   assert.deepEqual(getCallsAfterStop(departure, "hauptfriedhof"), tripCalls.slice(1));
+});
+
+test("reads past the row's own stop where the run was read at another stop", () => {
+  // One reading of a run is merged into every stop's row of it, so a Tivoli row can carry the
+  // marker Poststraße's board set: read from there, the 3 to Daxlanden left Tivoli for the Hbf.
+  const tripCalls: TripCall[] = [
+    { stopName: "Werderstraße", localStopId: "werderstrasse" },
+    { stopName: "Tivoli", localStopId: "tivoli" },
+    { stopName: "Poststraße", localStopId: "poststrasse", isCurrentStop: true },
+    { stopName: "Hauptbahnhof (Vorplatz)", localStopId: "hauptbahnhof" },
+  ];
+  const departure = createDeparture({ boardingLocalStopId: "tivoli", tripCalls });
+
+  assert.deepEqual(
+    getCallsAfterStop(departure, "tivoli").map(({ localStopId }) => localStopId),
+    ["poststrasse", "hauptbahnhof"],
+  );
+});
+
+test("states the via stops past the row's own stop, not past another stop's marker", () => {
+  const departure = createDeparture({
+    boardingLocalStopId: "tivoli",
+    destination: "Daxlanden",
+    tripCalls: [
+      { stopName: "Tivoli", localStopId: "tivoli" },
+      { stopName: "Poststraße", localStopId: "poststrasse", isCurrentStop: true },
+      { stopName: "Hauptbahnhof (Vorplatz)", localStopId: "hauptbahnhof" },
+      { stopName: "Waidweg", localStopId: "waidweg" },
+    ],
+  });
+
+  assert.equal(getViaSummary(departure), "Poststraße · Hauptbahnhof (Vorplatz)");
+});
+
+test("reads the diagram's home place at the rider's stop, not at another stop's marker", () => {
+  // Forststraße's board read this run last; the rider is at Tivoli.
+  const tripCalls: TripCall[] = [
+    {
+      stopName: "Forststraße",
+      localStopId: "forststrasse",
+      placeName: "Rintheim",
+      isCurrentStop: true,
+    },
+    { stopName: "Hauptfriedhof", localStopId: "hauptfriedhof", placeName: "Karlsruhe" },
+    { stopName: "Tivoli", localStopId: "tivoli", placeName: "Karlsruhe" },
+    { stopName: "Poststraße", localStopId: "poststrasse", placeName: "Karlsruhe" },
+  ];
+
+  assert.equal(findHomePlaceName(tripCalls, "tivoli"), "Karlsruhe");
+  assert.equal(findHomePlaceName(tripCalls), "Karlsruhe");
 });
 
 const row = (id: string, stopName: string): Departure =>

@@ -5,6 +5,7 @@ import { getBaseName } from "./stop-naming";
 import type { PlaceLineFamilies, PlaceSighting } from "./stop-corridor-way";
 import {
   findFirstCallBeyondStop,
+  findStopCallIndex,
   getCallKey,
   getCallSequenceKey,
   getCallsAfterStop,
@@ -359,12 +360,8 @@ function findPredominantRoute(
  */
 function findBoardPlaceName(departures: readonly Departure[], stopId: string): string | undefined {
   for (const departure of departures) {
-    const call = (departure.tripCalls ?? []).find(
-      (candidate) =>
-        candidate.localStopId === stopId ||
-        (departure.boardingLocalStopId === stopId && candidate.isCurrentStop),
-    );
-    if (call?.placeName) return getBaseName(call.placeName);
+    const placeName = departure.tripCalls?.[findStopCallIndex(departure, stopId)]?.placeName;
+    if (placeName) return getBaseName(placeName);
   }
   return undefined;
 }
