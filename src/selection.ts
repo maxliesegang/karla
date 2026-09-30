@@ -32,6 +32,7 @@ import {
   replaceCurrentRoute,
   type AppRoute,
 } from "./routing";
+import { findSelectedLine } from "./selected-line";
 import { stationBoardConfig } from "./station-board";
 
 const EMPTY_DEPARTURES: readonly Departure[] = [];
@@ -318,40 +319,6 @@ export function useSelectionChain(
     isAwaitingStopBoardTrip:
       Boolean(selectedStop) && Boolean(route.addressId) && !route.lineId && departureBoard === null,
   };
-}
-
-/**
- * The line in view. A line is running here if this stop's own board says so, whether or not the
- * Zentrum observation covers it — that is how a bus keeps its sign. A stop-scoped trip address
- * names no line at all, so the departure it resolves to supplies one.
- */
-function findSelectedLine(
-  route: AppRoute,
-  network: TransitNetwork,
-  departures: readonly Departure[],
-  departureBoard: DepartureBoard | null,
-  observedLine: TransitLine | undefined,
-  stopDeparture: Departure | undefined,
-): TransitLine | undefined {
-  if (observedLine) return observedLine;
-
-  const lineDeparture = route.lineId
-    ? departures.find((departure) => isSameLineFamily(departure.lineId, route.lineId))
-    : stopDeparture;
-  if (lineDeparture)
-    return getLineSign(network.lines, lineDeparture.lineId, lineDeparture.transportMode);
-
-  // A ride can restore its saved run after a reload even when the current observation no longer
-  // sees that line. The retained departure supplies the run below; this neutral sign only keeps
-  // the line level available long enough for that honest observation to resolve.
-  if (route.isRide && route.lineId) return getLineSign(network.lines, route.lineId, "other");
-
-  // While the board is loading or the feed is down, an asked-for line keeps a neutral sign rather
-  // than collapsing the view. Only a readable board that does not list it drops it.
-  const isBoardReadable = departureBoard?.dataStatus === "live";
-  return route.lineId && !isBoardReadable
-    ? getLineSign(network.lines, route.lineId, "other")
-    : undefined;
 }
 
 /** The run as the best-informed board in hand describes it: `lib/trips.ts` decides which that is. */
