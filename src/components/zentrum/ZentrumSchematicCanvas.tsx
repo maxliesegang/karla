@@ -4,6 +4,7 @@ import {
   type TrajectoryAnimationFields,
 } from "../../hooks/vehicle-trajectory-animation";
 import {
+  getZentrumLabelSide,
   getZentrumVehicleLinkKey,
   getZentrumVehicleTransform,
   toZentrumCanvasLeft,
@@ -264,6 +265,7 @@ export function ZentrumSchematicCanvas({
             ? lineIdsAtNode.some((lineId) => highlightedLineIds.has(lineId))
             : false;
           const isSelected = selectedStationId === node.id;
+          const labelSide = getZentrumLabelSide(node, planWidth, stopMark?.labelClearance);
           const minutes = stopMinutesByNodeId?.get(node.id);
           const isMuted = stopMinutesByNodeId
             ? minutes === undefined && !isSelected
@@ -273,7 +275,7 @@ export function ZentrumSchematicCanvas({
             <button
               key={node.id}
               type="button"
-              className={`zentrum-schematic-stop ${node.labelSide ?? "below"}`}
+              className={`zentrum-schematic-stop ${labelSide}`}
               data-muted={isMuted}
               /* A stop reached from the opened one keeps its minutes whatever the room: the name
                  arrives with the room, as every other name does, and the list beside the plan names
@@ -289,7 +291,7 @@ export function ZentrumSchematicCanvas({
                   // and the coordinate -- the rules of the mark, and the band running through --
                   // and stands no further off than that.
                   ...(stopMark && {
-                    "--zentrum-stop-dot": `${(stopMark.labelClearance[node.labelSide ?? "below"] * 200) / ZENTRUM_SCHEMATIC_VIEWBOX.width}cqw`,
+                    "--zentrum-stop-dot": `${(stopMark.labelClearance[labelSide] * 200) / ZENTRUM_SCHEMATIC_VIEWBOX.width}cqw`,
                   }),
                 } as CSSProperties
               }

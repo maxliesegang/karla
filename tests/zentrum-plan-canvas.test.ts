@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   getNeighboringZentrumZoom,
+  getZentrumLabelSide,
   getZentrumPlanWidth,
   getZentrumVehicleTransform,
   toZentrumCanvasLeft,
@@ -11,7 +12,10 @@ import {
   ZENTRUM_MINIMUM_ZOOM,
   ZENTRUM_ZOOM_STEPS,
 } from "../src/lib/zentrum-plan-canvas.ts";
-import { ZENTRUM_SCHEMATIC_VIEWBOX } from "../src/lib/zentrum-schematic-plan.ts";
+import {
+  ZENTRUM_SCHEMATIC_NODES,
+  ZENTRUM_SCHEMATIC_VIEWBOX,
+} from "../src/lib/zentrum-schematic-plan.ts";
 
 test("the plan opens whole, and steps stop at both ends of the range", () => {
   assert.equal(ZENTRUM_ZOOM_STEPS[0], 1);
@@ -70,4 +74,20 @@ test("a vehicle transform is anchored to the canvas origin, not the ride's first
     getZentrumVehicleTransform(ride, progress),
     `translate3d(${toZentrumCanvasRun(x - ZENTRUM_SCHEMATIC_VIEWBOX.x)}, ${toZentrumCanvasRun(y - ZENTRUM_SCHEMATIC_VIEWBOX.y)}, 0) translate(-50%, -50%)`,
   );
+});
+
+test("sets a name under its stop where the side it is authored on would run off the plan", () => {
+  const muehlburgerTor = ZENTRUM_SCHEMATIC_NODES.find(({ id }) => id === "muehlburger-tor");
+  assert.ok(muehlburgerTor);
+  assert.equal(muehlburgerTor.labelSide, "left");
+  // A desktop plan leaves the name room beside the stop; a phone's does not.
+  assert.equal(getZentrumLabelSide(muehlburgerTor, 1300), "left");
+  assert.equal(getZentrumLabelSide(muehlburgerTor, 360), "below");
+  // At the foot of the plan the name goes beside the stop rather than under the plan's edge.
+  const albtalbahnhof = ZENTRUM_SCHEMATIC_NODES.find(({ id }) => id === "albtalbahnhof");
+  assert.ok(albtalbahnhof);
+  const clearance = { left: 10, right: 10, above: 10, below: 10 };
+  assert.equal(getZentrumLabelSide(albtalbahnhof, 1300, clearance), "right");
+  // Before the plan is measured, the authored side stands.
+  assert.equal(getZentrumLabelSide(muehlburgerTor, undefined), "left");
 });
