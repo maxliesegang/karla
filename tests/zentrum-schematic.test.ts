@@ -1790,3 +1790,33 @@ test("spaces a stop's name clear of its capsule's round end", () => {
       ruleBelow + (reading.trackWidth * ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH) / 2 - 0.01,
   );
 });
+
+/*
+ * Two streets through one stop: one capsule each where they cross square, since neither crosses the
+ * other's lanes; one capsule where they cross at a slant inside it, since the second would only
+ * tangle with the first.
+ */
+test("lays one capsule where a street crosses another at a slant inside its rule", () => {
+  const through = (lineId: string, stopIds: readonly string[]) =>
+    departure(
+      lineId,
+      stopIds.map((stopId) => call(stopId, stopId)),
+      { id: `${lineId}-through`, tripId: `${lineId}-through` },
+    );
+  const reading = buildZentrumSchematicReading(
+    drawn([
+      board(
+        through("S2", ["kronenplatz", "durlacher-tor", "gottesauer-platz"]),
+        through("4", ["karl-wilhelm-platz", "durlacher-tor", "rueppurrer-tor"]),
+        through("S1", ["marktplatz", "ettlinger-tor", "kongresszentrum"]),
+        through("5", ["karlstor", "ettlinger-tor", "rueppurrer-tor"]),
+      ),
+    ]),
+  );
+  const marks = getZentrumSchematicStopMarks(reading.edges, reading.trackWidth, new Map());
+  const ruleCount = (nodeId: string) =>
+    (marks.find((mark) => mark.nodeId === nodeId)?.data.match(/M /g) ?? []).length;
+
+  assert.equal(ruleCount("durlacher-tor"), 1);
+  assert.equal(ruleCount("ettlinger-tor"), 2);
+});

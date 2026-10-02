@@ -7,6 +7,8 @@
 import {
   type ZentrumSchematicBoardingPlace,
   type SchematicPoint,
+  crossProduct,
+  subtractPoints,
   type ZentrumSchematicEdge,
   type ZentrumSchematicNode,
   dotProduct,
@@ -172,6 +174,80 @@ const getStopBar = (
   };
 };
 
+type StopBar = { from: SchematicPoint; to: SchematicPoint };
+
+/** One rule, and the arms whose lanes it is laid across. */
+type StopBarEntry = { arms: readonly ZentrumSchematicNodeArm[]; bar: StopBar };
+
+const getBarLength = (bar: StopBar): number =>
+  Math.hypot(bar.to.x - bar.from.x, bar.to.y - bar.from.y);
+
+/** Whether two sets of arms run the same way -- one street, or two places on it. */
+const isParallelArms = (
+  left: readonly ZentrumSchematicNodeArm[],
+  right: readonly ZentrumSchematicNodeArm[],
+): boolean =>
+  left.some((one) =>
+    right.some((other) => Math.abs(dotProduct(one.outward, other.outward)) > 0.99),
+  );
+
+/**
+ * The rules a stop keeps once a rule that already crosses another street is let stand for it.
+ *
+ * A street crossing another at a slant runs through the other's rule: Durlacher Tor's diagonal
+ * crosses the Kaiserstraße at the stop, inside the rule laid across the Kaiserstraße. A second
+ * capsule there would only tangle with the first, so the longest rules are laid first and a rule
+ * whose every lane one of them already crosses is dropped. A square crossing keeps both -- neither
+ * rule crosses the other street's lanes, which run alongside it -- and two places on one street
+ * keep theirs, because a rule only ever stands in for a street other than its own.
+ */
+const dropCoveredBars = (
+  node: ZentrumSchematicNode,
+  entries: readonly StopBarEntry[],
+  trackWidth: number,
+): StopBar[] => {
+  const laid: StopBarEntry[] = [];
+  for (const entry of [...entries].sort(
+    (left, right) => getBarLength(right.bar) - getBarLength(left.bar),
+  )) {
+    const isCovered = laid.some(
+      (other) =>
+        !isParallelArms(other.arms, entry.arms) &&
+        crossesEveryLane(other.bar, node, entry.arms, trackWidth),
+    );
+    if (!isCovered) laid.push(entry);
+  }
+  return laid.map(({ bar }) => bar);
+};
+
+/**
+ * Whether a rule crosses every lane of a street through the stop, within its own length.
+ *
+ * Each lane is the straight its offset puts it on; a lane running alongside the rule never crosses
+ * it, which is what keeps both rules of a square crossing.
+ */
+const crossesEveryLane = (
+  bar: StopBar,
+  node: ZentrumSchematicNode,
+  straight: readonly ZentrumSchematicNodeArm[],
+  trackWidth: number,
+): boolean => {
+  const along = subtractPoints(bar.to, bar.from);
+  return straight.every(({ edge }) => {
+    const run = orientCorridorRun(edge);
+    const normal = { x: -run.y, y: run.x };
+    const denominator = crossProduct(run, along);
+    if (Math.abs(denominator) < 1e-9) return false;
+    return edge.trackLineIds.every((_, index) => {
+      const offset = getTrackOffset(edge, index, trackWidth);
+      const lane = { x: node.x + normal.x * offset, y: node.y + normal.y * offset };
+      // Where the lane meets the rule, as a share of the rule's length.
+      const share = crossProduct(run, subtractPoints(lane, bar.from)) / denominator;
+      return share >= 0 && share <= 1;
+    });
+  });
+};
+
 /**
  * The arms a place is drawn on: the ones that are most its own.
  *
@@ -204,20 +280,15 @@ const getNodeStopBars = (
   arms: readonly ZentrumSchematicNodeArm[],
   places: readonly ZentrumSchematicBoardingPlace[],
   trackWidth: number,
-): { from: SchematicPoint; to: SchematicPoint }[] => {
-  const getStraightBar = (chosen: readonly ZentrumSchematicNodeArm[]) => {
+): StopBar[] => {
+  const getStraightBar = (chosen: readonly ZentrumSchematicNodeArm[]): StopBarEntry | undefined => {
     const opposites = chosen.flatMap((arm, index) =>
       chosen.slice(index + 1).some((other) => isOppositeArm(arm, other)) ? [arm] : [],
     );
     const straight = opposites[0];
-    return straight
-      ? getStopBar(
-          node,
-          [straight, ...chosen.filter((arm) => isOppositeArm(straight, arm))],
-          0,
-          trackWidth,
-        )
-      : undefined;
+    if (!straight) return undefined;
+    const straightArms = [straight, ...chosen.filter((arm) => isOppositeArm(straight, arm))];
+    return { arms: straightArms, bar: getStopBar(node, straightArms, 0, trackWidth) };
   };
   const getArmBar = (arm: ZentrumSchematicNodeArm) => {
     // Clear of the crossing traffic: how far the widest band that is not on this straight reaches
@@ -248,10 +319,17 @@ const getNodeStopBars = (
       if (straight) straight.push(arm);
       else straights.push([arm]);
     }
-    return straights.map((straight) => getStopBar(node, straight, 0, trackWidth));
+    return dropCoveredBars(
+      node,
+      straights.map((straight) => ({
+        arms: straight,
+        bar: getStopBar(node, straight, 0, trackWidth),
+      })),
+      trackWidth,
+    );
   }
 
-  return places.flatMap((place) => {
+  const placeBars = places.flatMap((place): StopBarEntry[] => {
     const chosen = getPlaceArms(place, places, arms);
     if (chosen.length === 0) return [];
     const straight = getStraightBar(chosen);
@@ -261,8 +339,9 @@ const getNodeStopBars = (
         (place.armTripCounts.get(right.nodeId) ?? 0) -
           (place.armTripCounts.get(left.nodeId) ?? 0) || left.nodeId.localeCompare(right.nodeId),
     )[0];
-    return [getArmBar(busiest)];
+    return [{ arms: [busiest], bar: getArmBar(busiest) }];
   });
+  return dropCoveredBars(node, placeBars, trackWidth);
 };
 
 /**
