@@ -35,6 +35,36 @@ export const getZentrumLitStretchOffset = (progress: number, end: number): strin
   `${-Math.min(1, Math.max(0, progress / end))}px`;
 
 /**
+ * The corridors a line is lit along that its own drawn pattern does not run.
+ *
+ * A line is drawn by its most common pattern, and a trip can take another way: the S8 that runs by
+ * the Hauptbahnhof rather than straight to the Albtalbahnhof reaches the Hauptbahnhof first, and its
+ * way there runs where no S8 lane is drawn. It is lit in the lane of a line the plan does draw
+ * there, in the colour of the line that runs it -- while a reading is lit every lane is a quiet
+ * trace, so the colour says only which line, which is what it is asked to say.
+ */
+const getStrayLitSegments = (
+  drawnLinePaths: readonly ZentrumSchematicDrawnLinePath[],
+  overlay: ZentrumSchematicOverlay,
+): {
+  lineId: string;
+  linePath: ZentrumSchematicDrawnLinePath;
+  segment: ZentrumSchematicLinePathSegment;
+}[] =>
+  [...overlay.edgeIdsByLineId].flatMap(([lineId, edgeIds]) => {
+    const own = drawnLinePaths.find((linePath) => linePath.lineIds.includes(lineId));
+    if (!own) return [];
+    const ownEdgeIds = new Set(own.segments.map(({ edgeId }) => edgeId));
+    return [...edgeIds].flatMap((edgeId) => {
+      if (ownEdgeIds.has(edgeId)) return [];
+      const segment = drawnLinePaths
+        .flatMap(({ segments }) => segments)
+        .find((candidate) => candidate.edgeId === edgeId);
+      return segment ? [{ lineId, linePath: own, segment }] : [];
+    });
+  });
+
+/**
  * The painted drawing: the corridors, the lanes on them, and the rules the stops are marked with.
  *
  * Without an overlay every line is drawn whole in its sign colour. With one, every line is a quiet
@@ -165,6 +195,17 @@ export const ZentrumSchematicDrawing = memo(function ZentrumSchematicDrawing({
             }),
           ];
         })}
+      {overlay &&
+        getStrayLitSegments(drawnLinePaths, overlay).map(({ lineId, linePath, segment }) => (
+          <path
+            key={`stray:${lineId}:${segment.edgeId}`}
+            className="zentrum-schematic-network-track-color"
+            d={segment.data}
+            stroke={linePath.sign.color}
+            style={lineColor(linePath)}
+            data-dimmed={isDimmed([lineId])}
+          />
+        ))}
       {/* The stops, last and over everything: a capsule laid across the lines calling there.
           Twice -- every outline first, then every body -- so rules that cross at a stop merge into
           one shape instead of each outline cutting through the other's body. */}
