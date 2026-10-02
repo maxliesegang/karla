@@ -1,13 +1,22 @@
 import { LineBadge } from "../LineBadge";
+import { SegmentedControl } from "../SegmentedControl";
 import type { ZentrumLineSignReader } from "./line-sign";
+
+/** The plan's own two readings: its lines, or where the trams on it are still going. */
+export type ZentrumPlanReading = "lines" | "progress";
+
+const PLAN_READINGS = [
+  { value: "lines", label: "Linien" },
+  { value: "progress", label: "Unterwegs" },
+] as const;
 
 /**
  * One band of controls under the plan rather than four.
  *
  * The zoom sits at the end a thumb reaches, the legend runs along the rest of it, and the legend is
  * also the filter: a badge is the one gesture that follows a line, whatever the reading. The live
- * reach toggle stays beside it, because it changes the map's visual reading rather than the route
- * being followed. Beside them stands the size the plan is read at.
+ * plan's reading stays beside it, because it changes what the map lights rather than the route
+ * being followed, and leaves while an opened stop decides that instead. Beside them stands the size the plan is read at.
  *
  * The caption rides the same band, between the two, as plain text on the controls' baseline, so
  * the plan does not lose a row to it.
@@ -18,8 +27,8 @@ export function ZentrumSchematicToolbar({
   getSign,
   selectedLineId,
   onSelectLine,
-  showVehicleProgress,
-  onChangeVehicleProgress,
+  planReading,
+  onChangePlanReading,
   zoom,
   canZoomIn,
   canZoomOut,
@@ -34,9 +43,9 @@ export function ZentrumSchematicToolbar({
   /** The line the plan is following, as the address names it. */
   selectedLineId?: string;
   onSelectLine: (lineId: string | undefined) => void;
-  /** Whether the map shows the live-reach overlay over the general route traces. */
-  showVehicleProgress: boolean;
-  onChangeVehicleProgress: (show: boolean) => void;
+  planReading: ZentrumPlanReading;
+  /** Absent while an opened stop decides what is lit, which leaves the plan's reading nothing to do. */
+  onChangePlanReading?: (reading: ZentrumPlanReading) => void;
   zoom: number;
   canZoomIn: boolean;
   canZoomOut: boolean;
@@ -80,25 +89,15 @@ export function ZentrumSchematicToolbar({
           );
         })}
       </div>
-      <button
-        type="button"
-        className="zentrum-schematic-progress-toggle"
-        aria-pressed={showVehicleProgress}
-        aria-label={
-          showVehicleProgress
-            ? "Streckenfortschritt ausschalten"
-            : "Streckenfortschritt einschalten"
-        }
-        title={
-          showVehicleProgress
-            ? "Streckenfortschritt ausschalten"
-            : "Streckenfortschritt einschalten"
-        }
-        onClick={() => onChangeVehicleProgress(!showVehicleProgress)}
-      >
-        <span aria-hidden="true">↦</span>
-        <span>Streckenfortschritt</span>
-      </button>
+      {onChangePlanReading && (
+        <SegmentedControl
+          className="departure-board-order-control zentrum-schematic-reading"
+          value={planReading}
+          items={PLAN_READINGS}
+          onValueChange={onChangePlanReading}
+          ariaLabel="Was der Plan zeigt"
+        />
+      )}
       <p className="zentrum-schematic-caption">{caption}</p>
       <div className="zentrum-schematic-zoom">
         <button

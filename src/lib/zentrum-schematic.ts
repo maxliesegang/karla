@@ -9,8 +9,8 @@
  * is the other two modules' question: the strokes (`zentrum-schematic-paths.ts`) and the stops'
  * rules (`zentrum-schematic-stops.ts`).
  */
-import type { Departure } from "../data/transit-types";
-import { collapseTurnaroundCalls } from "./trip-calls";
+import type { Departure, TripCall } from "../data/transit-types";
+import { collapseTurnaroundCalls, getTripCallInstant } from "./trip-calls";
 import { getDistinctTimetableTrips, getRunMarkKey } from "./trips";
 import {
   getRunPlacement,
@@ -47,6 +47,8 @@ import { getTrackBandOffsetByEdgeId, getTrackLineIdsByEdgeId } from "./zentrum-s
 
 export type ZentrumSchematicVehicle = {
   id: string;
+  /** The run the mark stands for, as the boards and its own reading state it. */
+  departure: Departure;
   markerKey?: string;
   lineId: string;
   destination: string;
@@ -56,6 +58,11 @@ export type ZentrumSchematicVehicle = {
   phase?: RunPlacementPhase;
   /** Every drawn corridor from the one the vehicle is on through the end of its run. */
   aheadEdgeIds: readonly string[];
+  /**
+   * The drawn stops the run still calls at, in order, from the one its link leaves: what lets a
+   * stop say which marks are on their way to it, and when they leave it.
+   */
+  aheadStops: readonly ZentrumSchematicAheadStop[];
   x: number;
   y: number;
   angle: number;
@@ -80,6 +87,17 @@ export type ZentrumSchematicVehicle = {
    * curve a drawing animates the mark along between its one-second ticks.
    */
   trajectory?: RunSegmentTrajectory;
+};
+
+/** One drawn stop ahead of a vehicle, as its trip states it. */
+export type ZentrumSchematicAheadStop = {
+  nodeId: string;
+  /** The call the run leaves the stop by: the last of a complex's calls. */
+  call: TripCall;
+  /** When the run is expected to leave the stop, as its own call states it. */
+  departsAt?: number;
+  /** Where the stop stands along the mark's path, for the stops the path itself runs through. */
+  pathProgress?: number;
 };
 
 /**
@@ -407,6 +425,8 @@ type ZentrumSchematicPlacedRun = {
   trajectory?: RunSegmentTrajectory;
   /** The corridors from the one the vehicle is on to the end of its run through the plan. */
   aheadEdgeIds: readonly string[];
+  /** The drawn stops from the one the link leaves, before they are measured along the path. */
+  aheadStops: readonly Omit<ZentrumSchematicAheadStop, "pathProgress">[];
   /**
    * The stops the plan draws between the link's two ends, which the mark's path passes through.
    * The feed times a link between two calls and can leave a call between them untimed; the trip
@@ -492,6 +512,7 @@ const getZentrumSchematicPlacedRuns = (
     if (!selectedLink) continue;
     const { index, from, to, via } = selectedLink;
     const aheadEdgeIds: string[] = [];
+    const aheadStops: Omit<ZentrumSchematicAheadStop, "pathProgress">[] = [];
     let leaving: { from: ZentrumSchematicNode; to: ZentrumSchematicNode } | undefined;
     if (placement.phase !== "afterEnd") {
       for (let ahead = index; ahead < calls.length - 1; ahead += 1) {
@@ -499,6 +520,17 @@ const getZentrumSchematicPlacedRuns = (
         const aheadTo = nodeOf(calls[ahead + 1]);
         if (!aheadFrom || !aheadTo || aheadFrom.id === aheadTo.id) continue;
         aheadEdgeIds.push(getEdgeKey(aheadFrom.id, aheadTo.id));
+      }
+      for (let ahead = index; ahead < calls.length; ahead += 1) {
+        const node = nodeOf(calls[ahead]);
+        if (!node) continue;
+        const departsAt = getTripCallInstant(calls[ahead]);
+        // The calls of one complex are one stop to a rider, left when its last call is.
+        const last = aheadStops.at(-1);
+        if (last?.nodeId === node.id) {
+          last.call = calls[ahead];
+          last.departsAt = departsAt ?? last.departsAt;
+        } else aheadStops.push({ nodeId: node.id, call: calls[ahead], departsAt });
       }
     }
     if (from.id === to.id) {
@@ -524,6 +556,7 @@ const getZentrumSchematicPlacedRuns = (
       placedAfterLinks: placement.placedAfterLinks,
       trajectory: placement.trajectory,
       aheadEdgeIds,
+      aheadStops,
       via,
       ...(leaving ? { leaving } : {}),
     });
@@ -627,6 +660,35 @@ const getVehiclePath = (
   };
 };
 
+/**
+ * The stops ahead, with where the mark's path runs through each of them.
+ *
+ * The path's own stops come first, in the order the path takes them; a stop is measured where its
+ * corridor's range on the path ends, which is where the stroke reaches it.
+ */
+const measureAheadStops = (
+  aheadStops: readonly Omit<ZentrumSchematicAheadStop, "pathProgress">[],
+  pathStops: readonly ZentrumSchematicNode[],
+  path: ZentrumSchematicVehiclePath,
+): readonly ZentrumSchematicAheadStop[] => {
+  const isMeasured = path.edgeRanges.length === pathStops.length - 1;
+  let next = 0;
+  return aheadStops.map((stop) => {
+    if (next >= pathStops.length || stop.nodeId !== pathStops[next].id) return stop;
+    const index = next;
+    next += 1;
+    const pathProgress =
+      index === 0
+        ? 0
+        : isMeasured
+          ? path.edgeRanges[index - 1].end
+          : index === pathStops.length - 1
+            ? 1
+            : undefined;
+    return pathProgress === undefined ? stop : { ...stop, pathProgress };
+  });
+};
+
 const getPathLength = (points: readonly SchematicPoint[]): number =>
   points.reduce(
     (length, point, index) =>
@@ -664,6 +726,7 @@ export function getZentrumSchematicVehicles(
       progress,
       phase,
       aheadEdgeIds,
+      aheadStops,
       markerKey,
       motion,
       placedAfterLinks,
@@ -683,6 +746,7 @@ export function getZentrumSchematicVehicles(
       const placement = getZentrumSchematicVehiclePathPlacement(path, progress);
       return {
         id: getRunMarkKey(departure),
+        departure,
         markerKey,
         lineId: departure.lineId,
         destination: departure.destination,
@@ -691,6 +755,11 @@ export function getZentrumSchematicVehicles(
         progress,
         phase,
         aheadEdgeIds,
+        aheadStops: measureAheadStops(
+          aheadStops,
+          from.id === to.id ? [from] : [from, ...via, to],
+          path,
+        ),
         path,
         motion,
         placedAfterLinks,

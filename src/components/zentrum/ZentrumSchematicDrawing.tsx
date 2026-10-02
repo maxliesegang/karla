@@ -1,55 +1,83 @@
 import { type CSSProperties, memo } from "react";
 import type { TransitLine } from "../../data/transit-types";
-import {
-  ZENTRUM_SCHEMATIC_VIEWBOX,
-  type ZentrumSchematicEdge,
-} from "../../lib/zentrum-schematic-plan";
+import { ZENTRUM_SCHEMATIC_VIEWBOX } from "../../lib/zentrum-schematic-plan";
 import {
   type ZentrumSchematicDrawnPath,
-  getZentrumSchematicLinePathSegments,
+  type ZentrumSchematicLinePathSegment,
   getZentrumSchematicVehiclePathData,
 } from "../../lib/zentrum-schematic-paths";
-import type { ZentrumSchematicVehicle } from "../../lib/zentrum-schematic";
-import { type ZentrumSchematicStopMark } from "../../lib/zentrum-schematic-stops";
+import type { ZentrumSchematicOverlay } from "../../lib/zentrum-schematic-overlays";
+import {
+  ZENTRUM_SCHEMATIC_STOP_CAPSULE_FILL,
+  ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH,
+  type ZentrumSchematicStopMark,
+} from "../../lib/zentrum-schematic-stops";
 
 /** One line pattern the drawing paints, with the sign it is painted in. */
 export type ZentrumSchematicDrawnLinePath = ZentrumSchematicDrawnPath & {
   /** The sign the pattern is painted in, as the live network states the line. */
   sign: TransitLine;
+  /** The pattern split at the stops, one stretch per corridor, which an overlay lights by. */
+  segments: readonly ZentrumSchematicLinePathSegment[];
 };
+
+/** The key a lit stretch is found by, so its dash can follow its mark's own animation. */
+export const getZentrumLitStretchKey = (markerKey: string): string => `stretch:${markerKey}`;
+
+/**
+ * The dash offset that lights a stretch of `pathLength="1"` from a mark at `progress` to `end`.
+ *
+ * The stretch is drawn as the mark's path up to `end`, so the mark's progress is read as a share
+ * of that; the dash is one path long, and the gap after it longer than the path, so nothing but
+ * the part ahead of the mark is ever painted.
+ */
+export const getZentrumLitStretchOffset = (progress: number, end: number): string =>
+  `${-Math.min(1, Math.max(0, progress / end))}px`;
 
 /**
  * The painted drawing: the corridors, the lanes on them, and the rules the stops are marked with.
  *
- * Everything here is a reading of the schematic and its vehicle positions -- the marks that move
- * ride the canvas above it, while the selected line's or enabled all-lines colour boundaries follow
- * them. Memoized, so unchanged geometry and stop marks remain shared between those position updates.
+ * Without an overlay every line is drawn whole in its sign colour. With one, every line is a quiet
+ * route trace, and the overlay's corridors and stretches are lit over it -- all the traces first,
+ * so no line's trace is ever laid over another line's colour on a lane they share. The marks that
+ * move ride the canvas above; the stretches that follow them are kept here, and moved by the
+ * marks' own animations.
  */
 export const ZentrumSchematicDrawing = memo(function ZentrumSchematicDrawing({
-  edges,
   drawnLinePaths,
   stopMarks,
   highlightedLineIds,
-  vehicles,
-  showVehicleProgress,
+  selectedStopId,
+  overlay,
   trackWidth,
 }: {
-  edges: readonly ZentrumSchematicEdge[];
   drawnLinePaths: readonly ZentrumSchematicDrawnLinePath[];
   stopMarks: readonly ZentrumSchematicStopMark[];
-  /** The lines kept at full strength by either a followed line or a selected station. */
+  /** The lines kept at full strength while one is followed. */
   highlightedLineIds?: ReadonlySet<string>;
-  /** The marks whose position determines where a live overlay starts and ends. */
-  vehicles: readonly ZentrumSchematicVehicle[];
-  /** Whether the map should show the live-reach overlay over the general route traces. */
-  showVehicleProgress: boolean;
+  /** The stop the plan is read from, whose capsules are filled: the plan's "you are here". */
+  selectedStopId?: string;
+  /** What is lit over the route traces, or nothing to draw every line whole. */
+  overlay?: ZentrumSchematicOverlay;
   /** The one width the lanes are laid out on, which is also the width they are painted at. */
   trackWidth: number;
 }) {
   // The lanes are laid exactly one lane's width apart, so the stroke that paints them has to be
   // that same width for the colours to meet. The layout is where that width is decided; the
   // stylesheet is told it here rather than keeping a second copy of it that could drift.
-  const trackStyle = { "--zentrum-schematic-track-width": trackWidth } as CSSProperties;
+  // The capsule is measured in lanes by the layout that spaces names off it, and told here likewise.
+  const trackStyle = {
+    "--zentrum-schematic-track-width": trackWidth,
+    "--zentrum-stop-capsule-width": trackWidth * ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH,
+    "--zentrum-stop-capsule-fill":
+      trackWidth * ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH * ZENTRUM_SCHEMATIC_STOP_CAPSULE_FILL,
+  } as CSSProperties;
+  const isDimmed = (lineIds: readonly string[]) =>
+    highlightedLineIds !== undefined && !lineIds.some((lineId) => highlightedLineIds.has(lineId))
+      ? "true"
+      : undefined;
+  const lineColor = (linePath: ZentrumSchematicDrawnLinePath) =>
+    ({ "--zentrum-line-color": linePath.sign.color }) as CSSProperties;
   return (
     <svg
       viewBox={`${ZENTRUM_SCHEMATIC_VIEWBOX.x} ${ZENTRUM_SCHEMATIC_VIEWBOX.y} ${ZENTRUM_SCHEMATIC_VIEWBOX.width} ${ZENTRUM_SCHEMATIC_VIEWBOX.height}`}
@@ -74,82 +102,72 @@ export const ZentrumSchematicDrawing = memo(function ZentrumSchematicDrawing({
           d={linePath.data}
         />
       ))}
-      {drawnLinePaths.flatMap((linePath) => {
-        // Without progress colouring a line is drawn whole in its sign colour. With it, every
-        // line starts as a quiet route trace, then a solid colour overlay shows the part still
-        // reachable by a vehicle. The overlays are keyed by the lane, so a branch lights the lane
-        // it shares with its trunk.
-        const isHighlighted = highlightedLineIds
-          ? linePath.lineIds.some((lineId) => highlightedLineIds.has(lineId))
-          : false;
-        const isDimmed = highlightedLineIds !== undefined && !isHighlighted;
-        const lineVehicles = showVehicleProgress
-          ? vehicles.filter(
-              (vehicle) =>
-                linePath.lineIds.includes(vehicle.lineId) &&
-                (highlightedLineIds === undefined || highlightedLineIds.has(vehicle.lineId)),
-            )
-          : [];
-        const hasPositionReading = showVehicleProgress && lineVehicles.length > 0;
-        const segments = showVehicleProgress
-          ? getZentrumSchematicLinePathSegments(linePath, edges, trackWidth)
-          : [{ edgeId: linePath.id, data: linePath.data }];
-        const currentEdgeIds = new Set(
-          lineVehicles.flatMap((vehicle) => vehicle.path.edgeRanges.map(({ edgeId }) => edgeId)),
-        );
-        const aheadEdgeIds = new Set(lineVehicles.flatMap((vehicle) => vehicle.aheadEdgeIds));
-        const aheadSegments = hasPositionReading
-          ? segments.filter(
-              (segment) => aheadEdgeIds.has(segment.edgeId) && !currentEdgeIds.has(segment.edgeId),
-            )
-          : [];
-        const vehicleSuffixes = hasPositionReading
-          ? lineVehicles.flatMap((vehicle) => {
-              const pathIsOnLine = vehicle.path.edgeRanges.some(({ edgeId }) =>
-                segments.some((segment) => segment.edgeId === edgeId),
-              );
-              if (!pathIsOnLine) return [];
-              const data = getZentrumSchematicVehiclePathData(vehicle.path, vehicle.progress);
-              return data ? [{ vehicle, data }] : [];
-            })
-          : [];
-        return [
-          <path
-            key={`base:${linePath.id}`}
-            className="zentrum-schematic-network-track-color"
-            d={linePath.data}
-            stroke={showVehicleProgress ? undefined : linePath.sign.color}
-            style={{ "--zentrum-line-color": linePath.sign.color } as CSSProperties}
-            data-has-vehicles={showVehicleProgress ? "false" : undefined}
-            data-dimmed={isDimmed ? "true" : undefined}
-          />,
-          ...aheadSegments.map((segment) => (
-            <path
-              key={`ahead:${linePath.id}:${segment.edgeId}`}
-              className="zentrum-schematic-network-track-color"
-              d={segment.data}
-              stroke={linePath.sign.color}
-              style={{ "--zentrum-line-color": linePath.sign.color } as CSSProperties}
-              data-has-vehicles="true"
-              data-dimmed={isDimmed ? "true" : undefined}
-            />
-          )),
-          ...vehicleSuffixes.map(({ vehicle, data }) => (
-            <path
-              key={`vehicle-ahead:${linePath.id}:${vehicle.id}`}
-              className="zentrum-schematic-network-track-color"
-              d={data}
-              stroke={linePath.sign.color}
-              style={{ "--zentrum-line-color": linePath.sign.color } as CSSProperties}
-              data-has-vehicles="true"
-              data-dimmed={isDimmed ? "true" : undefined}
-            />
-          )),
-        ];
-      })}
-      {/* The stops, last and over everything: a fine rule laid across the lines calling there.
-          Twice, as the lanes themselves are painted -- a casing of the page's own colour so the
-          rule reads over eight colours as clearly as over one, and the rule itself on top of it. */}
+      {drawnLinePaths.map((linePath) => (
+        <path
+          key={`base:${linePath.id}`}
+          className="zentrum-schematic-network-track-color"
+          d={linePath.data}
+          stroke={overlay ? undefined : linePath.sign.color}
+          style={lineColor(linePath)}
+          data-trace={overlay ? "true" : undefined}
+          data-dimmed={isDimmed(linePath.lineIds)}
+        />
+      ))}
+      {overlay &&
+        drawnLinePaths.flatMap((linePath) => {
+          // A trunk and its branches are one drawn path, so the path is lit wherever any of its
+          // lines is.
+          const litEdgeIds = new Set(
+            linePath.lineIds.flatMap((lineId) => [...(overlay.edgeIdsByLineId.get(lineId) ?? [])]),
+          );
+          const segmentEdgeIds = new Set(linePath.segments.map(({ edgeId }) => edgeId));
+          return [
+            ...linePath.segments
+              .filter((segment) => litEdgeIds.has(segment.edgeId))
+              .map((segment) => (
+                <path
+                  key={`lit:${linePath.id}:${segment.edgeId}`}
+                  className="zentrum-schematic-network-track-color"
+                  d={segment.data}
+                  stroke={linePath.sign.color}
+                  style={lineColor(linePath)}
+                  data-dimmed={isDimmed(linePath.lineIds)}
+                />
+              )),
+            ...overlay.stretches.flatMap(({ vehicle, end }) => {
+              // A mark off its line's drawn pattern follows a lane the drawing does not paint.
+              if (
+                !linePath.lineIds.includes(vehicle.lineId) ||
+                !vehicle.path.edgeRanges.some(({ edgeId }) => segmentEdgeIds.has(edgeId))
+              ) {
+                return [];
+              }
+              const data = getZentrumSchematicVehiclePathData(vehicle.path, 0, end);
+              if (!data) return [];
+              const key = getZentrumLitStretchKey(vehicle.markerKey ?? vehicle.id);
+              return [
+                <path
+                  key={key}
+                  data-marker-key={key}
+                  className="zentrum-schematic-network-track-color"
+                  d={data}
+                  pathLength={1}
+                  strokeDasharray="1 2"
+                  stroke={linePath.sign.color}
+                  style={{
+                    ...lineColor(linePath),
+                    strokeDashoffset: getZentrumLitStretchOffset(vehicle.progress, end),
+                  }}
+                  data-stretch="true"
+                  data-dimmed={isDimmed([vehicle.lineId])}
+                />,
+              ];
+            }),
+          ];
+        })}
+      {/* The stops, last and over everything: a capsule laid across the lines calling there.
+          Twice -- every outline first, then every body -- so rules that cross at a stop merge into
+          one shape instead of each outline cutting through the other's body. */}
       {stopMarks.map((mark) => (
         <path
           key={`casing:${mark.nodeId}`}
@@ -158,7 +176,12 @@ export const ZentrumSchematicDrawing = memo(function ZentrumSchematicDrawing({
         />
       ))}
       {stopMarks.map((mark) => (
-        <path key={mark.nodeId} className="zentrum-schematic-stop-mark" d={mark.data} />
+        <path
+          key={mark.nodeId}
+          className="zentrum-schematic-stop-mark"
+          d={mark.data}
+          data-selected={mark.nodeId === selectedStopId ? "true" : undefined}
+        />
       ))}
     </svg>
   );

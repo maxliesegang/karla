@@ -172,6 +172,10 @@ function getBackPath(
   if (route.view === "nearby") {
     return nearbyReturnStopId ? routePaths.stop(nearbyReturnStopId) : routePaths.home();
   }
+  // What the plan is lit by is a level of it: dropping it returns to the plan, at the same size.
+  if (route.view === "zentrum" && (route.zentrumStopId || route.zentrumLineId)) {
+    return routePaths.zentrum({}, route.isZentrumFullscreen);
+  }
   return getParentSelectionPath({
     view: route.view,
     stopId: selection.stopId,

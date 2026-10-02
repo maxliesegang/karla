@@ -267,6 +267,7 @@ export default function App() {
                     coverage={zentrumCoverage}
                     departureBoards={observationBoards}
                     selectedLineId={route.zentrumLineId || undefined}
+                    selectedStopId={route.zentrumStopId || undefined}
                     isFullscreen={route.isZentrumFullscreen}
                   />
                 )}

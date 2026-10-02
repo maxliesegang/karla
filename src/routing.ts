@@ -78,6 +78,14 @@ export type AppRoute = {
    */
   zentrumLineId: string;
   /**
+   * The stop opened on the Zentrum's plan — `#/center/stop/marktplatz` — which the plan is then read
+   * from: the way the next trams take to it, or how soon every other stop is reached from it.
+   *
+   * Addressed for the reason the followed line is: the back gesture closes it and a shared link
+   * opens it. The two exclude each other, because each is what the plan is lit by.
+   */
+  zentrumStopId: string;
+  /**
    * The plan read at the size of the screen — `#/center/full`.
    *
    * A schematic of twenty-five stops wants the viewport, and in the panel it shares with a header,
@@ -119,6 +127,7 @@ const defaultRoute: AppRoute = {
   lineId: "",
   bundledLineIds: [],
   zentrumLineId: "",
+  zentrumStopId: "",
   isZentrumFullscreen: false,
   isRide: false,
 };
@@ -267,6 +276,7 @@ export function parseRoute(hash: string): AppRoute {
         view: "zentrum",
         isZentrumFullscreen,
         zentrumLineId: lineSegments[0] === "line" ? decodePathSegment(lineSegments[1]) : "",
+        zentrumStopId: lineSegments[0] === "stop" ? decodePathSegment(lineSegments[1]) : "",
       };
     }
     case "stop":
@@ -275,6 +285,9 @@ export function parseRoute(hash: string): AppRoute {
       return defaultRoute;
   }
 }
+
+/** What the Zentrum's plan is lit by: a followed line, or an opened stop. Never both. */
+export type ZentrumSelection = { lineId?: string; stopId?: string };
 
 /**
  * The only place route paths are spelled out, so a route change cannot be half-applied.
@@ -285,11 +298,17 @@ export function parseRoute(hash: string): AppRoute {
 export const routePaths = {
   home: () => "/",
   /**
-   * The Zentrum's plan: the line it is following where the rider has chosen one, at the size they
-   * are reading it at.
+   * The Zentrum's plan: the line it is following or the stop it is read from, where the rider has
+   * chosen one, at the size they are reading it at.
    */
-  zentrum: (lineId?: string, isFullscreen = false) =>
-    `/center${isFullscreen ? "/full" : ""}${lineId ? `/line/${encodePathSegment(lineId)}` : ""}`,
+  zentrum: (selection: ZentrumSelection = {}, isFullscreen = false) =>
+    `/center${isFullscreen ? "/full" : ""}${
+      selection.stopId
+        ? `/stop/${encodePathSegment(selection.stopId)}`
+        : selection.lineId
+          ? `/line/${encodePathSegment(selection.lineId)}`
+          : ""
+    }`,
   network: () => "/network",
   nearby: () => "/nearby",
   notices: () => "/notices",

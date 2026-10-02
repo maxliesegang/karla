@@ -70,12 +70,16 @@ type KeptAnimation = {
   animation: Animation;
 };
 
+/** The one property a mark's position is stated in: where it stands, or how far a stroke reaches. */
+type AnimatedProperty = "transform" | "strokeDashoffset";
+
 export function useVehicleTrajectoryAnimations<Mark extends TrajectoryAnimationFields>({
   container,
   marks,
   getTransform,
   getBoundaryProgresses,
   geometrySignature,
+  property = "transform",
 }: {
   /** The element the marks are rendered in, and that animations are attached within. */
   container: RefObject<HTMLElement | null>;
@@ -92,6 +96,11 @@ export function useVehicleTrajectoryAnimations<Mark extends TrajectoryAnimationF
    * always carried.
    */
   geometrySignature?: string;
+  /**
+   * The property `getTransform` states. A stroke that is lit from a mark onwards follows the mark
+   * by its dash offset, on the very keyframes the mark itself moves on.
+   */
+  property?: AnimatedProperty;
 }) {
   const animationsRef = useRef(new Map<string, KeptAnimation>());
 
@@ -102,7 +111,7 @@ export function useVehicleTrajectoryAnimations<Mark extends TrajectoryAnimationF
     const liveKeys = new Set<string>();
     for (const mark of marks) {
       liveKeys.add(mark.key);
-      const element = layer.querySelector<HTMLElement>(
+      const element = layer.querySelector<HTMLElement | SVGElement>(
         `[data-marker-key="${CSS.escape(mark.key)}"]`,
       );
       if (!element) continue;
@@ -125,13 +134,13 @@ export function useVehicleTrajectoryAnimations<Mark extends TrajectoryAnimationF
         const corrective = mark.motion !== "placed" || isCorrectivePlacement(mark.placedAfterLinks);
         const paintedTransform =
           corrective && active && active.geometrySignature === geometrySignature
-            ? getComputedStyle(element).transform
+            ? getComputedStyle(element)[property]
             : undefined;
         active?.animation.cancel();
         animationsRef.current.delete(mark.key);
         if (!paintedTransform || paintedTransform === "none") continue;
         const animation = element.animate(
-          [{ transform: paintedTransform }, { transform: fromTransform }],
+          [{ [property]: paintedTransform }, { [property]: fromTransform }],
           { duration: TRAJECTORY_CORRECTION_MS, easing: "linear", fill: "both" },
         );
         animationsRef.current.set(mark.key, {
@@ -177,7 +186,7 @@ export function useVehicleTrajectoryAnimations<Mark extends TrajectoryAnimationF
       const isCorrective = mark.motion !== "placed" || isCorrectivePlacement(mark.placedAfterLinks);
       const paintedTransform =
         isCorrective && active && active.geometrySignature === geometrySignature
-          ? getComputedStyle(element).transform
+          ? getComputedStyle(element)[property]
           : undefined;
       active?.animation.cancel();
 
@@ -202,12 +211,15 @@ export function useVehicleTrajectoryAnimations<Mark extends TrajectoryAnimationF
           paintedTransform && paintedTransform !== "none" ? paintedTransform : undefined,
       });
       if (keyframes.length === 0) continue;
-      const animation = element.animate(keyframes, {
-        delay: waitingMs,
-        duration: movingDuration,
-        easing: "linear",
-        fill: "both",
-      });
+      const animation = element.animate(
+        keyframes.map(({ transform, offset }) => ({ [property]: transform, offset })),
+        {
+          delay: waitingMs,
+          duration: movingDuration,
+          easing: "linear",
+          fill: "both",
+        },
+      );
       animationsRef.current.set(mark.key, {
         signature,
         geometrySignature,

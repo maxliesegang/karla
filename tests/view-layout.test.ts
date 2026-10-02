@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { parseRoute } from "../src/routing.ts";
+import { parseRoute, routePaths } from "../src/routing.ts";
 import {
   describePanelChange,
   getViewLayout,
@@ -136,6 +136,8 @@ test("step up drops one level, and the nearby list returns to the page it correc
   assert.equal(layoutFor("#/stop/marktplatz/line/2").backPath, "/stop/marktplatz");
   assert.equal(layoutFor("#/stop/marktplatz").backPath, "/");
   assert.equal(layoutFor("#/center").backPath, "/");
+  assert.equal(layoutFor("#/center/stop/marktplatz").backPath, "/center");
+  assert.equal(layoutFor("#/center/full/line/2").backPath, "/center/full");
   assert.equal(
     layoutFor("#/nearby", {}, { nearbyReturnStopId: "marktplatz" }).backPath,
     "/stop/marktplatz",
@@ -159,4 +161,14 @@ test("the observation cycle is only read from where a view actually shows it", (
   assert.equal(readsObservedNetwork("nearby"), true);
   assert.equal(readsObservedNetwork("line"), false);
   assert.equal(readsObservedNetwork("stop"), false);
+});
+
+test("the plan is lit by a followed line or by an opened stop, and the address says which", () => {
+  const opened = parseRoute("#/center/full/stop/marktplatz");
+  assert.equal(opened.zentrumStopId, "marktplatz");
+  assert.equal(opened.zentrumLineId, "");
+  assert.equal(opened.isZentrumFullscreen, true);
+  assert.equal(routePaths.zentrum({ stopId: "marktplatz" }, true), "/center/full/stop/marktplatz");
+  assert.equal(routePaths.zentrum({ lineId: "S1" }), "/center/line/S1");
+  assert.equal(routePaths.zentrum(), "/center");
 });

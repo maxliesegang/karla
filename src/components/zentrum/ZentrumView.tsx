@@ -23,18 +23,6 @@ import { ZentrumSchematic } from "./ZentrumSchematic";
  */
 const ZENTRUM_PAGE_NAME = <h1 className="visually-hidden">Zentrum live</h1>;
 
-/**
- * The one line the page says of itself before its drawing: the plan is still being built. It rides
- * both of the page's states, because it is a statement about the page and not about its reading —
- * and it leaves the page again the day the plan is done, like everything else that was only ever
- * honest about the one thing it named.
- */
-const ZENTRUM_WORK_IN_PROGRESS = (
-  <p className="zentrum-view-progress">
-    <strong>In Arbeit</strong> — der Zentrumsliveplan wird gerade noch gebaut.
-  </p>
-);
-
 /** What the page says while the observation has placed nothing on the plan yet. */
 const zentrumEmptyLabels = {
   loading: "Haltestellen werden geladen …",
@@ -50,14 +38,14 @@ const zentrumEmptyLabels = {
  * mode that swaps the drawing out from under the reader and drops what they had chosen. The
  * reading's coverage is stated by the page's provenance footer, because that is what it is a
  * statement about. What is left on this page is the drawing, and the drawing has the panel — or, at
- * the reader's word, the screen. Above it stands the one line that says the plan is still being
- * built; it is the page's own statement, and the drawing keeps everything under it.
+ * the reader's word, the screen.
  */
 export function ZentrumView({
   network,
   coverage,
   departureBoards,
   selectedLineId,
+  selectedStopId,
   isFullscreen,
 }: {
   network: ObservedNetwork;
@@ -67,6 +55,8 @@ export function ZentrumView({
   departureBoards: readonly DepartureBoard[];
   /** The line the plan is following, as the address names it. */
   selectedLineId?: string;
+  /** The stop the plan is read from, as the address names it. */
+  selectedStopId?: string;
   /** Whether the plan is being read at the size of the screen, as the address names it. */
   isFullscreen: boolean;
 }) {
@@ -94,24 +84,29 @@ export function ZentrumView({
   // — but never before the reading that could name it has answered, which is what the plan having
   // corridors at all says. The reading names a line while any run the plan draws still states it,
   // so a line the boards have stopped listing is followed for exactly as long as its mark is.
+  // An opened stop leaves the same way, once nothing the plan draws calls there any more.
   const isLineObserved = selectedLineId === undefined || schematicLineIds.includes(selectedLineId);
+  const isStopObserved =
+    selectedStopId === undefined || schematic.lineIdsByNodeId.has(selectedStopId);
+  const isReadingAnswered = schematicLineIds.length > 0;
   useEffect(() => {
-    if (!isLineObserved && schematicLineIds.length > 0) {
-      replaceCurrentRoute(routePaths.zentrum(undefined, isFullscreen));
+    if ((!isLineObserved || !isStopObserved) && isReadingAnswered) {
+      replaceCurrentRoute(routePaths.zentrum({}, isFullscreen));
     }
-  }, [isLineObserved, schematicLineIds.length, isFullscreen]);
+  }, [isLineObserved, isStopObserved, isReadingAnswered, isFullscreen]);
   const followedLineId = isLineObserved ? selectedLineId : undefined;
+  const openedStopId = isStopObserved ? selectedStopId : undefined;
   // The plan re-renders every second to move its marks; the Escape key that leaves the full-screen
   // reading listens for as long as that reading is up, and must not be re-subscribed under it.
   const changeFullscreen = useCallback(
-    (next: boolean) => navigateTo(routePaths.zentrum(followedLineId, next)),
-    [followedLineId],
+    (next: boolean) =>
+      navigateTo(routePaths.zentrum({ lineId: followedLineId, stopId: openedStopId }, next)),
+    [followedLineId, openedStopId],
   );
   if (network.stops.length === 0) {
     return (
       <>
         {ZENTRUM_PAGE_NAME}
-        {ZENTRUM_WORK_IN_PROGRESS}
         <ObservationEmptyState coverage={coverage} labels={zentrumEmptyLabels} />
       </>
     );
@@ -120,7 +115,6 @@ export function ZentrumView({
   return (
     <>
       {ZENTRUM_PAGE_NAME}
-      {ZENTRUM_WORK_IN_PROGRESS}
       <ZentrumSchematic
         edges={schematic.edges}
         linePaths={schematic.linePaths}
@@ -130,12 +124,16 @@ export function ZentrumView({
         lineIds={schematicLineIds}
         getSign={getSign}
         selectedLineId={followedLineId}
+        selectedStopId={openedStopId}
         vehicles={vehicles}
+        runDepartures={runDepartures}
+        feedNow={feedNow}
         isFullscreen={isFullscreen}
-        /* Following a line is navigating to it: the reading a rider arrives at is the reading
-           they can share, and the back button is what stops following. The size the plan is being
-           read at rides along — following a line is not a decision to stop reading it big. */
-        onSelectLine={(lineId) => navigateTo(routePaths.zentrum(lineId, isFullscreen))}
+        /* Following a line, or opening a stop, is navigating to it: the reading a rider arrives at
+           is the reading they can share, and the back button is what closes it. The size the plan
+           is being read at rides along — choosing is not a decision to stop reading it big. */
+        onSelectLine={(lineId) => navigateTo(routePaths.zentrum({ lineId }, isFullscreen))}
+        onSelectStop={(stopId) => navigateTo(routePaths.zentrum({ stopId }, isFullscreen))}
         onChangeFullscreen={changeFullscreen}
       />
     </>

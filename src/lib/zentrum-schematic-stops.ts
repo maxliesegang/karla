@@ -1,5 +1,5 @@
 /**
- * The mark a stop is drawn as: a rule laid across the lines calling there.
+ * The mark a stop is drawn as: a capsule laid across the lines calling there.
  *
  * Laid out from the same corridors and the same lane width the lanes themselves are, so a stop's
  * rule crosses exactly what is drawn beneath it.
@@ -28,9 +28,10 @@ import {
  * junction is read for -- is drawn inside a white box. Twenty-five of them are what a reader sees
  * first, above the network they are meant to annotate.
  *
- * So the mark is the tick every printed transit plan uses: one fine rule across the band, square to
- * the corridor it crosses. It costs the drawing nothing, it never covers a colour for longer than
- * its own width, and it is the same mark at every stop whatever the corridors do there.
+ * So the mark is laid along one rule across the band, square to the corridor it crosses, and drawn
+ * as the capsule printed network plans use: a white body in a dark outline, only as wide as the
+ * lines it crosses. It covers a colour for no longer than its own width, and it is the same mark at
+ * every stop whatever the corridors do there; where two rules cross, the capsules merge into one.
  *
  * A junction gets one rule per place to stand rather than one per corridor. Where the reading has
  * named a stop's places (`ZentrumSchematicBoardingPlace`) each of them is drawn on the corridor
@@ -67,12 +68,25 @@ export type ZentrumSchematicLabelClearance = {
 };
 
 /**
- * How far past the band's paint each rule reaches, as a multiple of one lane's width.
+ * How wide a stop's capsule is drawn, as a multiple of one lane's width.
  *
- * Enough that the rule reads as crossing the band rather than as being clipped by it, and no more:
- * the overhang is the whole of what the mark adds to the drawing's footprint.
+ * The capsule is the rule stroked wide with round ends: a white body in a dark outline, the stop
+ * mark printed network plans use and the one the line diagram's white rings already speak. A little
+ * wider than a lane, so it reads as standing across the lines rather than as one more of them.
  */
-const ZENTRUM_SCHEMATIC_STOP_BAR_OVERHANG = 0.55;
+export const ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH = 1.15;
+
+/** How much of the capsule's width is its white body; the rest is the outline either side. */
+export const ZENTRUM_SCHEMATIC_STOP_CAPSULE_FILL = 0.62;
+
+/**
+ * How far past the band's paint each rule reaches, as a multiple of one lane's width, before the
+ * capsule's round end is added.
+ *
+ * Enough that the capsule reads as crossing the band rather than as being clipped by it, and no
+ * more: the overhang is the whole of what the mark adds to the drawing's footprint.
+ */
+const ZENTRUM_SCHEMATIC_STOP_BAR_OVERHANG = 0.1;
 
 /**
  * How far a rule stands clear of a band crossing its corridor, as a multiple of one lane's width.
@@ -311,9 +325,13 @@ const getSideClearance = (
 ): number =>
   Math.max(
     0,
+    // A capsule reaches its own half width past the rule it is stroked along, every way round.
     ...bars.flatMap((bar) =>
       [bar.from, bar.to].map(
-        (point) => (point.x - node.x) * direction.x + (point.y - node.y) * direction.y,
+        (point) =>
+          (point.x - node.x) * direction.x +
+          (point.y - node.y) * direction.y +
+          (trackWidth * ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH) / 2,
       ),
     ),
     ...arms.map((arm) => getArmReach(arm, trackWidth, direction)),

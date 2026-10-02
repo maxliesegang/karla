@@ -21,7 +21,10 @@ import {
   reverseZentrumSchematicVehiclePath,
 } from "../src/lib/zentrum-schematic-paths.ts";
 import { getZentrumVehicleLinkKey } from "../src/lib/zentrum-plan-canvas.ts";
-import { getZentrumSchematicStopMarks } from "../src/lib/zentrum-schematic-stops.ts";
+import {
+  ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH,
+  getZentrumSchematicStopMarks,
+} from "../src/lib/zentrum-schematic-stops.ts";
 import { run } from "./support/calls.ts";
 import { createRunMotions } from "../src/lib/vehicle-positioning.ts";
 import { createDeparture } from "./support/fixtures.ts";
@@ -1751,5 +1754,39 @@ test("leaves a barely used platform out of a stop's places", () => {
       { x: 374, y: 286 },
       { x: 374, y: 286 },
     ],
+  );
+});
+
+/*
+ * A stop is drawn as a capsule: the rule stroked wide with round ends. A name spaced off the rule's
+ * own end would stand inside the capsule's round end, so the clearance carries it too.
+ */
+test("spaces a stop's name clear of its capsule's round end", () => {
+  const reading = buildZentrumSchematicReading(
+    drawn([
+      board(
+        departure(
+          "S1",
+          [
+            call("europaplatz", "7001004"),
+            call("marktplatz", "7001003"),
+            call("kronenplatz", "7001002"),
+          ],
+          { id: "capsule", tripId: "capsule" },
+        ),
+      ),
+    ]),
+  );
+  const mark = getZentrumSchematicStopMarks(reading.edges, reading.trackWidth, new Map()).find(
+    ({ nodeId }) => nodeId === "marktplatz",
+  );
+  const marktplatz = ZENTRUM_SCHEMATIC_NODES.find(({ id }) => id === "marktplatz");
+  assert.ok(mark && marktplatz);
+  // The one rule across the Kaiserstraße is vertical; its lower end is the farthest it reaches down.
+  const ruleEnds = [...mark.data.matchAll(/[ML] ([\d.]+) ([\d.]+)/g)].map(([, , y]) => Number(y));
+  const ruleBelow = Math.max(...ruleEnds) - marktplatz.y;
+  assert.ok(
+    mark.labelClearance.below >=
+      ruleBelow + (reading.trackWidth * ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH) / 2 - 0.01,
   );
 });
