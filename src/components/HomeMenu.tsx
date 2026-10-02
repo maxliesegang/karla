@@ -15,34 +15,34 @@ import { routePaths } from "../routing";
  * stands as one at the top of the home. Its `/nearby` view exists as the correction list that
  * action opens onto.
  *
- * The Zentrum is listed while its plan is still being built, marked as such here as on its page, so
- * a rider opening it knows what they are opening.
+ * The Zentrum is listed as an experiment, so a rider opening it knows the plan is not yet a finished
+ * map.
  */
 const homeMenuItems: readonly {
   label: string;
   description: string;
   path: string;
-  isInProgress?: boolean;
+  isExperiment?: boolean;
 }[] = [
   {
     label: "Linien",
-    description: "Stadtbahn, Straßenbahn und Bus des KVV",
+    description: "Alle Bahn- und Buslinien im KVV",
     path: routePaths.network(),
   },
   {
     label: "Zentrum",
-    description: "Die Bahn im Zentrum, live auf dem Plan",
+    description: "Wo die Bahnen in der Innenstadt gerade fahren",
     path: routePaths.zentrum(),
-    isInProgress: true,
+    isExperiment: true,
   },
   {
     label: "Meldungen",
-    description: "Was der KVV gerade zum Betrieb meldet",
+    description: "Störungen, Umleitungen und Baustellen",
     path: routePaths.notices(),
   },
   {
     label: "Einstellungen",
-    description: "Mach die App so, wie dir passt",
+    description: "Startseite und gemerkte Haltestellen",
     path: routePaths.settings(),
   },
 ];
@@ -60,7 +60,7 @@ export function HomeMenu() {
               <span>
                 <strong>
                   {item.label}
-                  {item.isInProgress && <em className="home-menu-progress">In Arbeit</em>}
+                  {item.isExperiment && <em className="home-menu-progress">Experiment</em>}
                 </strong>
                 <small>{item.description}</small>
               </span>

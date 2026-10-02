@@ -79,7 +79,7 @@ function HomeStops({ stops }: { stops: readonly RecentStop[] }) {
   return (
     <nav className="recent-stops" aria-labelledby="recent-stops-heading">
       <h2 id="recent-stops-heading" className="eyebrow">
-        {isRemembered ? "Zuletzt besucht" : "Zum Anfangen"}
+        {isRemembered ? "Zuletzt besucht" : "Zum Beispiel"}
       </h2>
       {/* One row at every width, riding off the edge where four names overflow it: a second band
           would cost the pages below a row each, and the hidden bar costs nothing because the cut
