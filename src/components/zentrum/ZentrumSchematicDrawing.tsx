@@ -83,7 +83,7 @@ export const ZentrumSchematicDrawing = memo(function ZentrumSchematicDrawing({
 }: {
   drawnLinePaths: readonly ZentrumSchematicDrawnLinePath[];
   stopMarks: readonly ZentrumSchematicStopMark[];
-  /** The lines kept at full strength while one is followed. */
+  /** The lines kept at full strength: the one followed, or those calling at the opened stop. */
   highlightedLineIds?: ReadonlySet<string>;
   /** The stop the plan is read from, whose capsules are filled: the plan's "you are here". */
   selectedStopId?: string;

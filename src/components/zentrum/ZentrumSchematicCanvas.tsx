@@ -133,10 +133,14 @@ export function ZentrumSchematicCanvas({
   }, [selectedStationId, scrollRef]);
   const visibleNodes = ZENTRUM_SCHEMATIC_NODES.filter((node) => lineIdsByNodeId.has(node.id));
   const showsEveryName = planWidth !== undefined && planWidth >= ZENTRUM_NAME_EVERY_STOP_WIDTH;
-  const highlightedLineIds = useMemo(
-    () => (selectedLineId === undefined ? undefined : new Set([selectedLineId])),
-    [selectedLineId],
-  );
+  // The lines kept at full strength: the one followed, or every line calling at the opened stop --
+  // the rest recede, traces and trams alike, because the reading is about what leaves from here.
+  // Only a followed line names its stops: an opened stop's lines run through most of the plan, and
+  // naming everything they call at would bury a small plan again.
+  const highlightedLineIds = useMemo(() => {
+    if (selectedStationId !== undefined) return new Set(lineIdsByNodeId.get(selectedStationId));
+    return selectedLineId === undefined ? undefined : new Set([selectedLineId]);
+  }, [lineIdsByNodeId, selectedLineId, selectedStationId]);
 
   // Every name at once is what buries a small plan: twenty-five of them, most of them long German
   // compounds, over a drawing whose corridors are the thing to read. So a plan with no room for
@@ -270,7 +274,11 @@ export function ZentrumSchematicCanvas({
           const isMuted = stopMinutesByNodeId
             ? minutes === undefined && !isSelected
             : highlightedLineIds !== undefined && !isHighlighted;
-          const isNamed = showsEveryName || junctions.has(node.id) || isHighlighted || isSelected;
+          const isNamed =
+            showsEveryName ||
+            junctions.has(node.id) ||
+            (selectedLineId !== undefined && isHighlighted) ||
+            isSelected;
           return (
             <button
               key={node.id}
