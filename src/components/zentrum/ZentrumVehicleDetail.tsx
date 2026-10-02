@@ -7,12 +7,8 @@ import { LineBadge } from "../LineBadge";
 import type { ZentrumLineSignReader } from "./line-sign";
 
 /**
- * The vehicle a reader opened: which line it is, where it is going, and where it calls next.
- *
- * It takes the plan's panel the way an opened stop does, and is written the way the board writes a
- * trip: the line's badge and destination, and the stops it still calls at in the Zentrum with the
- * board's own times. It says in words what the drawing can only imply -- that the position is an
- * estimate rather than a fix -- and opens the whole trip.
+ * An opened vehicle: line, destination and its remaining Zentrum stops with board times. It says
+ * in words what the drawing only implies, that the position is an estimate, and links the trip.
  */
 export function ZentrumVehicleDetail({
   vehicle,
@@ -24,12 +20,12 @@ export function ZentrumVehicleDetail({
   vehicle: ZentrumSchematicVehicle;
   getSign: ZentrumLineSignReader;
   feedNow: number;
-  /** The stop closing this returns to, where it was opened from one. */
+  /** The stop that closing this returns to, if it was opened from one. */
   returnLabel?: string;
   onClose: () => void;
 }) {
   const isHolding = vehicle.from.id === vehicle.to.id || vehicle.progress === 0;
-  // The stop the link leaves is behind a vehicle that has started moving.
+  // A vehicle that has started moving has left the stop its link starts at.
   const aheadStops = vehicle.aheadStops.slice(isHolding ? 0 : 1);
   return (
     <aside id="zentrum-vehicle-detail" className="zentrum-sheet" aria-live="polite">

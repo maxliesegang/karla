@@ -1,9 +1,6 @@
 /**
- * A line pattern as the drawing paints it: one softly bent stroke down the lanes it holds.
- *
- * Geometry only. Which lane a line is in is the layout's answer (`zentrum-schematic-lanes.ts`);
- * this is what that answer looks like drawn — the straights, the arcs that join them, and the
- * stretches the drawing lights one at a time.
+ * A line pattern as the drawing paints it: one softly bent stroke down its lanes. Geometry only;
+ * which lane a line holds is decided in `zentrum-schematic-lanes.ts`.
  */
 import {
   type SchematicPoint,
@@ -19,62 +16,59 @@ import {
   subtractPoints,
 } from "./zentrum-schematic-plan";
 
-/** How finely a bend is read as points for a mark to follow along it. */
+/** How many points a bend is sampled into for a mark to follow. */
 const ZENTRUM_SCHEMATIC_BEND_SAMPLES = 6;
 /**
- * How far a line rounds a turn before and after its lane intersection.
- *
- * Kept close to the stop: a broad bend can skirt around the authored station coordinate, leaving
- * the stop's own mark beside the lines it is meant to gather. Ten units leaves the turn soft while
- * its middle still crosses the stop, including the offset outer lanes of a busy corridor.
+ * How far a line rounds a turn either side of its lane intersection. Kept tight, because a broad
+ * bend skirts the stop and leaves its mark beside the lines it should gather.
  */
 const ZENTRUM_SCHEMATIC_LINE_BEND_DISTANCE = 10;
 
 /**
- * One uninterrupted, softly bent SVG path for an observed line pattern.
+ * One uninterrupted, softly bent SVG path for a line pattern.
  *
- * Each straight keeps the line's stable lane within its corridor. At a turn, the two lane
- * centre-lines are extended to their geometric intersection and joined by a circular arc tangent
- * to both. The intersection is not necessarily the stop's centre: the lanes on the two corridors
- * can have different offsets. Using either corridor's endpoint as the corner makes the apparent
- * angle wrong and produces a kink, most visibly at a right angle. A straight join still uses a
- * cubic transition, so a corridor whose companions change can move the line sideways without a
- * mitred corner.
+ * At a turn the two lanes are extended to where they intersect and joined by an arc tangent to
+ * both. That point is not the stop's centre, since the lanes are offset differently on each
+ * corridor; using a corridor end as the corner would kink. A lane stepping sideways on a straight
+ * joins with a cubic.
  */
 export function getZentrumSchematicLinePathData(
   linePath: ZentrumSchematicLinePath,
   edges: readonly ZentrumSchematicEdge[],
   trackWidth: number | undefined,
 ): string {
-  const pieces = getZentrumSchematicLinePathPieces(linePath, edges, trackWidth);
-  if (pieces.length === 0) return "";
-  return [`M ${formatPoint(pieces[0].start)}`, ...pieces.flatMap(({ commands }) => commands)].join(
-    " ",
-  );
+  return joinPieces(getZentrumSchematicLinePathPieces(linePath, edges, trackWidth));
 }
+
+const joinPieces = (pieces: readonly ZentrumSchematicLinePathPiece[]): string =>
+  pieces.length === 0
+    ? ""
+    : [`M ${formatPoint(pieces[0].start)}`, ...pieces.flatMap(({ commands }) => commands)].join(
+        " ",
+      );
+
+const splitPieces = (
+  pieces: readonly ZentrumSchematicLinePathPiece[],
+): readonly ZentrumSchematicLinePathSegment[] =>
+  pieces.map(({ edgeId, start, commands }) => ({
+    edgeId,
+    data: [`M ${formatPoint(start)}`, ...commands].join(" "),
+  }));
 
 /** One line pattern as the drawing paints it: the geometry, and every line that geometry is. */
 export type ZentrumSchematicDrawnPath = ZentrumSchematicLinePath & {
   /** The pattern as one SVG path, in the drawing's own units. */
   data: string;
   /**
-   * Every line drawn by this one path.
-   *
-   * A trunk and its branches hold one lane and are signed one colour, so wherever their patterns
-   * coincide they are one drawn path — and that path answers for all of them. Printing it once per
-   * line would only lay the line, and its casing, exactly over itself; asking it for one line's
-   * identity would light the lane for whichever of them happened to be laid out first.
+   * Every line drawn by this path. A trunk and its branches share a lane and a colour, so where
+   * their patterns coincide they are painted once and the path answers for all of them.
    */
   lineIds: readonly string[];
+  /** The pattern split at the stops, one stretch per corridor, which an overlay lights by. */
+  segments: readonly ZentrumSchematicLinePathSegment[];
 };
 
-/**
- * The patterns the drawing actually paints: one path per distinct piece of geometry.
- *
- * Path data is the drawing's dearest reading, and coincident patterns are gathered here rather
- * than laid over one another — so the drawing paints each lane once, and a lane answers for every
- * line running in it.
- */
+/** The patterns the drawing paints: one path per distinct geometry, coincident lines gathered. */
 export function getZentrumSchematicDrawnPaths(
   linePaths: readonly ZentrumSchematicLinePath[],
   edges: readonly ZentrumSchematicEdge[],
@@ -82,7 +76,8 @@ export function getZentrumSchematicDrawnPaths(
 ): readonly ZentrumSchematicDrawnPath[] {
   const drawnByGeometry = new Map<string, ZentrumSchematicDrawnPath & { lineIds: string[] }>();
   for (const linePath of linePaths) {
-    const data = getZentrumSchematicLinePathData(linePath, edges, trackWidth);
+    const pieces = getZentrumSchematicLinePathPieces(linePath, edges, trackWidth);
+    const data = joinPieces(pieces);
     const coincident = drawnByGeometry.get(`${linePath.trackId}:${data}`);
     if (coincident) {
       coincident.lineIds.push(linePath.lineId);
@@ -92,6 +87,7 @@ export function getZentrumSchematicDrawnPaths(
       ...linePath,
       data,
       lineIds: [linePath.lineId],
+      segments: splitPieces(pieces),
     });
   }
   return [...drawnByGeometry.values()];
@@ -106,25 +102,15 @@ export type ZentrumSchematicLinePathSegment = {
 };
 
 /**
- * A drawn line pattern split at the stops, one stretch per corridor it runs along.
- *
- * The stretch a corridor gets is its own straight and the bend leaving the stop before it -- the
- * turn is how the line arrives in the corridor, so it colours with the corridor being entered,
- * which is the one a vehicle heading along it is making for. Joined end to end the stretches are
- * the one drawn line (`getZentrumSchematicLinePathData`), so a reading that colours stretch by
- * stretch and one that draws the line whole lay the same geometry on the same lane.
+ * A drawn line pattern split at the stops, one stretch per corridor. Each stretch owns the bend
+ * into its corridor, and joined end to end they are exactly `getZentrumSchematicLinePathData`.
  */
 export function getZentrumSchematicLinePathSegments(
   linePath: ZentrumSchematicLinePath,
   edges: readonly ZentrumSchematicEdge[],
   trackWidth: number | undefined,
 ): readonly ZentrumSchematicLinePathSegment[] {
-  return getZentrumSchematicLinePathPieces(linePath, edges, trackWidth).map(
-    ({ edgeId, start, commands }) => ({
-      edgeId,
-      data: [`M ${formatPoint(start)}`, ...commands].join(" "),
-    }),
-  );
+  return splitPieces(getZentrumSchematicLinePathPieces(linePath, edges, trackWidth));
 }
 
 /** How the path leaves one corridor's lane for the next: a bend, or nothing at all. */
@@ -135,33 +121,18 @@ type ZentrumSchematicLinePathBend = {
   leave: SchematicPoint;
   /** The bend's own commands, empty where the two lanes meet without one. */
   data: string;
-  /**
-   * The bend as points from the approach to the leave, the arc sampled finely enough that a mark
-   * riding them reads as turning the same curve the stroke draws. Empty where there is no bend.
-   */
+  /** The bend sampled as points, so a mark turns the curve the stroke draws. Empty for no bend. */
   points: readonly SchematicPoint[];
 };
 
 /** The arc one bend draws: tangent to both lanes at the approach and the leave, around the corner. */
 const getZentrumSchematicBendPoints = (
-  bendDistance: number,
+  radius: number,
   approach: SchematicPoint,
   leave: SchematicPoint,
   incomingDirection: SchematicPoint,
-  outgoingDirection: SchematicPoint,
 ): readonly SchematicPoint[] => {
-  const turnAngle = Math.acos(
-    Math.max(
-      -1,
-      Math.min(
-        1,
-        incomingDirection.x * outgoingDirection.x + incomingDirection.y * outgoingDirection.y,
-      ),
-    ),
-  );
-  const radius = bendDistance / Math.tan(turnAngle / 2);
-  // The centre stands a radius off the approach, across the incoming lane; of the two sides it is
-  // the one from which the leave is a radius away too.
+  // The centre is a radius off the approach, on the side from which the leave is a radius away too.
   const centre = (sign: 1 | -1): SchematicPoint => ({
     x: approach.x - incomingDirection.y * radius * sign,
     y: approach.y + incomingDirection.x * radius * sign,
@@ -174,8 +145,7 @@ const getZentrumSchematicBendPoints = (
   const to = (point: SchematicPoint) => ({ x: point.x - chosen.x, y: point.y - chosen.y });
   const startAngle = Math.atan2(to(approach).y, to(approach).x);
   const endAngle = Math.atan2(to(leave).y, to(leave).x);
-  // The arc the geometry subtends is the turn angle itself, and the samples read the shorter way
-  // round between the two radii.
+  // The shorter way round.
   let sweep = endAngle - startAngle;
   while (sweep > Math.PI) sweep -= 2 * Math.PI;
   while (sweep < -Math.PI) sweep += 2 * Math.PI;
@@ -185,7 +155,7 @@ const getZentrumSchematicBendPoints = (
   });
 };
 
-/** A cubic sampled the way the bend's own command states it, from the approach to the leave. */
+/** The cubic a straight join draws, sampled from the approach to the leave. */
 const getZentrumSchematicCubicPoints = (
   firstControl: SchematicPoint,
   secondControl: SchematicPoint,
@@ -218,9 +188,8 @@ const getZentrumSchematicLinePathBend = (
 ): ZentrumSchematicLinePathBend => {
   const incomingDirection = getUnitVector(segment.from, segment.to);
   const outgoingDirection = getUnitVector(next.from, next.to);
-  // A lane held level through the stop arrives exactly where the next corridor's lane starts and
-  // runs on in the same direction, so the join is nothing at all and the straight runs on through.
-  // A corner whose lanes meet on the stop itself is not this: it is still a turn, and still rounds.
+  // A lane held level through the stop needs no join. A turn whose lanes meet at the stop still
+  // rounds, hence the direction test.
   if (
     next.from.x === segment.to.x &&
     next.from.y === segment.to.y &&
@@ -252,13 +221,7 @@ const getZentrumSchematicLinePathBend = (
       y: corner.y + outgoingDirection.y * bendDistance,
     };
     const turnAngle = Math.acos(
-      Math.max(
-        -1,
-        Math.min(
-          1,
-          incomingDirection.x * outgoingDirection.x + incomingDirection.y * outgoingDirection.y,
-        ),
-      ),
+      Math.max(-1, Math.min(1, dotProduct(incomingDirection, outgoingDirection))),
     );
     const radius = bendDistance / Math.tan(turnAngle / 2);
     const sweep = crossProduct(incomingDirection, outgoingDirection) > 0 ? 1 : 0;
@@ -266,13 +229,7 @@ const getZentrumSchematicLinePathBend = (
       approach,
       leave,
       data: `A ${radius.toFixed(2)} ${radius.toFixed(2)} 0 0 ${sweep} ${formatPoint(leave)}`,
-      points: getZentrumSchematicBendPoints(
-        bendDistance,
-        approach,
-        leave,
-        incomingDirection,
-        outgoingDirection,
-      ),
+      points: getZentrumSchematicBendPoints(radius, approach, leave, incomingDirection),
     };
   }
   const bendDistance = Math.min(
@@ -296,86 +253,23 @@ const getZentrumSchematicLinePathBend = (
   };
 };
 
-type ZentrumSchematicLinePathPiece = {
+/** One corridor of a line pattern, on the line's own lane, in the direction the pattern runs it. */
+type ZentrumSchematicLaneLeg = {
   edgeId: string;
-  start: SchematicPoint;
-  commands: readonly string[];
-};
-
-/**
- * The drawn line pattern as one piece per corridor, from which the whole path and the per-corridor
- * stretches are both read.
- *
- * A piece carries its corridor's straight and the bend leaving the stop before it; the bend into
- * the first corridor is the pattern's start, and the last corridor's straight runs to the
- * pattern's end. Every piece of geometry belongs to exactly one piece, so stretching and joining
- * the pieces draw the same line exactly once.
- */
-const getZentrumSchematicLinePathPieces = (
-  linePath: ZentrumSchematicLinePath,
-  edges: readonly ZentrumSchematicEdge[],
-  trackWidth: number | undefined,
-): readonly ZentrumSchematicLinePathPiece[] => {
-  const edgeByKey = new Map(edges.map((edge) => [edge.id, edge]));
-  const segments = linePath.nodes.slice(1).flatMap((to, index) => {
-    const from = linePath.nodes[index];
-    const edge = edgeByKey.get(getEdgeKey(from.id, to.id));
-    return edge
-      ? [
-          {
-            edgeId: edge.id,
-            from: getLineTrackPoint(edge, from, linePath.trackId, edge.trackLineIds, trackWidth),
-            to: getLineTrackPoint(edge, to, linePath.trackId, edge.trackLineIds, trackWidth),
-          },
-        ]
-      : [];
-  });
-  if (segments.length === 0) return [];
-
-  const bends = segments
-    .slice(0, -1)
-    .map((segment, index) => getZentrumSchematicLinePathBend(segment, segments[index + 1]));
-  return segments.map((segment, index) => {
-    const incomingBend = bends[index - 1];
-    const outgoingBend = bends[index];
-    const start = incomingBend ? incomingBend.approach : segment.from;
-    const end = outgoingBend ? outgoingBend.approach : segment.to;
-    const commands = [...(incomingBend?.data ? [incomingBend.data] : []), `L ${formatPoint(end)}`];
-    return { edgeId: segment.edgeId, start, commands };
-  });
-};
-
-/**
- * The drawn stretch a mark follows for one corridor of one line path, as the stroke paints it.
- *
- * This is the same geometry the path data states, read as points rather than commands: the bend
- * into the corridor (which belongs to the corridor being entered), then the straight along it.
- * Two corridors' paths meet at one point -- the approach the stroke itself turns through -- so a
- * mark following its line's lane hands over between corridors exactly where its line's stroke does,
- * turning the corner instead of jumping across it.
- */
-export type ZentrumSchematicVehiclePath = {
-  /** The corridor's two ends, in the order the line path runs them. */
   fromNodeId: string;
   toNodeId: string;
-  /** The vehicle path as points, in the line path's own direction, duplicates removed. */
-  points: readonly SchematicPoint[];
-  /**
-   * How far along the vehicle path each point stands, as a share of its length: ascending, ending at 1.
-   * These are the boundaries a moving mark is keyframed on, so the compositor's straight
-   * interpolation between them follows the drawn bend.
-   */
-  steps: readonly number[];
+  from: SchematicPoint;
+  to: SchematicPoint;
 };
 
-/** One line pattern's vehicle paths, by the corridor each is read on. */
-export function getZentrumSchematicVehiclePathsByEdgeId(
+/** A pattern's legs and the bends between them; the stroke and the marks' paths both read this. */
+const getZentrumSchematicLaneLegs = (
   linePath: ZentrumSchematicLinePath,
   edges: readonly ZentrumSchematicEdge[],
   trackWidth: number | undefined,
-): ReadonlyMap<string, ZentrumSchematicVehiclePath> {
+): { legs: readonly ZentrumSchematicLaneLeg[]; bends: readonly ZentrumSchematicLinePathBend[] } => {
   const edgeByKey = new Map(edges.map((edge) => [edge.id, edge]));
-  const segments = linePath.nodes.slice(1).flatMap((to, index) => {
+  const legs = linePath.nodes.slice(1).flatMap((to, index) => {
     const from = linePath.nodes[index];
     const edge = edgeByKey.get(getEdgeKey(from.id, to.id));
     return edge
@@ -390,12 +284,64 @@ export function getZentrumSchematicVehiclePathsByEdgeId(
         ]
       : [];
   });
-
-  const bends = segments
+  const bends = legs
     .slice(0, -1)
-    .map((segment, index) => getZentrumSchematicLinePathBend(segment, segments[index + 1]));
+    .map((leg, index) => getZentrumSchematicLinePathBend(leg, legs[index + 1]));
+  return { legs, bends };
+};
+
+type ZentrumSchematicLinePathPiece = {
+  edgeId: string;
+  start: SchematicPoint;
+  commands: readonly string[];
+};
+
+/**
+ * The pattern as one piece per corridor: the bend into it and its straight. Each bit of geometry
+ * belongs to exactly one piece, so the whole path and its stretches draw the same line.
+ */
+const getZentrumSchematicLinePathPieces = (
+  linePath: ZentrumSchematicLinePath,
+  edges: readonly ZentrumSchematicEdge[],
+  trackWidth: number | undefined,
+): readonly ZentrumSchematicLinePathPiece[] => {
+  const { legs, bends } = getZentrumSchematicLaneLegs(linePath, edges, trackWidth);
+  return legs.map((segment, index) => {
+    const incomingBend = bends[index - 1];
+    const outgoingBend = bends[index];
+    const start = incomingBend ? incomingBend.approach : segment.from;
+    const end = outgoingBend ? outgoingBend.approach : segment.to;
+    const commands = [...(incomingBend?.data ? [incomingBend.data] : []), `L ${formatPoint(end)}`];
+    return { edgeId: segment.edgeId, start, commands };
+  });
+};
+
+/**
+ * The stretch a mark follows along one corridor: the stroke's own geometry as points, so a mark
+ * hands over between corridors exactly where its line's stroke turns.
+ */
+export type ZentrumSchematicVehiclePath = {
+  /** The corridor's two ends, in the order the line path runs them. */
+  fromNodeId: string;
+  toNodeId: string;
+  /** In the line path's own direction, duplicates removed. */
+  points: readonly SchematicPoint[];
+  /**
+   * Each point's share of the path's length, ascending to 1. A moving mark is keyframed on these,
+   * so the compositor's straight interpolation follows the bend.
+   */
+  steps: readonly number[];
+};
+
+/** One line pattern's vehicle paths, by the corridor each is read on. */
+export function getZentrumSchematicVehiclePathsByEdgeId(
+  linePath: ZentrumSchematicLinePath,
+  edges: readonly ZentrumSchematicEdge[],
+  trackWidth: number | undefined,
+): ReadonlyMap<string, ZentrumSchematicVehiclePath> {
+  const { legs, bends } = getZentrumSchematicLaneLegs(linePath, edges, trackWidth);
   const pathsByEdgeId = new Map<string, ZentrumSchematicVehiclePath>();
-  segments.forEach((segment, index) => {
+  legs.forEach((segment, index) => {
     const incomingBend = bends[index - 1];
     const outgoingBend = bends[index];
     const end = outgoingBend ? outgoingBend.approach : segment.to;
@@ -415,7 +361,7 @@ export function getZentrumSchematicVehiclePathsByEdgeId(
   return pathsByEdgeId;
 }
 
-/** How far along a run of points each stands, as a share of the whole; undefined for no length. */
+/** Each point's share of the run's length; undefined for no length. */
 const getPathSteps = (points: readonly SchematicPoint[]): readonly number[] | undefined => {
   const steps: number[] = [0];
   let length = 0;
@@ -429,7 +375,7 @@ const getPathSteps = (points: readonly SchematicPoint[]): readonly number[] | un
   return steps.map((step) => step / length);
 };
 
-/** A vehicle path read the other way round, for runs that travel it backwards. */
+/** A vehicle path the other way round. */
 export const reverseZentrumSchematicVehiclePath = (
   path: ZentrumSchematicVehiclePath,
 ): ZentrumSchematicVehiclePath => ({
@@ -439,12 +385,16 @@ export const reverseZentrumSchematicVehiclePath = (
   steps: path.steps.map((step) => 1 - step).reverse(),
 });
 
+/** A corridor's vehicle path, read from the stop a run leaves it by. */
+export const orientZentrumSchematicVehiclePath = (
+  path: ZentrumSchematicVehiclePath,
+  fromNodeId: string,
+): ZentrumSchematicVehiclePath =>
+  path.fromNodeId === fromNodeId ? path : reverseZentrumSchematicVehiclePath(path);
+
 /**
- * Several vehicle paths of one line joined into the one stretch a mark follows across them.
- *
- * The paths are handed in trip-ordered, so each begins where the one before it ends -- the approach
- * the stroke itself turns through -- and the join drops the shared point. Nothing where the paths
- * add up to no length, which a straight across a single stop is.
+ * Trip-ordered vehicle paths joined into one stretch, dropping the point each shares with the one
+ * before. Undefined where they add up to no length.
  */
 export function joinZentrumSchematicVehiclePaths(
   paths: readonly ZentrumSchematicVehiclePath[],
@@ -454,7 +404,7 @@ export function joinZentrumSchematicVehiclePaths(
   return steps ? { points, steps } : undefined;
 }
 
-/** A vehicle path's visible portion as a polyline, inclusive of both requested progress boundaries. */
+/** The part of a vehicle path between two progresses, as a polyline. */
 export function getZentrumSchematicVehiclePathData(
   path: { points: readonly SchematicPoint[]; steps: readonly number[] },
   startProgress: number,
@@ -465,17 +415,8 @@ export function getZentrumSchematicVehiclePathData(
   if (end <= start || path.points.length < 2) return "";
 
   const pointAt = (progress: number): SchematicPoint => {
-    let index = 1;
-    const last = path.points.length - 1;
-    while (index < last && path.steps[index] < progress) index += 1;
-    const from = path.points[index - 1];
-    const to = path.points[index];
-    const span = path.steps[index] - path.steps[index - 1];
-    const share = span > 0 ? (progress - path.steps[index - 1]) / span : 0;
-    return {
-      x: from.x + (to.x - from.x) * share,
-      y: from.y + (to.y - from.y) * share,
-    };
+    const { x, y } = getZentrumSchematicVehiclePathPlacement(path, progress);
+    return { x, y };
   };
 
   const points = [pointAt(start)];
@@ -490,7 +431,7 @@ export function getZentrumSchematicVehiclePathData(
   ].join(" ");
 }
 
-/** Where a mark stands on a vehicle path at a progress, and which way its mark is pointed there. */
+/** Where a mark stands on a vehicle path at a progress, and which way it points. */
 export function getZentrumSchematicVehiclePathPlacement(
   path: { points: readonly SchematicPoint[]; steps: readonly number[] },
   progress: number,

@@ -1,64 +1,37 @@
 /**
  * The plan itself: the stops it draws, the window it is cropped to, and the geometry every reading
- * of it is measured in.
- *
- * Authored, not observed — this is the drawing surface, and what runs over it is the reading built
- * on top (`zentrum-schematic.ts`). Everything the lanes, the drawn paths and the stop marks are
- * laid out from lives here, so each of those is a reading of one plan rather than a plan of its
- * own.
+ * of it is measured in. Authored, not observed; what runs over it is `zentrum-schematic.ts`.
  */
 import { getVerifiedLineColor } from "../data/line-signs";
+import type { Departure } from "../data/transit-types";
 import { isZentrumStop } from "../data/zentrum-stops";
 import { getLineTrunkId } from "./line-families";
 /**
- * The window on the grid that the view draws, and scales its layer by.
- *
- * Cropped to what the drawing actually occupies -- the outermost dots and the labels hanging off
- * them -- rather than to a round number with the plan floating inside it. The margin is what a
- * label needs and no more, because every unit of it is scale the plan does not get: the panel is
- * wider than the plan is, so the fit is decided by the height, and empty height is the one thing
- * that makes the whole Zentrum smaller than it had to be. The origin is a crop, not a shift, so
- * every node below stays on the grid.
+ * The window the view draws, cropped to the outermost dots and their labels. Any margin beyond
+ * that shrinks the whole plan, since its fit is decided by the height. The origin is a crop, not a
+ * shift, so the nodes stay on the grid.
  */
 export const ZENTRUM_SCHEMATIC_VIEWBOX = { x: 8, y: 44, width: 1156, height: 638 } as const;
 
 export const ZENTRUM_SCHEMATIC_GRID = 22;
 
 /**
- * The stable drawing surface for the Zentrum.
+ * One stop on the plan, and the stop page its dot opens.
  *
- * One dot is one stop, and the stop page it opens. The plan drew the parts of a complex apart for
- * a while -- both Marktplatz tunnels, Europaplatz's tunnel and its two surface platforms -- because
- * that is a choice a rider makes on the ground. Geography would not pay for it: the feed puts
- * Europaplatz's tunnel eleven metres from its western platforms and Ettlinger Tor's two levels
- * fifty-five, and no plan can draw two names eleven metres apart. Each pair had to be pushed a step
- * and a half apart in a direction the layout chose rather than the city, and those pushes were most
- * of the distortion in the drawing: twelve of thirty-seven corridors ran in the wrong one of the
- * eight directions, and no arrangement without faults existed at all. Merged, one corridor of
- * twenty-eight is wrong and the mean error is 7.4 degrees. Which tunnel a vehicle is in is the
- * price, and the stop page still answers it.
+ * A complex is one dot: its parts are metres apart, which no plan can draw without distorting the
+ * corridors around it. The stop page still says which platform.
  *
- * The positions are octilinear in the sense the transit-map literature gives the word: every
- * corridor a trip has been observed running runs level, upright or at 45 degrees. They are solved
- * rather than drawn -- `npm run solve:zentrum` states what this table is answerable to, measures
- * the one standing here against the coordinates the feed publishes for the platforms it draws, and
- * prints the closest octilinear drawing to the real city it can find. North is up.
- *
- * Coordinates decide only where an observed trip is drawn. They never state that a service exists.
+ * Positions are octilinear (every observed corridor runs level, upright or at 45 degrees) and
+ * solved against the feed's platform coordinates by `npm run solve:zentrum`. North is up.
+ * Coordinates decide only where an observed trip is drawn, never that a service exists.
  */
 export type ZentrumSchematicNode = {
   /** The stop this place is, which is also the page the dot opens. */
   id: string;
-  /** What this place is called. Read out beside the dot, and printed when a vehicle is on it. */
   label: string;
   x: number;
   y: number;
-  /**
-   * Which side of the dot the name stands on, away from the corridors leaving it.
-   *
-   * Solved with the position rather than chosen afterwards, because a side is only free relative to
-   * the corridors that end up at the dot; `npm run solve:zentrum` prints it with the coordinates.
-   */
+  /** The side the name stands on, clear of the corridors; solved with the position. */
   labelSide?: "left" | "right" | "above" | "below";
 };
 
@@ -96,17 +69,13 @@ export const zentrumSchematicNodeById = new Map(
   ZENTRUM_SCHEMATIC_NODES.map((node) => [node.id, node]),
 );
 
+/** Only rail is drawn: the plan is a rail plan, and a bus has no corridor on it to ride. */
+export const isRailDeparture = ({ transportMode }: Pick<Departure, "transportMode">): boolean =>
+  transportMode === "tram" || transportMode === "lightRail";
+
 /**
- * The place on the plan a call is at, if the plan draws one.
- *
- * A node is a stop, so this is the stop the registry already resolved the provider's identity to,
- * and nothing here has to be authored or kept true. It was authored once: a table of provider stop
- * points and platform codes stood between a call and the plan, so that a call at Europaplatz's
- * tunnel and one at its street platforms reached different dots. That table could be wrong without
- * saying so -- a stopping position the operator added was a call matching no rule, placed nowhere,
- * and a corridor quietly not drawn. Drawing a complex as one place retires the whole failure: every
- * call at a Zentrum stop reaches the dot for that stop, and a call at a stop the plan does not draw
- * reaches nothing, which is the same answer it should always have given.
+ * The dot a call is at, if the plan draws one. A dot is a stop, so this is the stop the registry
+ * already resolved the call to; nothing here is authored that could silently go stale.
  */
 export const findZentrumSchematicNodeId = (call: { localStopId?: string }): string | undefined =>
   isZentrumStop(call.localStopId) ? call.localStopId : undefined;
@@ -118,20 +87,15 @@ export type ZentrumSchematicObservedEdge = {
   lineIds: readonly string[];
 };
 
-/**
- * An observed corridor with its lanes named, before the reading has settled where its band stands.
- */
+/** An observed corridor with its lanes ordered, before its band has been placed. */
 export type ZentrumSchematicLanedEdge = ZentrumSchematicObservedEdge & {
   trackLineIds: readonly string[];
 };
 
 export type ZentrumSchematicEdge = ZentrumSchematicLanedEdge & {
   /**
-   * How far the middle of this corridor's band of lanes sits off the corridor's own middle,
-   * signed along the corridor normal, in drawing units.
-   *
-   * Centred -- zero -- wherever the corridor belongs to no straight that asks it to stand
-   * elsewhere; see `getTrackBandOffsetByEdgeId` for the straight that moves it.
+   * How far the middle of the band of lanes sits off the corridor's middle, along its normal.
+   * Zero unless a straight moves it (`getTrackBandOffsetByEdgeId`).
    */
   trackBandOffset: number;
 };
@@ -145,18 +109,11 @@ export type ZentrumSchematicLinePath = {
 };
 
 /**
- * The lane a line is drawn in, which is not always a lane of its own.
+ * The lane a line is drawn in.
  *
- * S1 and S11 are one service to anybody in the Zentrum: they run the same corridors here, and KVV
- * prints them in one colour because what they differ over is an hour out of town. Drawn a lane
- * apart they read as two parallel services, and spend on that fiction a lane the corridor could
- * have given to a line that really is somewhere else. So a branch shares its trunk's lane, and the
- * two part where their observed patterns part -- which is the drawing the operator itself prints.
- *
- * Both halves of the test have to hold. The trunk alone would draw S4 and S41 as one lane, and the
- * operator signs those in different colours precisely because they go different ways; one would be
- * left hidden under the other. The colour alone would gather every service the feed happens to sign
- * alike -- the FEX beside S1, and the whole violet bus book. Neither half names a line anywhere.
+ * A branch signed in its trunk's colour (S1 and S11) shares the trunk's lane and parts where its
+ * pattern parts, as the operator draws it. Both the trunk and the colour must agree: the trunk
+ * alone would hide S41 under S4, the colour alone would merge unrelated services signed alike.
  */
 const getLineTrackKey = (lineId: string): string => {
   const trunkId = getLineTrunkId(lineId);
@@ -164,10 +121,7 @@ const getLineTrackKey = (lineId: string): string => {
   return trunkId && color ? `${trunkId}\u0000${color}` : `\u0000${lineId}`;
 };
 
-/**
- * Which lane each of the drawn lines holds, named by the shortest line id in the lane -- the trunk,
- * where a trunk is drawn; a line sharing with nobody is its own lane and keeps its own name.
- */
+/** Which lane each drawn line holds, named by the shortest line id in it. */
 export const getTrackIdByLineId = (lineIds: readonly string[]): ReadonlyMap<string, string> => {
   const lineIdsByTrackKey = new Map<string, string[]>();
   for (const lineId of lineIds) {
@@ -184,18 +138,18 @@ export const getTrackIdByLineId = (lineIds: readonly string[]): ReadonlyMap<stri
   );
 };
 
+/** Line ids in timetable order (`S2` before `S11`), with one collator for the hot lane search. */
+export const compareLineIdsNaturally = new Intl.Collator("de", { numeric: true }).compare;
+
 export const getEdgeKey = (leftId: string, rightId: string): string =>
   leftId < rightId ? `${leftId}\u0000${rightId}` : `${rightId}\u0000${leftId}`;
 
 export type SchematicPoint = { x: number; y: number };
 
 /**
- * The direction a corridor is measured in, whichever way its edge id happens to read.
- *
- * Edge ids are alphabetical, so the same straight can be stated west-to-east on one segment and
- * east-to-west on the next. Orienting every level corridor west-to-east and every steeper one
- * north-to-south is what keeps a line in the same lane when it crosses a stop: the lane normal is
- * taken from this run, so both segments agree on which side "before" is.
+ * The direction a corridor is measured in: level ones west to east, steeper ones north to south.
+ * Edge ids are alphabetical and so point either way; lanes are offset along this direction's
+ * normal, so it must agree across a stop for a line to keep its lane.
  */
 export const orientCorridorRun = (edge: ZentrumSchematicObservedEdge): SchematicPoint => {
   let x = edge.to.x - edge.from.x;
@@ -209,36 +163,18 @@ export const orientCorridorRun = (edge: ZentrumSchematicObservedEdge): Schematic
 };
 
 /**
- * The width one lane is drawn at, which is also the distance between two neighbouring lanes.
- *
- * They are one number on purpose. Lines sharing a corridor are what the corridor is: the thing to
- * read there is a single band as wide as the traffic it carries, striped in the colours running
- * through it. Pitched any wider than they are drawn, the lanes stand a stripe of the background
- * apart -- which says the services are apart on the ground, where they are on one pair of rails,
- * and spends width on saying it. So a lane is laid exactly one lane's width from its neighbour and
- * the colours meet, with the casings beneath them fusing into one outline around the whole band.
+ * The width a lane is drawn at, which is also the pitch between lanes, so that lines sharing a
+ * corridor read as one striped band rather than as services apart on the ground.
  */
 const ZENTRUM_SCHEMATIC_TRACK_WIDTH = 7;
 
 /**
- * The widest a corridor's band of lanes may grow before the lanes themselves are thinned.
- *
- * Eight lanes is the most the Zentrum has been read carrying -- the S-Bahnen and the trams between
- * the Hauptbahnhof and the Poststraße -- and the band holds that many at the full lane width. A
- * corridor busier than that thins every lane in the drawing rather than spilling over its
- * neighbouring corridors, because one width for the whole plan is what a line being one stroke
- * from end to end requires, and it is what makes lanes that touch on one corridor touch on all of
- * them.
+ * The widest a band may grow (eight lanes, the busiest the Zentrum has been seen) before every
+ * lane in the plan is thinned. One width for the whole plan keeps each line one stroke.
  */
 const ZENTRUM_SCHEMATIC_TRACK_BAND_WIDTH = 56;
 
-/**
- * The width every lane in this reading is drawn at, and the pitch its lanes are laid on.
- *
- * Read from the busiest corridor rather than fixed, so the plan answers for the whole of what is
- * running: it is the full lane width for any Zentrum a rider has seen, and narrows only for a
- * drawing this one has not been -- which is a different drawing, not a flicker between refreshes.
- */
+/** The width every lane in this reading is drawn at, read from its busiest corridor. */
 export const getZentrumSchematicTrackWidth = (
   edges: readonly ZentrumSchematicLanedEdge[],
 ): number =>
@@ -255,12 +191,7 @@ export const getTrackOffset = (
   trackWidth: number,
 ): number => edge.trackBandOffset + (lineIndex - (edge.trackLineIds.length - 1) / 2) * trackWidth;
 
-/**
- * Where a lane runs at a stop -- the middle of the dot, unless the corridor is drawn lane by lane.
- *
- * No width is the plan's other reading, where every line is drawn down the centre of the corridor
- * because only one of them is drawn at a time.
- */
+/** Where a lane runs at a stop; without a width, every line runs down the corridor's centre. */
 export const getLineTrackPoint = (
   edge: ZentrumSchematicEdge,
   node: ZentrumSchematicNode,
@@ -310,19 +241,9 @@ export const getLineIntersection = (
 };
 
 /**
- * Where a stop's platforms stand, said in the only terms the plan can draw: the corridors the
- * trips using them run.
- *
- * A junction is rarely one platform. Karlstor's trams to Ettlinger Tor board on the eastern arm
- * and its trams to Mathystraße on the southern one; Europaplatz has a tunnel under the square and
- * two surface platforms, one west and one south of it. A rider standing there knows this, and a
- * plan that draws one mark over the whole crossing does not say it.
- *
- * It is read rather than authored, from the platform each call is published at: platforms whose
- * trips leave by exactly the same corridors are one place to stand, and platforms whose trips
- * leave by different ones are different places. Nothing here is a coordinate — the feed publishes
- * one position for a whole stop point, so where a platform is can only be said by what runs
- * through it. A stop the reading learns nothing about keeps the one mark it always had.
+ * One place to stand at a stop, said in the only terms the plan can draw: the corridors its trips
+ * use. Platforms whose trips leave by the same corridors are one place; the feed gives one
+ * coordinate per stop point, so a platform can only be located by what runs through it.
  */
 export type ZentrumSchematicBoardingPlace = {
   /** The corridors trips boarding here run, by the stop at their far end, and how many run each. */

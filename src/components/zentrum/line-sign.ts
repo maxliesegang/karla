@@ -4,14 +4,7 @@ import type { TransitLine, TransportMode } from "../../data/transit-types";
 /** The sign one line is read by in this view. */
 export type ZentrumLineSignReader = (lineId: string) => TransitLine;
 
-/**
- * How the plan signs its lines: the network's own reading where the observation has placed a line
- * in a mode, and the neutral sign where it has not.
- *
- * One reader for the whole drawing rather than a lookup passed down and defaulted at each use — the
- * plan asks for a sign at every lane, every mark and every badge, and each of them wants the same
- * answer.
- */
+/** How the plan signs its lines: by the mode the network observed, else the neutral sign. */
 export const createZentrumLineSignReader = (
   lines: readonly { id: string; transportMode: TransportMode }[],
 ): ZentrumLineSignReader => {

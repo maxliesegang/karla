@@ -11,12 +11,8 @@ const PLAN_READINGS = [
 ] as const;
 
 /**
- * One band of controls under the plan: the legend, the caption, and the plan's reading.
- *
- * The legend is also the filter: a badge is the one gesture that follows a line, whatever the
- * reading. The plan's reading changes what the map lights rather than the route being followed,
- * and leaves while an opened stop decides that instead. The size the plan is drawn at is not here:
- * it is a control of the drawing, so it floats on the drawing (`ZentrumPlanControls`).
+ * The band under the plan: legend, caption and the plan's reading. The legend doubles as the
+ * filter: tapping a badge follows that line.
  */
 export function ZentrumSchematicToolbar({
   caption,
@@ -27,15 +23,15 @@ export function ZentrumSchematicToolbar({
   planReading,
   onChangePlanReading,
 }: {
-  /** What the drawing cannot say of itself: what the colour means, and how many are running. */
+  /** What the drawing cannot say itself: what the colour means, and how many trams run. */
   caption: string;
   lineIds: readonly string[];
   getSign: ZentrumLineSignReader;
-  /** The line the plan is following, as the address names it. */
+  /** The followed line, as the address names it. */
   selectedLineId?: string;
   onSelectLine: (lineId: string | undefined) => void;
   planReading: ZentrumPlanReading;
-  /** Absent while an opened stop decides what is lit, which leaves the plan's reading nothing to do. */
+  /** Absent while an opened stop decides what is lit. */
   onChangePlanReading?: (reading: ZentrumPlanReading) => void;
 }) {
   return (
@@ -87,11 +83,7 @@ export function ZentrumSchematicToolbar({
   );
 }
 
-/**
- * The drawing's own controls, floating in its corner the way every map's are: the size the plan is
- * read at, and the size it is drawn at. On the drawing rather than in the band under it, so a phone
- * does not give a whole row of the screen to three buttons.
- */
+/** The drawing's own zoom and full-screen controls, floating on it so a phone saves a row. */
 export function ZentrumPlanControls({
   zoom,
   canZoomIn,
@@ -152,8 +144,7 @@ export function ZentrumPlanControls({
           </svg>
         </button>
       </div>
-      {/* The step is spoken rather than printed: the drawing already shows it, and a screen reader
-          pressing a button it cannot see still needs to be told what it did. */}
+      {/* Spoken, not printed: the drawing shows the step, a screen reader needs telling. */}
       <span className="visually-hidden" aria-live="polite">
         {zoom === 1 ? "ganzer Plan" : `${Math.round(zoom * 100)} %`}
       </span>

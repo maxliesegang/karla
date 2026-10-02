@@ -1,27 +1,23 @@
 import type { Departure, DepartureBoard } from "../data/transit-types";
 import { ZENTRUM_OBSERVATION_POST_STOP_IDS } from "./observed-network";
 import { getDistinctRuns } from "./trips";
+import { isRailDeparture } from "./zentrum-schematic-plan";
 
 /**
- * The vehicles the Zentrum's observation posts can place, read off the posts' own boards.
- *
- * Every vehicle, whichever line it is on: following a line picks one out of the plan, and a plan
- * that emptied of marks until a line was chosen would be answering a question nobody asked. The
- * choice recedes the marks, it does not fetch them.
+ * The vehicles the Zentrum's observation posts can place. Every line's, always: following a line
+ * recedes the others rather than fetching only its own.
  */
 export type ZentrumRunObservation = {
-  /** One row per run, whichever of the posts read it, dated by the post that read it. */
+  /** One row per run, whichever post read it. */
   runDepartures: readonly Departure[];
-  /** The freshest post, which is the clock the marks are moved against. */
+  /** The freshest post: the clock the marks move against. */
   clockBoard: DepartureBoard | null;
 };
 
 const ZENTRUM_POST_STOP_IDS: ReadonlySet<string> = new Set(ZENTRUM_OBSERVATION_POST_STOP_IDS);
 
-/** Only rail is drawn: the plan is a rail plan, and a bus has no corridor on it to ride. */
 const isDrawableRun = (departure: Departure): boolean =>
-  Boolean(departure.tripCalls?.length) &&
-  (departure.transportMode === "tram" || departure.transportMode === "lightRail");
+  Boolean(departure.tripCalls?.length) && isRailDeparture(departure);
 
 /** What the posts' current boards say is out on the Zentrum's corridors. */
 export function getZentrumRunObservation(

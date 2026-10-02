@@ -1,7 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Departure, DepartureBoard } from "../../data/transit-types";
 import { useZentrumPlanCanvas } from "../../hooks/zentrum-plan-canvas";
-import type { ZentrumSchematicVehicle } from "../../lib/zentrum-schematic";
+import type { ZentrumSchematicReading, ZentrumSchematicVehicle } from "../../lib/zentrum-schematic";
 import {
   type ZentrumSchematicOverlay,
   type ZentrumStopBoardRow,
@@ -11,9 +11,6 @@ import {
   getZentrumTravelTimes,
 } from "../../lib/zentrum-schematic-overlays";
 import {
-  type ZentrumSchematicBoardingPlace,
-  type ZentrumSchematicEdge,
-  type ZentrumSchematicLinePath,
   type ZentrumSchematicNode,
   zentrumSchematicNodeById,
 } from "../../lib/zentrum-schematic-plan";
@@ -36,12 +33,8 @@ const formatCount = (count: number, one: string, many: string): string =>
   `${count} ${count === 1 ? one : many}`;
 
 /**
- * The caption under the drawing: what the colour on it means, in as few words as that takes.
- *
- * It says what cannot be read off the drawing — what the colour stands for in the reading being
- * shown, and, while nothing is chosen, that a stop can be. What the reader can already see, they are
- * not told: which lines are drawn is the legend beside it, and where the reading came from is the
- * page's provenance footer.
+ * The caption under the drawing: only what cannot be read off it, i.e. what the colour means
+ * and, while nothing is chosen, that a stop can be tapped.
  */
 const getZentrumSchematicCaption = (
   selectedLineId: string | undefined,
@@ -69,7 +62,7 @@ type ZentrumStopView = {
   reachedStops: readonly ZentrumReachedStop[];
   /** The countdown each tram the stop is waiting for carries on the plan. */
   vehicleMinutesById?: ReadonlyMap<string, number>;
-  /** The minutes each reached stop is printed with on the plan, and the line that gets there. */
+  /** The minutes and line each reached stop is printed with on the plan. */
   stopMinutesByNodeId?: ReadonlyMap<string, ZentrumStopTravelTag>;
 };
 
@@ -112,22 +105,12 @@ const getZentrumStopView = (
 };
 
 /**
- * The Zentrum's plan as it is read: the drawing with its own controls, the band under it, and the
- * panel beside it for whatever a reader opened.
- *
- * Two levels of choice, each one segmented control. The plan's own reading -- its lines, or where
- * the trams on it are still going -- sits in the band under it. An opened stop is the other level:
- * it is in the address, lights the plan from that stop, and brings its own two readings in the
- * panel, where the departure board stands beside a line's diagram. A vehicle opens in the same
- * panel, over the stop it was found from, and closing it returns there.
+ * The plan with its controls, the band under it, and the panel for whatever is opened. The plan's
+ * own reading is chosen in the band; an opened stop lights the plan from there and brings its own
+ * readings to the panel. A vehicle opens over the stop it was found from.
  */
 export function ZentrumSchematic({
-  edges,
-  linePaths,
-  trackWidth,
-  boardingPlacesByNodeId,
-  lineIdsByNodeId,
-  lineIds,
+  schematic,
   getSign,
   selectedLineId,
   selectedStopId,
@@ -140,26 +123,19 @@ export function ZentrumSchematic({
   onSelectStop,
   onChangeFullscreen,
 }: {
-  edges: readonly ZentrumSchematicEdge[];
-  linePaths: readonly ZentrumSchematicLinePath[];
-  /** The one width the lanes are laid out on, which is also the width they are painted at. */
-  trackWidth: number;
-  /** The stops the reading can name more than one place to stand at, which are marked once each. */
-  boardingPlacesByNodeId: ReadonlyMap<string, readonly ZentrumSchematicBoardingPlace[]>;
-  lineIdsByNodeId: ReadonlyMap<string, readonly string[]>;
-  lineIds: readonly string[];
+  schematic: ZentrumSchematicReading;
   getSign: ZentrumLineSignReader;
-  /** The line the plan is following, as the address names it. */
+  /** The followed line, as the address names it. */
   selectedLineId?: string;
-  /** The stop the plan is read from, as the address names it. */
+  /** The opened stop, as the address names it. */
   selectedStopId?: string;
   vehicles: readonly ZentrumSchematicVehicle[];
-  /** Every run the posts name, the ones not on the plan yet included: what a stop's wait is read from. */
+  /** Every run the posts name, including those not on the plan yet. */
   runDepartures: readonly Departure[];
-  /** The opened stop's own board, or nothing while it has not answered. */
+  /** The opened stop's own board, or null until it answers. */
   stopBoard: DepartureBoard | null;
   feedNow: number;
-  /** Whether the plan is being read at the size of the screen. */
+  /** Whether the plan fills the screen. */
   isFullscreen: boolean;
   onSelectLine: (lineId: string | undefined) => void;
   onSelectStop: (stopId: string | undefined) => void;
@@ -170,8 +146,7 @@ export function ZentrumSchematic({
   const [stopReading, setStopReading] = useState<ZentrumStopReading>("travelTimes");
   const plan = useZentrumPlanCanvas();
 
-  // Escape is what a reader expects to close a thing that took the screen, and the back gesture is
-  // the other -- which the address already answers, because the size is a level of it.
+  // Escape leaves full screen; back already does, since the size is part of the address.
   useEffect(() => {
     if (!isFullscreen) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -184,7 +159,7 @@ export function ZentrumSchematic({
   const selectedVehicle = vehicles.find((vehicle) => vehicle.id === selectedVehicleId);
   const selectedStop =
     selectedStopId === undefined ? undefined : zentrumSchematicNodeById.get(selectedStopId);
-  // An opened stop is the reading the plan is lit by; without one, the plan's own reading is.
+  // An opened stop lights the plan; without one, the plan's own reading does.
   const stopView = selectedStop
     ? getZentrumStopView(stopReading, selectedStop, stopBoard, vehicles, runDepartures, feedNow)
     : undefined;
@@ -195,16 +170,19 @@ export function ZentrumSchematic({
     ? vehicles.filter((vehicle) => vehicle.lineId === selectedLineId).length
     : vehicles.length;
 
-  // Following another line, or opening another stop, is another reading of the plan, and the
-  // vehicle that was open belonged to the old one.
+  // The open vehicle belonged to the previous reading.
   const selectLine = (lineId: string | undefined) => {
     setSelectedVehicleId(undefined);
     onSelectLine(lineId);
   };
-  const selectStop = (stopId: string | undefined) => {
-    setSelectedVehicleId(undefined);
-    onSelectStop(stopId === selectedStopId ? undefined : stopId);
-  };
+  // Stable, so the memoized stops do not re-render every second.
+  const selectStop = useCallback(
+    (stopId: string | undefined) => {
+      setSelectedVehicleId(undefined);
+      onSelectStop(stopId === selectedStopId ? undefined : stopId);
+    },
+    [onSelectStop, selectedStopId],
+  );
   const toggleVehicle = (vehicleId: string) =>
     setSelectedVehicleId((current) => (current === vehicleId ? undefined : vehicleId));
 
@@ -244,11 +222,7 @@ export function ZentrumSchematic({
       <div className="zentrum-schematic-main">
         <div className="zentrum-schematic-stage">
           <ZentrumSchematicCanvas
-            edges={edges}
-            linePaths={linePaths}
-            trackWidth={trackWidth}
-            boardingPlacesByNodeId={boardingPlacesByNodeId}
-            lineIdsByNodeId={lineIdsByNodeId}
+            schematic={schematic}
             getSign={getSign}
             selectedLineId={selectedLineId}
             selectedStationId={selectedStop?.id}
@@ -278,7 +252,7 @@ export function ZentrumSchematic({
             followedVehicleCount,
             selectedStop ? stopReading : planReading,
           )}
-          lineIds={lineIds}
+          lineIds={schematic.lineIds}
           getSign={getSign}
           selectedLineId={selectedLineId}
           onSelectLine={selectLine}

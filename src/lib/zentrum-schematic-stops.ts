@@ -1,9 +1,4 @@
-/**
- * The mark a stop is drawn as: a capsule laid across the lines calling there.
- *
- * Laid out from the same corridors and the same lane width the lanes themselves are, so a stop's
- * rule crosses exactly what is drawn beneath it.
- */
+/** The stop marks, laid out from the same corridors and lane width as the lanes they cross. */
 import {
   type ZentrumSchematicBoardingPlace,
   type SchematicPoint,
@@ -19,44 +14,21 @@ import {
   zentrumSchematicNodeById,
 } from "./zentrum-schematic-plan";
 /**
- * The mark a stop is drawn as: a rule laid across the lines calling there.
+ * A stop's mark: rules laid square across the bands calling there, stroked as the capsule printed
+ * network plans use. A dot would mark only the lane it sits on, and a hull around every lane
+ * would cover the junction the lines turn through.
  *
- * The plan draws every line in its own lane, so a dot on the middle of a corridor sits on whichever
- * lane happens to run through it and leaves the rest unmarked -- the lines beside it read as
- * passing the stop rather than calling at it. The mark therefore has to reach every lane that meets
- * here. It was a hull for a while, LOOM's rectangulised station polygon, and a hull is the wrong
- * shape for this plan: wide enough to reach every lane on every corridor, it becomes a lozenge as
- * large as the junction it stands on, and the corner the lines turn through -- the one thing a
- * junction is read for -- is drawn inside a white box. Twenty-five of them are what a reader sees
- * first, above the network they are meant to annotate.
- *
- * So the mark is laid along one rule across the band, square to the corridor it crosses, and drawn
- * as the capsule printed network plans use: a white body in a dark outline, only as wide as the
- * lines it crosses. It covers a colour for no longer than its own width, and it is the same mark at
- * every stop whatever the corridors do there; where two rules cross, the capsules merge into one.
- *
- * A junction gets one rule per place to stand rather than one per corridor. Where the reading has
- * named a stop's places (`ZentrumSchematicBoardingPlace`) each of them is drawn on the corridor
- * that is most its own, standing clear of the bands crossing it: Karlstor comes out with a rule on
- * its eastern arm and one on its southern, which is where its platforms are. Where the reading has
- * named none, the stop is drawn with one rule for each straight through it, crossed at the middle.
+ * A stop with named places to stand (`ZentrumSchematicBoardingPlace`) gets one rule per place, on
+ * the corridor most its own (Karlstor: one on its eastern arm, one on its southern). Otherwise it
+ * gets one rule per straight through it, crossed at the middle.
  */
 export type ZentrumSchematicStopMark = {
   nodeId: string;
   /** The rules as one path of straight strokes, in schematic units. Painted, never filled. */
   data: string;
   /**
-   * How far the station reaches from its authored coordinate, on each of the four sides a name may
-   * stand on.
-   *
-   * One enclosing radius would be the wrong measure: a rule
-   * pushed out along Karlstor's eastern arm is two lane widths east of the coordinate and nothing
-   * at all west of it, yet a radius would space the western name off by the whole of that reach. The
-   * name would then float a band's width clear of the station it names, which on a plan of
-   * twenty-five names is the difference between reading a label and hunting for its stop. Each
-   * side is therefore measured on its own, over the rules drawn here and over the paint of every
-   * corridor leaving the stop, so a name stands exactly clear of what is drawn on its side and no
-   * further.
+   * How far the stop's drawing reaches from its coordinate on each side a name may stand on.
+   * Per side, not one radius: a rule pushed east would otherwise push the western name off too.
    */
   labelClearance: ZentrumSchematicLabelClearance;
 };
@@ -69,41 +41,19 @@ export type ZentrumSchematicLabelClearance = {
   below: number;
 };
 
-/**
- * How wide a stop's capsule is drawn, as a multiple of one lane's width.
- *
- * The capsule is the rule stroked wide with round ends: a white body in a dark outline, the stop
- * mark printed network plans use and the one the line diagram's white rings already speak. A little
- * wider than a lane, so it reads as standing across the lines rather than as one more of them.
- */
+/** A capsule's width in lanes: a little wider than a lane, so it reads as across the lines. */
 export const ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH = 1.15;
 
 /** How much of the capsule's width is its white body; the rest is the outline either side. */
 export const ZENTRUM_SCHEMATIC_STOP_CAPSULE_FILL = 0.62;
 
-/**
- * How far past the band's paint each rule reaches, as a multiple of one lane's width, before the
- * capsule's round end is added.
- *
- * Enough that the capsule reads as crossing the band rather than as being clipped by it, and no
- * more: the overhang is the whole of what the mark adds to the drawing's footprint.
- */
+/** How far a rule reaches past the band's paint, in lanes, so it reads as crossing it. */
 const ZENTRUM_SCHEMATIC_STOP_BAR_OVERHANG = 0.1;
 
-/**
- * How far a rule stands clear of a band crossing its corridor, as a multiple of one lane's width.
- *
- * A place drawn on one arm of a junction has to be outside the traffic running across that arm,
- * or it reads as a rule over the crossing rather than as a platform on the arm.
- */
+/** How far, in lanes, a rule on one arm stands clear of the band crossing that arm. */
 const ZENTRUM_SCHEMATIC_STOP_BAR_CLEARANCE = 1;
 
-/**
- * How far along its corridor a rule may be pushed, as a share of the corridor's length.
- *
- * The Zentrum has corridors one grid step long. A rule pushed clear of a wide crossing band would
- * land on the next stop along, so the clearance gives way to the corridor.
- */
+/** How far along its corridor a rule may be pushed, so it never lands on the next stop. */
 const ZENTRUM_SCHEMATIC_STOP_BAR_MAXIMUM_REACH = 0.4;
 
 /** One corridor as it leaves a stop: the way out, how far it runs, and the lanes it carries. */
@@ -149,11 +99,8 @@ const getBandExtent = (
 };
 
 /**
- * One rule across the band of the corridors given, standing `reach` out along the first of them.
- *
- * The rule is laid on the corridor's oriented normal, which is the same measurement the lanes
- * themselves are offset along, so it crosses the band it is drawn from squarely however the edge
- * happens to be stated. Two opposite arms hand in one band and are crossed at the stop itself.
+ * One rule across the given arms' band, `reach` out along the first, laid on the same normal the
+ * lanes are offset along. Two opposite arms are one band, crossed at the stop.
  */
 const getStopBar = (
   node: ZentrumSchematicNode,
@@ -192,14 +139,9 @@ const isParallelArms = (
   );
 
 /**
- * The rules a stop keeps once a rule that already crosses another street is let stand for it.
- *
- * A street crossing another at a slant runs through the other's rule: Durlacher Tor's diagonal
- * crosses the Kaiserstraße at the stop, inside the rule laid across the Kaiserstraße. A second
- * capsule there would only tangle with the first, so the longest rules are laid first and a rule
- * whose every lane one of them already crosses is dropped. A square crossing keeps both -- neither
- * rule crosses the other street's lanes, which run alongside it -- and two places on one street
- * keep theirs, because a rule only ever stands in for a street other than its own.
+ * Drops a rule whose street another rule already crosses. A street meeting another at a slant
+ * (Durlacher Tor) runs through the other's rule, and a second capsule would tangle with it; a
+ * square crossing keeps both, since neither rule crosses the other's lanes.
  */
 const dropCoveredBars = (
   node: ZentrumSchematicNode,
@@ -220,12 +162,7 @@ const dropCoveredBars = (
   return laid.map(({ bar }) => bar);
 };
 
-/**
- * Whether a rule crosses every lane of a street through the stop, within its own length.
- *
- * Each lane is the straight its offset puts it on; a lane running alongside the rule never crosses
- * it, which is what keeps both rules of a square crossing.
- */
+/** Whether a rule crosses every lane of a street through the stop, within its own length. */
 const crossesEveryLane = (
   bar: StopBar,
   node: ZentrumSchematicNode,
@@ -249,12 +186,8 @@ const crossesEveryLane = (
 };
 
 /**
- * The arms a place is drawn on: the ones that are most its own.
- *
- * Every place at a junction shares the busy corridor through it -- at Karlstor both places run to
- * Europaplatz -- so the corridor that says which place this is, is the one the others do not use.
- * Where the places share everything, a place is simply drawn on its own arms, which is what a stop
- * with one place is drawn on anyway.
+ * The arms a place is drawn on: those the stop's other places do not use, since every place
+ * shares the busy corridor (at Karlstor, both run to Europaplatz). Else its own arms.
  */
 const getPlaceArms = (
   place: ZentrumSchematicBoardingPlace,
@@ -269,11 +202,8 @@ const getPlaceArms = (
 };
 
 /**
- * The rules one stop is drawn with, given the places to stand the reading has named there.
- *
- * A place standing on a straight -- both ways out of one street -- is crossed at the stop itself,
- * because that is where a platform on a street is. A place standing on one arm is pushed out along
- * it until it is clear of the widest band crossing that arm, or as far as the arm allows.
+ * The rules one stop is drawn with. A place on a straight is crossed at the stop; a place on one
+ * arm is pushed out along it, clear of the widest band crossing it, as far as the arm allows.
  */
 const getNodeStopBars = (
   node: ZentrumSchematicNode,
@@ -291,8 +221,7 @@ const getNodeStopBars = (
     return { arms: straightArms, bar: getStopBar(node, straightArms, 0, trackWidth) };
   };
   const getArmBar = (arm: ZentrumSchematicNodeArm) => {
-    // Clear of the crossing traffic: how far the widest band that is not on this straight reaches
-    // across it, which is what the rule has to stand outside to read as a platform on this arm.
+    // Outside the widest band crossing this arm, or it reads as a rule over the crossing.
     const crossing = arms.filter(
       (other) => other !== arm && !isOppositeArm(arm, other) && other.nodeId !== arm.nodeId,
     );
@@ -311,8 +240,7 @@ const getNodeStopBars = (
   };
 
   if (places.length < 2) {
-    // One straight at a time, so a crossing is two rules over each other rather than a star: the
-    // arms of one street hand in one band and are crossed once, at the stop.
+    // One rule per straight, so a crossing is two rules rather than a star.
     const straights: ZentrumSchematicNodeArm[][] = [];
     for (const arm of arms) {
       const straight = straights.find((one) => isOppositeArm(one[0], arm));
@@ -345,12 +273,8 @@ const getNodeStopBars = (
 };
 
 /**
- * The farthest a corridor may space a name off its stop, as a multiple of the band's half width.
- *
- * A corridor leaving the stop the way the name stands is one the name can only clear by being
- * pushed along it, and a shallow angle would push it the whole way to the next stop. Two half
- * widths clears the diagonal a name most often has to sit beside -- Rüppurrer Tor's -- and leaves
- * every name still reading as belonging to the dot it hangs from.
+ * The farthest a corridor may push a name off its stop, in band half widths. A corridor leaving
+ * the way the name stands would otherwise push it to the next stop.
  */
 const ZENTRUM_SCHEMATIC_LABEL_MAXIMUM_REACH = 2;
 
@@ -363,13 +287,8 @@ const LABEL_SIDE_DIRECTIONS = {
 } as const;
 
 /**
- * How far a corridor's paint reaches from the stop, going one way out of it.
- *
- * A band is the strip half a width either side of the corridor it runs along, and how far a name
- * has to travel to leave that strip depends on the angle between the two. Square to the corridor
- * it is half the width; along a corridor pointing the same way it never leaves at all, so the
- * reach is capped — a name is spaced off a station, not walked to the next one. Ninety degrees the
- * other way, where the corridor leaves the stop behind the name, the strip is already behind it.
+ * How far a name going one way from the stop travels before it is off a corridor's band: half the
+ * width when square to it, capped when nearly along it, nothing when the corridor leaves behind it.
  */
 const getArmReach = (
   arm: ZentrumSchematicNodeArm,
@@ -388,13 +307,7 @@ const getArmReach = (
     : halfWidth * across;
 };
 
-/**
- * How far the station reaches from its coordinate towards one side.
- *
- * Two things are drawn at a stop and a name has to clear both: the rules the stop is marked with,
- * which are measured where their ends actually lie, and the bands of the corridors leaving it,
- * measured by how far the name has to go to be off them.
- */
+/** How far the stop's drawing reaches towards one side: its rules, and the bands leaving it. */
 const getSideClearance = (
   node: ZentrumSchematicNode,
   arms: readonly ZentrumSchematicNodeArm[],
@@ -429,12 +342,7 @@ const getLabelClearance = (
   below: getSideClearance(node, arms, bars, trackWidth, LABEL_SIDE_DIRECTIONS.below),
 });
 
-/**
- * The rule, or rules, each stop the reading draws is marked with.
- *
- * Sized from the corridors themselves, so a mark is exactly as wide as what calls there, and placed
- * from the places to stand the reading has named, so a junction says how many of them it is.
- */
+/** The rules each drawn stop is marked with, as wide as what calls there, one per named place. */
 export const getZentrumSchematicStopMarks = (
   edges: readonly ZentrumSchematicEdge[],
   trackWidth: number,
@@ -451,8 +359,7 @@ export const getZentrumSchematicStopMarks = (
     if (!node) return [];
     const arms = getNodeArms(node, nodeEdges);
     const bars = getNodeStopBars(node, arms, boardingPlacesByNodeId.get(nodeId) ?? [], trackWidth);
-    // Two places of one stop can settle on the same rule -- the same straight, crossed at the same
-    // point -- and drawing it twice only thickens it.
+    // Two places can settle on the same rule; drawn twice it would only thicken.
     const dataByBar = new Map(
       bars.map((bar) => [
         `${formatPoint(bar.from)} ${formatPoint(bar.to)}`,

@@ -21,19 +21,15 @@ export type ZentrumPlanCanvas = {
 };
 
 /**
- * The size the plan is drawn at, and the place the reader keeps while it changes.
- *
- * A zoom the scroll position is not moved with is a jump: the plan grows away from its top left
- * corner, so pressing + on the Hauptbahnhof leaves the reader over the Kaiserstraße. So the middle
- * of what is on screen is remembered as a share of the plan and put back under the middle once the
- * new width has been laid out — the step in and the step out land on the same place.
+ * The size the plan is drawn at. A zoom keeps the middle of the view where it was: unanchored, the
+ * plan grows away from its top left corner and the reader loses their place.
  */
 export function useZentrumPlanCanvas(): ZentrumPlanCanvas {
   const [zoom, setZoom] = useState<number>(ZENTRUM_ZOOM_STEPS[0]);
   const scrollRef = useRef<HTMLDivElement>(null);
-  /** Where the reader was looking when the zoom was pressed, as a share of the whole plan. */
+  /** The middle of the view when the zoom was pressed, as a share of the plan. */
   const zoomAnchor = useRef<{ x: number; y: number }>(null);
-  /** Whether the plan has been laid out once, and so already put the middle of itself on screen. */
+  /** Whether the plan has already been centred once. */
   const hasOpened = useRef(false);
   const box = useElementBox(scrollRef);
   const planWidth = getZentrumPlanWidth(box, zoom);
@@ -48,10 +44,8 @@ export function useZentrumPlanCanvas(): ZentrumPlanCanvas {
       element.scrollTop = anchor.y * element.scrollHeight - element.clientHeight / 2;
       return;
     }
-    // A plan drawn larger than its box opens on the middle of itself rather than on its top left
-    // corner: a phone otherwise opens on the Mühlburger Tor, which is the edge of the Zentrum, and
-    // the reader has to pan to find the middle before they can read anything. Once only -- after
-    // that the place being read is the reader's own, and a re-measure must not take it from them.
+    // A plan larger than its box opens centred, not on its edge. Once only: after that the place
+    // being read is the reader's, and a re-measure must not move it.
     if (hasOpened.current || planWidth === undefined) return;
     hasOpened.current = true;
     element.scrollLeft = (element.scrollWidth - element.clientWidth) / 2;

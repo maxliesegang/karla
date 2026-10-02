@@ -15,6 +15,7 @@ import {
   type ZentrumTravelTime,
   getMinutesUntilArrival,
 } from "../../lib/zentrum-schematic-overlays";
+import { isRailDeparture } from "../../lib/zentrum-schematic-plan";
 import { getDepartureOpenPath, navigateTo, routePaths } from "../../routing";
 import { DepartureCountdown } from "../DepartureCountdown";
 import { DepartureTime } from "../DepartureTime";
@@ -30,7 +31,7 @@ const STOP_READINGS = [
   { value: "departures", label: "Abfahrten" },
 ] as const;
 
-/** Minutes as the board's countdown column prints them, so a minute reads the same everywhere. */
+/** Minutes as the board's countdown prints them. */
 export const toCountdownReading = (minutes: number): CountdownReading =>
   minutes <= 0
     ? { kind: "due", label: "jetzt" }
@@ -40,14 +41,9 @@ export const toCountdownReading = (minutes: number): CountdownReading =>
 export type ZentrumReachedStop = ZentrumTravelTime & { nodeId: string; label: string };
 
 /**
- * The stop a rider opened on the plan: the plan's answer, said in the board's own words.
- *
- * It is the panel beside the plan, where the departure board stands beside a line's diagram, and it
- * is written the way the board is -- the stop's name, the readings as a segmented control, and
- * rows with the board's badge, time and countdown. The departures are the stop's whole board, not
- * only the trams the plan is drawing: a tram already on the plan is marked, and its row finds it
- * there; any other row opens its trip, as it would on the board. The plan carries where; this
- * carries when.
+ * An opened stop's panel, written like the departure board. Departures are the stop's whole
+ * board: a row whose tram is on the plan selects it, any other opens its trip. The plan says
+ * where; this says when.
  */
 export function ZentrumStopPanel({
   stopId,
@@ -67,7 +63,7 @@ export function ZentrumStopPanel({
   label: string;
   reading: ZentrumStopReading;
   onChangeReading: (reading: ZentrumStopReading) => void;
-  /** The stop's board read against the plan, or nothing while it has not answered. */
+  /** The stop's board read against the plan, or undefined until it answers. */
   rows?: readonly ZentrumStopBoardRow[];
   board: DepartureBoard | null;
   reachedStops: readonly ZentrumReachedStop[];
@@ -141,7 +137,7 @@ export function ZentrumStopPanel({
                 >
                   <LineBadge
                     line={
-                      departure.transportMode === "tram" || departure.transportMode === "lightRail"
+                      isRailDeparture(departure)
                         ? getSign(departure.lineId)
                         : createLineSign(departure.lineId, departure.transportMode)
                     }

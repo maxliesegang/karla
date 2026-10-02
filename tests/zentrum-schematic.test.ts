@@ -5,6 +5,7 @@ import { isZentrumStop, zentrumStopIds } from "../src/data/zentrum-stops.ts";
 import {
   type ZentrumSchematicReading,
   buildZentrumSchematicReading,
+  createZentrumSchematicReader,
   getZentrumSchematicVehicles,
 } from "../src/lib/zentrum-schematic.ts";
 import {
@@ -214,6 +215,42 @@ test("a run the boards have stopped naming still states the corridors its mark r
   assert.deepEqual(
     reading.edges.map(({ from, to, lineIds }) => [from.id, to.id, lineIds]),
     [["europaplatz", "muehlburger-tor", ["2"]]],
+  );
+});
+
+test("a refresh that draws the same plan is handed the same plan, laid out once", () => {
+  // Laying the lanes out is the plan's dear reading; runs come and go every few seconds, the
+  // corridors and patterns they state a few times a day.
+  const west = call("muehlburger-tor", "7000039");
+  const europa = call("europaplatz", "7000037");
+  const market = call("marktplatz", "7001003");
+  const karlstor = call("karlstor", "7000061");
+  const read = createZentrumSchematicReader();
+  const first = read([
+    departure("2", [west, europa, market], { id: "a", tripId: "a" }),
+    departure("2", [market, europa, west], { id: "b", tripId: "b" }),
+  ]);
+
+  const swapped = read([
+    departure("2", [market, europa, west], { id: "c", tripId: "c" }),
+    departure("2", [west, europa, market], { id: "d", tripId: "d" }),
+  ]);
+  assert.equal(swapped, first);
+
+  // A new corridor is a new plan.
+  const grown = read([
+    departure("2", [west, europa, market], { id: "a", tripId: "a" }),
+    departure("S1", [west, europa, karlstor], { id: "e", tripId: "e" }),
+  ]);
+  assert.notEqual(grown, first);
+  assert.notEqual(grown.layoutKey, first.layoutKey);
+  assert.deepEqual(grown.lineIds, ["2", "S1"]);
+  assert.deepEqual(
+    grown.edges.map(({ id }) => id),
+    buildZentrumSchematicReading([
+      departure("S1", [west, europa, karlstor], { id: "e", tripId: "e" }),
+      departure("2", [west, europa, market], { id: "a", tripId: "a" }),
+    ]).edges.map(({ id }) => id),
   );
 });
 
