@@ -1,14 +1,13 @@
 import { useEffect, useState } from "react";
-import type { Departure } from "../../data/transit-types";
+import type { Departure, DepartureBoard } from "../../data/transit-types";
 import { useZentrumPlanCanvas } from "../../hooks/zentrum-plan-canvas";
 import type { ZentrumSchematicVehicle } from "../../lib/zentrum-schematic";
 import {
   type ZentrumSchematicOverlay,
-  type ZentrumStopDeparture,
+  type ZentrumStopBoardRow,
   getMinutesUntilArrival,
-  getMinutesUntilDeparture,
   getZentrumProgressOverlay,
-  getZentrumStopDepartures,
+  getZentrumStopBoard,
   getZentrumTravelTimes,
 } from "../../lib/zentrum-schematic-overlays";
 import {
@@ -19,8 +18,12 @@ import {
   zentrumSchematicNodeById,
 } from "../../lib/zentrum-schematic-plan";
 import type { ZentrumLineSignReader } from "./line-sign";
-import { ZentrumSchematicCanvas } from "./ZentrumSchematicCanvas";
-import { ZentrumSchematicToolbar, type ZentrumPlanReading } from "./ZentrumSchematicToolbar";
+import { ZentrumSchematicCanvas, type ZentrumStopTravelTag } from "./ZentrumSchematicCanvas";
+import {
+  ZentrumPlanControls,
+  ZentrumSchematicToolbar,
+  type ZentrumPlanReading,
+} from "./ZentrumSchematicToolbar";
 import {
   type ZentrumReachedStop,
   ZentrumStopPanel,
@@ -33,62 +36,59 @@ const formatCount = (count: number, one: string, many: string): string =>
   `${count} ${count === 1 ? one : many}`;
 
 /**
- * The caption at the foot of the drawing: what the colour on it means, in as few words as that takes.
+ * The caption under the drawing: what the colour on it means, in as few words as that takes.
  *
- * It says what cannot be read off the drawing — that the marks are estimates rather than fixes,
- * what the colour stands for in the reading being shown, and, while nothing is chosen, that a stop
- * can be. What the reader can already see, they are not told: which lines are drawn is the legend
- * beside it, and where the reading came from is the page's provenance footer.
+ * It says what cannot be read off the drawing — what the colour stands for in the reading being
+ * shown, and, while nothing is chosen, that a stop can be. What the reader can already see, they are
+ * not told: which lines are drawn is the legend beside it, and where the reading came from is the
+ * page's provenance footer.
  */
 const getZentrumSchematicCaption = (
   selectedLineId: string | undefined,
   vehicleCount: number,
   colour: ZentrumPlanReading | ZentrumStopReading,
 ): string => {
-  if (colour === "departures") return "Farbig: der Weg der nächsten Bahnen hierher · geschätzt";
-  if (colour === "travelTimes") return "Minuten bis zur Ankunft ohne Umsteigen · geschätzt";
+  if (colour === "departures") return "Farbig: Weg der nächsten Bahnen hierher";
+  if (colour === "travelTimes") return "Minuten bis zur Ankunft, ohne Umsteigen";
   if (selectedLineId) {
     return vehicleCount === 0
-      ? `Linie ${selectedLineId} · derzeit keine Bahn unterwegs`
-      : `Linie ${selectedLineId} · ${formatCount(vehicleCount, "Bahn", "Bahnen")}`;
+      ? `Linie ${selectedLineId} · gerade keine Bahn im Plan`
+      : `Linie ${selectedLineId} · ${formatCount(vehicleCount, "Bahn", "Bahnen")} im Plan`;
   }
-  const running = formatCount(vehicleCount, "Bahn unterwegs", "Bahnen unterwegs");
+  const running = formatCount(vehicleCount, "Bahn", "Bahnen");
   return colour === "progress"
-    ? `${running} · farbig, wo noch eine fährt`
-    : `${running} · Haltestelle antippen für Abfahrten`;
+    ? `${running} · farbig: ihr Weg voraus`
+    : `${running} im Plan · Haltestelle antippen`;
 };
 
 /** What one opened stop lights on the plan, and the readings that go with it. */
 type ZentrumStopView = {
   overlay: ZentrumSchematicOverlay;
-  departures: readonly ZentrumStopDeparture[];
+  /** The stop's board, or nothing while it has not answered. */
+  rows?: readonly ZentrumStopBoardRow[];
   reachedStops: readonly ZentrumReachedStop[];
   /** The countdown each tram the stop is waiting for carries on the plan. */
   vehicleMinutesById?: ReadonlyMap<string, number>;
-  /** The minutes each reached stop is printed with on the plan. */
-  stopMinutesByNodeId?: ReadonlyMap<string, number>;
+  /** The minutes each reached stop is printed with on the plan, and the line that gets there. */
+  stopMinutesByNodeId?: ReadonlyMap<string, ZentrumStopTravelTag>;
 };
 
 const getZentrumStopView = (
   reading: ZentrumStopReading,
   stop: ZentrumSchematicNode,
+  board: DepartureBoard | null,
   vehicles: readonly ZentrumSchematicVehicle[],
   runDepartures: readonly Departure[],
   feedNow: number,
 ): ZentrumStopView => {
   if (reading === "departures") {
-    const { departures, overlay } = getZentrumStopDepartures(vehicles, stop.id);
-    return {
-      overlay,
-      departures,
-      reachedStops: [],
-      vehicleMinutesById: new Map(
-        departures.map(({ vehicle, departsAt }) => [
-          vehicle.id,
-          getMinutesUntilDeparture(departsAt, feedNow),
-        ]),
-      ),
-    };
+    const { rows, overlay, vehicleMinutesById } = getZentrumStopBoard(
+      board?.departures ?? [],
+      vehicles,
+      stop.id,
+      feedNow,
+    );
+    return { overlay, rows: board ? rows : undefined, reachedStops: [], vehicleMinutesById };
   }
   const { travelTimesByNodeId, overlay } = getZentrumTravelTimes(runDepartures, stop.id, feedNow);
   const reachedStops = [...travelTimesByNodeId]
@@ -101,20 +101,19 @@ const getZentrumStopView = (
     );
   return {
     overlay,
-    departures: [],
     reachedStops,
     stopMinutesByNodeId: new Map(
-      reachedStops.map(({ nodeId, arrivesAt }) => [
+      reachedStops.map(({ nodeId, arrivesAt, lineId }) => [
         nodeId,
-        getMinutesUntilArrival(arrivesAt, feedNow),
+        { minutes: getMinutesUntilArrival(arrivesAt, feedNow), lineId },
       ]),
     ),
   };
 };
 
 /**
- * The Zentrum's plan as it is read: the drawing, the band of controls under it, and the panel
- * beside it for whatever a reader opened.
+ * The Zentrum's plan as it is read: the drawing with its own controls, the band under it, and the
+ * panel beside it for whatever a reader opened.
  *
  * Two levels of choice, each one segmented control. The plan's own reading -- its lines, or where
  * the trams on it are still going -- sits in the band under it. An opened stop is the other level:
@@ -134,6 +133,7 @@ export function ZentrumSchematic({
   selectedStopId,
   vehicles,
   runDepartures,
+  stopBoard,
   feedNow,
   isFullscreen,
   onSelectLine,
@@ -156,6 +156,8 @@ export function ZentrumSchematic({
   vehicles: readonly ZentrumSchematicVehicle[];
   /** Every run the posts name, the ones not on the plan yet included: what a stop's wait is read from. */
   runDepartures: readonly Departure[];
+  /** The opened stop's own board, or nothing while it has not answered. */
+  stopBoard: DepartureBoard | null;
   feedNow: number;
   /** Whether the plan is being read at the size of the screen. */
   isFullscreen: boolean;
@@ -165,7 +167,7 @@ export function ZentrumSchematic({
 }) {
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>();
   const [planReading, setPlanReading] = useState<ZentrumPlanReading>("lines");
-  const [stopReading, setStopReading] = useState<ZentrumStopReading>("departures");
+  const [stopReading, setStopReading] = useState<ZentrumStopReading>("travelTimes");
   const plan = useZentrumPlanCanvas();
 
   // Escape is what a reader expects to close a thing that took the screen, and the back gesture is
@@ -184,7 +186,7 @@ export function ZentrumSchematic({
     selectedStopId === undefined ? undefined : zentrumSchematicNodeById.get(selectedStopId);
   // An opened stop is the reading the plan is lit by; without one, the plan's own reading is.
   const stopView = selectedStop
-    ? getZentrumStopView(stopReading, selectedStop, vehicles, runDepartures, feedNow)
+    ? getZentrumStopView(stopReading, selectedStop, stopBoard, vehicles, runDepartures, feedNow)
     : undefined;
   const overlay =
     stopView?.overlay ??
@@ -220,8 +222,10 @@ export function ZentrumSchematic({
       label={selectedStop.label}
       reading={stopReading}
       onChangeReading={setStopReading}
-      departures={stopView.departures}
+      rows={stopView.rows}
+      board={stopBoard}
       reachedStops={stopView.reachedStops}
+      selectedVehicleId={selectedVehicleId}
       onSelectVehicle={toggleVehicle}
       getSign={getSign}
       feedNow={feedNow}
@@ -259,6 +263,14 @@ export function ZentrumSchematic({
             zoom={plan.zoom}
             planWidth={plan.planWidth}
           />
+          <ZentrumPlanControls
+            zoom={plan.zoom}
+            canZoomIn={plan.canZoomIn}
+            canZoomOut={plan.canZoomOut}
+            onChangeZoom={plan.changeZoom}
+            isFullscreen={isFullscreen}
+            onChangeFullscreen={onChangeFullscreen}
+          />
         </div>
         <ZentrumSchematicToolbar
           caption={getZentrumSchematicCaption(
@@ -272,12 +284,6 @@ export function ZentrumSchematic({
           onSelectLine={selectLine}
           planReading={planReading}
           onChangePlanReading={selectedStop ? undefined : setPlanReading}
-          zoom={plan.zoom}
-          canZoomIn={plan.canZoomIn}
-          canZoomOut={plan.canZoomOut}
-          onChangeZoom={plan.changeZoom}
-          isFullscreen={isFullscreen}
-          onChangeFullscreen={onChangeFullscreen}
         />
       </div>
       {sheet}

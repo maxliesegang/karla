@@ -43,6 +43,9 @@ import {
  */
 const ZENTRUM_NAME_EVERY_STOP_WIDTH = 1000;
 
+/** How soon a stop is reached from the opened one, and the line that gets the rider there. */
+export type ZentrumStopTravelTag = { minutes: number; lineId: string };
+
 /** What a mark animates with, on top of the place the schematic already gives it. */
 type ZentrumVehicleMark = ZentrumSchematicVehicle & TrajectoryAnimationFields;
 
@@ -99,9 +102,9 @@ export function ZentrumSchematicCanvas({
   vehicleMinutesById?: ReadonlyMap<string, number>;
   /**
    * The minutes each stop is reached in from the opened one, printed before its name the way a
-   * timetable prints its travel times. Present, it recedes every stop it does not reach.
+   * timetable prints its travel times, behind the sign of the line that gets the rider there. Present, it recedes every stop it does not reach.
    */
-  stopMinutesByNodeId?: ReadonlyMap<string, number>;
+  stopMinutesByNodeId?: ReadonlyMap<string, ZentrumStopTravelTag>;
   selectedVehicleId?: string;
   onSelectVehicle: (vehicleId: string) => void;
   onSelectStation: (stationId: string) => void;
@@ -270,7 +273,8 @@ export function ZentrumSchematicCanvas({
             : false;
           const isSelected = selectedStationId === node.id;
           const labelSide = getZentrumLabelSide(node, planWidth, stopMark?.labelClearance);
-          const minutes = stopMinutesByNodeId?.get(node.id);
+          const travel = stopMinutesByNodeId?.get(node.id);
+          const minutes = travel?.minutes;
           const isMuted = stopMinutesByNodeId
             ? minutes === undefined && !isSelected
             : highlightedLineIds !== undefined && !isHighlighted;
@@ -305,15 +309,18 @@ export function ZentrumSchematicCanvas({
               }
               onClick={() => onSelectStation(node.id)}
               aria-pressed={isSelected}
-              aria-label={`${node.label}, Linien ${lineIdsAtNode.join(", ")}${minutes !== undefined ? `, in ${minutes} Minuten erreichbar` : ""}. ${isSelected ? "Haltestelle schließen" : "Abfahrten und Fahrzeiten ab hier"}`}
+              aria-label={`${node.label}, Linien ${lineIdsAtNode.join(", ")}${travel ? `, mit Linie ${travel.lineId} in ${travel.minutes} Minuten erreichbar` : ""}. ${isSelected ? "Haltestelle schließen" : "Abfahrten und Fahrzeiten ab hier"}`}
             >
               <i aria-hidden="true" />
               <span>
                 {/* The travel time heads the name, as a timetable heads its stops with minutes:
                     one place whichever side the name is set on, and no wider than the name. */}
-                {minutes !== undefined && (
+                {travel && (
                   <b className="zentrum-schematic-stop-time" aria-hidden="true">
-                    {minutes}
+                    {/* The line rides in front of the minutes, so the time reads as that
+                        tram's: "S1 8 min". */}
+                    <em>{travel.lineId}</em>
+                    {travel.minutes}
                     <small>min</small>
                   </b>
                 )}

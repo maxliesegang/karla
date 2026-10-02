@@ -1249,7 +1249,7 @@ button.brand:active .brand-mark,
 }
 /* The way back out is the one control on the band that changes the whole page, so it is the one
    that is filled rather than outlined. */
-.zentrum-schematic[data-fullscreen="true"] .zentrum-schematic-expand {
+.zentrum-schematic[data-fullscreen="true"] .zentrum-plan-expand {
   border-color: var(--ink);
   background: var(--ink);
   color: var(--surface);
@@ -1545,11 +1545,45 @@ button.brand:active .brand-mark,
   font-size: 15px;
   font-weight: 650;
 }
+/* The mark of a departure already on the plan: a tram's own dot, as the plan draws it. */
+.zentrum-sheet-on-plan {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-right: 6px;
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  background: var(--ink);
+  box-shadow: 0 0 0 1px var(--ink);
+  vertical-align: 0.05em;
+}
 .zentrum-sheet-link {
   align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 36px;
+  padding: 0 10px 0 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: 18px;
+  background: var(--surface);
   color: var(--accent-ink);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 750;
+  text-decoration: none;
+}
+.zentrum-sheet-link:hover,
+.zentrum-sheet-link:focus-visible {
+  border-color: var(--accent-ink);
+}
+.zentrum-sheet-link svg {
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
 }
 .zentrum-schematic-stop {
   position: absolute;
@@ -1587,16 +1621,39 @@ button.brand:active .brand-mark,
 /* The travel time, set as a timetable sets its minutes: a figure in tabular digits heading the name,
    with no plate -- the halo the name carries lifts it off the lines. */
 .zentrum-schematic-stop-time {
-  display: block;
-  margin-bottom: 1px;
+  display: flex;
+  align-items: center;
+  gap: 0.25em;
+  margin-bottom: 2px;
   font-size: 1.15em;
   font-weight: 800;
   font-variant-numeric: tabular-nums;
   line-height: 1;
   white-space: nowrap;
 }
+.zentrum-schematic-stop.above .zentrum-schematic-stop-time,
+.zentrum-schematic-stop.below .zentrum-schematic-stop-time {
+  justify-content: center;
+}
+.zentrum-schematic-stop.left .zentrum-schematic-stop-time {
+  justify-content: flex-end;
+}
+/* The line that gets the rider there, set plain beside the minutes: a dozen stops each in a
+   line's colour read as noise over a plan whose lanes already carry those colours. */
+.zentrum-schematic-stop-time em {
+  padding: 0.05em 0.35em;
+  border: 1px solid var(--line-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  color: var(--ink);
+  font-size: 0.78em;
+  font-style: normal;
+  font-weight: 800;
+  line-height: 1.15;
+  text-shadow: none;
+}
 .zentrum-schematic-stop-time small {
-  margin-left: 1px;
+  margin-left: -0.15em;
   color: var(--ink-soft);
   font-size: 0.72em;
   font-weight: 700;
@@ -1695,49 +1752,81 @@ button.brand:active .brand-mark,
 .zentrum-schematic-stop.right {
   transform: translate(calc(var(--zentrum-stop-dot) / -2 - 3px), -50%);
 }
-/* One band of controls under the plan rather than four stacked ones: the zoom at the end a thumb
-   reaches, the legend along the rest of it. The legend is the filter too, so following a line is
-   one gesture in one place. */
+/* One band under the plan: the legend, which is also the filter, the caption, and the plan's
+   reading at the end a thumb reaches. */
 .zentrum-schematic-toolbar {
   flex: 0 0 auto;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px 12px;
+  gap: 6px 14px;
   min-width: 0;
 }
-.zentrum-schematic-zoom {
-  flex: 0 0 auto;
+/* The drawing's own controls float in its bottom corner, as a map's do: the plan keeps every row,
+   and the zoom sits where a thumb already is. */
+.zentrum-plan-controls {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 6;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  pointer-events: none;
 }
-.zentrum-schematic-zoom button {
-  width: 28px;
-  height: 28px;
+.zentrum-plan-controls > * {
+  pointer-events: auto;
+}
+.zentrum-plan-zoom {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  box-shadow: 0 2px 8px #10201f1f;
+}
+.zentrum-plan-zoom button + button {
+  border-top: 1px solid var(--line);
+}
+.zentrum-plan-controls button {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
   padding: 0;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-s);
+  border: 0;
   background: var(--surface);
   color: var(--ink);
-  font: inherit;
-  font-size: 15px;
-  line-height: 1;
   cursor: pointer;
 }
-.zentrum-schematic-zoom button:hover:enabled,
-.zentrum-schematic-zoom button:focus-visible {
+.zentrum-plan-expand {
+  border: 1px solid var(--line-strong) !important;
+  border-radius: var(--radius-m);
+  box-shadow: 0 2px 8px #10201f1f;
+}
+.zentrum-plan-controls svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.zentrum-plan-controls button:hover:enabled,
+.zentrum-plan-controls button:focus-visible {
   background: var(--surface-2);
 }
-.zentrum-schematic-zoom button:disabled {
-  opacity: 0.4;
-  cursor: default;
+.zentrum-schematic[data-fullscreen="true"] .zentrum-plan-expand:hover,
+.zentrum-schematic[data-fullscreen="true"] .zentrum-plan-expand:focus-visible {
+  background: var(--ink);
+  opacity: 0.86;
 }
-/* The size the plan is read at, set off from the two that step the size it is drawn at: it is a
-   different question, and it is the one control on the band that changes the whole page. */
-.zentrum-schematic-expand {
-  margin-right: 2px;
-  font-size: 13px !important;
+.zentrum-plan-controls button:disabled {
+  color: var(--line-strong);
+  cursor: default;
 }
 /* Twenty badges wrapping to three rows was a legend costing more of a phone than the drawing it
    explains; one scrolling row keeps them all reachable and the band one line high. */
@@ -1791,22 +1880,22 @@ button.brand:active .brand-mark,
 .zentrum-schematic-lines[data-has-selection="true"] button:not(.selected) {
   opacity: 0.48;
 }
-/* What cannot be read off the drawing — that the marks are estimates, and which stretches are the
-    ones still ahead — said on the control band, between the legend and the zoom. Plain text on the
-    controls' own baseline rather than a pill on a row of its own: it is a note about the drawing,
-    not a control, and the plan gets the row a pill would take. Which lines are drawn is
-    the legend beside it; where the reading came from is the page's provenance footer. */
+/* What cannot be read off the drawing — what the colour means, and that a stop can be opened —
+   said on the band as plain text rather than a pill on a row of its own: it is a note about the
+   drawing, not a control. */
 .zentrum-schematic-caption {
   flex: 0 1 auto;
   min-width: 0;
-  margin: 0 auto 0 0;
+  margin: 0 0 0 auto;
   color: var(--ink-soft);
-  font-size: 11.5px;
+  font-size: 12px;
   line-height: 1.25;
-  text-align: right;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.zentrum-schematic-reading {
+  flex: 0 0 auto;
 }
 
 /* ---------- Departures ---------- */
@@ -5073,13 +5162,41 @@ button.line-diagram-bundle-option:focus-visible {
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(0, 1fr) auto;
   }
-  .zentrum-schematic[data-has-sheet="true"] .zentrum-schematic-lines,
-  .zentrum-schematic[data-has-sheet="true"] .zentrum-schematic-caption {
+  .zentrum-schematic[data-has-sheet="true"] .zentrum-schematic-toolbar {
     display: none;
   }
   .zentrum-sheet {
-    max-height: 44dvh;
+    max-height: 48dvh;
     gap: 8px;
+  }
+  .zentrum-sheet-heading {
+    min-height: 36px;
+  }
+  .zentrum-sheet-heading h2 {
+    font-size: 22px;
+  }
+  /* Stacked, the legend takes the band's first row and the caption and reading share the second. */
+  .zentrum-schematic-lines {
+    flex-basis: 100%;
+  }
+  .zentrum-schematic-caption {
+    flex: 1 1 0;
+    margin: 0;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    white-space: normal;
+  }
+  .app-shell:not(.station-board-mode) .zentrum-schematic-toolbar .zentrum-schematic-reading {
+    flex: 0 0 auto;
+  }
+  .app-shell:not(.station-board-mode) .zentrum-schematic-reading button,
+  .app-shell:not(.station-board-mode) .zentrum-sheet-readings button {
+    min-height: 34px;
+  }
+  .zentrum-plan-controls button {
+    width: 40px;
+    height: 40px;
   }
   /* Stacked, the band navigation is the surface that pins: the bar names the page, the navigation
      names the band, and the band headings slide under both. Its height is one value because the

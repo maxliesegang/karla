@@ -1,16 +1,21 @@
 import type { CSSProperties } from "react";
+import { createLineSign } from "../../data/line-signs";
+import type { DepartureBoard } from "../../data/transit-types";
 import {
   type CountdownReading,
   formatClockTime,
-  getTripCallTimeReading,
+  getCountdownReading,
+  getDepartureAccessibilityLabel,
+  getDepartureStatusLabel,
+  getDepartureTimeReading,
+  getStaleBoardLabel,
 } from "../../lib/departure-presentation";
 import {
-  type ZentrumStopDeparture,
+  type ZentrumStopBoardRow,
   type ZentrumTravelTime,
   getMinutesUntilArrival,
-  getMinutesUntilDeparture,
 } from "../../lib/zentrum-schematic-overlays";
-import { routePaths } from "../../routing";
+import { getDepartureOpenPath, navigateTo, routePaths } from "../../routing";
 import { DepartureCountdown } from "../DepartureCountdown";
 import { DepartureTime } from "../DepartureTime";
 import { LineBadge } from "../LineBadge";
@@ -21,8 +26,8 @@ import type { ZentrumLineSignReader } from "./line-sign";
 export type ZentrumStopReading = "departures" | "travelTimes";
 
 const STOP_READINGS = [
+  { value: "travelTimes", label: "Fahrzeiten" },
   { value: "departures", label: "Abfahrten" },
-  { value: "travelTimes", label: "Fahrzeit" },
 ] as const;
 
 /** Minutes as the board's countdown column prints them, so a minute reads the same everywhere. */
@@ -39,15 +44,18 @@ export type ZentrumReachedStop = ZentrumTravelTime & { nodeId: string; label: st
  *
  * It is the panel beside the plan, where the departure board stands beside a line's diagram, and it
  * is written the way the board is -- the stop's name, the readings as a segmented control, and
- * rows with the board's badge, time and countdown -- so a tram here reads exactly as it does on the
- * board one tap away. The plan carries where; this carries when.
+ * rows with the board's badge, time and countdown. The departures are the stop's whole board, not
+ * only the trams the plan is drawing: a tram already on the plan is marked, and its row finds it
+ * there; any other row opens its trip, as it would on the board. The plan carries where; this
+ * carries when.
  */
 export function ZentrumStopPanel({
   stopId,
   label,
   reading,
   onChangeReading,
-  departures,
+  rows,
+  board,
   reachedStops,
   selectedVehicleId,
   onSelectVehicle,
@@ -59,7 +67,9 @@ export function ZentrumStopPanel({
   label: string;
   reading: ZentrumStopReading;
   onChangeReading: (reading: ZentrumStopReading) => void;
-  departures: readonly ZentrumStopDeparture[];
+  /** The stop's board read against the plan, or nothing while it has not answered. */
+  rows?: readonly ZentrumStopBoardRow[];
+  board: DepartureBoard | null;
   reachedStops: readonly ZentrumReachedStop[];
   selectedVehicleId?: string;
   onSelectVehicle: (vehicleId: string) => void;
@@ -67,6 +77,7 @@ export function ZentrumStopPanel({
   feedNow: number;
   onClose: () => void;
 }) {
+  const staleLabel = reading === "departures" ? getStaleBoardLabel(board, feedNow) : undefined;
   return (
     <aside className="zentrum-sheet" aria-label={`Haltestelle ${label}`}>
       <div className="zentrum-sheet-heading">
@@ -89,8 +100,12 @@ export function ZentrumStopPanel({
       />
       <p className="zentrum-sheet-note">
         {reading === "departures"
-          ? "Die nächsten Bahnen auf dem Plan, die hier abfahren."
-          : "Ankunft ohne Umsteigen, mit der nächsten Bahn ab hier."}
+          ? (staleLabel ?? (
+              <>
+                <span className="zentrum-sheet-on-plan" aria-hidden="true" /> = schon im Plan
+              </>
+            ))
+          : "Direkt ab hier, ohne Umsteigen."}
       </p>
       <div
         className="zentrum-sheet-list"
@@ -98,41 +113,58 @@ export function ZentrumStopPanel({
         aria-live="polite"
       >
         {reading === "departures" ? (
-          departures.length === 0 ? (
-            <p className="panel-empty">Gerade ist keine Bahn auf dem Plan hierher unterwegs.</p>
+          rows === undefined ? (
+            <p className="panel-empty">Abfahrten werden geladen …</p>
+          ) : rows.length === 0 ? (
+            <p className="panel-empty">Gerade keine Abfahrten.</p>
           ) : (
-            departures.map((departure, index) => {
-              const timeReading = getTripCallTimeReading(departure.call, feedNow);
-              const { vehicle } = departure;
-              const isSelected = selectedVehicleId === vehicle.id;
+            rows.map(({ departure, vehicleId }, index) => {
+              const timeReading = getDepartureTimeReading(departure);
+              const isSelected = vehicleId !== undefined && selectedVehicleId === vehicleId;
               return (
                 <button
-                  key={vehicle.id}
+                  key={departure.id}
                   type="button"
-                  className={`departure${isSelected ? " selected" : ""}`}
+                  className={`departure${isSelected ? " selected" : ""}${
+                    departure.status === "cancelled" ? " cancelled" : ""
+                  }`}
                   style={{ "--departure-index": index } as CSSProperties}
-                  aria-pressed={isSelected}
-                  onClick={() => onSelectVehicle(vehicle.id)}
+                  aria-pressed={vehicleId === undefined ? undefined : isSelected}
+                  aria-label={`${getDepartureAccessibilityLabel(departure, feedNow)}, ${
+                    vehicleId === undefined ? "Fahrtverlauf öffnen" : "im Plan zeigen"
+                  }`}
+                  onClick={() =>
+                    vehicleId === undefined
+                      ? navigateTo(getDepartureOpenPath(departure, stopId, false, undefined))
+                      : onSelectVehicle(vehicleId)
+                  }
                 >
-                  <LineBadge line={getSign(vehicle.lineId)} />
+                  <LineBadge
+                    line={
+                      departure.transportMode === "tram" || departure.transportMode === "lightRail"
+                        ? getSign(departure.lineId)
+                        : createLineSign(departure.lineId, departure.transportMode)
+                    }
+                  />
                   <span className="departure-countdown">
-                    <DepartureCountdown
-                      reading={toCountdownReading(
-                        getMinutesUntilDeparture(departure.departsAt, feedNow),
-                      )}
-                    />
+                    <DepartureCountdown reading={getCountdownReading(departure, feedNow)} />
                   </span>
-                  <span className="departure-destination">{vehicle.destination}</span>
+                  <span className="departure-destination">
+                    {vehicleId !== undefined && (
+                      <span className="zentrum-sheet-on-plan" title="Schon im Plan" />
+                    )}
+                    {departure.destination}
+                  </span>
                   <span className="departure-meta">
                     {timeReading && <DepartureTime reading={timeReading} />}
-                    {departure.isAtStop && <span>steht hier</span>}
+                    {departure.status !== "cancelled" && getDepartureStatusLabel(departure)}
                   </span>
                 </button>
               );
             })
           )
         ) : reachedStops.length === 0 ? (
-          <p className="panel-empty">Gerade ist keine direkte Fahrt ab hier bekannt.</p>
+          <p className="panel-empty">Gerade keine direkte Fahrt ab hier bekannt.</p>
         ) : (
           <ol className="zentrum-sheet-reached">
             {reachedStops.map((reached) => (
@@ -152,8 +184,15 @@ export function ZentrumStopPanel({
           </ol>
         )}
       </div>
-      <a className="zentrum-sheet-link" href={`#${routePaths.stop(stopId)}`}>
-        Alle Abfahrten an {label}
+      <a
+        className="zentrum-sheet-link"
+        href={`#${routePaths.stop(stopId)}`}
+        aria-label={`Haltestellenseite ${label} öffnen`}
+      >
+        Zur Haltestelle
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          <path d="m7.5 4.5 5 5.5-5 5.5" />
+        </svg>
       </a>
     </aside>
   );

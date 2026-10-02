@@ -9,6 +9,7 @@ import {
 import {
   getMinutesUntilArrival,
   getZentrumProgressOverlay,
+  getZentrumStopBoard,
   getZentrumStopDepartures,
   getZentrumTravelTimes,
 } from "../src/lib/zentrum-schematic-overlays.ts";
@@ -132,6 +133,71 @@ test("offers only the next tram of a line toward one destination", () => {
 
   assert.equal(departures.length, 1);
   assert.equal(departures[0]?.departsAt, instant(4));
+});
+
+/** The row a stop's own board states for a run, as the board at that stop publishes it. */
+const boardRow = (departure: Departure, localStopId: string, minute: number): Departure => ({
+  ...departure,
+  boardingLocalStopId: localStopId,
+  scheduledDepartureTime: at(minute),
+});
+
+test("reads a stop's whole board, and marks the trams of it already on the plan", () => {
+  const lead = eastbound("lead", 0);
+  const later = eastbound("later", 10);
+  const unrouted = createDeparture({ id: "bus", lineId: "S5", destination: "Rheinhafen" });
+  const [vehicle] = placeVehicles([lead], 1);
+  assert.ok(vehicle);
+
+  const { rows, vehicleMinutesById } = getZentrumStopBoard(
+    [boardRow(lead, "kronenplatz", 4), boardRow(later, "kronenplatz", 14), unrouted],
+    [vehicle],
+    "kronenplatz",
+    instant(1),
+  );
+
+  assert.deepEqual(
+    rows.map(({ departure, vehicleId }) => [departure.id, vehicleId]),
+    [
+      ["lead", vehicle.id],
+      ["later", undefined],
+      ["bus", undefined],
+    ],
+  );
+  // The wait the mark carries is the one its board row counts.
+  assert.deepEqual([...vehicleMinutesById], [[vehicle.id, 3]]);
+});
+
+test("signs every drawn tram of the board with the wait its row counts", () => {
+  const vehicles = placeVehicles([eastbound("lead", 0), eastbound("follower", 2)], 3);
+
+  const { vehicleMinutesById } = getZentrumStopBoard(
+    [
+      boardRow(eastbound("lead", 0), "kronenplatz", 4),
+      boardRow(eastbound("follower", 2), "kronenplatz", 6),
+    ],
+    vehicles,
+    "kronenplatz",
+    instant(3),
+  );
+
+  assert.deepEqual([...vehicleMinutesById.values()], [1, 3]);
+});
+
+test("signs a tram published at two places of a stop with the wait at the first", () => {
+  const lead = eastbound("lead", 0);
+  const [vehicle] = placeVehicles([lead], 1);
+  assert.ok(vehicle);
+
+  const { rows, vehicleMinutesById } = getZentrumStopBoard(
+    [boardRow(lead, "kronenplatz", 4), boardRow(lead, "kronenplatz", 5)],
+    [vehicle],
+    "kronenplatz",
+    instant(1),
+  );
+
+  assert.equal(rows.length, 2);
+  assert.deepEqual([...vehicleMinutesById.values()], [3]);
 });
 
 test("reads how soon every stop is reached directly, by the tram that gets there first", () => {

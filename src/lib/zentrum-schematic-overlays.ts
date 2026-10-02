@@ -10,8 +10,10 @@
  * - Travel times: how soon a rider at a stop can be at every other one, without changing.
  */
 import type { Departure, TripCall } from "../data/transit-types";
+import { getCountdownMinutes } from "./feed-clock";
 import { compareLineIds } from "./line-families";
 import { collapseTurnaroundCalls, getTripCallInstant } from "./trip-calls";
+import { isSameRun } from "./trips";
 import type { ZentrumSchematicVehicle } from "./zentrum-schematic";
 import { findZentrumSchematicNodeId, getEdgeKey } from "./zentrum-schematic-plan";
 
@@ -84,7 +86,52 @@ export function getZentrumStopDepartures(
   vehicles: readonly ZentrumSchematicVehicle[],
   nodeId: string,
 ): { departures: readonly ZentrumStopDeparture[]; overlay: ZentrumSchematicOverlay } {
-  const candidates: (ZentrumStopDeparture & { edgeIds: string[]; end?: number })[] = [];
+  const candidates = getZentrumStopApproaches(vehicles, nodeId);
+  const nextByWay = new Map<string, ZentrumStopApproach>();
+  for (const candidate of candidates) {
+    const key = `${candidate.vehicle.lineId}\u0000${candidate.vehicle.destination}`;
+    const known = nextByWay.get(key);
+    if (!known || candidate.departsAt < known.departsAt) nextByWay.set(key, candidate);
+  }
+  const next = [...nextByWay.values()].sort(
+    (left, right) =>
+      left.departsAt - right.departsAt || compareLineIds(left.vehicle.lineId, right.vehicle.lineId),
+  );
+  return {
+    departures: next.map(({ vehicle, call, departsAt, isAtStop }) => ({
+      vehicle,
+      call,
+      departsAt,
+      isAtStop,
+    })),
+    overlay: lightApproaches(next),
+  };
+}
+
+/** A tram on the plan on its way to a stop, with the way it still has to come. */
+type ZentrumStopApproach = ZentrumStopDeparture & {
+  /** The corridors past the end of the tram's own path, lit whole. */
+  edgeIds: readonly string[];
+  /** Where the lit stretch on the tram's own path ends, where it has one ahead of it. */
+  end?: number;
+};
+
+const lightApproaches = (approaches: Iterable<ZentrumStopApproach>): ZentrumSchematicOverlay => {
+  const edgeIdsByLineId = new Map<string, Set<string>>();
+  const stretches: ZentrumSchematicLitStretch[] = [];
+  for (const { vehicle, edgeIds, end } of approaches) {
+    lightEdges(edgeIdsByLineId, vehicle.lineId, edgeIds);
+    if (end !== undefined) stretches.push({ vehicle, end });
+  }
+  return { edgeIdsByLineId, stretches };
+};
+
+/** Every tram on the plan that will still leave a stop, and the way each has to come. */
+function getZentrumStopApproaches(
+  vehicles: readonly ZentrumSchematicVehicle[],
+  nodeId: string,
+): ZentrumStopApproach[] {
+  const candidates: ZentrumStopApproach[] = [];
   for (const vehicle of vehicles) {
     const { aheadStops } = vehicle;
     // The stop the link leaves is behind a tram that has started moving.
@@ -128,32 +175,51 @@ export function getZentrumStopDepartures(
     });
   }
 
-  const nextByWay = new Map<string, (typeof candidates)[number]>();
-  for (const candidate of candidates) {
-    const key = `${candidate.vehicle.lineId}\u0000${candidate.vehicle.destination}`;
-    const known = nextByWay.get(key);
-    if (!known || candidate.departsAt < known.departsAt) nextByWay.set(key, candidate);
-  }
-  const next = [...nextByWay.values()].sort(
-    (left, right) =>
-      left.departsAt - right.departsAt || compareLineIds(left.vehicle.lineId, right.vehicle.lineId),
-  );
+  return candidates;
+}
 
-  const edgeIdsByLineId = new Map<string, Set<string>>();
-  const stretches: ZentrumSchematicLitStretch[] = [];
-  for (const { vehicle, edgeIds, end } of next) {
-    lightEdges(edgeIdsByLineId, vehicle.lineId, edgeIds);
-    if (end !== undefined) stretches.push({ vehicle, end });
+/** One departure of a stop's board, read against the plan. */
+export type ZentrumStopBoardRow = {
+  departure: Departure;
+  /** The tram on the plan this departure is, where it is drawn already. */
+  vehicleId?: string;
+};
+
+/**
+ * A stop's whole board, and what of it the plan can show.
+ *
+ * The board answers *when*: every departure the stop states, not only the trams the plan happens to
+ * be drawing. The plan answers *from where*, for every tram of the board it is drawing: the tram
+ * carries the wait its row counts and lights the way it still has to come, so a row marked as on the
+ * plan is always a tram signed on it. A tram not on the plan yet is on the board only — marking it
+ * anywhere on the plan read as a tram standing there.
+ */
+export function getZentrumStopBoard(
+  boardDepartures: readonly Departure[],
+  vehicles: readonly ZentrumSchematicVehicle[],
+  nodeId: string,
+  feedNow: number,
+): {
+  rows: readonly ZentrumStopBoardRow[];
+  overlay: ZentrumSchematicOverlay;
+  /** The minutes each drawn tram on the plan leaves the stop in, as its board row counts them. */
+  vehicleMinutesById: ReadonlyMap<string, number>;
+} {
+  const approaches = getZentrumStopApproaches(vehicles, nodeId);
+  const rows: ZentrumStopBoardRow[] = [];
+  const shown: ZentrumStopApproach[] = [];
+  const vehicleMinutesById = new Map<string, number>();
+  for (const departure of boardDepartures) {
+    const approach = approaches.find(({ vehicle }) => isSameRun(departure, vehicle.departure));
+    rows.push(approach ? { departure, vehicleId: approach.vehicle.id } : { departure });
+    if (!approach || departure.status === "cancelled") continue;
+    // A stop of several places publishes one tram once per place it calls at; the tram leaves the
+    // rider's stop at the first of them, which is the row the board lists first.
+    if (vehicleMinutesById.has(approach.vehicle.id)) continue;
+    shown.push(approach);
+    vehicleMinutesById.set(approach.vehicle.id, getCountdownMinutes(departure, feedNow));
   }
-  return {
-    departures: next.map(({ vehicle, call, departsAt, isAtStop }) => ({
-      vehicle,
-      call,
-      departsAt,
-      isAtStop,
-    })),
-    overlay: { edgeIdsByLineId, stretches },
-  };
+  return { rows, overlay: lightApproaches(shown), vehicleMinutesById };
 }
 
 /** The soonest a rider leaving one stop now is at another, and the tram that gets them there. */

@@ -7,19 +7,16 @@ export type ZentrumPlanReading = "lines" | "progress";
 
 const PLAN_READINGS = [
   { value: "lines", label: "Linien" },
-  { value: "progress", label: "Unterwegs" },
+  { value: "progress", label: "Fahrwege" },
 ] as const;
 
 /**
- * One band of controls under the plan rather than four.
+ * One band of controls under the plan: the legend, the caption, and the plan's reading.
  *
- * The zoom sits at the end a thumb reaches, the legend runs along the rest of it, and the legend is
- * also the filter: a badge is the one gesture that follows a line, whatever the reading. The live
- * plan's reading stays beside it, because it changes what the map lights rather than the route
- * being followed, and leaves while an opened stop decides that instead. Beside them stands the size the plan is read at.
- *
- * The caption rides the same band, between the two, as plain text on the controls' baseline, so
- * the plan does not lose a row to it.
+ * The legend is also the filter: a badge is the one gesture that follows a line, whatever the
+ * reading. The plan's reading changes what the map lights rather than the route being followed,
+ * and leaves while an opened stop decides that instead. The size the plan is drawn at is not here:
+ * it is a control of the drawing, so it floats on the drawing (`ZentrumPlanControls`).
  */
 export function ZentrumSchematicToolbar({
   caption,
@@ -29,14 +26,8 @@ export function ZentrumSchematicToolbar({
   onSelectLine,
   planReading,
   onChangePlanReading,
-  zoom,
-  canZoomIn,
-  canZoomOut,
-  onChangeZoom,
-  isFullscreen,
-  onChangeFullscreen,
 }: {
-  /** What the drawing cannot say of itself: what the marks are worth, and how many are running. */
+  /** What the drawing cannot say of itself: what the colour means, and how many are running. */
   caption: string;
   lineIds: readonly string[];
   getSign: ZentrumLineSignReader;
@@ -46,13 +37,6 @@ export function ZentrumSchematicToolbar({
   planReading: ZentrumPlanReading;
   /** Absent while an opened stop decides what is lit, which leaves the plan's reading nothing to do. */
   onChangePlanReading?: (reading: ZentrumPlanReading) => void;
-  zoom: number;
-  canZoomIn: boolean;
-  canZoomOut: boolean;
-  onChangeZoom: (direction: 1 | -1) => void;
-  /** Whether the plan is being read at the size of the screen. */
-  isFullscreen: boolean;
-  onChangeFullscreen: (isFullscreen: boolean) => void;
 }) {
   return (
     <div className="zentrum-schematic-toolbar">
@@ -68,7 +52,7 @@ export function ZentrumSchematicToolbar({
             className="zentrum-schematic-lines-reset"
             onClick={() => onSelectLine(undefined)}
           >
-            Alle
+            Alle Linien
           </button>
         )}
         {lineIds.map((lineId) => {
@@ -89,6 +73,7 @@ export function ZentrumSchematicToolbar({
           );
         })}
       </div>
+      <p className="zentrum-schematic-caption">{caption}</p>
       {onChangePlanReading && (
         <SegmentedControl
           className="departure-board-order-control zentrum-schematic-reading"
@@ -98,40 +83,80 @@ export function ZentrumSchematicToolbar({
           ariaLabel="Was der Plan zeigt"
         />
       )}
-      <p className="zentrum-schematic-caption">{caption}</p>
-      <div className="zentrum-schematic-zoom">
+    </div>
+  );
+}
+
+/**
+ * The drawing's own controls, floating in its corner the way every map's are: the size the plan is
+ * read at, and the size it is drawn at. On the drawing rather than in the band under it, so a phone
+ * does not give a whole row of the screen to three buttons.
+ */
+export function ZentrumPlanControls({
+  zoom,
+  canZoomIn,
+  canZoomOut,
+  onChangeZoom,
+  isFullscreen,
+  onChangeFullscreen,
+}: {
+  zoom: number;
+  canZoomIn: boolean;
+  canZoomOut: boolean;
+  onChangeZoom: (direction: 1 | -1) => void;
+  /** Whether the plan is being read at the size of the screen. */
+  isFullscreen: boolean;
+  onChangeFullscreen: (isFullscreen: boolean) => void;
+}) {
+  return (
+    <div className="zentrum-plan-controls">
+      <button
+        type="button"
+        className="zentrum-plan-expand"
+        aria-pressed={isFullscreen}
+        aria-label={isFullscreen ? "Vollbild verlassen" : "Vollbild"}
+        title={isFullscreen ? "Vollbild verlassen" : "Vollbild"}
+        onClick={() => onChangeFullscreen(!isFullscreen)}
+      >
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          <path
+            d={
+              isFullscreen
+                ? "M12 3.5V8h4.5M8 16.5V12H3.5M12 8l4.5-4.5M8 12l-4.5 4.5"
+                : "M12 3.5h4.5V8M8 16.5H3.5V12M16.5 3.5 12 8M3.5 16.5 8 12"
+            }
+          />
+        </svg>
+      </button>
+      <div className="zentrum-plan-zoom" role="group" aria-label="Zoom">
         <button
           type="button"
-          className="zentrum-schematic-expand"
-          aria-pressed={isFullscreen}
-          aria-label={isFullscreen ? "Vollbild verlassen" : "Plan im Vollbild lesen"}
-          onClick={() => onChangeFullscreen(!isFullscreen)}
-        >
-          {isFullscreen ? "\u2715" : "\u2922"}
-        </button>
-        <button
-          type="button"
-          aria-label="Plan verkleinern"
-          disabled={!canZoomOut}
-          onClick={() => onChangeZoom(-1)}
-        >
-          −
-        </button>
-        <button
-          type="button"
-          aria-label="Plan vergrößern"
+          aria-label="Vergrößern"
+          title="Vergrößern"
           disabled={!canZoomIn}
           onClick={() => onChangeZoom(1)}
         >
-          +
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M10 4.5v11M4.5 10h11" />
+          </svg>
         </button>
-        {/* The step is spoken rather than printed: it was a third of a control band spent
-            restating what the drawing in front of the reader already shows, and a screen reader
-            pressing a button it cannot see still needs to be told what it did. */}
-        <span className="visually-hidden" aria-live="polite">
-          {zoom === 1 ? "ganzer Plan" : `${Math.round(zoom * 100)} %`}
-        </span>
+        <button
+          type="button"
+          aria-label="Verkleinern"
+          title="Verkleinern"
+          disabled={!canZoomOut}
+          onClick={() => onChangeZoom(-1)}
+        >
+          <svg viewBox="0 0 20 20" aria-hidden="true">
+            <path d="M4.5 10h11" />
+          </svg>
+        </button>
       </div>
+      {/* The step is spoken rather than printed: the drawing already shows it, and a screen reader
+          pressing a button it cannot see still needs to be told what it did. */}
+      <span className="visually-hidden" aria-live="polite">
+        {zoom === 1 ? "ganzer Plan" : `${Math.round(zoom * 100)} %`}
+      </span>
     </div>
   );
 }

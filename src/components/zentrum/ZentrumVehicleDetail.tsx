@@ -11,8 +11,8 @@ import type { ZentrumLineSignReader } from "./line-sign";
  *
  * It takes the plan's panel the way an opened stop does, and is written the way the board writes a
  * trip: the line's badge and destination, and the stops it still calls at in the Zentrum with the
- * board's own times. It says in words what the drawing can only imply -- that the position is read
- * from published stop times rather than fixed by the vehicle itself -- and opens the whole trip.
+ * board's own times. It says in words what the drawing can only imply -- that the position is an
+ * estimate rather than a fix -- and opens the whole trip.
  */
 export function ZentrumVehicleDetail({
   vehicle,
@@ -39,7 +39,7 @@ export function ZentrumVehicleDetail({
         <button
           type="button"
           className="zentrum-sheet-close"
-          aria-label={returnLabel ? `Zurück zu ${returnLabel}` : "Fahrzeugdetails schließen"}
+          aria-label={returnLabel ? `Zurück zu ${returnLabel}` : "Bahn schließen"}
           onClick={onClose}
         >
           ×
@@ -47,9 +47,12 @@ export function ZentrumVehicleDetail({
       </div>
       <p className="zentrum-sheet-note">
         {isHolding
-          ? `Hält an ${vehicle.from.label}.`
-          : `Zwischen ${vehicle.from.label} und ${vehicle.to.label}.`}{" "}
-        Aus den veröffentlichten Haltestellenzeiten geschätzt; keine GPS-Position.
+          ? `Hält an ${vehicle.from.label}`
+          : `Zwischen ${vehicle.from.label} und ${vehicle.to.label}`}
+        {" · "}
+        <span title="Aus den Zeiten an den Haltestellen geschätzt, kein GPS">
+          Position geschätzt
+        </span>
       </p>
       {aheadStops.length > 0 && (
         <ol className="zentrum-sheet-calls" aria-label="Nächste Halte im Zentrum">
@@ -74,7 +77,10 @@ export function ZentrumVehicleDetail({
           vehicle.to.id,
         )}`}
       >
-        Ganzen Fahrtverlauf öffnen
+        Ganze Fahrt
+        <svg viewBox="0 0 20 20" aria-hidden="true">
+          <path d="m7.5 4.5 5 5.5-5 5.5" />
+        </svg>
       </a>
     </aside>
   );

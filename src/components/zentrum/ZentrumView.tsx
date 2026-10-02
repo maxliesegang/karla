@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DepartureBoard, DepartureBoardCoverage } from "../../data/transit-types";
+import { useDepartureBoard } from "../../hooks/departure-board";
 import { useZentrumVehicles } from "../../hooks/zentrum-vehicles";
 import { compareLineIds } from "../../lib/line-families";
 import type { ObservedNetwork } from "../../lib/observed-network";
@@ -96,6 +97,9 @@ export function ZentrumView({
   }, [isLineObserved, isStopObserved, isReadingAnswered, isFullscreen]);
   const followedLineId = isLineObserved ? selectedLineId : undefined;
   const openedStopId = isStopObserved ? selectedStopId : undefined;
+  // An opened stop reads its own board, the one its stop page shows: the plan only draws the trams
+  // already inside it, and a rider at the stop is asking about every one that will leave.
+  const { board: openedStopBoard } = useDepartureBoard(openedStopId);
   // The plan re-renders every second to move its marks; the Escape key that leaves the full-screen
   // reading listens for as long as that reading is up, and must not be re-subscribed under it.
   const changeFullscreen = useCallback(
@@ -127,6 +131,7 @@ export function ZentrumView({
         selectedStopId={openedStopId}
         vehicles={vehicles}
         runDepartures={runDepartures}
+        stopBoard={openedStopBoard}
         feedNow={feedNow}
         isFullscreen={isFullscreen}
         /* Following a line, or opening a stop, is navigating to it: the reading a rider arrives at
