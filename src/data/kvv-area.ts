@@ -1,11 +1,9 @@
 /**
- * The KVV tariff area, as a bounding box drawn around it: Karlsruhe city and district, Rastatt,
- * Baden-Baden, Pforzheim and the Enzkreis, and the Südpfalz with Germersheim, Landau and the
- * Südliche Weinstraße. The operator's stop finder reads stops from the whole country, so a search
- * keeps what falls inside the box and leaves the rest of Germany to other apps.
+ * A bounding box around the KVV tariff area (Karlsruhe, Rastatt, Baden-Baden, Pforzheim, Enzkreis,
+ * Südpfalz). The stop finder searches all of Germany, so results outside are dropped.
  */
 const KVV_AREA_BOUNDS = {
-  /** The Rastatt district's southern stops around Renchen and Achern stay in; the Ortenau beyond stays out. */
+  /** Renchen and Achern in; the Ortenau beyond out. */
   south: 48.55,
   /** Lingenfeld in the Germersheim district stays in; Speyer, already VRN, stays out. */
   north: 49.28,

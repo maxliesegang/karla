@@ -16,28 +16,22 @@ import { findFirstCallBeyondStop, getCallKey, getCommonCallPrefix } from "./trip
 export type StopServiceCorridor = {
   id: string;
   /**
-   * The place the corridor heads into — the municipality or Karlsruhe district the trips share
-   * farthest ahead. The headsign stands in where no sequence was observed, or where the place is
-   * the one the rider is already standing in.
+   * The place the corridor heads into (municipality or Karlsruhe district shared farthest ahead);
+   * the headsign where nothing was observed or the place is the rider's own.
    */
   directionLabel: string;
   /**
-   * The places along the corridor's way, in the order the route visits them: the ends a rider
-   * picks between, and — woven between them — the prominent places, the ones other lines offer a
-   * connection at or the route calls repeatedly. Three places in all, which the ends fill first:
-   * they are always stated, however many of them a corridor has, and only the room they leave goes
-   * to the way's own places. Those are enrichment the row shows where it has the width, and reads
-   * as the ends alone where it has not.
+   * The places along the way in route order: every end, then prominent places between, up to three
+   * in all. The places between are enrichment, shown where there is width.
    */
   places: StopServiceCorridorPlace[];
-  /** The headsigns of the trips gathered here, in the order the board listed them. */
+  /** The trips' headsigns, in board order. */
   destinations: string[];
   departures: Departure[];
   hasObservedTopology: boolean;
   /**
-   * Whether every trip gathered here was matched over a full observed route, and those routes run
-   * together. A first link is evidence that trips leave together, never that they stay together,
-   * so a claim that this corridor's destinations name one shared way waits for this.
+   * Whether every trip matched a full observed route and those routes run together; a shared first
+   * link alone does not show they stay together.
    */
   hasObservedSharedRoute: boolean;
 };
@@ -48,26 +42,23 @@ export type StopServiceCorridorLineGroup = {
   corridors: StopServiceCorridor[];
 };
 
-/** What the trips gathered under one corridor id have been observed doing, before it is named. */
+/** What a corridor's trips were observed doing, before it is named. */
 type StopCorridorDraft = {
   departures: Departure[];
   sequences: (readonly TripCall[])[];
-  /** The call every trip of the corridor leaves this stop by — the corridor's identity. */
+  /** The call every trip leaves this stop by: the corridor's identity. */
   firstCall: TripCall | undefined;
-  /** How many of the gathered trips were matched over their full remaining route. */
+  /** Trips matched over their full remaining route. */
   fullRoutes: number;
   hasObservedTopology: boolean;
 };
 
 /**
- * A corridor and the one stop that can still name it: where its trips leave the stop, which is
- * different for every corridor of a line and so tells colliding rows apart where the place they
- * head into cannot. Undefined where nothing was observed — a row whose headsign is the only name
- * it has.
+ * A corridor with the stop its trips part at, which distinguishes a line's corridors where the
+ * place names collide. Undefined where nothing was observed.
  */
 type NamedStopCorridor = StopServiceCorridor & { partingLabel: string | undefined };
 
-/** What naming a corridor reads its direction and the prominence of its way's places from. */
 type CorridorNamingKnowledge = {
   boardPlaceName: string | undefined;
   lineFamiliesByPlace: PlaceLineFamilies;
@@ -83,7 +74,7 @@ function nameStopCorridor(
   const destinations = [...new Set(draft.departures.map(({ destination }) => destination))];
   const sharedCall = getCommonCallPrefix(draft.sequences).at(-1);
   const places = getCorridorWayPlaces(draft.sequences, knowledge);
-  // The place the corridor heads into: its nearest end, the first terminus the way passes.
+  // The nearest end names the direction.
   const nearestPlace = getCorridorTermini(places)[0]?.label;
 
   return {
@@ -102,14 +93,11 @@ function nameStopCorridor(
 }
 
 /**
- * Two corridors of one line that head into the same place are not told apart by naming it twice,
- * so where a place collides the rows fall back to the stops the trips actually part at — every
- * corridor of a line leaves by its own stop, so that name is always free. A row nothing was
- * observed about has no stop to fall back to: its headsign stays, and is the only name it has.
+ * Where two corridors of a line name the same place, they fall back to the stop they part at, which
+ * is unique per corridor. A row with nothing observed keeps its headsign.
  */
 function resolveCollidingLabels(corridors: readonly NamedStopCorridor[]): StopServiceCorridor[] {
-  // The ends are what two rows have to be told apart by; the way's own places are enrichment a
-  // row may drop, so they do not count towards a collision.
+  // Only the ends count toward a collision; the places between may be dropped.
   const getLabelKey = ({ directionLabel, places }: StopServiceCorridor) =>
     [
       directionLabel,
@@ -118,7 +106,7 @@ function resolveCollidingLabels(corridors: readonly NamedStopCorridor[]): StopSe
         .map(({ label }) => label),
     ].join(">");
 
-  // Keyed once per corridor: the key walks the whole way, and a row is asked for it twice here.
+  // Computed once per corridor; the key walks the whole way.
   const labelKeys = corridors.map(getLabelKey);
   const countByLabel = new Map<string, number>();
   for (const key of labelKeys) countByLabel.set(key, (countByLabel.get(key) ?? 0) + 1);
@@ -135,18 +123,10 @@ function resolveCollidingLabels(corridors: readonly NamedStopCorridor[]): StopSe
 }
 
 /**
- * The line-first directory grouped by a trip's outgoing corridor rather than its terminus.
- *
- * A short working and a through service belong together when EFA has shown that they take the same
- * first link from this stop. Their individual headsigns remain attached to their countdowns. The
- * trip's own reading is preferred; otherwise the route its line predominantly runs towards that
- * headsign stands in. Trips whose route is genuinely contested, and those nothing is known about
- * yet, group by headsign instead — see `StopCorridorPatterns` for why that is remembered rather
- * than recomputed from whichever detailed boards a refresh happens to have in hand.
- *
- * A corridor is named by the place it heads into rather than by a headsign, so the two ends of a
- * line read as the two places a rider picks between; each trip's own headsign stays on its
- * countdown, where it belongs to that trip alone.
+ * The line order's groups: trips by outgoing corridor rather than terminus, so a short working and
+ * a through service sharing a first link group together. A trip's own route is preferred, else its
+ * line's predominant route to that headsign (`StopCorridorPatterns`); unknown or contested trips
+ * group by headsign. Corridors are named by the place they head into; headsigns stay on countdowns.
  */
 export function getStopServiceCorridorLineGroups(
   departures: readonly Departure[],
@@ -164,9 +144,7 @@ export function getStopServiceCorridorLineGroups(
     const firstObservedStop = match
       ? findFirstCallBeyondStop(match.calls, patterns.stopId)
       : undefined;
-    // A trip whose route is not known yet joins the other trips showing the same headsign rather
-    // than standing alone: keyed by the departure, one unresolved trip was one row of its own, and
-    // a row that appears and disappears as trips resolve is worse than a row named by a headsign.
+    // An unknown route groups by headsign, so rows do not appear and vanish as trips resolve.
     const corridorId = firstObservedStop
       ? `observed:${getCallKey(firstObservedStop)}`
       : `unknown:${departure.destination}`;
@@ -206,8 +184,7 @@ export function getStopServiceCorridorLineGroups(
       );
       return {
         id,
-        // The ends a rider sees on the line's badge, in the order the board listed them rather than
-        // in the order the rows happen to be sorted into.
+        // The badge's ends, in board order.
         line: {
           ...group.line,
           destinations: [...new Set(named.flatMap(({ destinations }) => destinations))],

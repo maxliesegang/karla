@@ -11,55 +11,31 @@ import {
 } from "../lib/vehicle-trajectory-animation";
 
 /**
- * One mark's segment-length Web Animation, kept for it between renders.
- *
- * This is the choreography both drawings that animate a mark share (`LineDiagramVehicleLayer` and
- * the Zentrum's vehicle map): the domain places a mark on a link with an appointment —
- * `RunSegmentTrajectory` — and the browser runs it as one animation, not as a succession of
- * one-second transitions. What is shared here is everything about *how* an animation is kept:
- *
- * - A signature over the trajectory's plan and the drawing's own coordinates decides whether the
- *   running animation is still the appointment in hand. Time passing re-renders the same signature
- *   and re-uses the animation; only a replan or a moved link cancels and recreates it.
- * - A replan continues from the transform the mark is painted at, so the remaining ground is
- *   corrected over a few seconds rather than snapping (`lib/vehicle-trajectory-animation.ts`).
- * - A placement — `motion: "placed"`, the reading having found the vehicle somewhere else — is
- *   never animated from the old paint, and never reuses an animation that had travelled: the two
- *   are indistinguishable from coordinates alone, and only the placement knows which happened.
- *   The placement that barely moved the mark states how far it moved it
- *   (`RunPlacement.placedAfterLinks`), and within a link it is corrected over the same few
- *   seconds a replan is — a snap there would read as a blink, not as a statement.
- * - A mark with no trajectory, and every mark under `prefers-reduced-motion`, stand still and are
- *   painted at the position their tick evaluated; their animations, if any, are cancelled.
- *
- * What is *not* shared is the coordinate system: the caller states where its mark stands at a
- * progress (`getTransform`) and which boundaries deserve their own keyframes. Marks are found by
- * their `data-marker-key` inside the container, so the caller renders them as it likes.
+ * One mark's segment-length Web Animation, shared by the line diagram and the Zentrum map:
+ * - a signature over the plan and coordinates decides whether the running animation still applies;
+ * - a replan continues from the painted transform, correcting over a few seconds;
+ * - a placement is never animated from the old paint, except one within a link
+ *   (`placedAfterLinks`), which is corrected like a replan;
+ * - a mark without trajectory, or under `prefers-reduced-motion`, is painted at its tick position.
+ * The caller supplies the coordinates (`getTransform`); marks are found by `data-marker-key`.
  */
 
 /** The fields of a mark this hook reads; a caller's own mark type extends them. */
 export type TrajectoryAnimationFields = {
-  /** The mark's element, found by its `data-marker-key` in the container. */
+  /** The element's `data-marker-key`. */
   key: string;
   /**
-   * The link's motion as one appointment with its next stop, as the placement sampled it.
-   *
-   * Absent where the placement has no journey to plan -- its link ran out between two readings,
-   * or the mark stands where no link is drawn. The mark is then painted at its tick position,
-   * corrected over from the paint it already carries where the placement allows a correction.
+   * The link's appointment as placed. Absent where nothing can be planned; the mark is then painted
+   * at its tick position, corrected over where the placement allows.
    */
   trajectory?: RunSegmentTrajectory;
-  /** How the mark got here: only travelled motion is animated as a journey. */
+  /** Only travelled motion is animated. */
   motion: RunPlacementMotion;
-  /**
-   * How far a placement put the mark from where it was drawn, in links of the trip's own calls —
-   * the placement's own statement of whether it may be corrected over rather than snapped. See
-   * `RunPlacement.placedAfterLinks`.
-   */
+  /** See `RunPlacement.placedAfterLinks`. */
   placedAfterLinks?: number;
-  /** The progress the mark's tick evaluated, which its base style is painted at. */
+  /** The tick's progress, which the base style is painted at. */
   progress: number;
-  /** The caller's identity of the stretch the trajectory runs on, in its own coordinates. */
+  /** The caller's identity for the trajectory's stretch. */
   linkKey: string;
 };
 
@@ -70,7 +46,7 @@ type KeptAnimation = {
   animation: Animation;
 };
 
-/** The one property a mark's position is stated in: where it stands, or how far a stroke reaches. */
+/** The property a mark's position is stated in: its transform, or a stroke's dash offset. */
 type AnimatedProperty = "transform" | "strokeDashoffset";
 
 export function useVehicleTrajectoryAnimations<Mark extends TrajectoryAnimationFields>({
@@ -81,25 +57,18 @@ export function useVehicleTrajectoryAnimations<Mark extends TrajectoryAnimationF
   geometrySignature,
   property = "transform",
 }: {
-  /** The element the marks are rendered in, and that animations are attached within. */
   container: RefObject<HTMLElement | null>;
   marks: readonly Mark[];
-  /** The mark's whole position at a progress, in the caller's own coordinate system. */
+  /** The mark's position at a progress, in the caller's coordinates. */
   getTransform: (mark: Mark, progress: number) => string | undefined;
-  /** Progresses whose crossings are keyframed on their own clock, per mark. */
+  /** Progresses keyframed on their own, per mark. */
   getBoundaryProgresses?: (mark: Mark) => readonly number[];
   /**
-   * Identity of the measured geometry the transforms are painted in. A change re-measures the
-   * drawing: animations are recreated without carrying the old paint, so a mark stays attached to
-   * the geometry that moved under it rather than visibly travelling through a layout change.
-   * Left undefined, as for a drawing that states its own coordinates in live units, the paint is
-   * always carried.
+   * Identity of the measured geometry. A change recreates animations without carrying old paint, so
+   * marks stay on the moved geometry. Undefined always carries the paint.
    */
   geometrySignature?: string;
-  /**
-   * The property `getTransform` states. A stroke that is lit from a mark onwards follows the mark
-   * by its dash offset, on the very keyframes the mark itself moves on.
-   */
+  /** The property `getTransform` states; a lit stroke follows its mark by dash offset. */
   property?: AnimatedProperty;
 }) {
   const animationsRef = useRef(new Map<string, KeptAnimation>());
@@ -123,11 +92,8 @@ export function useVehicleTrajectoryAnimations<Mark extends TrajectoryAnimationF
         continue;
       }
       if (!mark.trajectory) {
-        // The mark stands where no journey can be planned. Its static paint has already moved to
-        // where the reading says it stands, but the animation it had been running still holds the
-        // old position -- cancelling it snaps the mark across whatever ground the reading moved it
-        // by. A placement a drawing may correct is therefore carried over the same few seconds a
-        // replan is; anything else is let go, painted where it belongs, on the spot.
+        // No journey to plan. A correctable placement is carried over a few seconds from the old
+        // animation's paint; anything else snaps to where it belongs.
         const signature = ["held", mark.linkKey, fromTransform, geometrySignature ?? ""].join(":");
         const active = animationsRef.current.get(mark.key);
         if (active?.signature === signature) continue;
@@ -173,16 +139,9 @@ export function useVehicleTrajectoryAnimations<Mark extends TrajectoryAnimationF
         (mark.motion !== "placed" || active.motion === "placed")
       )
         continue;
-      // Replanning should continue from what the rider is actually looking at. The domain sample
-      // and the compositor normally agree, but a refresh can land between their clocks. Capturing
-      // the presentation before cancellation removes that small but conspicuous discontinuity.
-      // A placement is deliberately different: the reading found the vehicle somewhere else, so
-      // carrying the old paint into the new animation would invent a journey between those places.
-      // The exception is the placement that barely moved the mark — the reading found the vehicle
-      // a little away from where it stood — which is corrected over the same few seconds a replan
-      // is, because there a snap is not a statement of anything; it is a blink.
-      // Geometry changes are different again: the drawing itself moved, so the mark must stay
-      // attached to it rather than visibly travelling through a layout change.
+      // A replan continues from the painted position, captured before cancelling. A placement does
+      // not, except one within a link, which would otherwise blink. A geometry change does not
+      // either.
       const isCorrective = mark.motion !== "placed" || isCorrectivePlacement(mark.placedAfterLinks);
       const paintedTransform =
         isCorrective && active && active.geometrySignature === geometrySignature
@@ -192,8 +151,8 @@ export function useVehicleTrajectoryAnimations<Mark extends TrajectoryAnimationF
 
       const waitingMs = Math.max(0, trajectory.startsAt - trajectory.sampledAt);
       const animationStartsAt = waitingMs > 0 ? trajectory.startsAt : trajectory.sampledAt;
-      // The first keyframe is where the mark stands at that instant, so the painted mark and the
-      // animation agree about the present moment from the frame the animation starts in.
+      // The first keyframe is the present position, so paint and animation agree from the first
+      // frame.
       const movingFrom = getRunTrajectoryProgress(trajectory, animationStartsAt);
       const movingFromTransform = getTransform(mark, movingFrom);
       if (!movingFromTransform) continue;

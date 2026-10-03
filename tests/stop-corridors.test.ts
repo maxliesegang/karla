@@ -28,7 +28,7 @@ const calls = (...stopNames: string[]): TripCall[] =>
     isCurrentStop: index === 0,
   }));
 
-/** The grouping as a rider first sees it: one reading of the detailed boards, nothing remembered. */
+/** The grouping from one reading of the detailed boards, nothing remembered. */
 const groupsAt = (
   stopId: string,
   live: readonly Departure[],
@@ -64,13 +64,12 @@ test("keeps two detailed patterns separate even when their destination is the sa
 
   const corridors = groupsAt("europaplatz", [direct, branch], [direct, branch])[0].corridors;
   assert.equal(corridors.length, 2);
-  // Both end at Durlach, so naming the place twice would tell a rider nothing: the rows fall back
-  // to the stops the two trips actually part at.
+  // Both end at Durlach, so the rows fall back to the stops the trips part at.
   assert.deepEqual(
     corridors.map(({ directionLabel }) => directionLabel),
     ["Hauptbahnhof", "Marktplatz"],
   );
-  // Each row was observed along a full route of its own, so both may claim a shared way.
+  // Each row was observed along a full route, so both may claim a shared way.
   assert.equal(
     corridors.every(({ hasObservedSharedRoute }) => hasObservedSharedRoute),
     true,
@@ -91,8 +90,7 @@ test("a corridor matched only over its first link may not claim a shared route",
   const patterns = updateStopCorridorPatterns(null, "europaplatz", [earlier]);
 
   const corridor = getStopServiceCorridorLineGroups(live, patterns)[0].corridors[0];
-  // The two live trips share the direction's outgoing link, so they group — but nothing was
-  // observed beyond that link, so the row may not claim that its destinations share a way.
+  // They share the first link, so they group, but nothing beyond it was observed.
   assert.equal(corridor.hasObservedTopology, true);
   assert.equal(corridor.hasObservedSharedRoute, false);
 });
@@ -174,8 +172,7 @@ test("groups short workings with through trips over their shared outgoing corrid
     southbound?.departures.map(({ destination }) => destination),
     ["Ettlingen Stadt", "Ettlingen Albgaubad"],
   );
-  // Both trips were read along their full routes and the routes chain, so the row — whose two
-  // headsigns end in the one place — may say that they share the way.
+  // Both full routes were read and chain, so the row may claim a shared way.
   assert.equal(southbound?.hasObservedSharedRoute, true);
 });
 
@@ -193,8 +190,7 @@ test("colliding corridors are named by where their trips part, and the unread ro
   const labels = groupsAt("europaplatz", live, topologyDepartures)[0].corridors.map(
     ({ directionLabel }) => directionLabel,
   );
-  // Three rows headed into the same place: the two observed ones fall back to the stops they part
-  // at, and the unread one has no stop to fall back to — its headsign is the only name it has.
+  // The two observed rows fall back to their parting stops; the unread one keeps its headsign.
   assert.deepEqual(labels, ["Hauptbahnhof", "Kongresszentrum", "Marktplatz"]);
   assert.equal(new Set(labels).size, 3);
 });
@@ -290,13 +286,13 @@ test("collapses calls outside the board's municipality to the place they are in"
   });
 
   const corridor = groupsAt("europaplatz", [live], [observed])[0].corridors[0];
-  // The headsign is `Rheinstetten Bahnhof`; the direction is the place it is in.
+  // The headsign is `Rheinstetten Bahnhof`; the direction is its place.
   assert.equal(corridor.directionLabel, "Rheinstetten");
 });
 
 test("names a Karlsruhe district the way it names a municipality", () => {
-  // EFA answers `Durlach` and `Rüppurr` in the same field it answers `Ettlingen` in, and plain
-  // `Karlsruhe` for the inner city — so a district is a direction and the city centre is not.
+  // EFA gives districts (`Durlach`, `Rüppurr`) in the place field and plain `Karlsruhe` for the
+  // centre.
   const live = departure({
     id: "live",
     lineId: "1",
@@ -394,13 +390,12 @@ test("does not chain two ends the trips genuinely part for", () => {
 
   const corridor = groupsAt("europaplatz", live, topologyDepartures)[0].corridors[0];
   assert.deepEqual(corridor.places, []);
-  // The last point they still share is all the row may claim.
+  // Only the last shared point may be claimed.
   assert.equal(corridor.directionLabel, "Entenfang");
 });
 
 test("states an end again where the way returns to a place it named before", () => {
-  // The old chain dropped any place it had named once: an end that lies back behind a further one
-  // vanished from the row, and the rider read one end fewer than the corridor has.
+  // An end lying behind a further one must still be stated.
   const live = [
     departure({ id: "near", lineId: "S1", destination: "Ettlingen", tripId: "near" }),
     departure({ id: "through", lineId: "S1", destination: "Malsch", tripId: "through" }),
@@ -432,7 +427,7 @@ test("states an end again where the way returns to a place it named before", () 
   ];
 
   const corridor = groupsAt("europaplatz", live, topologyDepartures)[0].corridors[0];
-  // Three ends, two of them in Ettlingen: both are the rider's business, so both are stated.
+  // Three ends, two in Ettlingen: all stated.
   assert.deepEqual(
     corridor.places.map(({ label, isTerminus }) => ({ label, isTerminus })),
     [
@@ -478,8 +473,7 @@ test("weaves the places the route serves with several stops between the ends", (
   ];
 
   const corridor = groupsAt("europaplatz", live, topologyDepartures)[0].corridors[0];
-  // Rüppurr is where the line runs stop after stop, so the chain sketches it; Busenbach is passed
-  // once and served by nothing else, so it stands back. The ends keep their places in the walk.
+  // Rüppurr (many stops) is sketched; Busenbach (once, no connections) stands back.
   assert.deepEqual(
     corridor.places.map(({ label, isTerminus }) => ({ label, isTerminus })),
     [
@@ -514,8 +508,7 @@ test("a place another line serves is prominent though the route calls there once
         { stopName: "Stadt", localStopId: "ettlingen-stadt", placeName: "Ettlingen" },
       ],
     }),
-    // A bus line through Malsch, read at a post the trip never passes: the connection is observed
-    // wherever the reading comes from.
+    // A bus through Malsch, read at a post the trip never passes: connections count from anywhere.
     departure({
       id: "bus",
       lineId: "216",
@@ -534,8 +527,7 @@ test("a place another line serves is prominent though the route calls there once
   ];
 
   const corridor = groupsAt("europaplatz", live, topologyDepartures)[0].corridors[0];
-  // Malsch is called once, but the bus makes it a place to change at: it outranks Rüppurr, which
-  // the route serves twice and nothing else serves at all. Both keep their places in the walk.
+  // Malsch, a connection, outranks Rüppurr, served twice by nothing else.
   assert.deepEqual(
     corridor.places.map(({ label, isTerminus }) => ({ label, isTerminus })),
     [
@@ -574,7 +566,7 @@ test("states three places, the most relevant of the way's own beside the end", (
         { stopName: "Stadt", localStopId: "ettlingen-stadt", placeName: "Ettlingen" },
       ],
     }),
-    // A bus through Malsch: the one place along this way another line connects at.
+    // The one connection along this way.
     departure({
       id: "bus",
       lineId: "216",
@@ -593,9 +585,7 @@ test("states three places, the most relevant of the way's own beside the end", (
   ];
 
   const corridor = groupsAt("europaplatz", live, topologyDepartures)[0].corridors[0];
-  // Bulach, Rüppurr and Malsch are all prominent, but three places is the whole row: the end takes
-  // one, and the two the way keeps are Malsch, where the bus connects, and Rüppurr, which the route
-  // winds through stop after stop — Bulach, passed twice and served by nothing else, stands down.
+  // Three places in all: the end, Malsch (connection) and Rüppurr; Bulach stands down.
   assert.deepEqual(
     corridor.places.map(({ label, isTerminus }) => ({ label, isTerminus })),
     [
@@ -604,8 +594,7 @@ test("states three places, the most relevant of the way's own beside the end", (
       { label: "Ettlingen", isTerminus: true },
     ],
   );
-  // The ranks left are a run from the most prominent down, so a narrow row still stands the least
-  // useful of them down first.
+  // Ranks stay a run from most prominent down.
   assert.deepEqual(
     corridor.places.filter((place) => !place.isTerminus).map((place) => [place.label, place.rank]),
     [
@@ -655,8 +644,7 @@ test("states every end, and no way places, where the ends alone fill the row", (
   ];
 
   const corridor = groupsAt("europaplatz", live, topologyDepartures)[0].corridors[0];
-  // Four ends: every one is a place a rider picks between, so every one is stated — and they leave
-  // no room for the way's own places, prominent though Rüppurr's several stops would make it.
+  // Four ends fill the row, leaving no room for places between.
   assert.deepEqual(
     corridor.places.map(({ label, isTerminus }) => ({ label, isTerminus })),
     [
@@ -713,8 +701,7 @@ test("groups exceptional short and through trips by their own observed corridor"
     id: "later-rappenwoert",
     tripId: "later-rappenwoert",
   });
-  // EFA exposes the stop complex as two consecutive calling points. The second Hauptfriedhof is
-  // still the stop the rider is standing at, not a shared outgoing link between both directions.
+  // A stop complex as two consecutive calls is still the rider's stop, not a shared outgoing link.
   const shared = calls(
     "Hauptfriedhof",
     "Hauptfriedhof",
@@ -806,8 +793,7 @@ test("keeps grouping a trip after the board that showed its route has been refre
     departure({ ...herrenalb, tripCalls: calls("Europaplatz", "Ostendorfplatz", "Bad Herrenalb") }),
   ]);
 
-  // The next refresh of the light board carries no calling sequences at all, and the detailed
-  // boards have moved on to later trips. What was observed once still relates these two.
+  // The next light refresh has no sequences; what was observed still relates the two.
   const kept = updateStopCorridorPatterns(learned, "europaplatz", []);
   const corridor = getStopServiceCorridorLineGroups([stadt, herrenalb], kept)[0].corridors[0];
 
@@ -851,7 +837,7 @@ test("one oddly reported run does not withdraw the route the line is known to ta
 
   const corridors = getStopServiceCorridorLineGroups([later], patterns)[0].corridors;
   assert.equal(corridors[0].hasObservedTopology, true);
-  // Grouped over the link the line is actually known to take out of the stop.
+  // Grouped over the link the line is known to take.
   assert.ok(corridors[0].id.endsWith("observed:marktplatz"));
 });
 
@@ -869,14 +855,14 @@ test("counts trips rather than readings, so one board re-read cannot outvote the
     tripCalls: calls("Europaplatz", "Marktplatz", "Durlach"),
   });
 
-  // The same two trips read four times over, as a board on a ninety-second cadence delivers them.
+  // The same two trips four times over, as a 90-second board delivers them.
   let patterns = updateStopCorridorPatterns(null, "europaplatz", [branch, direct]);
   for (let reading = 0; reading < 3; reading += 1) {
     patterns = updateStopCorridorPatterns(patterns, "europaplatz", [branch, branch, direct]);
   }
   const later = departure({ id: "later", destination: "Durlach", tripId: "later" });
 
-  // Two trips, two routes: still one each, so neither may speak for a trip nothing is known about.
+  // One route each, so neither speaks for an unknown trip.
   assert.equal(
     getStopServiceCorridorLineGroups([later], patterns)[0].corridors[0].hasObservedTopology,
     false,
@@ -937,16 +923,14 @@ test("a refresh that taught nothing is not a change, and another stop starts ove
   const patterns = updateStopCorridorPatterns(null, "europaplatz", [observed]);
 
   assert.equal(updateStopCorridorPatterns(patterns, "europaplatz", [observed]), patterns);
-  // The routes are stated relative to the stop they were read at, so none of them carries over.
+  // Routes are relative to their stop, so nothing carries over.
   const elsewhere = updateStopCorridorPatterns(patterns, "marktplatz", []);
   assert.equal(elsewhere.byTripKey.size, 0);
 });
 
 test("two boards disagreeing about one trip still settle on a single reading", () => {
-  // The stop's own detailed board and an observation post both see this trip, and they do not agree
-  // about what it calls at after here. Last-write-wins made the two readings overwrite each other on
-  // every pass, so a repeated reading kept producing a new memory and the caller — which sets state
-  // whenever the memory changes — re-rendered without end.
+  // Two boards disagree about this trip's calls; repeated readings must reach a fixed point instead
+  // of overwriting each other forever.
   const ownReading = departure({
     id: "own",
     destination: "Durlach",
@@ -961,13 +945,13 @@ test("two boards disagreeing about one trip still settle on a single reading", (
   });
 
   const learned = updateStopCorridorPatterns(null, "europaplatz", [ownReading, postReading]);
-  // Reading the very same boards again taught nothing, whichever order they are held in.
+  // Rereading the same boards teaches nothing, in any order.
   assert.equal(
     updateStopCorridorPatterns(learned, "europaplatz", [ownReading, postReading]),
     learned,
   );
   assert.equal(updateStopCorridorPatterns(learned, "europaplatz", [ownReading]), learned);
-  // The stop's own board leads the list, so its fuller reading is the one that was kept.
+  // The stop's own board leads, so its reading is kept.
   assert.equal(learned.byTripKey.size, 1);
   assert.deepEqual(
     [...learned.byTripKey.values()][0].map((call) => call.stopName),
@@ -1015,7 +999,7 @@ test("forgets the runs that passed longest ago rather than growing without end",
   const patterns = updateStopCorridorPatterns(null, "europaplatz", observations, 3);
 
   assert.deepEqual([...patterns.byTripKey.keys()], ["trip-2", "trip-3", "trip-4"]);
-  // The line's own pattern is what the trimmed entries were evidence for, and it stays.
+  // The line's pattern survives trimming.
   const later = departure({ id: "later", destination: "Durlach", tripId: "later" });
   assert.equal(
     getStopServiceCorridorLineGroups([later], patterns)[0].corridors[0].hasObservedTopology,
@@ -1024,11 +1008,9 @@ test("forgets the runs that passed longest ago rather than growing without end",
 });
 
 test("a trip that turns back is not parted from the service that runs on through it", () => {
-  // A terminating trip is reported at the platform it arrives on and again at the one it leaves
-  // from, which is one call of the route stated twice: at Gottesauer Platz the S2's Reitschulschlag
-  // working reads `Reitschulschlag > Reitschulschlag` where its Spöck service reads
-  // `Reitschulschlag > Büchig`. Both calls must remain published while the topology comparison
-  // still recognizes that this is the short working of the through route.
+  // A terminating trip is reported twice at its terminus (Gottesauer Platz: `Reitschulschlag >
+  // Reitschulschlag` vs `Reitschulschlag > Büchig`); both calls stay, and it is still recognised as
+  // the through route's short working.
   const live = [
     departure({ id: "spoeck", lineId: "S2", destination: "Spöck", tripId: "spoeck" }),
     departure({ id: "short", lineId: "S2", destination: "Reitschulschlag", tripId: "short" }),
@@ -1053,7 +1035,7 @@ test("a trip that turns back is not parted from the service that runs on through
     }),
     departure({
       ...live[1],
-      // The reversal: the same stop again, on the platform the vehicle leaves from.
+      // The same stop again, on the departure platform.
       tripCalls: [...shared, { ...shared[1], platformLabel: "Gleis 3" }],
     }),
   ];
@@ -1071,8 +1053,7 @@ test("a trip that turns back is not parted from the service that runs on through
 });
 
 test("two places sharing a name do not lend each other connections", () => {
-  // `Friedrichstal` is Stutensee's on the S2 and Baiersbronn's, seventy kilometres up the Murg
-  // valley, on the S8. Held by name alone the Murg valley's reads as an interchange with the S2.
+  // `Friedrichstal` is Stutensee's on the S2 and Baiersbronn's on the S8, 70 km apart.
   const stutensee = { latitude: 49.109, longitude: 8.476 };
   const murgtal = { latitude: 48.482, longitude: 8.377 };
   const here: TripCall = {
@@ -1119,9 +1100,9 @@ test("two places sharing a name do not lend each other connections", () => {
       ({ label }) => label,
     );
 
-  // The S2's Friedrichstal is not this one, and one call is not a place the way winds through.
+  // The S2's Friedrichstal is elsewhere, and one call does not make a place.
   assert.deepEqual(wayOfS8(namesake(stutensee)), ["Freudenstadt"]);
-  // A line seen at the same place on the ground is the connection that makes it worth naming.
+  // A line seen at the same place is a connection.
   assert.deepEqual(wayOfS8(namesake(murgtal)), ["Friedrichstal", "Freudenstadt"]);
 });
 

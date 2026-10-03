@@ -1,6 +1,6 @@
 /**
- * Browser storage, or `null` where the browser refuses it: a private window, blocked site data, the
- * sandboxes this page may be viewed in. Reading it must never be what stops the app rendering.
+ * Browser storage, or `null` where refused (private windows, blocked data, sandboxes). Never
+ * throws.
  */
 export function readStorage(): Storage | null {
   try {
@@ -18,12 +18,9 @@ export type StoredPreference<T> = {
 };
 
 /**
- * A choice kept between visits.
- *
- * The value is held in memory as well as in storage, so a choice storage will not keep is still
- * honoured for the session, and reading it is the same value every time. Every reader is told of a
- * change at once, whether or not storage took it: a rider who cannot keep a choice still made it.
- * `parse` is handed `null` for nothing stored, and for anything it throws on.
+ * A choice kept between visits, also held in memory so it is honoured for the session if storage
+ * refuses it. Readers are notified of every change. `parse` gets `null` for nothing stored or
+ * anything it throws on.
  */
 export function createStoredPreference<T>({
   key,
@@ -60,7 +57,7 @@ export function createStoredPreference<T>({
       try {
         readStorage()?.setItem(key, serialize(value));
       } catch {
-        // Honoured for the session all the same; nothing here is a claim.
+        // Still honoured for the session.
       }
       for (const listener of listeners) listener();
     },

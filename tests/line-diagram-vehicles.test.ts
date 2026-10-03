@@ -18,7 +18,7 @@ import { createCall, run } from "./support/calls.ts";
 import { createRunMotions } from "../src/lib/vehicle-positioning.ts";
 import { createDeparture as createFixture } from "./support/fixtures.ts";
 
-/** One drawing's motion record, shared across this file as the module global used to be. */
+/** One drawing's motion record, shared across this file. */
 const motions = createRunMotions();
 
 const start = Date.parse("2026-08-23T12:00:00Z");
@@ -69,10 +69,7 @@ test("uses the next call as the position anchor before a selected vehicle can be
 });
 
 test("keeps the freshest board's reading of a vehicle, not the first board's", () => {
-  // One vehicle, two boards: the observation posts along a line answer on cadences of minutes and
-  // the line's own boards on tens of seconds, and the same trip is usually on both. A contest
-  // between their copies is about age — the copy a mark is drawn from decides whether it runs with
-  // the deviations the feed has since stated or with the ones it knew five minutes ago.
+  // One vehicle on a slow post's board and a fast line board: the fresher copy draws the mark.
   const base: Departure = createFixture({
     id: "diagram-freshness",
     tripId: "diagram-freshness",
@@ -100,7 +97,7 @@ test("keeps the freshest board's reading of a vehicle, not the first board's", (
   const [winner] = getLineDiagramRunDepartures(selection, [stale, fresh]);
   assert.equal(winner, fresh);
 
-  // And where no reading is dated, the fuller sequence still wins, as before.
+  // Undated readings fall back to the fuller sequence.
   const [fuller] = getLineDiagramRunDepartures(selection, [base, { ...fresh, tripCalls: [] }]);
   assert.equal(fuller, base);
 });
@@ -219,8 +216,8 @@ test("keeps inconsistent joined-portion positions separate", () => {
 });
 
 test("draws both published platform calls at the same stop", () => {
-  // What a turning trip publishes at its last stop: timed into the platform it arrives on, and
-  // again out of the one it leaves from, both resolving to the same stop.
+  // A turning trip at its last stop: into the arrival platform, out of the departure one, same
+  // stop.
   const tripCalls = [call("a", 0), call("b", 2), call("c", 4), call("c", 6)];
   const diagramStops = buildLineDiagramStops(network, tripCalls);
   assert.deepEqual(
@@ -242,7 +239,7 @@ test("draws both published platform calls at the same stop", () => {
     tripCalls,
   });
 
-  // The carried link still ends at the first C call; the second is the separately published stand.
+  // The carried link ends at the first C call; the second is the published stand.
   const [vehicle] = getLineDiagramVehicles(
     diagramStops,
     [departure],
@@ -267,11 +264,9 @@ test("draws both published platform calls at the same stop", () => {
 });
 
 test("reads a three-call terminus as the two calls the route keeps", () => {
-  // Waidweg, as line 3 reports a terminating run: the loop's entry point, the public platform the
-  // row departs from, and the track the run ends on — three calls, one stop. The pair the feed
-  // itself marks folds to one call, and what remains are the two calls a rider reads, each saying
-  // which platform it is. The entry point stays beside the folded call, exactly as Europaplatz's
-  // two street platforms do.
+  // Waidweg as line 3 reports a terminating run: loop entry, public platform, end track, all one
+  // stop. The feed's turnaround pair folds; the two calls a rider reads remain, each naming its
+  // platform.
   const tripCalls = [
     call("hammweg", 0),
     { ...call("waidweg", 1), platformLabel: "Gleis 1" },
@@ -330,7 +325,7 @@ test("a chain names its own coordinates, and a row speaks for every mark behind 
     getVehicleLabelsByRowIndex([vehicle, { ...vehicle, departure: joined }]).get(vehicle.rowIndex),
     "geschätzte Position von 2 Richtung C, geschätzte Position von 2 Richtung C",
   );
-  // One count per line portion the mark stands for, matching the number shown on the mark itself.
+  // One count per line portion, as the mark shows.
   assert.equal(countLineDiagramVehicles([[both], [vehicle]]), 3);
 });
 
@@ -341,8 +336,7 @@ test("carries every trip's own destination on its mark, joined portions included
     call("c", 2),
     call("d", 3),
   ]);
-  // A working that turns back at C, on a diagram drawn all the way to D: the one case the diagram
-  // itself cannot show, and the mark answers it when it is asked.
+  // A working turning back at C on a diagram drawn to D: the mark says so when asked.
   const shortWorking: Departure = createFixture({
     id: "diagram-short-working",
     tripId: "diagram-short-working",
@@ -429,7 +423,7 @@ test("hides the turnaround stands with the line's other vehicles, but never the 
     scheduledDepartureTime: new Date(start + 2 * 60_000).toISOString(),
     tripCalls: run([call("a", 2), call("b", 4), call("c", 6)]),
   });
-  // The next run out of the same terminus, standing there for its own turn.
+  // The next run out of the terminus, standing for its turn.
   const turning: Departure = createFixture({
     ...mine,
     id: "shown-turning",
@@ -438,7 +432,7 @@ test("hides the turnaround stands with the line's other vehicles, but never the 
     tripCalls: run([call("a", 5), call("b", 7), call("c", 9)]),
   });
 
-  // Both runs stand at their first stop before either has begun.
+  // Both stand at their first stop before beginning.
   const placements = getLineDiagramVehicles(diagramStops, [mine, turning], [], mine, start, {
     motions,
   });
@@ -450,8 +444,7 @@ test("hides the turnaround stands with the line's other vehicles, but never the 
     ],
   );
 
-  // With the line's other vehicles hidden the turnaround stand goes with them; the stand the
-  // rider's own run begins from stays, being theirs.
+  // Hiding other runs hides the turnaround stand, but not the rider's own run's stand.
   assert.deepEqual(
     getShownLineDiagramVehicles(placements, false).map(({ departure }) => departure.tripId),
     ["shown-mine"],
@@ -461,8 +454,7 @@ test("hides the turnaround stands with the line's other vehicles, but never the 
     ["shown-mine", "shown-turning"],
   );
 
-  // Without a followed trip every stand is another run's beginning, so hiding the others clears
-  // the diagram of them all.
+  // Without a followed trip, hiding others clears every stand.
   const unaccompanied = getLineDiagramVehicles(
     diagramStops,
     [mine, turning],
@@ -478,10 +470,7 @@ test("hides the turnaround stands with the line's other vehicles, but never the 
 });
 
 test("places a mark on the nearer of two rows a chain names the same stop at", () => {
-  // A working that runs through a loop passes one stop twice, so the chain names it twice and a
-  // lookup of stop to row answers with whichever of them it kept. The link is the fact in hand and
-  // both of its ends are resolved together, which puts the mark on the link the vehicle is on
-  // rather than half a diagram away from it — and slid there from wherever it stood.
+  // A loop names a stop twice; both link ends resolve together, so the mark is on its real link.
   const loopNetwork: TransitNetwork = {
     stops: ["a", "b", "c", "d"].map((id) => ({ id, name: id.toUpperCase() })),
     lines: [],
@@ -507,7 +496,7 @@ test("places a mark on the nearer of two rows a chain names the same stop at", (
     tripCalls: chain,
   });
 
-  // A minute into the first link: between the first A and the *first* B, not the one after the loop.
+  // A minute in: between the first A and the first B.
   const [firstLeg] = getLineDiagramVehicles(
     diagramStops,
     [departure],
@@ -519,9 +508,8 @@ test("places a mark on the nearer of two rows a chain names the same stop at", (
   assert.ok(getVehicleRowCoordinate(firstLeg) > 0 && getVehicleRowCoordinate(firstLeg) < 1);
   assert.equal(firstLeg.directionArrow, "↓");
 
-  // And five minutes in, on the link out of C into a B: which of the two Bs the operator means is
-  // not stated anywhere, but both of them adjoin C, so the mark is on one of the two links that
-  // name the stops it is actually between — never a diagram away from either.
+  // Five minutes in, out of C into a B: either B adjoins C, so the mark is on a link naming the
+  // stops it is really between.
   const [returning] = getLineDiagramVehicles(
     diagramStops,
     [departure],

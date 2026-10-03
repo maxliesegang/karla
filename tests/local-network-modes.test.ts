@@ -52,9 +52,8 @@ test("long-distance serving directions are not recorded as directions to go and 
 });
 
 /**
- * The Hauptbahnhof rail answers as the feed keeps it: the operator's own S-Bahn pooled under `kvv`
- * beside the DB-pooled S-Bahn Rhein-Neckar under `ddb`, and the express trains' rail replacement
- * pooled under `rab` beside the city buses.
+ * Hauptbahnhof rail as the feed pools it: KVV's S-Bahn under `kvv`, DB's S-Bahn Rhein-Neckar under
+ * `ddb`, rail replacement under `rab` beside the city buses.
  */
 function railBoardPayload() {
   return {
@@ -104,9 +103,8 @@ function railBoardPayload() {
 }
 
 test("a board keeps the operator's own S-Bahn and leaves the DB-pooled rail and its replacement out", () => {
-  // The mode groups cannot tell them apart: the S6 Rhein-Neckar shares the Stadtbahn's motType 1,
-  // and the rail replacement shares the buses' motType 6. The pool the feed states for each line
-  // is what decides.
+  // The S6 shares the Stadtbahn's motType 1 and rail replacement the buses' 6; only the pool
+  // decides.
   const board = parseDepartureBoardResponse(railBoardPayload(), "7000090");
 
   assert.deepEqual(
@@ -166,9 +164,7 @@ test("the departure monitor asks for tram, Stadtbahn and bus only", async () => 
 });
 
 test("the row cap is sent under both names the endpoint knows", async () => {
-  // `limit` is exact where it is sent before the mode macros and ignored where it is sent after
-  // them — the same request then answers with the monitor's own forty rows, each one a whole
-  // calling sequence on a detailed board. `depSequence` holds in either order, so both are sent.
+  // `limit` only applies before the mode macros; `depSequence` holds either way, so both are sent.
   let requestedUrl: URL | undefined;
   const client = new KvvEfaClient({
     departureEndpoint: "https://example.test/XSLT_DM_REQUEST",
@@ -186,15 +182,14 @@ test("the row cap is sent under both names the endpoint knows", async () => {
   assert.equal(requestedUrl?.searchParams.get("depSequence"), "6");
   assert.equal(requestedUrl?.searchParams.get("limit"), "6");
 
-  // The endpoint answers a cap of one with nothing at all, so one is never what it is asked.
+  // A cap of one returns nothing, so it is never asked.
   await client.fetchDepartureBoard("7000090", { limit: 1 });
   assert.equal(requestedUrl?.searchParams.get("depSequence"), "2");
 });
 
 test("a board asked for named line-directions is not asked for the mode macros as well", async () => {
-  // The filter is the narrower statement of the same thing: no other mode can be in the answer.
-  // Sending the macros anyway would make the monitor answer in its own form — ignoring the row cap
-  // and returning every row's complete calling sequence, which a line's reading fetches per trip.
+  // A line filter makes the mode macros redundant, and they would make the monitor ignore the cap
+  // and return every row's sequence.
   let requestedUrl: URL | undefined;
   const client = new KvvEfaClient({
     departureEndpoint: "https://example.test/XSLT_DM_REQUEST",
@@ -212,13 +207,12 @@ test("a board asked for named line-directions is not asked for the mode macros a
   assert.equal(requestedUrl?.searchParams.get("std3_commonMacro"), null);
   assert.equal(requestedUrl?.searchParams.get("includedMeans"), null);
   assert.deepEqual(requestedUrl?.searchParams.getAll("line"), ["kvv:21012:E:H:s26"]);
-  // The cap is honoured on this form, so it is the one that decides the board's size.
+  // The cap holds on this form.
   assert.equal(requestedUrl?.searchParams.get("limit"), "20");
 });
 
 test("a stop names each line-direction it knows under the line's own name", () => {
-  // The id is opaque: `kvv:21003:E:H:s26` is nobody's line until the stop says whose it is. That
-  // pairing is what lets a line be read at a stop whose few rows have no departure of it.
+  // Direction ids are opaque; the stop's pairing names their line.
   const board = parseDepartureBoardResponse(boardPayload(), "7000090");
 
   assert.deepEqual(board.servingLines, [{ lineId: "3", directionId: "kvv:21003:E:H:s26" }]);

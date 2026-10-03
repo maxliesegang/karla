@@ -6,10 +6,10 @@ import type { KvvDeparture, KvvDepartureBoard } from "../src/data/kvv-efa-parser
 import { kvvStopMappingByLocalStopId } from "../src/data/kvv-stop-mappings.ts";
 
 const STOP_ID = "europaplatz";
-/** These tests are about what is asked for, not how many rows: the stop states its own count. */
+/** These tests check what is asked for, not row counts. */
 const STOP_ROW_LIMIT = kvvStopMappingByLocalStopId[STOP_ID].departureLimit ?? 20;
 
-/** Records what the provider was actually asked for, which is the whole point of these requests. */
+/** Records what the provider was asked for. */
 function createRecordingSource() {
   const requests: {
     providerStopId: string;
@@ -109,7 +109,7 @@ test("a covered stop board batches sparse directions and keeps only live rows in
               baseDepartures[3],
               departure("b2", directionB, "2026-08-26T11:20:00.000Z"),
               departure("c1", directionC, "2026-08-26T11:00:00.000Z"),
-              // Scheduled metadata may name service much later; it must not become visible now.
+              // Much later scheduled service must not show now.
               departure("c-late", directionC, "2026-08-26T13:00:01.000Z"),
             ],
           }
@@ -147,16 +147,15 @@ test("a covered stop board batches sparse directions and keeps only live rows in
 });
 
 test("a full second answer that still starves a direction earns a third pass", async () => {
-  // A busy post's rows: the first filtered answer spends its whole limit on the direction needing
-  // it least, the second on the next one, and only a pass asking for the last direction alone
-  // finally reaches it. Bounded by progress, so each pass asks for fewer lines than the last.
+  // Each filtered pass spends its limit on the direction needing it least; only a pass for the last
+  // direction alone reaches it. Each pass asks for fewer lines.
   const requests: { lineIds?: readonly string[]; limit?: number }[] = [];
   const baseDepartures = [
     departure("a1", directionA, "2026-08-26T10:10:00.000Z"),
     departure("a2", directionA, "2026-08-26T10:40:00.000Z"),
     departure("b1", directionB, "2026-08-26T10:20:00.000Z"),
   ];
-  // As many rows as the pass's limit asks for, all of them for the first direction asked.
+  // As many rows as the limit, all for the first direction asked.
   const supplementRowsByFirstDirection: Record<string, KvvDeparture[]> = {
     [directionB]: [
       departure("b2", directionB, "2026-08-26T10:50:00.000Z"),
@@ -251,7 +250,7 @@ test("a coverage supplement is a reading of its own, not part of the board's cyc
               { lineId: "test", directionId: directionA },
               { lineId: "test", directionId: directionC },
             ],
-        // Rare enough that it is on no unfiltered board, which is the whole reason to ask for it.
+        // On no unfiltered board, which is why it is asked for.
         departures: options.lineIds
           ? [departure("c1", directionC, "2026-08-26T11:00:00.000Z")]
           : [base],
@@ -265,8 +264,7 @@ test("a coverage supplement is a reading of its own, not part of the board's cyc
   const first = await read();
   assert.ok(first.departures.some(({ tripId }) => tripId === "c1"));
 
-  // Still under-covered — directionC runs hourly and always will be — but asking again every cycle
-  // is what this endpoint may not do. The rare row stands until its own reading is old.
+  // Still under-covered (hourly), but not re-asked every cycle; the row stands until old.
   t.mock.timers.tick(60_000);
   const second = await read();
   assert.equal(requests.filter(({ lineIds }) => lineIds).length, 1);
@@ -290,7 +288,7 @@ test("a held supplement is dropped rather than aged into the rider's next few mi
             { lineId: "test", directionId: directionC },
           ],
       departures: options.lineIds
-        ? // Two minutes out: nearer than the reading will be old, so it is the live board's to state.
+        ? // Two minutes out: nearer than the reading's age, so the live board's to state.
           [departure("c1", directionC, "2026-08-26T10:02:00.000Z")]
         : [departure("a1", directionA, "2026-08-26T10:10:00.000Z")],
     }),
@@ -300,8 +298,7 @@ test("a held supplement is dropped rather than aged into the rider's next few mi
     source.getDepartureBoard(STOP_ID, { minimumDeparturesPerDirection: 2, maxAgeMs: 0 });
 
   assert.ok((await read()).departures.some(({ tripId }) => tripId === "c1"));
-  // Four minutes on, the held reading is older than that departure is far away: a delay that has
-  // moved since would misstate something imminent, so it stops being published.
+  // Four minutes on, the held reading is older than the departure is far; it stops showing.
   t.mock.timers.tick(4 * 60_000);
   assert.deepEqual(
     (await read()).departures.map(({ tripId }) => tripId),
@@ -357,19 +354,19 @@ test("a reader that will accept nothing stale is answered from the feed", async 
 test("only a view that draws the trips pays for the calling sequences", async () => {
   const { source, requests } = createRecordingSource();
 
-  // A departure board states what leaves this stop and is read without them.
+  // A plain board is read without calls.
   await source.getDepartureBoard(STOP_ID);
   assert.deepEqual(requests, [
     { providerStopId: requests[0].providerStopId, includeTripCalls: false, limit: STOP_ROW_LIMIT },
   ]);
 
-  // Opening a line wants the whole trip, which the board in hand does not carry.
+  // Opening a line wants the whole trip.
   await source.getDepartureBoard(STOP_ID, { includeTripCalls: true });
   assert.equal(requests.length, 2);
   assert.equal(requests[1].includeTripCalls, true);
   assert.equal(requests[1].limit, STOP_ROW_LIMIT);
 
-  // The detailed board states everything the lightweight one does, so it answers for it.
+  // The detailed board answers for the light one.
   await source.getDepartureBoard(STOP_ID);
   assert.equal(requests.length, 2);
 });
@@ -398,8 +395,7 @@ test("two readers asking at once share the one request in flight", async () => {
 });
 
 test("a line-filtered board is never allowed to answer a reader asking for the whole stop", async () => {
-  // Forty rows filtered to one line reach an hour and a half ahead; the same forty unfiltered reach
-  // about twenty minutes. They answer different questions, so they are cached apart.
+  // Filtered and unfiltered answer different questions, so they are cached apart.
   const { source, requests } = createRecordingSource();
 
   await source.getDepartureBoard(STOP_ID, {
@@ -431,8 +427,7 @@ test("two readers naming the same lines in any order share one filtered request"
 });
 
 test("a filtered board does not shrink what the stop is known to serve", async () => {
-  // A filtered answer saw only the lines it asked about. Recorded as the stop's serving directions
-  // it would erase every other line, and the coverage pass would stop supplementing them.
+  // A filtered answer must never be recorded as the stop's serving directions.
   const requests: { lineIds?: readonly string[] }[] = [];
   const client = {
     fetchDepartureBoard: async (
@@ -446,7 +441,7 @@ test("a filtered board does not shrink what the stop is known to serve", async (
         stopPointId: "provider-stop",
         stopName: "Europaplatz",
         serverTime,
-        // Only the unfiltered board states the whole set; directionC runs later than this board reaches.
+        // Only the unfiltered board states the whole set.
         servingLines: options.lineIds
           ? []
           : [
@@ -475,7 +470,7 @@ test("a filtered board does not shrink what the stop is known to serve", async (
   assert.ok(supplemented.includes(directionC), "directionC must still be supplemented");
 });
 
-/** The same run under two trip ids, as the monitor and its filtered completion both answer it. */
+/** One run under two trip ids, as the monitor and its filtered completion answer it. */
 const runReading = (
   tripId: string,
   scheduledDepartureTime: string,
@@ -488,9 +483,7 @@ const runReading = (
 });
 
 test("one run read twice is one row, and it is the row carrying the prediction", async () => {
-  // The monitor answers with the same S5 twice: two trip ids differing in a single segment, one
-  // operator train number, one published minute. Both are the vehicle, so left as they are the
-  // board states two times for it — one of them a schedule the feed has already superseded.
+  // The monitor returns the same S5 twice (trip ids differing by a segment, one train number).
   const client = {
     fetchDepartureBoard: async (): Promise<KvvDepartureBoard> => ({
       stopPointId: "provider-stop",
@@ -500,7 +493,7 @@ test("one run read twice is one row, and it is the row carrying the prediction",
       departures: [
         runReading("de:kvv:00S05_:.kvv-22-305-E.7.T0.1604.s26", "2026-08-26T10:05:00.000Z"),
         runReading("de:kvv:00S05_:.kvv-22-305-E.7.T0.1586.s26", "2026-08-26T10:05:00.000Z", 6),
-        // A run the feed numbers differently is a different vehicle and stays.
+        // A different train number is a different vehicle.
         {
           ...runReading("other", "2026-08-26T10:05:00.000Z", 3),
           trainNumber: "84992",
@@ -522,9 +515,7 @@ test("one run read twice is one row, and it is the row carrying the prediction",
 });
 
 test("a completion may not state a run the live board already carries", async () => {
-  // The filtered pass answers with a trip id of its own for a run the plain board has already
-  // stated. Keyed by that id it stood beside itself, and the rarest directions — the ones this
-  // completion exists for — are exactly where a doubled row also reads as coverage it does not have.
+  // The filtered pass's own trip id for an already stated run must not double the row.
   const baseRow = runReading(
     "de:kvv:00S05_:.kvv-22-305-E.7.T0.1604.s26",
     "2026-08-26T10:05:00.000Z",
@@ -554,9 +545,7 @@ test("a completion may not state a run the live board already carries", async ()
 });
 
 test("a board that describes the whole stop names the directions it knows there", async () => {
-  // The one thing a filtered board cannot say. At a terminus the returning direction has no row on
-  // any board, so this metadata is the only place its id is ever stated — and naming it is what
-  // lets the rest of the line be read filtered instead of one direction at a time.
+  // At a terminus the returning direction has no row anywhere; only this metadata names it.
   const client = {
     fetchDepartureBoard: async (
       _providerStopId: string,
@@ -565,7 +554,7 @@ test("a board that describes the whole stop names the directions it knows there"
       stopPointId: "provider-stop",
       stopName: "Europaplatz",
       serverTime,
-      // A filtered answer describes only what it was asked about; the provider says as much.
+      // A filtered answer covers only what it asked about.
       servingLines: options.lineIds
         ? [{ lineId: "test", directionId: directionA }]
         : [
@@ -583,8 +572,7 @@ test("a board that describes the whole stop names the directions it knows there"
     [directionA, directionB],
   );
 
-  // A filtered board carries none at all: its silence about a direction is not evidence that the
-  // stop has none, and a reading that took it for evidence would keep filtering out what it missed.
+  // A filtered board carries none: its silence is not evidence.
   const filtered = await source.getDepartureBoard(STOP_ID, { routeDirectionIds: [directionA] });
   assert.equal(filtered.servingLines, undefined);
 });
@@ -592,8 +580,8 @@ test("a board that describes the whole stop names the directions it knows there"
 test("a stop whose board is shared between boarding places asks for more of it", async () => {
   const { source, requests } = createRecordingSource();
 
-  // Europaplatz answers one board for four places to stand, and publishes its street trips twice —
-  // once at either of them. Twenty rows are three or four per place, which is not a board.
+  // Europaplatz shares one board between four places, street trips listed twice; twenty rows are
+  // too few.
   await source.getDepartureBoard(STOP_ID);
   assert.equal(requests[0].limit, 40);
   assert.ok(STOP_ROW_LIMIT > 20);

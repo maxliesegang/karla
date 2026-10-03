@@ -12,51 +12,34 @@ import {
 type LoadedValue<T> = { key: string; value: T | undefined };
 
 /**
- * Reads the resource `key` names.
- *
- * `isEntryRead` is true for the first read a mounted caller makes. A view's first paint is where a
- * stale answer costs the most: a mark placed on entry is placed from a reading the previous visit
- * left behind, and the reading that corrects it arrives a minute or more later — after the rider
- * has started watching, which is when a correction reads as a jump. A loader may use it to ask the
- * source for a fresh answer; every read after it keeps the tolerance the caller states.
+ * Reads the resource `key` names. `isEntryRead` is true for a mounted caller's first read, where a
+ * stale answer costs most; a loader may then ask for a fresh one.
  */
 export type KeyedLoad<T> = (key: string, isEntryRead: boolean) => Promise<T>;
 
 export type KeyedLoadOptions<T> = {
   refreshMs?: number;
   /**
-   * Whether a resolved value is a failure. Some resources resolve to an explicit unavailable state
-   * instead of rejecting, so the refresh lifecycle cannot infer failure from the promise alone.
-   * The two kinds of failure back off to different ceilings: an answer the feed did give earns the
-   * slower one, where a rejection may be one lost packet on a phone.
+   * Whether a resolved value is a failure, for resources that resolve to an unavailable state
+   * rather than reject. Resolved failures back off further than rejections, which may be one lost
+   * packet.
    */
   isFailure?: (value: T) => boolean;
   /**
-   * Bumping this re-runs the load for the same key: a caller's explicit "ask again" after a read
-   * that failed. Whatever the previous load settled on stays visible until the new one answers,
-   * and the failure streak the old attempts had earned is forgiven.
+   * Bumping it re-runs the load for the same key; the last value stays and the backoff is forgiven.
    */
   reloadNonce?: number;
 };
 
 /**
- * Loads a keyed resource and only exposes a value that belongs to the current key.
+ * Loads a keyed resource and exposes only a value for the current key. `null`: nothing resolved
+ * yet; `undefined` is a valid resolved "nothing". The latest `load` and `isFailure` are always
+ * used.
  *
- * The key is the identity of what is read: a new key starts a new refresh chain, and the load may
- * close over anything the key stands for. The latest `load` and `isFailure` are always the ones
- * called, so neither has to be stable.
- *
- * `null` means nothing has resolved for this key yet. A resolved value may itself be `undefined`,
- * which is how a load says "asked, and there is nothing".
- *
- * Refreshing is a chain of timeouts rather than an interval: each one is scheduled after the last
- * load settled, so a slow source cannot queue requests behind itself. Hidden pages stop polling.
- * A page coming back is heard through every event a browser actually delivers on the way back —
- * `visibilitychange`, `pageshow`, `focus`, `online` — read one tick after the event, because
- * WebKit has delivered the visibility event while the document still read "hidden", and a resumed
- * home-screen app has skipped it entirely. A page that was really away also forgives the backoff:
- * whatever the cadence had slowed to, the reason it slowed may be over. A window merely clicked
- * back into keeps the cadence it earned (`isAwayEvidence`).
+ * Refreshes chain timeouts after each settled load, so a slow source never queues. Hidden pages
+ * stop polling. Returning is detected via `visibilitychange`, `pageshow`, `focus` and `online`, one
+ * tick after the event (WebKit can report "hidden" during it, and resumed home-screen apps skip
+ * it). A real absence forgives the backoff; a mere refocus does not (`isAwayEvidence`).
  */
 export function useKeyedLoad<T>(
   key: string | null,
@@ -80,12 +63,9 @@ export function useKeyedLoad<T>(
     let resumeTimer = 0;
     let failureStreak: FailureStreak | undefined;
     let lastLoadStartedAt = 0;
-    // A resume can start a new request while the one Safari suspended is still in flight. Only the
-    // newest request may publish or schedule the next cycle; otherwise the old response can land
-    // last and replace the reading fetched after the page became active again.
+    // Only the newest request publishes: a request Safari suspended can land after the fresh one.
     let loadSequence = 0;
-    // Set by the event that took the page away and consumed by the one that brings it back, so a
-    // return is forgiven once rather than on every focus for as long as the streak stands.
+    // Set when the page goes away, consumed on return, so the backoff is forgiven once.
     let hasBeenAway = false;
 
     const getRefreshDelayMs = () =>
@@ -123,9 +103,7 @@ export function useKeyedLoad<T>(
       if (!active || refreshMs === undefined) return;
       const eventType = event.type as ResumeEventType;
       if (isAwayEvidence(eventType)) hasBeenAway = true;
-      // The state an event announces and the state the document reports while it is delivered do
-      // not always agree, so the due reading happens one tick after the event rather than in it —
-      // which is also where a page on its way out is told from one on its way back.
+      // Read one tick later, when the document's state matches the event.
       window.clearTimeout(resumeTimer);
       resumeTimer = window.setTimeout(() => {
         if (!active || !isVisibleResumeEvent(eventType, document.visibilityState)) return;

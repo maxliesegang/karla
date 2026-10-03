@@ -1,25 +1,19 @@
 import { useEffect } from "react";
 
 /**
- * What the two views that read location have in common.
- *
- * Location is never demanded here. A rider asks for it from a control they pressed, and the only
- * thing that happens without being asked is this: where the browser already holds a grant, the
- * question has been answered once and asking it again with a button is the annoyance, not the
- * request. Nothing is stored and nothing is sent anywhere.
+ * Shared location helpers. Location is only requested from a pressed control, or used if already
+ * granted; never stored or sent.
  */
 
 export const IS_GEOLOCATION_SUPPORTED =
   typeof navigator !== "undefined" && "geolocation" in navigator;
 
-/** Whether the browser refused because the rider did, which is the one refusal worth remembering. */
+/** Whether the rider refused, the one refusal worth remembering. */
 export const isPermissionDenied = (error: GeolocationPositionError): boolean =>
   error.code === error.PERMISSION_DENIED;
 
 /**
- * Runs `onGranted` once the browser reports a standing grant, and never otherwise. Browsers that
- * refuse the question — or throw on the permission name — simply say nothing, and the view's own
- * button remains the way in, which is where this started.
+ * Runs `onGranted` once a standing grant is reported; browsers that will not say leave the button.
  */
 export function useGrantedGeolocation(isEnabled: boolean, onGranted: () => void) {
   useEffect(() => {
@@ -33,7 +27,7 @@ export function useGrantedGeolocation(isEnabled: boolean, onGranted: () => void)
         () => {},
       );
     } catch {
-      // Some browsers throw on an unknown permission name rather than rejecting.
+      // Some browsers throw on an unknown permission name.
     }
     return () => {
       isActive = false;

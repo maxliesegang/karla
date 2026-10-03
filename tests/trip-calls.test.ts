@@ -39,8 +39,8 @@ test("keeps a second published call at the current physical stop", () => {
 });
 
 test("reads past the row's own stop where the run was read at another stop", () => {
-  // One reading of a run is merged into every stop's row of it, so a Tivoli row can carry the
-  // marker Poststraße's board set: read from there, the 3 to Daxlanden left Tivoli for the Hbf.
+  // A run is merged into every stop's row, so a Tivoli row can carry Poststraße's current-stop
+  // marker.
   const tripCalls: TripCall[] = [
     { stopName: "Werderstraße", localStopId: "werderstrasse" },
     { stopName: "Tivoli", localStopId: "tivoli" },
@@ -107,7 +107,7 @@ test("completes a row with the run read for it and keeps the row's own facts", (
   const merged = mergeRunReading(row("b", "Karlstor"), reading);
 
   assert.equal(merged.tripCalls?.length, 2);
-  // The stop row stays the departure fact; the run contributes only the sequence behind it.
+  // The stop row stays the departure; the run adds only its sequence.
   assert.equal(merged.destination, "Hochstetten");
 });
 
@@ -118,10 +118,8 @@ test("a row stands when no reading has arrived", () => {
 });
 
 /**
- * A run looked for across the line's boards is found as a *row* far more often than as a sequence:
- * the boards along a line are read without calling sequences at all. So the reading offered to the
- * merge as the completion regularly carries none, and the row keeps the calls it already had — with
- * the clock of the reading that took them, not of the one that happened to be offered beside it.
+ * Calls kept from the row keep the row's read time, not the time of a call-less reading offered
+ * beside it.
  */
 test("calls kept from the row are dated by the row that read them", () => {
   const row: Departure = createDeparture({
@@ -142,7 +140,7 @@ test("calls kept from the row are dated by the row that read them", () => {
     ],
     readAt: { rowReadAt: 1_000_000, sequenceReadAt: 1_000_000 },
   });
-  // The same run on a line board, read two minutes later and carrying no sequence at all.
+  // The same run on a line board, two minutes later, without a sequence.
   const callLess: Departure = createDeparture({
     ...row,
     id: "other",
@@ -156,7 +154,7 @@ test("calls kept from the row are dated by the row that read them", () => {
   assert.deepEqual(merged.readAt, { rowReadAt: 1_000_000, sequenceReadAt: 1_000_000 });
 });
 
-/** A row with no calls behind it states one clock, because only one reading was ever taken. */
+/** A row with no calls has one clock. */
 test("a row carrying no sequence is dated on one clock, not on two", () => {
   const row: Departure = createDeparture({
     id: "row",
@@ -183,7 +181,7 @@ test("a row carrying no sequence is dated on one clock, not on two", () => {
   });
 
   assert.deepEqual(mergeRunReading(row, undefined).readAt, { rowReadAt: 1_000_000 });
-  // A sequence genuinely read later than the row still says so: that is the case the stamp is for.
+  // A sequence read later than the row says so.
   assert.deepEqual(mergeRunReading(row, sequence).readAt, {
     rowReadAt: 1_000_000,
     sequenceReadAt: 1_120_000,

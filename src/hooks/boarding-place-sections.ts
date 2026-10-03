@@ -6,27 +6,18 @@ import {
 import { scrollIntoView } from "../lib/scroll";
 
 export type BoardingPlaceSections = {
-  /** The place the board is being read at, or `undefined` while it is being read at none. */
+  /** The place being read, or `undefined`. */
   activePlaceId: string | undefined;
-  /** The ref a place's section renders under, which is how the bar knows where the places are. */
+  /** Registers a place's section element. */
   getSectionRef: (placeId: string) => (section: HTMLElement | null) => void;
-  /** Walks the board to a place's own section, as the stylesheet says a walked-to section lands. */
+  /** Scrolls to a place's section, landing where the stylesheet's scroll margin says. */
   scrollToSection: (placeId: string) => void;
 };
 
 /**
- * The place a board is being read at, and the way to read it at another.
- *
- * The place bar's buttons are a map of the board's own sections: tapping one walks the board to that
- * place, and the scroll marks the button of the place whose heading is stuck at the top. What the
- * two share is the landing point — the `scroll-margin-top` the stylesheet gives a section, read
- * back here as the line a section has to reach to count as being read — so arriving, marking and
- * sticking are one decision the CSS owns rather than two the code has to keep agreed.
- *
- * `isPageScrollport` says whose scrollport the sections are read in: the board's own on a wide
- * screen, the document's where the layout is stacked and the sticky headings pin under the app
- * bar instead of at the scrollport's top. The scroll is heard where it happens, so the same nav
- * serves both without either knowing a breakpoint.
+ * The place a board is read at, and scrolling to another. Landing, marking and sticking share one
+ * line: the section's `scroll-margin-top`. Works in the board's scrollport or the document's
+ * (`isPageScrollport`) without knowing the breakpoint.
  */
 export function useBoardingPlaceSections(
   listRef: RefObject<HTMLElement | null>,
@@ -63,9 +54,8 @@ export function useBoardingPlaceSections(
     let landingInsetPx = 0;
     for (const [placeId, section] of sectionByPlaceIdRef.current) {
       readings.push({ id: placeId, top: section.getBoundingClientRect().top });
-      // One decision for every section of a board: the inset a walked-to section stops short of,
-      // which is the bar's height where the document scrolls and nothing at all where the board
-      // scrolls itself.
+      // The inset a scrolled-to section stops short of: the bar where the document scrolls, else
+      // zero.
       landingInsetPx =
         Number.parseFloat(getComputedStyle(section).scrollMarginTop) || landingInsetPx;
     }
@@ -73,8 +63,7 @@ export function useBoardingPlaceSections(
     setActivePlaceId(findBoardingPlaceIdInView(readings, scrollportTop + landingInsetPx));
   }, [isPageScrollport, listRef]);
 
-  // Re-read whenever the board renders anew: a refresh regathers the sections, and the place the
-  // board is being read at is a fact about what is on it now, not about the last scroll.
+  // Re-read on every render: a refresh regathers the sections.
   useEffect(() => {
     if (!isEnabled) return;
     readActivePlaceId();

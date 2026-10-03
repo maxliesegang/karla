@@ -1,24 +1,11 @@
 /**
- * Measures what the feed actually states at a terminus, so a turnaround pairing can be built on
- * evidence rather than on a time window alone (`src/lib/line-turnarounds.ts`).
- *
- * Nothing publishes which arrival becomes which departure. Three things might still carry it, and
- * none of them is answerable by reading the app:
- *
- * 1. **What scheduled turn does the line run at this terminus?** A gap that holds across every run
- *    of a period can be paired against where a fixed window is a guess. But it is only ever known
- *    modulo the headway: an arrival turning out `g` minutes later and one turning out `g + headway`
- *    later fit the same timetable, differing by one more vehicle standing one more turn. The
- *    headway is printed beside the gap because it is the whole of what the gap can be trusted to.
- *    Where the two are equal, or the gap is zero, the minimal reading is not physically possible
- *    and the probe says so rather than reporting a turn.
- * 2. **Does the departure share the arrival's platform?** A stub track turns on one platform; a
- *    loop or a multi-track terminus does not. Where it holds it breaks ties the window cannot.
- * 3. **Does a run carry the vehicle's deviation before it starts?** In an ITCS a not-yet-started
- *    trip inherits the lateness of the vehicle assigned to it. If KVV publishes that, a departure
- *    delay before departure that matches the arriving run's lateness is the nearest thing the
- *    feed has to saying "same vehicle" — and a predicted departure earlier than the predicted
- *    arrival is a pairing the feed itself rules out.
+ * Measures what the feed states at a terminus, as evidence for turnaround pairing
+ * (`src/lib/line-turnarounds.ts`):
+ * 1. The scheduled turn per line, known only modulo the headway (printed beside it); a gap of zero
+ *    or a whole headway is reported as impossible rather than as a turn.
+ * 2. Whether the departure shares the arrival's platform (stub tracks do; loops do not).
+ * 3. Whether an unstarted run carries its vehicle's deviation, and whether a predicted departure
+ *    precedes the predicted arrival.
  *
  *     npm run probe:turnarounds -- [options]
  *
@@ -27,17 +14,15 @@
  *       --minutes 20              how long to run (default 20)
  *       --out probe.jsonl         also write every reading, for analysis afterwards
  *
- * For each terminus the probe reads its own board, where the runs *starting* there are rows, and
- * the boards of the stops those runs call at next, where the runs *ending* at the terminus are
- * rows with their final call still ahead. It polls to see the departure delay of an unstarted run
- * as it develops, which one reading cannot show. A diagnostic run by hand, then stopped.
+ * Reads each terminus's board (starting runs) and its neighbours' boards (ending runs). Run by
+ * hand, then stop.
  */
 
 import { appendFile } from "node:fs/promises";
 import { KvvEfaClient } from "../src/data/kvv-efa-client.ts";
 import type { KvvDeparture, KvvTripCall } from "../src/data/kvv-efa-parsers.ts";
 
-/** The two calls the feed marks as ends of a run — the same reading `lib/trip-calls.ts` makes. */
+/** The calls the feed marks as run ends, as in `lib/trip-calls.ts`. */
 const statesRunStart = (call: KvvTripCall): boolean =>
   call.scheduledDepartureTime !== undefined && call.scheduledArrivalTime === undefined;
 const statesRunEnd = (call: KvvTripCall): boolean =>
@@ -46,11 +31,11 @@ const statesRunEnd = (call: KvvTripCall): boolean =>
 const DEFAULT_TERMINUS_IDS = ["7000314", "7004500", "7000013", "7000089", "7000090", "7000084"];
 const DEFAULT_INTERVAL_SECONDS = 60;
 const DEFAULT_MINUTES = 20;
-/** Rows per board — a terminus lists one direction only, so twenty rows reach far enough. */
+/** Rows per board; a terminus lists one direction only. */
 const BOARD_ROW_LIMIT = 30;
-/** How many neighbouring stops are read for arrivals — one per approach track is enough. */
+/** Neighbouring stops read for arrivals: one per approach track. */
 const NEIGHBOUR_LIMIT = 3;
-/** Below this much slack the arrival's lateness has to show on the departure, if it ever does. */
+/** Below this slack, an arrival's lateness should show on the departure. */
 const MIN_TURN_MS = 60_000;
 /** The farthest a scheduled departure is looked at past a scheduled arrival. */
 const SCHEDULED_PAIRING_HORIZON_MS = 30 * 60_000;
@@ -99,10 +84,10 @@ const getTripKey = (departure: KvvDeparture): string =>
   departure.tripId ??
   `${departure.lineId}@${departure.scheduledDepartureTime}`;
 
-/** One reading of a run's first call, taken while (or after) it stood at the terminus. */
+/** One reading of a run's first call, at or after its stand. */
 type StartReading = {
   feedNow: number;
-  /** The row's own headline deviation; `undefined` is the feed monitoring nothing yet. */
+  /** The row's deviation; `undefined` means not monitored yet. */
   rowDelayMinutes?: number;
   /** The first call's departure deviation as the sequence states it. */
   callDelayMinutes?: number;
@@ -116,7 +101,7 @@ type Start = {
   destination: string;
   scheduledDeparture: number;
   platform?: string;
-  /** The stop the run calls at next — where its arrival counterpart is read. */
+  /** The run's next stop, where its arrival counterpart is read. */
   nextStopPointId?: string;
   readings: StartReading[];
 };
@@ -128,7 +113,7 @@ type Arrival = {
   origin: string;
   scheduledArrival: number;
   platform?: string;
-  /** Latest stated arrival deviation at the terminus; `undefined` where none was stated. */
+  /** Latest arrival deviation at the terminus. */
   arrivalDelayMinutes?: number;
   lastSeenAt: number;
 };
@@ -136,7 +121,7 @@ type Arrival = {
 type TerminusRecord = {
   stopPointId: string;
   stopName?: string;
-  /** Every stop point the terminus answers with — a complex reports several. */
+  /** Every stop point the terminus reports. */
   stopPointIds: Set<string>;
   neighbourIds: Set<string>;
   starts: Map<string, Start>;
@@ -284,13 +269,9 @@ async function poll(client: KvvEfaClient, options: Options): Promise<void> {
 type Pair = { arrival: Arrival; start: Start; scheduledGapMs: number };
 
 /**
- * Arrivals to starts on scheduled times, in arrival order, each arrival taking the nearest later
- * start of its line not yet taken — the FIFO the platform imposes, on the timetable's own times.
- *
- * The *minimal* pairing, and only that: it assumes no vehicle stands through a departure, which is
- * exactly what a published gap of zero disproves. Read the gaps beside the headway below, never on
- * their own. Over a long enough window this also drifts, because a terminus beside a depot starts
- * runs no arrival accounts for and every later arrival is then pushed one departure along.
+ * The minimal FIFO pairing on scheduled times: each arrival takes the nearest later unclaimed start
+ * of its line. Read the gaps against the headway: a zero gap disproves it, and a depot's extra
+ * starts make it drift.
  */
 function pairOnSchedule(arrivals: readonly Arrival[], starts: readonly Start[]): Pair[] {
   const pairs: Pair[] = [];
@@ -315,7 +296,7 @@ function pairOnSchedule(arrivals: readonly Arrival[], starts: readonly Start[]):
   return pairs;
 }
 
-/** The interval the line repeats on here, as the commonest gap between consecutive events. */
+/** The line's headway here: the commonest gap between consecutive events. */
 function findHeadwayMinutes(instants: readonly number[]): number | undefined {
   const sorted = [...new Set(instants)].sort((left, right) => left - right);
   const counts = new Map<number, number>();
@@ -339,7 +320,7 @@ function histogram(values: readonly number[]): string {
     .join(", ");
 }
 
-/** The deviation a start stated before its scheduled departure, at the last reading before it. */
+/** A start's deviation at the last reading before its scheduled departure. */
 function findPreDepartureReading(start: Start): StartReading | undefined {
   const before = start.readings.filter(
     ({ feedNow }) => feedNow < start.scheduledDeparture - 30_000,
@@ -370,8 +351,7 @@ function reportTerminus(terminus: TerminusRecord): void {
         .map(({ scheduledDeparture }) => scheduledDeparture),
     );
     const gaps = linePairs.map(({ scheduledGapMs }) => Math.round(scheduledGapMs / 60_000));
-    // A turn of a whole number of headways is the one reading the platform rules out: no vehicle
-    // arrives and leaves at the same instant, so the real turn is at least one headway longer.
+    // A whole number of headways is impossible: the real turn is at least one headway longer.
     const isDegenerate = gaps.some(
       (gap) => gap === 0 || (headway !== undefined && headway > 0 && gap % headway === 0),
     );
@@ -443,8 +423,7 @@ function reportTerminus(terminus: TerminusRecord): void {
     const depDelay = reading ? (reading.rowDelayMinutes ?? reading.callDelayMinutes) : undefined;
     const arrivalDelay = arrival.arrivalDelayMinutes;
     const slackMs = arrivalDelay === undefined ? undefined : scheduledGapMs - arrivalDelay * 60_000;
-    // The feed's own two predictions, compared as instants: a departure it times before the
-    // arrival it would turn out of is a pairing the feed itself rules out.
+    // A predicted departure before the predicted arrival rules the pairing out.
     const predictedGapMs =
       arrivalDelay === undefined || depDelay === undefined
         ? undefined

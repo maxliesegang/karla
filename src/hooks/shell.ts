@@ -3,9 +3,7 @@ import { navigateTo, routePaths } from "../routing";
 import { describePanelChange, type PanelChange, type PanelKeys } from "../view-layout";
 
 /**
- * The keyboard affordances a wide screen expects and this app had none of: `/` to search, `g` then
- * `z` or `n` for the two roots. Typing into a field is never a shortcut, and neither is a chord the
- * browser or the operating system already owns.
+ * Keyboard shortcuts: `/` to search, `g` then `z` or `n`. Never while typing, never browser chords.
  */
 export function useViewShortcuts({
   searchInputRef,
@@ -37,8 +35,7 @@ export function useViewShortcuts({
       }
       if (event.key === "/") {
         event.preventDefault();
-        // The search lives at the top of the home and nowhere else, so from any other view the
-        // shortcut's first job is to go where the field is; it is focused on arrival there.
+        // The search lives on the home, so first go there; it is focused on arrival.
         if (searchInputRef.current) searchInputRef.current.focus();
         else navigateTo(routePaths.home());
       }
@@ -50,11 +47,8 @@ export function useViewShortcuts({
 }
 
 /**
- * A screen left running for weeks reloads itself.
- *
- * It is how an unattended board picks up a deploy, and it resets whatever a browser has accumulated
- * over a week of running one page. Scheduled from the moment the page loaded rather than from a
- * wall-clock hour, so a wall of screens does not blink at once.
+ * An unattended screen reloads itself, picking up deploys; timed from load so screens do not blink
+ * together.
  */
 export function useStationBoardReload(reloadMinutes: number | undefined) {
   useEffect(() => {
@@ -65,17 +59,13 @@ export function useStationBoardReload(reloadMinutes: number | undefined) {
 }
 
 /**
- * Which half of the dashboard changed on the navigation being rendered.
- *
- * Derived while rendering rather than in an effect: the answer has to be on the element in the same
- * commit that mounts the new panel, or the entrance it orders would already be a frame under way.
- * The previous keys are held as state and compared, which is React's own way of deriving from props
- * that changed — a ref would be read before the render that set it under a concurrent re-entry.
+ * Which dashboard half changed, derived during render so the entrance is on the element in the
+ * mounting commit. Previous keys are state, not a ref, for concurrent rendering.
  */
 export function usePanelChange(keys: PanelKeys): PanelChange {
   const [previous, setPrevious] = useState({
     ...keys,
-    // The first paint is a full arrival, so both halves enter together.
+    // The first paint enters both halves.
     change: "both" as PanelChange,
   });
 

@@ -8,39 +8,17 @@ import { useVehicleTrajectoryAnimations } from "../../hooks/vehicle-trajectory-a
 import { getVehicleLeftOffset, type VehicleLayerGeometry } from "./layout";
 
 /**
- * The marks, drawn in one layer over the stop list.
+ * The marks, in one layer over the stop list. Animation is `useVehicleTrajectoryAnimations`; this
+ * layer supplies coordinates that follow the rows, and re-measures (without carrying paint) when
+ * the rows move, as they do when a pinned terminus grows a strip. Whether a mark travelled or was
+ * placed comes from `RunPlacement.motion`, never from watching coordinates.
  *
- * A mark moves on one segment-long Web Animation whose duration ends at the next expected arrival;
- * `useVehicleTrajectoryAnimations` owns how the animation is kept, and this layer owns only where
- * its coordinates are: transforms that follow the rows rather than one straight between the two
- * ends, and a geometry signature that re-measures when the rows move. It must not move because the
- * diagram under it changed height — and it does, unprompted: a pinned terminus grows a strip for
- * covered stops as the rider scrolls. Geometry changes therefore cancel and recreate the same
- * domain trajectory in the newly measured coordinate system, without carrying the old paint.
- *
- * The distinction about the mark's own position — travel animated, a placement painted where it
- * belongs — is the placement's to state (`RunPlacement.motion`), and the shared hook reads it
- * from the mark. This layer deliberately does not try to work that out for itself by watching
- * coordinates jump: the two are indistinguishable from here, since a mark making up several
- * minutes and a mark being repositioned move the same distance in the same tick, and only the
- * module that placed it knows which happened.
- *
- * A mark also answers one question about itself: where its trip is going. It is asked by pointing
- * at the mark, and on a device with no pointer by tapping it, and the mark answers by opening into
- * a chip with the destination in it — one mark at a time, over the stop names beside it, and closed
- * again the moment the rider looks elsewhere. Nothing is spoken here: the layer is hidden from
- * assistive technology and every stop row already names the vehicles standing behind it.
+ * Pointing at (or tapping) a mark opens it into a chip naming its destination, one at a time. The
+ * layer is hidden from assistive technology; stop rows already name their vehicles.
  */
-/**
- * The placement reading inside an opened mark, enabled while vehicle placement is being debugged.
- */
+/** Shows the placement reading inside an opened mark, for debugging. */
 const SHOW_VEHICLE_DEBUG_LABEL = false;
-/**
- * Debug reading of where a mark stands, for whoever is looking for a placement bug: the row the
- * placement has it at — the stand of a turnaround included — the link and share of it while it
- * runs, and whether it was placed there rather than having travelled. Names fall back to row
- * numbers where the rows in hand do not cover the link.
- */
+/** Debug reading of a mark's placement: row, link and share, and whether it was placed. */
 const getVehicleDebugLabel = (
   {
     rowIndex,
@@ -72,9 +50,9 @@ function LineDiagramVehicleLayerView({
   vehicles: readonly LineDiagramVehicle[];
   geometry: VehicleLayerGeometry;
   lineById: ReadonlyMap<string, TransitLine>;
-  /** The stop name of every row, so the debug reading can name where a mark stands. */
+  /** Every row's stop name, for the debug reading. */
   stopNames?: readonly string[];
-  /** Markers that were on the shared trunk immediately before entering this branch. */
+  /** Marks that were on the shared trunk just before entering this branch. */
   branchTransferKeys?: ReadonlySet<string>;
 }) {
   const layerRef = useRef<HTMLDivElement>(null);
@@ -82,14 +60,12 @@ function LineDiagramVehicleLayerView({
     source: vehicles,
     layout: assignStableVehicleLanes(vehicles, new Map()),
   }));
-  // Which mark is open, where a rider has no hover to open one with. One at a time: two chips over
-  // the same names would be two answers to a question asked about one of them.
+  // The open mark, for devices without hover; one at a time.
   const [openMarkerKey, setOpenMarkerKey] = useState<string | null>(null);
   useLayoutEffect(() => {
     const layer = layerRef.current;
     if (!layer) return;
-    // Added before this render is painted, so the re-measured offsets land silently; lifted a whole
-    // frame later, when there is no pending change left for a restored transition to pick up.
+    // Added before paint so re-measured offsets land silently; removed a frame later.
     layer.classList.add("remeasured");
     let settle = 0;
     const frame = requestAnimationFrame(() => {
@@ -102,10 +78,7 @@ function LineDiagramVehicleLayerView({
   }, [geometry]);
 
   /**
-   * Where on the rail a mark on this link stands, followed row by row rather than as one straight
-   * line between the two ends. Rows differ in height — call times, qualifiers, the rider's own stop
-   * — and a link that spans more than one of them, which a working skipping stops this diagram
-   * draws is on, would otherwise cross the ones between at the wrong pace.
+   * A mark's top offset, followed row by row since rows differ in height and links can span rows.
    */
   const getVehicleTopOffset = (vehicle: LineDiagramVehicle) => {
     const lastIndex = geometry.stopCenterOffsets.length - 1;
@@ -133,19 +106,13 @@ function LineDiagramVehicleLayerView({
   }
   const stableVehicles = laneLayout.vehicles;
 
-  // The marks this render actually draws, in the order the layer draws them: a vehicle whose row
-  // offset cannot be measured yet is not one of them.
+  // The marks drawn this render; one without a measured row offset is not drawn.
   const drawnMarks = stableVehicles.flatMap((vehicle) => {
     const topOffset = getVehicleTopOffset(vehicle);
     return topOffset === undefined ? [] : [{ vehicle, topOffset }];
   });
 
-  // A segment is one browser animation, not a succession of one-second CSS transitions. A feed
-  // revision changes the trajectory signature, so the old animation is cancelled and the
-  // remaining distance starts from the exact progress the domain model sampled at that refresh.
-  // One statement of the coordinate system every mark of this pass is planned in: it is the same
-  // for all of them, and a diagram of forty rows would otherwise re-join those offsets into a
-  // string for every mark on it, every second.
+  // One geometry signature for every mark this pass, not re-joined per mark per tick.
   const geometrySignature = [geometry.trackLeft, geometry.stopCenterOffsets.join(",")].join(":");
   useVehicleTrajectoryAnimations({
     container: layerRef,
@@ -158,8 +125,7 @@ function LineDiagramVehicleLayerView({
     ]),
     geometrySignature,
     getTransform: (mark, progress) => getVehicleTransform(mark, progress),
-    // A mark that skips stops crosses each row it passes on its own clock, so every row boundary
-    // is a keyframe; the trajectory's own sampling narrows these to the ones still ahead.
+    // Every row boundary a link crosses is a keyframe.
     getBoundaryProgresses: (mark) => {
       const rowSpan = mark.toIndex - mark.fromIndex;
       return rowSpan === 0
@@ -185,17 +151,9 @@ function LineDiagramVehicleLayerView({
           isOtherRun,
           isSelected,
         } = vehicle;
-        // The direction's base offset is CSS, measured from the rail itself: a wide panel has room
-        // for labelled pills, a narrow one keeps compact marks on either side of the track. Only
-        // which lane this vehicle is in stays here, because that belongs to this vehicle; how far
-        // a lane steps is CSS again, since a fan that fits beside a labelled pill would walk a
-        // compact mark off the edge of a narrow panel.
-        // The mark carries its whole position in one property. Closed marks have one known width,
-        // so both directions are centred evenly around the spine without either edge approaching
-        // the panel boundary. Vertically they remain centred as their position changes. The
-        // pull-back is written out here rather than read from a variable of its own: the anchor
-        // is declared on the mark and differs by tier, and a variable declared on the layer would
-        // have frozen the widest tier's half-width into every narrow mark below it.
+        // Base offsets and lane step are CSS (wide panels fit labelled pills, narrow ones compact
+        // marks); only the lane index is per vehicle. The pull-back is written out because the
+        // anchor differs by tier.
         const transform =
           getVehicleTransform(vehicle) ??
           `translate3d(${getVehicleLeftOffset(geometry.trackLeft, vehicle.laneIndex, vehicle.directionArrow)}, ${vehicleTopOffset}px, 0) translate(calc(0px - var(--line-diagram-vehicle-anchor)), -50%)`;
@@ -206,8 +164,7 @@ function LineDiagramVehicleLayerView({
         return (
           <button
             type="button"
-            // The layer is hidden from assistive technology, so this must not be reachable by
-            // keyboard either; it is a way to point at a mark, never a control of its own.
+            // Hidden from assistive technology, so not keyboard-reachable either.
             tabIndex={-1}
             key={markerKey}
             data-marker-key={markerKey}
@@ -248,10 +205,7 @@ function LineDiagramVehicleLayerView({
             ) : (
               directionArrow
             )}
-            {/* The mark's own answer, carried inside it: the chip opens across the stop names —
-                  the one part of the row with the width for a name — and closes back to a mark.
-                  Under the destination, where a placement is being debugged, it also states where
-                  the placement has the vehicle standing. */}
+            {/* The chip opens across the stop names; debug mode adds the placement. */}
             <small className="line-diagram-vehicle-destination">
               {destinationLabel}
               {debugLabel && <span className="line-diagram-vehicle-debug">{debugLabel}</span>}
@@ -263,5 +217,5 @@ function LineDiagramVehicleLayerView({
   );
 }
 
-/** Parent ticks still hand vehicles between links; motion within a link belongs to the browser. */
+/** Parent ticks hand vehicles between links; motion within a link belongs to the browser. */
 export const LineDiagramVehicleLayer = memo(LineDiagramVehicleLayerView);

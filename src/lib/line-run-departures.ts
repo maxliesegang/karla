@@ -3,26 +3,21 @@ import { findFinalCallInstant } from "./trip-calls";
 import { getRunMarkKey } from "./trips";
 
 /**
- * How long a finished run's mark is kept past its final call. One of four nested lifetimes; it must
- * stay inside the store's `RUN_ENDED_GRACE_MS` (see `run-reading-store.ts`).
+ * How long a finished run's mark is kept past its final call; must stay inside
+ * `RUN_ENDED_GRACE_MS`.
  */
 export const RUN_MARK_RETENTION_GRACE_MS = 2 * 60_000;
-/** The set followed is bounded even if a provider returns an unexpectedly large board. */
+/** Bounds the followed set against an unexpectedly large board. */
 const FOLLOWED_RUN_CAPACITY = 256;
 
 /**
- * A run a line view is still following: its id, never a copy of its reading.
- *
- * The reading is fetched by id whenever it is needed (`findRun`), so there is one of it — and so is
- * how long the run is kept: its expiry is read off the run as it stands at that moment, since every
- * re-read may move its final call. Only a board naming a run changes this entry.
- *
- * Named by the row id, and never by a mark key: the mark key can be refined when the run's
- * sequence lands (`getRunMarkKey`), and is read off the reading at the moment it is compared.
+ * A run a line view follows, by row id only: the reading is fetched by id (`findRun`) and its
+ * expiry read off it at that moment. Not keyed by mark key, which can be refined when the sequence
+ * lands.
  */
 export type FollowedRun = {
   rowId: string;
-  /** When a board last named this run, which is what the cap spends itself in favour of. */
+  /** When a board last named this run; the cap keeps the most recent. */
   observedAt: number;
 };
 
@@ -32,15 +27,13 @@ function getRunRetentionExpiry(departure: Departure): number | undefined {
   return finalInstant === undefined ? undefined : finalInstant + RUN_MARK_RETENTION_GRACE_MS;
 }
 
-/** Whether a run is still worth drawing: known, not cancelled, and not past its final call. */
+/** Still worth drawing: known, not cancelled, not past its final call. */
 const isStillRunning = (run: Departure | undefined, feedNow: number): boolean =>
   run !== undefined && run.status !== "cancelled" && (getRunRetentionExpiry(run) ?? 0) > feedNow;
 
 /**
- * Adds the latest board observations to the bounded set of runs being followed.
- *
- * A departure board stops listing a run once it has passed that stop. Its complete call sequence
- * still describes the rest of the run, so it remains worth drawing until the final expected call.
+ * Adds the latest board observations to the followed runs. A board drops a run once it passes, but
+ * its calls still describe the rest of the run until the final call.
  */
 export function updateFollowedRuns(
   previous: readonly FollowedRun[],
@@ -69,7 +62,7 @@ export function updateFollowedRuns(
     .slice(0, capacity);
 }
 
-/** Whether two sets followed name the same runs, so state need not move. */
+/** Whether two followed sets name the same runs. */
 export function areFollowedRunsEqual(
   left: readonly FollowedRun[],
   right: readonly FollowedRun[],
@@ -84,14 +77,9 @@ export function areFollowedRunsEqual(
 }
 
 /**
- * The current board entries plus still-running vehicles the boards have stopped listing.
- *
- * Current entries win over followed ones because a row on a board in hand is this refresh's
- * statement about where the vehicle is. A followed run is resolved through `findRun` and judged by
- * the mark key it carries at draw time, so a run whose dated identity was refined after it was
- * followed is still recognised as the one a board row stands for, and one the reading says is
- * cancelled is not drawn from an older statement. A run the source can no longer name has been
- * evicted rather than finished, so it simply leaves the plan.
+ * The current board entries plus still-running vehicles the boards stopped listing. Current entries
+ * win. Followed runs resolve through `findRun` and match by their draw-time mark key; a run the
+ * source can no longer name was evicted and leaves the plan.
  */
 export function getLineRunDepartures(
   followed: readonly FollowedRun[],
@@ -111,8 +99,7 @@ export function getLineRunDepartures(
     unlisted.push(run);
   }
   return [
-    // A current entry may still have enough timed calls to place a mark even when its final call is
-    // incomplete. Show it now; only following it on requires a trustworthy expiry.
+    // A current entry is shown even without a trustworthy expiry; only following it on needs one.
     ...current,
     ...unlisted,
   ];

@@ -7,13 +7,8 @@ import {
 } from "../lib/stop-corridor-patterns";
 
 /**
- * What the stop in view has learned about where its trips go.
- *
- * The detailed boards this reads are on three different cadences and none of them is the board the
- * rider is looking at, so on any given refresh a trip may or may not have a detailed reading in
- * hand. Accumulating into one memory takes that timing out of the grouping: a route observed once
- * during the visit keeps grouping its trip afterwards, whether or not the board that showed it has
- * since been refreshed away.
+ * What the stop in view has learned about where its trips go, accumulated so a route observed once
+ * keeps grouping its trip although detailed boards arrive on their own cadences.
  */
 export function useStopCorridorPatterns(
   stopId: string | undefined,
@@ -30,16 +25,15 @@ export function useStopCorridorPatterns(
     [topologyBoard, observationBoards],
   );
 
-  // Where the rider is standing at no stop, nothing is read and nothing is remembered.
+  // No stop, nothing read or remembered.
   const unread = useMemo(() => createStopCorridorPatterns(stopId ?? ""), [stopId]);
 
-  // Learned while rendering rather than in an effect: the boards are already in hand here, and a
-  // board that arrives with the route of the trip in view must not group it a paint later.
+  // Learned during render, so a trip groups with the board that proved its route.
   const learned = useMemo(
     () => (stopId ? updateStopCorridorPatterns(patterns, stopId, topologyDepartures) : null),
     [patterns, stopId, topologyDepartures],
   );
-  // A reading that taught nothing returns the same memory, so this settles after one pass.
+  // An unchanged memory keeps its identity, so this settles in one pass.
   if (learned && learned !== patterns) setPatterns(learned);
 
   return learned ?? unread;

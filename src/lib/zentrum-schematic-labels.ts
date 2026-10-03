@@ -1,44 +1,25 @@
 /**
- * Where each stop's name is set: beside its capsule, on the first side the name fits without
- * crossing a band, a capsule or another name, as a printed network plan sets them.
+ * Where each stop's name is set: beside its capsule, on the first side clear of bands, capsules and
+ * names.
  */
 import {
   ZENTRUM_SCHEMATIC_NODES,
   ZENTRUM_SCHEMATIC_VIEWBOX,
   type SchematicPoint,
   type ZentrumSchematicEdge,
+  type ZentrumSchematicStroke,
 } from "./zentrum-schematic-plan";
 import {
   ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH,
   ZENTRUM_SCHEMATIC_STOP_LINK_WIDTH,
   type ZentrumSchematicStopMark,
-  type ZentrumSchematicStroke,
   getBandOutline,
   getStrokeOutline,
   isOverlapping,
 } from "./zentrum-schematic-stops";
 
-/** The sides a name may stand on, as the direction it stands in from its capsule. */
-export type ZentrumLabelSide =
-  | "right"
-  | "left"
-  | "above"
-  | "below"
-  | "above-right"
-  | "below-right"
-  | "above-left"
-  | "below-left";
-
-/** A placed name: the side it stands on, from the point it is set against, in schematic units. */
-export type ZentrumSchematicLabel = {
-  side: ZentrumLabelSide;
-  anchor: SchematicPoint;
-  /** Whether the name is clear of the drawing and every other name; else it is printed on demand. */
-  fits: boolean;
-};
-
-/** Sides across the plan's grain first, so a name reads level beside the stop it names. */
-const ZENTRUM_LABEL_SIDES: readonly ZentrumLabelSide[] = [
+/** The sides a name may stand on, across the plan's grain first so names read level. */
+const ZENTRUM_LABEL_SIDES = [
   "right",
   "left",
   "below",
@@ -47,7 +28,17 @@ const ZENTRUM_LABEL_SIDES: readonly ZentrumLabelSide[] = [
   "below-right",
   "above-left",
   "below-left",
-];
+] as const;
+
+export type ZentrumLabelSide = (typeof ZENTRUM_LABEL_SIDES)[number];
+
+/** A placed name: the side it stands on, from the point it is set against, in schematic units. */
+export type ZentrumSchematicLabel = {
+  side: ZentrumLabelSide;
+  anchor: SchematicPoint;
+  /** Whether the name is clear of everything; else it is printed on demand. */
+  fits: boolean;
+};
 
 const LABEL_SIDE_DIRECTIONS: Record<ZentrumLabelSide, SchematicPoint> = {
   right: { x: 1, y: 0 },
@@ -60,13 +51,13 @@ const LABEL_SIDE_DIRECTIONS: Record<ZentrumLabelSide, SchematicPoint> = {
   "below-left": { x: -1, y: 1 },
 };
 
-/** The gap between a capsule and its name, in CSS pixels, whatever size the plan is drawn. */
+/** The gap between a capsule and its name, in CSS pixels at any plan size. */
 const ZENTRUM_LABEL_GAP_PIXELS = 3;
 
-/** How many distances, a lane apart, a name is tried at before it settles for a collision. */
+/** Distances, a lane apart, a name is tried at before accepting a collision. */
 const ZENTRUM_LABEL_RINGS = 3;
 
-/** A stop name's type size at a plan width, mirroring `clamp(8px, 0.9cqw, 11.5px)` in the CSS. */
+/** A stop name's type size at a plan width; mirrors `clamp(8px, 0.9cqw, 11.5px)` in the CSS. */
 const getZentrumNameSize = (planWidth: number): number =>
   Math.min(11.5, Math.max(8, planWidth * 0.009));
 
@@ -76,10 +67,13 @@ const ZENTRUM_NAME_MEASURE = 92;
 /** A generous character width, so a name is never judged to fit too early. */
 const ZENTRUM_NAME_CHARACTER_WIDTH = 0.62;
 
+/** The characters a travel time sets in, line badge included. */
+const ZENTRUM_TIME_CHARACTERS = 9;
+
 /** The padding `.zentrum-schematic-stop span` sets round a name, either way. */
 const ZENTRUM_NAME_PADDING = { x: 3, y: 2 };
 
-/** A name's set size in CSS pixels: it wraps at its spaces, so never narrower than its longest word. */
+/** A name's size in CSS pixels; wraps at spaces, so never narrower than its longest word. */
 const getNamePixels = (
   label: string,
   planWidth: number,
@@ -100,9 +94,6 @@ const getNamePixels = (
     height: lines * size * 1.12 + time.height + ZENTRUM_NAME_PADDING.y * 2,
   };
 };
-
-/** The characters a travel time sets in, line badge included. */
-const ZENTRUM_TIME_CHARACTERS = 9;
 
 /** A name's set size in schematic units, on a plan drawn `planWidth` CSS pixels wide. */
 const getNameSize = (
@@ -133,7 +124,7 @@ const getLabelBox = (
   { width, height }: { width: number; height: number },
 ): Box => {
   const direction = LABEL_SIDE_DIRECTIONS[side];
-  // A name beside its anchor hangs off it: centred on the axis it does not move along.
+  // Centred on the axis it does not move along.
   const left =
     direction.x > 0 ? anchor.x : direction.x < 0 ? anchor.x - width : anchor.x - width / 2;
   const top =
@@ -158,7 +149,7 @@ const getStrokeBox = (stroke: ZentrumSchematicStroke, halfWidth: number): Box =>
   };
 };
 
-/** Where a name on one side of a capsule is set against: one gap clear of the capsule's box. */
+/** Where a name on one side is anchored: one gap clear of the capsule's box. */
 const getAnchor = (box: Box, side: ZentrumLabelSide, gap: number): SchematicPoint => {
   const direction = LABEL_SIDE_DIRECTIONS[side];
   const pick = (low: number, high: number, sign: number) =>
@@ -170,13 +161,9 @@ const getAnchor = (box: Box, side: ZentrumLabelSide, gap: number): SchematicPoin
 };
 
 /**
- * Every drawn stop's name, placed one at a time: the stops a reader steers by (where corridors
- * meet or end) first, so a through stop's name gives way to theirs. Each takes the first side, the
- * authored one leading, where it is inside the plan and clear of every band, capsule and name
- * already set; where no side is, the one with the fewest collisions.
- *
- * Sized for a plan `planWidth` CSS pixels wide, since names keep their type size as the plan grows,
- * and with room for a travel time over each name where the plan prints them (`hasTimes`).
+ * Places every drawn stop's name: stops where corridors meet or end first. Each takes the first
+ * side (authored first) inside the plan and clear of all bands, capsules and placed names, else the
+ * side with the fewest collisions. `hasTimes` leaves room for a travel time above each name.
  */
 export const placeZentrumSchematicLabels = (
   edges: readonly ZentrumSchematicEdge[],
@@ -204,7 +191,7 @@ export const placeZentrumSchematicLabels = (
     bottom: ZENTRUM_SCHEMATIC_VIEWBOX.y + ZENTRUM_SCHEMATIC_VIEWBOX.height,
   };
 
-  // Each name's candidates, scored once against the drawing, which does not move as names are set.
+  // Candidates are scored once; the drawing does not move as names are set.
   const markByNodeId = new Map(stopMarks.map((mark) => [mark.nodeId, mark]));
   const pending = ZENTRUM_SCHEMATIC_NODES.flatMap((node) => {
     const mark = markByNodeId.get(node.id);
@@ -214,8 +201,7 @@ export const placeZentrumSchematicLabels = (
     const sides = node.labelSide
       ? [node.labelSide, ...ZENTRUM_LABEL_SIDES.filter((side) => side !== node.labelSide)]
       : ZENTRUM_LABEL_SIDES;
-    // Every side close in first, then every side a lane further out: a name a crossing band
-    // keeps from its capsule still stands beside the stop rather than on the band.
+    // Every side close in first, then a lane further out, so a name stays beside its stop.
     const candidates = Array.from({ length: ZENTRUM_LABEL_RINGS }, (_, ring) =>
       sides.map((side) => {
         const anchor = getAnchor(box, side, gap + ring * trackWidth);
@@ -233,10 +219,8 @@ export const placeZentrumSchematicLabels = (
     return [{ nodeId: node.id, candidates }];
   });
 
-  // The name with the fewest free candidates left is set next, on whichever of its free ones takes
-  // the fewest from the names still waiting: a name with room to spare gives way to one squeezed
-  // between its neighbours. A name with no free candidate left does not fit. It is set on its least
-  // crowded candidate, printed only where it is pointed at, and keeps nothing clear of itself.
+  // The name with the fewest free candidates goes next, on the free one blocking the fewest others.
+  // A name with none left does not fit: it takes its least crowded candidate and shows on demand.
   type Candidate = (typeof pending)[number]["candidates"][number];
   const placed: Box[] = [];
   const getCost = (candidate: Candidate) =>
@@ -244,31 +228,38 @@ export const placeZentrumSchematicLabels = (
   const labels = new Map<string, ZentrumSchematicLabel>();
   const waiting = [...pending];
   while (waiting.length > 0) {
-    const freeCounts = waiting.map(
-      ({ candidates }) => candidates.filter((candidate) => getCost(candidate) === 0).length,
+    const freeByName = waiting.map(({ candidates }) =>
+      candidates.filter((candidate) => getCost(candidate) === 0),
     );
     const fewest = Math.min(
-      ...freeCounts.map((count) => (count === 0 ? Number.POSITIVE_INFINITY : count)),
+      ...freeByName.map(({ length }) => (length === 0 ? Number.POSITIVE_INFINITY : length)),
     );
-    const [{ nodeId, candidates }] = waiting.splice(Math.max(freeCounts.indexOf(fewest), 0), 1);
-    const free = waiting.flatMap((other) =>
-      other.candidates.filter((candidate) => getCost(candidate) === 0),
+    const next = Math.max(
+      freeByName.findIndex(({ length }) => length === fewest),
+      0,
     );
-    const getBlocking = ({ labelBox }: Candidate) =>
-      free.filter((other) => isBoxOverlapping(labelBox, other.labelBox)).length;
-    const best = candidates.reduce((chosen, candidate) =>
-      getCost(candidate) < getCost(chosen) ||
-      (getCost(candidate) === 0 &&
-        getCost(chosen) === 0 &&
-        getBlocking(candidate) < getBlocking(chosen))
-        ? candidate
-        : chosen,
-    );
-    const fits = getCost(best) === 0;
+    const [{ nodeId, candidates }] = waiting.splice(next, 1);
+    const [free] = freeByName.splice(next, 1);
+    const othersFree = freeByName.flat();
+    const best =
+      free.length > 0
+        ? getFirstLeast(
+            free,
+            ({ labelBox }) =>
+              othersFree.filter((other) => isBoxOverlapping(labelBox, other.labelBox)).length,
+          )
+        : getFirstLeast(candidates, getCost);
+    const fits = free.length > 0;
     labels.set(nodeId, { side: best.side, anchor: best.anchor, fits });
     if (fits) placed.push(best.labelBox);
   }
   return labels;
+};
+
+/** The first of some items to score least. */
+const getFirstLeast = <Item>(items: readonly Item[], score: (item: Item) => number): Item => {
+  const scores = items.map(score);
+  return items[scores.indexOf(Math.min(...scores))];
 };
 
 const isBoxOverlapping = (left: Box, right: Box): boolean =>

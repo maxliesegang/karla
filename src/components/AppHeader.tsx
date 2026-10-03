@@ -4,23 +4,14 @@ import { formatClockTime } from "../lib/departure-presentation";
 import { navigateTo, routePaths } from "../routing";
 import { NearbyStopButton } from "./NearbyStopButton";
 
-/** Own component so the minute tick repaints the time alone, not the panels below it. */
+/** Its own component, so the minute tick repaints only the time. */
 function Clock() {
   return <time>{formatClockTime(useCurrentTime())}</time>;
 }
 
 /**
- * The bar carries one question at a time and no more.
- *
- * What is left is the shell itself — where the rider is in the chain, and the two things true of
- * every view: the clock the board is read against, and the one control that answers a question the
- * bar is the right place for, "the stop I am standing at". Everything else is where its answer
- * is: the search at the top of the home, where choosing a stop is the whole point of the
- * view, and the operator's notices under the board they concern.
- *
- * A control in the bar is on every screen at every width, which is what makes it expensive: the
- * waiting glance is the surface this app exists for, and chrome above it is paid for by the rider
- * every time they check when their tram leaves.
+ * The bar: where the rider is in the chain, the clock, and the locate control. Everything else
+ * lives where its answer is, since chrome here costs every glance.
  */
 export function AppHeader({
   backPath,
@@ -29,7 +20,7 @@ export function AppHeader({
   onShowNearbyStops,
   isStationBoardMode = false,
 }: {
-  /** One level up the nested stop selection chain. */
+  /** One level up the selection chain. */
   backPath?: string;
   nearbyStopsController: NearbyStopsController;
   currentPageStopId?: string;
@@ -53,8 +44,7 @@ export function AppHeader({
             <span className="brand-mark">KARLA</span>
           </button>
         )}
-        {/* Stepping up the chain is what Escape does and what this does; the browser's own back
-            button goes back through history, which is a different journey. */}
+        {/* Steps up the chain, like Escape; browser back walks history instead. */}
         {backPath && (
           <button
             type="button"

@@ -3,27 +3,18 @@ import { findNetworkBandIdInView, type NetworkBandReading } from "../lib/network
 import { scrollIntoView } from "../lib/scroll";
 
 export type NetworkBandNavigation = {
-  /** The band the page is being read in, or `undefined` while it is being read in none. */
+  /** The band being read, or `undefined`. */
   activeBandId: string | undefined;
-  /** The ref a band's section renders under, which is how the navigation knows where the bands are. */
+  /** Registers a band's section element. */
   getBandRef: (bandId: string) => (band: HTMLElement | null) => void;
-  /** Walks the page to a band's own section, as the stylesheet says a walked-to band lands. */
+  /** Scrolls to a band, landing where the stylesheet's scroll margin says. */
   scrollToBand: (bandId: string) => void;
 };
 
 /**
- * The band the line index is being read in, and the way to read it in another.
- *
- * The band navigation's buttons are a map of the page's own bands: tapping one walks the page to
- * that band, and the scroll marks the button of the band whose heading is stuck at the top. What
- * the two share is the landing point — the `scroll-margin-top` the stylesheet gives a band, read
- * back here as the line a band has to reach to count as being read — so arriving, marking and
- * sticking are one decision the CSS owns rather than two the code has to keep agreed.
- *
- * `isPageScrollport` says whose scrollport the bands are read in: the list's own on a wide screen,
- * the document's where the layout is stacked and the sticky headings pin under the app bar instead
- * of at the scrollport's top. The scroll is heard where it happens, so the same navigation serves
- * both without either knowing a breakpoint.
+ * The band the line index is read in, and scrolling to another. Landing, marking and sticking share
+ * one line: the band's `scroll-margin-top`. Works in the list's own scrollport or the document's
+ * (`isPageScrollport`) without knowing the breakpoint.
  */
 export function useNetworkBandNavigation(
   listRef: RefObject<HTMLElement | null>,
@@ -60,17 +51,15 @@ export function useNetworkBandNavigation(
     let landingInsetPx = 0;
     for (const [bandId, band] of bandByIdRef.current) {
       readings.push({ id: bandId, top: band.getBoundingClientRect().top });
-      // One decision for every band of the page: the inset a walked-to band stops short of, which
-      // is the bar and the navigation's own height where the document scrolls and nothing at all
-      // where the list scrolls itself.
+      // The inset a scrolled-to band stops short of: bar plus nav where the document scrolls, else
+      // zero.
       landingInsetPx = Number.parseFloat(getComputedStyle(band).scrollMarginTop) || landingInsetPx;
     }
     const scrollportTop = isPageScrollport ? 0 : list.getBoundingClientRect().top;
     setActiveBandId(findNetworkBandIdInView(readings, scrollportTop + landingInsetPx));
   }, [isPageScrollport, listRef]);
 
-  // Re-read whenever the page renders anew: the observed network regathers the bands, and the band
-  // the page is being read in is a fact about what is on it now, not about the last scroll.
+  // Re-read on every render: the bands may have been regathered.
   useEffect(() => {
     if (!isEnabled) return;
     readActiveBandId();

@@ -15,20 +15,9 @@ import { LineDiagramVehicleLayer } from "./LineDiagramVehicleLayer";
 import { useVehicleLayerGeometry } from "./layout";
 
 /**
- * One leg of a forked line diagram: what a single bundled line does past the stretch the bundle is
- * drawn over.
- *
- * A leg is its own chain of stops and therefore its own coordinate system, which is exactly why it
- * is a component rather than more rows in the trunk's list. Everything the trunk does with a stop
- * chain — build its rows, place the vehicles on it, measure where its rows really sit — it does
- * here too, for this line alone. Marks hand over between the two lists at the junction: the trunk
- * carries every bundled line as far as they run together, and past that a vehicle is on one leg's
- * links and on no other list's.
- *
- * The junction itself is drawn as a stub rather than as a stop. It has to be *in* the chain — a
- * vehicle is placed on the link between two calls, and the first link of a leg has one end on the
- * trunk — but the trunk already names that stop, and naming it again on every leg would turn one
- * stop into three. So the stub is the track meeting the trunk, carrying the leg's own sign.
+ * One leg of a forked line diagram: one bundled line past the shared stretch, with its own stop
+ * chain, coordinates and vehicles. The junction is in the chain (a leg's first link starts on the
+ * trunk) but drawn as a stub carrying the leg's sign, since the trunk already names the stop.
  */
 export function LineDiagramBranch({
   branch,
@@ -44,32 +33,29 @@ export function LineDiagramBranch({
   onOpenStop,
 }: {
   branch: LineBundleBranch;
-  /** This leg's own line, whose sign the stub carries and whose colour the leg is drawn in. */
+  /** This leg's line, for the stub's sign and the colour. */
   line: TransitLine;
   network: TransitNetwork;
-  /** The line colours for vehicle marks, including a sibling on the shared trunk. */
+  /** Line colours for marks, including siblings. */
   lineById: ReadonlyMap<string, TransitLine>;
-  /** Already placed on this leg: the marks are this line's vehicles and no others. */
+  /** This leg's placed vehicles. */
   vehicles: readonly LineDiagramVehicle[];
   selectedDeparture: Departure | undefined;
-  /** The stop the lines part at, which the trunk names and this leg only points back to. */
+  /** The stop the lines part at. */
   junctionStopName: string;
   /**
-   * How many legs stand between this one and the trunk's own rail, which the first leg continues.
-   * It is what the connector is drawn across: the legs are equal-width flex children, so the trunk
-   * rail is exactly this many leg widths and gaps to the left of this leg's own. Zero draws none.
+   * Legs between this one and the trunk's rail (equal-width flex children); the connector spans
+   * them.
    */
   connectorOffset: number;
-  /** Markers that were on the shared trunk immediately before entering this leg. */
+  /** Marks that were on the shared trunk just before entering this leg. */
   branchTransferKeys?: ReadonlySet<string>;
-  /** The rows' coarse clock, so a tick that only moved a mark does not re-render them. */
+  /** The rows' coarse clock. */
   rowFeedNow: number;
   onOpenStop: (stopId: string) => void;
 }) {
   const stopListRef = useRef<HTMLDivElement>(null);
-  // Travel order reversed, the same way up as the trunk: the way ahead is drawn upwards, so a leg
-  // ahead ends at its junction stub and a leg behind begins at one. Either way the stub is the row
-  // that touches the trunk.
+  // Reversed like the trunk, so the stub is always the row touching the trunk.
   const diagramTripCalls = useMemo(() => [...branch.calls].reverse(), [branch.calls]);
   const diagramStops = useMemo(
     () => buildLineDiagramStops(network, diagramTripCalls),
@@ -80,9 +66,7 @@ export function LineDiagramBranch({
   const stopNames = useMemo(() => diagramStops.map(({ stopName }) => stopName), [diagramStops]);
   const vehicleLabelByRowIndex = useMemo(() => getVehicleLabelsByRowIndex(vehicles), [vehicles]);
   const geometry = useVehicleLayerGeometry({ stopListRef, coordinateKey });
-  // The leg never states a next call of its own: the trip's own next call is read on the trunk, and
-  // two lists both claiming the anchor would leave the position control scrolling to whichever the
-  // document happened to hold first. A mark of this line out here is anchor enough.
+  // The leg never states a next call; the trunk does, so the position control has one anchor.
   const runPositionStopIndex = getRunPositionAnchorIndex(diagramStops, vehicles, undefined);
   const onActivate = useMemo(() => ({ kind: "open" as const, run: onOpenStop }), [onOpenStop]);
 
@@ -110,9 +94,7 @@ export function LineDiagramBranch({
       <div ref={stopListRef} className="line-diagram-branch-list">
         {diagramStops.map((diagramStop, index) =>
           index === junctionIndex ? (
-            /* The junction: the track running into the trunk, and the sign saying whose leg this
-               is. It is measured like any row — the marks between it and the first stop of the leg
-               travel across it — but it is not a stop, because the trunk below already is one. */
+            /* The junction stub: measured like a row so marks cross it, but not a stop. */
             <div
               key={`junction-${diagramStop.stopId}`}
               className="line-diagram-branch-junction"

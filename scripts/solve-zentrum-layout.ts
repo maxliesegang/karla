@@ -1,42 +1,20 @@
 /**
- * Solves the Zentrum's drawing surface: the octilinear layout closest to the real city.
- *
- * `src/lib/zentrum-schematic-plan.ts` authors where each place is drawn, and that table is the one thing
- * on the plan geography can contradict. It was first produced by an annealing run that lived
- * outside the repository, so what it was solved for could only be read back out of a comment, and
- * what it had traded away could not be read at all. Measured against the coordinates the feed
- * publishes for the very platforms it draws, twelve of thirty-seven corridors ran in the wrong one
- * of the eight directions, Marktplatz's two tunnels among them.
- *
- * So the solve is a script, and it states its own result:
+ * Solves the Zentrum's octilinear layout closest to the real city, for
+ * `src/lib/zentrum-schematic-plan.ts`.
  *
  *     npm run solve:zentrum -- [--from <file>] [--save <file>] [--grid 22] [--scale 3.4]
  *
- * It reads the feed once, the way the app reads it and through the same portal rules, and keeps the
- * two things a layout can be solved against: where each node's platforms really are, as the median
- * of every call the feed placed there, and which corridors trips are running. Both are written
- * beside this script, so the solve can be re-run, argued with and compared without the network, and
- * so a reader can see exactly what the drawing was answerable to.
+ * Reads the feed once (median platform positions per node, observed corridors) and saves it beside
+ * the script, so solves can be re-run offline. Then:
+ * 1. A direction per corridor: the nearest of the eight to its bearing, claimed once per place,
+ *    best fit first.
+ * 2. Positions: least distortion from real positions and lengths, directions held by a heavy
+ *    weight.
+ * 3. The grid: rounded to the step, then annealed over whole cells until no corridor bends, no two
+ *    places crowd, and no corridor passes a place it does not call at.
  *
- * Then it solves in three movements.
- *
- * 1. **A direction for every corridor**, taken from its true bearing: the nearest of the eight, and
- *    where two corridors at one place would claim the same one, the better-fitting keeps it. This
- *    is the step that repairs a wrong direction rather than polishing it.
- * 2. **Positions**, as the least-distorted placement those directions allow. Each place is pulled
- *    towards where it really stands and each corridor towards its true length, while every corridor
- *    is held to its direction by a weight heavy enough to win.
- * 3. **The grid**, which is where the drawing becomes a drawing. The settled positions are rounded
- *    to the step, and what rounding breaks -- a corridor no longer straight, two places closer than
- *    a name needs, a corridor running through a place it does not call at -- is repaired by
- *    annealing over whole cells, from which no infeasible arrangement is ever returned.
- *
- * What it prints is the node table, ready to be read and pasted, and the report that says whether
- * this drawing is better than the one it replaces.
- *
- * The layout stays authored: a human reads the table before it lands. That is why this prints
- * rather than writes. A solver that edited the app's own source would make the drawing an output,
- * and the one thing this drawing must remain is answerable.
+ * Prints the node table and a comparison with the current layout. It prints rather than writes, so
+ * a human reviews the layout before it lands.
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
@@ -56,26 +34,13 @@ import {
 
 const OBSERVATIONS_PATH = "scripts/zentrum-layout-observations.json";
 
-/** Metres to one drawing unit. Decides how large the plan is drawn; nothing about its shape. */
+/** Metres per drawing unit; sets the plan's size, not its shape. */
 const DEFAULT_METRES_PER_UNIT = 3.4;
 
-/**
- * The step positions are rounded to, which need not be the step the app has always drawn on.
- *
- * A coarse grid is what makes an octilinear drawing readable -- corridors meet at a few sizes of
- * angle and the eye reads a system rather than a scatter -- but it is also the last thing to
- * distort the geography, because a place may be a whole step from where it belongs. So it is a
- * parameter, and the report says what each setting cost. The angles do not depend on the step
- * being large; a diagonal is a diagonal on any grid.
- */
+/** The grid step; coarser reads better but distorts more, and the report shows the cost. */
 const DEFAULT_GRID = ZENTRUM_SCHEMATIC_GRID;
 
-/**
- * The separation the plan keeps, so two names can stand beside two dots.
- *
- * Stated in drawing units rather than in grid steps, because what it protects is a label, and a
- * label does not get smaller when the grid does.
- */
+/** The separation between places, in drawing units, so names fit beside dots. */
 const MINIMUM_SEPARATION = ZENTRUM_SCHEMATIC_GRID * 1.5;
 
 /** How close a corridor may pass to a place it does not call at. */
@@ -100,11 +65,7 @@ const edgeKey = (edge: Edge): string => `${edge.from} ${edge.to}`;
 /* ------------------------------------------------------------------ reading */
 
 /**
- * Reads the feed the way the app reads it, and keeps only what a layout can be solved against.
- *
- * A node's position is the median of every call the feed placed there rather than the mean: one
- * call published at the wrong end of a complex would drag a mean across the street, and the median
- * of a few hundred simply ignores it.
+ * Reads the feed as the app does; a node's position is the median of its calls, ignoring outliers.
  */
 async function observe(rowLimit: number): Promise<Observations> {
   const stops = new StopRegistry([]);
@@ -179,13 +140,7 @@ async function observe(rowLimit: number): Promise<Observations> {
 
 /* --------------------------------------------------------------- projecting */
 
-/**
- * Degrees onto the drawing's own units, north up.
- *
- * Equirectangular around the middle of the Zentrum: across three kilometres of one city the error
- * of that is centimetres, and it keeps north pointing up the page -- which a plan of a place
- * someone is standing in has to do, whatever a best fit would rotate it to.
- */
+/** Equirectangular projection around the Zentrum, north up. */
 function project(observations: Observations, metresPerUnit: number): Map<string, Point> {
   const centreLatitude =
     observations.nodes.reduce((sum, node) => sum + node.latitude, 0) / observations.nodes.length;
@@ -217,14 +172,7 @@ const bearingOf = (from: Point, to: Point): number =>
 const angleBetween = (left: number, right: number): number =>
   Math.abs(((left - right + 540) % 360) - 180);
 
-/**
- * One of the eight for every corridor, best fits first.
- *
- * Two corridors leaving one place in the same direction would be drawn over each other, so a
- * direction is claimed once per place. Claiming in order of fit means a corridor whose bearing
- * geography states plainly keeps the direction geography gives it, and the one that has to give way
- * is always the one that was least sure of itself.
- */
+/** One direction per corridor, claimed once per place, best fits first. */
 function assignDirections(
   edges: readonly Edge[],
   geography: ReadonlyMap<string, Point>,
@@ -265,12 +213,8 @@ function assignDirections(
 /* ------------------------------------------------------------------ solving */
 
 /**
- * The least-distorted positions the assigned directions allow.
- *
- * Every place is pulled towards where it really stands, every corridor towards its true length, and
- * every corridor is held to its direction sideways by a weight heavy enough that the other two
- * never win. Each place's own best position given its neighbours is a two-by-two solve; sweeping
- * them until nothing moves is the whole method, and on thirty-seven places it settles in a blink.
+ * The least-distorted positions under the assigned directions: each place solved against its
+ * neighbours (a 2×2 system), swept until nothing moves.
  */
 function solvePositions(
   nodeIds: readonly string[],
@@ -347,7 +291,7 @@ function solvePositions(
 
 /* ------------------------------------------------------------- the grid step */
 
-/** Every way the drawing can be wrong, counted rather than argued about. */
+/** Every way the drawing can be wrong, counted. */
 function countViolations(
   layout: ReadonlyMap<string, Point>,
   edges: readonly Edge[],
@@ -418,13 +362,13 @@ function geographicCost(
     const geoFrom = geography.get(edge.from);
     const geoTo = geography.get(edge.to);
     if (!from || !to || !geoFrom || !geoTo) continue;
-    // A corridor pointing the wrong way is the error a reader sees first, so it is weighed first.
+    // A corridor pointing the wrong way is seen first, so it weighs most.
     cost += 12 * angleBetween(bearingOf(from, to), bearingOf(geoFrom, geoTo)) ** 2;
     const drawn = Math.hypot(to.x - from.x, to.y - from.y);
     const true_ = Math.hypot(geoTo.x - geoFrom.x, geoTo.y - geoFrom.y);
     cost += 2 * (drawn - true_) ** 2;
   }
-  // And the whole shape has to stay recognisable, not only each corridor separately.
+  // The whole shape must stay recognisable, too.
   for (const id of nodeIds) {
     const drawn = layout.get(id);
     const target = geography.get(id);
@@ -446,15 +390,8 @@ function makeRandom(seed: number): () => number {
 }
 
 /**
- * Rounding to the grid, and the repair of what rounding breaks.
- *
- * The settled positions are real numbers, and a place half a step off the grid puts its corridors
- * at angles the plan does not draw. So each is rounded to the nearest cell, and the arrangement is
- * then annealed over whole cells: a place is picked, shifted a cell or two, and kept when the
- * drawing came out closer to the city or when the anneal is still warm enough to allow a step
- * backwards. Every remaining fault carries a weight nothing else can outbid, so a feasible
- * arrangement is always preferred to a prettier broken one -- and none is returned that still has
- * a fault at all.
+ * Rounds to the grid and anneals over whole cells. Faults carry a weight nothing outbids, and no
+ * arrangement with a fault is returned.
  */
 function snapToGrid(
   positions: ReadonlyMap<string, Point>,
@@ -483,7 +420,7 @@ function snapToGrid(
 
   const steps = 600_000;
   for (let step = 0; step < steps; step += 1) {
-    // Warm enough to climb out of what rounding did, never warm enough to forget the solve.
+    // Warm enough to escape rounding damage, not to forget the solve.
     const temperature = 0.5 * (1 - step / steps) ** 3 + 0.002;
     const id = nodeIds[Math.floor(random() * nodeIds.length)];
     const point = layout.get(id);
@@ -571,8 +508,7 @@ function report(
   const mean = errors.reduce((sum, entry) => sum + entry.off, 0) / (errors.length || 1);
   const misdirected = errors.filter((entry) => entry.off > 22.5);
 
-  // Measured after the best-fit shift: a drawing placed elsewhere on the canvas is not distorted,
-  // and comparing it to one that is would flatter whichever happened to be centred.
+  // Measured after the best-fit shift, so position on the canvas does not count as distortion.
   const pairs = nodeIds.flatMap((id) => {
     const drawn = layout.get(id);
     const target = geography.get(id);
@@ -629,10 +565,8 @@ async function main(): Promise<void> {
   const authored = new Map(ZENTRUM_SCHEMATIC_NODES.map((node) => [node.id, node]));
   const observations = observed;
 
-  // A stop nothing was observed at still has to be placed, or it returns from its closure into a
-  // plan with no room left for it. The timetable's own catalogue says where it stands, which is
-  // weaker evidence than a call the feed placed there and is the only evidence there is. It takes
-  // no part in any corridor, so it is only ever pushed aside by the places that do.
+  // Stops with nothing observed (closed) are placed from the catalogue, so they have room on
+  // return.
   for (const stopId of zentrumStopIds) {
     if (observations.nodes.some((node) => node.id === stopId)) continue;
     const mapping = kvvStopMappingByLocalStopId[stopId];
@@ -656,7 +590,7 @@ async function main(): Promise<void> {
     (edge) => geography.has(edge.from) && geography.has(edge.to),
   );
 
-  // The drawing that stands today, so the two sets of numbers can be set against each other.
+  // The current drawing, for comparison.
   const currentLayout = new Map<string, Point>(
     solvedIds.flatMap((id) => {
       const node = authored.get(id);
@@ -671,7 +605,7 @@ async function main(): Promise<void> {
       const from = geography.get(edge.from);
       const to = geography.get(edge.to);
       const distance = from && to ? Math.hypot(to.x - from.x, to.y - from.y) : 0;
-      // Never shorter than two places may stand: a corridor cannot pull them closer than that.
+      // No corridor may pull two places closer than the minimum separation.
       return [edgeKey(edge), Math.max(distance, MINIMUM_SEPARATION)] as const;
     }),
   );
@@ -687,8 +621,7 @@ async function main(): Promise<void> {
   }
   report(`Solved on a ${grid}-unit grid`, solved, edges, geography, solvedIds);
 
-  // The table keeps the numbers the size they have always been: the drawing is shifted so its own
-  // top left sits where the old one's did, which is a crop rather than a change of coordinates.
+  // Shifted so its top left matches the old one: a crop, not new coordinates.
   const minX = Math.min(...[...solved.values()].map((point) => point.x));
   const minY = Math.min(...[...solved.values()].map((point) => point.y));
   const shiftX = Math.round((110 - minX) / grid) * grid;
@@ -719,8 +652,7 @@ async function main(): Promise<void> {
     );
   }
 
-  // A solved table is also something to look at rather than only to read, so it can be written out
-  // for a drawing to be made of it and set beside the drawing it would replace.
+  // Optionally written as JSON, for rendering beside the current drawing.
   const jsonPath = readOption("--json");
   if (jsonPath) {
     writeFileSync(

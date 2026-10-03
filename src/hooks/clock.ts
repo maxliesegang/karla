@@ -4,15 +4,11 @@ import type { DepartureBoard } from "../data/transit-types";
 import { isVisibleResumeEvent, type ResumeEventType } from "./refresh-backoff";
 
 const VEHICLE_TICK_MS = 1_000;
-/** Fine enough that a countdown turns over within a few seconds of the minute it belongs to. */
+/** Fine enough that a countdown turns over within seconds of its minute. */
 const FEED_CLOCK_TICK_MS = 5_000;
 
 /**
- * Ticks a wall clock, aligned to the minute it is about to show.
- *
- * A free-running interval flips the visible minute up to its own period late, which on a station
- * clock read from across a hall is exactly the error a rider notices. Each tick is scheduled for
- * the next minute boundary instead, so the clock changes when the minute does.
+ * A wall clock ticking on each minute boundary, so the shown minute changes when the real one does.
  */
 export function useCurrentTime(): Date {
   const [now, setNow] = useState(() => new Date());
@@ -36,13 +32,8 @@ export function useCurrentTime(): Date {
 }
 
 /**
- * A clock that ticks only while the page is being read.
- *
- * A countdown nobody can see is worth no wake-ups: a tab left behind another app spends a phone's
- * battery re-rendering a diagram for nobody, and the boards behind it have already stopped
- * refreshing. Coming back reads the clock at once, so the first frame a rider sees is current
- * rather than a tick out of date. The way back is heard through `visibilitychange`, `pageshow` and
- * `focus` alike, because a resumed home-screen app does not always deliver the first of them.
+ * A clock that ticks only while the page is visible, reading the time at once on return (via
+ * `visibilitychange`, `pageshow` or `focus`, since resumed home-screen apps may skip the first).
  */
 function useClockTick(intervalMs: number, isEnabled = true): number {
   const [now, setNow] = useState(() => Date.now());
@@ -61,8 +52,7 @@ function useClockTick(intervalMs: number, isEnabled = true): number {
         return;
       timer = window.setInterval(() => setNow(Date.now()), intervalMs);
     };
-    // The same deferred reading of the visibility state the refresh chain uses: the state an event
-    // announces can still disagree with what the document reports while the event is delivered.
+    // Read a tick later, when the document's state matches the event.
     const resume = (event: Event) => {
       const eventType = event.type as ResumeEventType;
       window.clearTimeout(resumeTimer);
@@ -85,40 +75,21 @@ function useClockTick(intervalMs: number, isEnabled = true): number {
   return now;
 }
 
-/**
- * The feed's clock, ticking.
- *
- * Every countdown a rider reads is counted from the source's clock rather than the device's, and it
- * has to run down between refreshes rather than in thirty-second jumps. The board states when it
- * was produced and when it arrived; the difference between the two is fixed, so the reading is the
- * device's own tick shifted by it. A board that has not arrived yet leaves the device's clock, which
- * is the only one there is.
- */
+/** The feed's clock, ticking: the device tick shifted by the board's fixed offset. */
 export function useFeedNow(departureBoard: DepartureBoard | null): number {
   return getFeedNow(departureBoard, useClockTick(FEED_CLOCK_TICK_MS));
 }
 
-/**
- * The device's own clock, ticking on the same cadence a countdown is read on.
- *
- * For the one question that is asked of the device clock rather than the feed's: how old a reading
- * in hand is, which is a difference between two device timestamps and would be wrong on the feed's.
- * Ticking, because "is this still current?" has to stop being true on its own rather than at
- * whatever moment the view happens to re-render next.
- */
+/** The device clock on the countdown cadence, for the age of readings (device timestamps). */
 export function useDeviceNow(): number {
   return useClockTick(FEED_CLOCK_TICK_MS);
 }
 
-/**
- * A finer clock for estimated vehicle positions. CSS eases each one-second step into the next, so
- * markers keep travelling between the less frequent provider refreshes instead of moving in bursts.
- */
+/** A finer feed clock for vehicle positions, so marks move between refreshes. */
 export function useVehicleFeedNow(
   enabled = true,
   departureBoard: DepartureBoard | null = null,
 ): number {
-  // Placements are compared against scheduled call times, which are the feed's, so this clock has
-  // to be the feed's too — a marker read off the device clock would sit minutes out of place.
+  // Placements compare against the feed's call times, so this must be the feed's clock.
   return getFeedNow(departureBoard, useClockTick(VEHICLE_TICK_MS, enabled));
 }

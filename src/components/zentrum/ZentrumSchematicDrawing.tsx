@@ -19,17 +19,14 @@ import {
 /** One line pattern the drawing paints, with the sign the live network states for it. */
 export type ZentrumSchematicDrawnLinePath = ZentrumSchematicDrawnPath & { sign: TransitLine };
 
-/** The key a lit stretch is found by, so its dash can follow its mark's own animation. */
+/** A lit stretch's key, so its dash can follow its mark's animation. */
 export const getZentrumLitStretchKey = (markerKey: string): string => `stretch:${markerKey}`;
 
-/**
- * The dash offset lighting a `pathLength="1"` stretch from a mark at `progress` to `end`. The dash
- * is one path long with a longer gap, so only the part ahead of the mark is painted.
- */
+/** The dash offset lighting a `pathLength="1"` stretch from `progress` to `end`. */
 export const getZentrumLitStretchOffset = (progress: number, end: number): string =>
   `${-Math.min(1, Math.max(0, progress / end))}px`;
 
-/** Whether a stroke recedes: it answers for none of the lines kept at full strength. */
+/** Whether a stroke recedes: none of its lines is kept at full strength. */
 const isDimmed = (
   highlightedLineIds: ReadonlySet<string> | undefined,
   lineIds: readonly string[],
@@ -42,8 +39,8 @@ const lineColor = (linePath: ZentrumSchematicDrawnLinePath) =>
   ({ "--zentrum-line-color": linePath.sign.color }) as CSSProperties;
 
 /**
- * Corridors a line is lit along that its own drawn pattern does not run (an S8 routed via the
- * Hauptbahnhof). They are lit in another line's lane, in this line's colour.
+ * Corridors a line is lit along that its drawn pattern does not run (an S8 via the Hauptbahnhof),
+ * lit in another line's lane in this line's colour.
  */
 const getStrayLitSegments = (
   drawnLinePaths: readonly ZentrumSchematicDrawnLinePath[],
@@ -71,11 +68,8 @@ const getStrayLitSegments = (
 };
 
 /**
- * The painted drawing. Without an overlay every line is drawn in its colour; with one, every line
- * is a quiet trace and the overlay is lit over all of them.
- *
- * Three layers changing at three rates: the lanes with the plan, the stop marks with the opened
- * stop, the lit overlay every second. Only the last re-renders each tick.
+ * The painted drawing: every line in colour, or quiet traces with an overlay lit over them. Three
+ * layers at three rates (lanes, stop marks, overlay); only the overlay re-renders each tick.
  */
 export function ZentrumSchematicDrawing({
   drawnLinePaths,
@@ -87,26 +81,26 @@ export function ZentrumSchematicDrawing({
 }: {
   drawnLinePaths: readonly ZentrumSchematicDrawnLinePath[];
   stopMarks: readonly ZentrumSchematicStopMark[];
-  /** The lines kept at full strength: the one followed, or those calling at the opened stop. */
+  /** The lines kept at full strength. */
   highlightedLineIds?: ReadonlySet<string>;
   /** The opened stop, whose capsules are filled. */
   selectedStopId?: string;
-  /** What is lit over the route traces, or nothing to draw every line whole. */
+  /** What is lit over the traces; nothing draws every line whole. */
   overlay?: ZentrumSchematicOverlay;
   /** The lane width, which is also the lane pitch. */
   trackWidth: number;
 }) {
-  // The stroke width must equal the lane pitch for colours to meet; the drawer decides it and
-  // tells the stylesheet, as it does the capsule's. Each is a px length -- a user unit inside the
-  // SVG -- because Firefox drops a unitless calc() as a stroke width and draws it at 1.
+  // Stroke width must equal lane pitch for colours to meet. Lengths are px (user units in the SVG):
+  // Firefox drops a unitless calc() as a stroke width.
+  const lanes = (count: number) => `${trackWidth * count}px`;
   const trackStyle = {
-    "--zentrum-schematic-track-width": `${trackWidth}px`,
-    "--zentrum-stop-capsule-width": `${trackWidth * ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH}px`,
-    "--zentrum-stop-capsule-fill": `${
-      trackWidth * ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH * ZENTRUM_SCHEMATIC_STOP_CAPSULE_FILL
-    }px`,
-    "--zentrum-stop-link-width": `${trackWidth * ZENTRUM_SCHEMATIC_STOP_LINK_WIDTH}px`,
-    "--zentrum-stop-link-pitch": `${trackWidth * ZENTRUM_SCHEMATIC_STOP_LINK_PITCH}px`,
+    "--zentrum-schematic-track-width": lanes(1),
+    "--zentrum-stop-capsule-width": lanes(ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH),
+    "--zentrum-stop-capsule-fill": lanes(
+      ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH * ZENTRUM_SCHEMATIC_STOP_CAPSULE_FILL,
+    ),
+    "--zentrum-stop-link-width": lanes(ZENTRUM_SCHEMATIC_STOP_LINK_WIDTH),
+    "--zentrum-stop-link-pitch": lanes(ZENTRUM_SCHEMATIC_STOP_LINK_PITCH),
   } as CSSProperties;
   return (
     <svg
@@ -132,7 +126,7 @@ export function ZentrumSchematicDrawing({
   );
 }
 
-/** Every line drawn whole -- in its colour, or as a quiet trace under a lit reading. */
+/** Every line drawn whole, in colour or as a quiet trace. */
 const ZentrumSchematicTracks = memo(function ZentrumSchematicTracks({
   drawnLinePaths,
   highlightedLineIds,
@@ -174,7 +168,7 @@ const ZentrumSchematicTracks = memo(function ZentrumSchematicTracks({
   );
 });
 
-/** The overlay's corridors lit whole, and its stretches lit from a mark onwards. */
+/** The overlay: corridors lit whole and stretches lit from marks onwards. */
 function ZentrumSchematicLitLayer({
   drawnLinePaths,
   highlightedLineIds,
@@ -206,7 +200,7 @@ function ZentrumSchematicLitLayer({
               />
             )),
           ...overlay.stretches.flatMap(({ vehicle, end }) => {
-            // A mark off its line's drawn pattern follows a lane the drawing does not paint.
+            // A mark off its line's drawn pattern follows an unpainted lane.
             if (
               !linePath.lineIds.includes(vehicle.lineId) ||
               !vehicle.path.edgeRanges.some(({ edgeId }) => segmentEdgeIds.has(edgeId))
@@ -251,9 +245,8 @@ function ZentrumSchematicLitLayer({
 }
 
 /**
- * The stop capsules, over everything: all outlines first, then all bodies, so capsules crossing at
- * one stop merge into one shape. The dotted links between a stop's places lie under them, so each
- * dotted rule ends at the capsules it joins.
+ * The stop capsules over everything: outlines then bodies, so capsules at one stop merge. Dotted
+ * links lie under them.
  */
 const ZentrumSchematicStopMarks = memo(function ZentrumSchematicStopMarks({
   stopMarks,

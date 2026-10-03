@@ -16,45 +16,31 @@ import {
 
 const DEFAULT_DEPARTURE_ENDPOINT = "https://projekte.kvv-efa.de/sl3-alone/XSLT_DM_REQUEST";
 const DEFAULT_TRIP_ENDPOINT = "https://projekte.kvv-efa.de/sl3-alone/XML_TRIPSTOPTIMES_REQUEST";
-/** A line's whole route, which no board states — see `docs/kvv-efa-api.md`. */
+/** A line's whole route, which no board states (`docs/kvv-efa-api.md`). */
 const DEFAULT_LINE_ROUTE_ENDPOINT =
   "https://projekte.kvv-efa.de/sl3-alone/XML_STOPSEQCOORD_REQUEST";
 const DEFAULT_STOP_SEARCH_ENDPOINT =
   "https://projekte.kvv-efa.de/sl3-alone/XSLT_STOPFINDER_REQUEST";
-/** The operator's published notices — planned closures, replacement services, diversions. */
+/** The operator's published notices. */
 const DEFAULT_SERVICE_NOTICE_ENDPOINT =
   "https://projekte.kvv-efa.de/sl3-alone/XSLT_ADDINFO_REQUEST";
 const DEFAULT_TIMEOUT_MS = 20_000;
 const DEFAULT_DEPARTURE_LIMIT = 20;
-/** Lets the feed answer in longitude,latitude instead of its own projected grid. */
+/** Longitude,latitude instead of the feed's projected grid. */
 const WGS84_COORDINATE_FORMAT = "WGS84[DD.ddddd]";
 
 /**
- * The modes a board is asked for: Stadtbahn/S-Bahn, tram, and bus — the network KARLA reads.
+ * The mode macros a board is asked for: Stadtbahn/S-Bahn, tram, bus. Without them a Hauptbahnhof
+ * board fills with ICE, TGV and Flixbus. They filter by mode group, so coaches and other pools are
+ * dropped again in `kvv-efa-parsers.ts`.
  *
- * Without them a Hauptbahnhof board spends its rows on ICE, IC, TGV and Flixbus, none of which a
- * rider opens this app for. The macros come from the operator's own departure-monitor form and
- * filter by mode *group*, not by `motType`: the train group would bring long-distance rail back
- * with the regional trains, and the bus group carries long-distance coaches along with the city
- * buses. The coaches are therefore dropped again when the answer is read
- * (`kvv-efa-parsers.ts`), which is the only place their `motType` is visible — and where the lines
- * the feed publishes from another operator's data pool (the DB's S-Bahn Rhein-Neckar at the
- * Hauptbahnhof, sharing the Stadtbahn's group) are dropped by pool, which only that reading sees.
- *
- * They are sent only where they answer something. A board asked for named line-directions cannot
- * contain another mode at all — the filter is the narrower statement of the same thing — and the
- * macros are not free: they make the monitor answer in its own form, which ignores the row cap and
- * returns every row's complete calling sequence whether or not one was asked for. On a filtered
- * board that is the difference between 21 kB and 108 kB on the wire for the same twenty rows.
+ * Only sent on unfiltered boards: they make the monitor ignore the row cap and return every row's
+ * calling sequence (21 kB vs 108 kB for the same twenty filtered rows).
  */
 /**
- * How many rows a board may answer with — under both names the endpoint knows.
- *
- * `limit` is exact only where it is sent *before* the mode macros below; after them the monitor
- * ignores it and answers with its own forty rows, and nothing in the answer says which happened.
- * The order in this object is therefore load-bearing, which is exactly what a later tidy-up would
- * undo. `depSequence` caps the same set in either position, so both are sent — and never below
- * two, because `depSequence=1` answers with no rows at all. Measurements: `docs/kvv-efa-api.md`.
+ * The row cap, under both names the endpoint knows. `limit` only applies when sent before the mode
+ * macros, so this object's key order matters. `depSequence` caps either way, but `1` returns
+ * nothing, so it is never below two (`docs/kvv-efa-api.md`).
  */
 const toRowLimitParameters = (limit: number) => {
   const rows = String(Math.max(2, limit));
@@ -80,13 +66,9 @@ export type KvvEfaClientOptions = {
 };
 
 /**
- * Read-only transport for the KVV EFA departure monitor.
- *
- * The endpoint answers cross-origin requests with an `Access-Control-Allow-Origin` header that
- * mirrors the caller, so a static GitHub Pages build may read it directly. Only simple request
- * headers are used: browsers forbid setting `User-Agent`, and adding custom headers would force a
- * preflight this endpoint does not need. What the answers *mean* is decided by the parsers in
- * `kvv-efa-parsers.ts`, which is also where the wire types live.
+ * Read-only transport for the KVV EFA endpoints. They mirror the caller's origin in
+ * `Access-Control-Allow-Origin`, so the static site reads them directly; only simple headers are
+ * sent, to avoid a preflight. Parsing lives in `kvv-efa-parsers.ts`.
  */
 export class KvvEfaClient {
   private readonly departureEndpoint: string;
@@ -111,7 +93,7 @@ export class KvvEfaClient {
     options: {
       limit?: number;
       includeTripCalls?: boolean;
-      /** Opaque `servingLine.stateless` ids. EFA accepts this parameter more than once. */
+      /** Opaque `servingLine.stateless` ids; the parameter may repeat. */
       lineIds?: readonly string[];
     } = {},
   ): Promise<KvvDepartureBoard> {
@@ -120,15 +102,13 @@ export class KvvEfaClient {
       name_dm: stopPointId,
       mode: "direct",
       useRealtime: "1",
-      // Off is already the endpoint's default — omitting this is row for row the same board. It is
-      // sent to pin that, because the mode macros below are what make the form options apply, and
-      // with them a `1` turns a stop board into a district one: a Marktplatz board came back with
-      // rows from Europaplatz, Karlstor, Kronenplatz and four more. See `docs/kvv-efa-api.md`.
+      // Off is the default, but pinned: with the mode macros, `1` turns a stop board into a
+      // district board (Marktplatz returned rows from seven nearby stops).
       useProxFootSearch: "0",
       itdDateTimeDepArr: "dep",
       ...toRowLimitParameters(options.limit ?? DEFAULT_DEPARTURE_LIMIT),
       ...(options.lineIds?.length ? {} : LOCAL_NETWORK_MODE_PARAMETERS),
-      // Without this the feed answers in its own projected grid (MRCV), which no map shares.
+      // Otherwise the feed answers in its projected grid (MRCV).
       coordOutputFormat: WGS84_COORDINATE_FORMAT,
       ...(options.lineIds?.length ? { line: options.lineIds } : {}),
       ...(options.includeTripCalls ? { depType: "stopEvents", includeCompleteStopSeq: "1" } : {}),
@@ -137,15 +117,8 @@ export class KvvEfaClient {
   }
 
   /**
-   * Where one line-direction goes, from any run of it: the whole route, terminus to terminus.
-   *
-   * The same locator the trip endpoint takes — a run is how this endpoint is addressed — but the
-   * answer is the line's, not the run's, and the requested stop is only where the line is caught.
-   * Ordinary boards never state this: they state trips, and the trips running at any hour describe
-   * less of the line than the line. Measured at about 30 kB for a thirty-stop tram line, which is
-   * one request in place of a filtered board at every stop of it.
-   *
-   * `stop`, not `stopID`, which is the trip endpoint's name for the same field.
+   * A line-direction's whole route, addressed by any run of it (about 30 kB for a tram line). The
+   * field is `stop`, not the trip endpoint's `stopID`.
    */
   async fetchLineRoute(locator: KvvTripLocator): Promise<KvvTripCall[]> {
     const payload = await this.requestJson(this.lineRouteEndpoint, `Linie ${locator.line}`, {
@@ -159,7 +132,7 @@ export class KvvEfaClient {
     return parseLineRouteResponse(payload, locator);
   }
 
-  /** One dated trip, identified by the opaque tuple a basic departure row already carries. */
+  /** One dated trip, by the opaque tuple a basic row carries. */
   async fetchTrip(locator: KvvTripLocator): Promise<KvvTrip> {
     const payload = await this.requestJson(this.tripEndpoint, `Fahrt ${locator.tripCode}`, {
       tripCode: locator.tripCode,
@@ -174,14 +147,7 @@ export class KvvEfaClient {
     return parseTripResponse(payload, locator);
   }
 
-  /**
-   * The notices the operator has published and dated for today.
-   *
-   * Unfiltered the endpoint answers with every notice in the whole KVV area, which is far more than
-   * a Karlsruhe reader has any use for and a great deal to transfer; `filterDateValid` narrows it
-   * to what applies today. Which of those concern a line or a stop in view is decided above this
-   * client, because only the app knows what is in view.
-   */
+  /** Notices valid today; unfiltered, the endpoint returns the whole KVV area's. */
   async fetchServiceNotices(now = new Date()): Promise<KvvServiceNotice[]> {
     return parseServiceNoticeResponse(
       await this.requestJson(this.serviceNoticeEndpoint, "Betriebsmeldungen", {
@@ -196,23 +162,16 @@ export class KvvEfaClient {
       await this.requestJson(this.stopSearchEndpoint, "Haltestellensuche", {
         type_sf: "any",
         name_sf: query,
-        // Stops only. Left unfiltered the finder spends its answer on streets and POIs — a query
-        // like "Kaiserstr" comes back more street than stop — and every one of those is dropped
-        // when the answer is read. `type_sf=stop` would be the obvious narrowing but is a
-        // different, nationwide index: it answers without `anyType` and without coordinates, so
-        // no result could be placed inside the network's area.
+        // Stops only; otherwise streets and POIs crowd the answer. `type_sf=stop` is a different
+        // nationwide index without `anyType` or coordinates.
         anyObjFilter_sf: "2",
-        // Without this the feed answers coordinates on its projected grid; the position is what
-        // decides above this client whether a found stop belongs to the network's area.
+        // The position decides whether a found stop is inside the network area.
         coordOutputFormat: WGS84_COORDINATE_FORMAT,
       }),
     );
   }
 
-  /**
-   * One GET, bounded by a timeout, with every failure surfaced as a `KvvEfaError` naming what was
-   * being read. Only simple request headers are sent, so the request stays preflight-free.
-   */
+  /** One GET with a timeout; failures become a `KvvEfaError` naming what was read. */
   private async requestJson(
     endpoint: string,
     requestDescription: string,

@@ -7,26 +7,20 @@ import type { Departure } from "../data/transit-types";
 import { isZentrumStop } from "../data/zentrum-stops";
 import { getLineTrunkId } from "./line-families";
 /**
- * The window the view draws, cropped to the outermost dots and their labels. Any margin beyond
- * that shrinks the whole plan, since its fit is decided by the height. The origin is a crop, not a
- * shift, so the nodes stay on the grid.
+ * The window drawn, cropped to the outermost dots and labels: any margin shrinks the plan, whose
+ * fit is height-bound. A crop, not a shift, so nodes stay on the grid.
  */
 export const ZENTRUM_SCHEMATIC_VIEWBOX = { x: 8, y: 44, width: 1156, height: 638 } as const;
 
 export const ZENTRUM_SCHEMATIC_GRID = 22;
 
 /**
- * One stop on the plan, and the stop page its dot opens.
- *
- * A complex is one dot: its parts are metres apart, which no plan can draw without distorting the
- * corridors around it. The stop page still says which platform.
- *
- * Positions are octilinear (every observed corridor runs level, upright or at 45 degrees) and
- * solved against the feed's platform coordinates by `npm run solve:zentrum`. North is up.
- * Coordinates decide only where an observed trip is drawn, never that a service exists.
+ * One stop on the plan, and the page its dot opens. A complex is one dot. Positions are octilinear
+ * and solved against platform coordinates (`npm run solve:zentrum`), north up; they decide only
+ * where an observed trip is drawn.
  */
 export type ZentrumSchematicNode = {
-  /** The stop this place is, which is also the page the dot opens. */
+  /** The stop, and the page the dot opens. */
   id: string;
   label: string;
   x: number;
@@ -69,14 +63,11 @@ export const zentrumSchematicNodeById = new Map(
   ZENTRUM_SCHEMATIC_NODES.map((node) => [node.id, node]),
 );
 
-/** Only rail is drawn: the plan is a rail plan, and a bus has no corridor on it to ride. */
+/** Only rail is drawn. */
 export const isRailDeparture = ({ transportMode }: Pick<Departure, "transportMode">): boolean =>
   transportMode === "tram" || transportMode === "lightRail";
 
-/**
- * The dot a call is at, if the plan draws one. A dot is a stop, so this is the stop the registry
- * already resolved the call to; nothing here is authored that could silently go stale.
- */
+/** The dot a call is at: the stop the registry resolved it to. */
 export const findZentrumSchematicNodeId = (call: { localStopId?: string }): string | undefined =>
   isZentrumStop(call.localStopId) ? call.localStopId : undefined;
 
@@ -109,11 +100,8 @@ export type ZentrumSchematicLinePath = {
 };
 
 /**
- * The lane a line is drawn in.
- *
- * A branch signed in its trunk's colour (S1 and S11) shares the trunk's lane and parts where its
- * pattern parts, as the operator draws it. Both the trunk and the colour must agree: the trunk
- * alone would hide S41 under S4, the colour alone would merge unrelated services signed alike.
+ * The lane a line is drawn in. A branch in its trunk's colour (S1 and S11) shares the trunk's lane;
+ * both trunk and colour must agree, or S41 would hide under S4.
  */
 const getLineTrackKey = (lineId: string): string => {
   const trunkId = getLineTrunkId(lineId);
@@ -138,7 +126,7 @@ export const getTrackIdByLineId = (lineIds: readonly string[]): ReadonlyMap<stri
   );
 };
 
-/** Line ids in timetable order (`S2` before `S11`), with one collator for the hot lane search. */
+/** Line ids in timetable order (`S2` before `S11`); one collator for the hot lane search. */
 export const compareLineIdsNaturally = new Intl.Collator("de", { numeric: true }).compare;
 
 export const getEdgeKey = (leftId: string, rightId: string): string =>
@@ -146,10 +134,12 @@ export const getEdgeKey = (leftId: string, rightId: string): string =>
 
 export type SchematicPoint = { x: number; y: number };
 
+/** A straight stroke on the plan: a capsule's spine, or the link between two capsules. */
+export type ZentrumSchematicStroke = { from: SchematicPoint; to: SchematicPoint };
+
 /**
- * The direction a corridor is measured in: level ones west to east, steeper ones north to south.
- * Edge ids are alphabetical and so point either way; lanes are offset along this direction's
- * normal, so it must agree across a stop for a line to keep its lane.
+ * The direction a corridor is measured in: level ones west to east, others north to south. Lanes
+ * offset along its normal, so it must agree across a stop for a line to keep its lane.
  */
 export const orientCorridorRun = (edge: ZentrumSchematicObservedEdge): SchematicPoint => {
   let x = edge.to.x - edge.from.x;
@@ -163,34 +153,23 @@ export const orientCorridorRun = (edge: ZentrumSchematicObservedEdge): Schematic
 };
 
 /**
- * The width a lane is drawn at before the plan has been measured. A lane's width is also the pitch
- * between lanes, so that lines sharing a corridor read as one striped band rather than as services
- * apart on the ground.
+ * The lane width before the plan is measured. Width equals pitch, so shared lanes read as one band.
  */
 const ZENTRUM_SCHEMATIC_TRACK_WIDTH = 7;
 
-/**
- * The width a lane aims for on screen, in CSS pixels. A line keeps one weight however big the plan
- * is drawn: a small plan does not thin it to a hairline, and zooming in pulls the lanes apart rather
- * than fattening them.
- */
+/** The on-screen lane width aimed for, in CSS pixels, so lines keep one weight at any plan size. */
 const ZENTRUM_SCHEMATIC_TRACK_PIXELS = 6;
 
 /**
- * The widest a band may grow, in plan units, before every lane in the plan is thinned. Set by the
- * closest the plan brings a stop to a busy corridor it does not call at: Albtalbahnhof stands 62
- * units off the Hauptbahnhof's ten lanes, and a band this wide still leaves its capsule clear. One
- * width for the whole plan keeps each line one stroke.
+ * The widest band, in plan units, before every lane is thinned: Albtalbahnhof stands 62 units off
+ * the Hauptbahnhof's ten lanes, and this still clears its capsule.
  */
 const ZENTRUM_SCHEMATIC_TRACK_BAND_WIDTH = 80;
 
-/** The step the width moves in, so a resize redraws the lanes only once it shows. */
+/** The step the width moves in, so a resize redraws only once it shows. */
 const ZENTRUM_SCHEMATIC_TRACK_WIDTH_STEP = 0.25;
 
-/**
- * The width every lane in this reading is drawn at, for a plan drawn `planWidth` CSS pixels wide:
- * the on-screen aim, held to what the busiest corridor leaves room for.
- */
+/** The lane width for a plan `planWidth` CSS pixels wide, capped by the busiest corridor. */
 export const getZentrumSchematicTrackWidth = (
   edges: readonly ZentrumSchematicLanedEdge[],
   planWidth: number | undefined,
@@ -270,13 +249,12 @@ export const getLineIntersection = (
 };
 
 /**
- * One place to stand at a stop, said in the only terms the plan can draw: the corridors its trips
- * use. Platforms whose trips leave by the same corridors are one place; the feed gives one
- * coordinate per stop point, so a platform can only be located by what runs through it.
+ * One place to stand at a stop, by the corridors its trips use: the feed gives one coordinate per
+ * stop point, so a platform is located by what runs through it.
  */
 export type ZentrumSchematicBoardingPlace = {
-  /** The corridors trips boarding here run, by the stop at their far end, and how many run each. */
+  /** Trips per corridor boarding here, by the far end's stop. */
   armTripCounts: ReadonlyMap<string, number>;
-  /** The calls observed boarding here, which ranks a place against the others at its stop. */
+  /** Calls observed boarding here, ranking places at the stop. */
   tripCount: number;
 };

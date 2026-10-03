@@ -13,10 +13,7 @@ import { LineTermini, getLineTerminiLabel } from "./LineTermini";
 import { SegmentedControl, type SegmentedControlItem } from "./SegmentedControl";
 import { useNetworkBandNavigation } from "../hooks/network-band-navigation";
 
-/**
- * The list a rider scans, one heading per mode: the rail modes together first — the trams of the
- * city, then the Stadtbahn that runs out of it — and the buses after them.
- */
+/** Group order: trams, Stadtbahn, then buses. */
 const NETWORK_GROUP_ORDER: readonly TransportMode[] = ["tram", "lightRail", "bus", "other"];
 
 const networkGroupLabels: Record<TransportMode, string> = {
@@ -60,8 +57,7 @@ export function NetworkView({
   isStacked: boolean;
 }) {
   const groups = groupLinesByTransportMode(getGroupedLines(network.lines));
-  // The bands as navigation, not a filter: the page always holds every mode, the bar says which
-  // band it is being read in, and a button walks it to another.
+  // The mode bands as navigation, not a filter.
   const linesRef = useRef<HTMLDivElement>(null);
   const { activeBandId, getBandRef, scrollToBand } = useNetworkBandNavigation(linesRef, {
     isEnabled: groups.length > 1,
@@ -99,8 +95,7 @@ export function NetworkView({
               key={group.transportMode}
               ref={getBandRef(group.transportMode)}
             >
-              {/* The count says the group is the whole of its mode, not whatever happened to fit
-                  on the first screen — the same honesty the observed list itself stands on. */}
+              {/* The count shows the group is the whole mode. */}
               <h2 className="network-group-heading">
                 <span>{networkGroupLabels[group.transportMode]}</span>
                 <small>{group.lines.length}</small>

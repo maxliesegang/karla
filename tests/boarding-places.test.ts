@@ -11,8 +11,8 @@ import { groupDeparturesByBoardingPlace } from "../src/lib/departure-order.ts";
 import { createDeparture } from "./support/fixtures.ts";
 
 /**
- * The two stops this exists for, as the feed really answers them — coordinates and all, because the
- * clustering reads them. Positions are the operator's own, from GTFS `stops.txt`.
+ * The two stops this exists for, with real coordinates from GTFS `stops.txt` (clustering reads
+ * them).
  */
 const EUROPAPLATZ_PLATFORMS: Record<string, { latitude: number; longitude: number }> = {
   "3": { latitude: 49.00967384, longitude: 8.39499888 },
@@ -57,16 +57,15 @@ function departure(platformCode: string, tripCalls?: readonly TripCall[]): Depar
   };
 }
 
-/** The places, read the way the app reads them: everything the visit has seen, then gathered. */
+/** The places, read as the app reads them. */
 const placesOf = (departures: readonly Departure[]) =>
   getStopBoardingPlaces(updateStopBoardingObservations(null, "europaplatz", departures));
 
-/** The onward calls of a tram that stops at both street platforms in turn, as trip 1374 does. */
+/** Onward calls of a tram stopping at both street platforms in turn, as trip 1374 does. */
 const streetDoubleCall = [call("3"), call("5"), { stopName: "Mühlburger Tor", localStopId: "mt" }];
 
 test("a stop nothing has been observed to part is one place", () => {
-  // The reading every ordinary stop wants, and the conservative one everywhere else: platforms are
-  // parted by evidence, never by a distance somebody picked.
+  // Platforms are parted only by evidence, never by a distance threshold.
   const places = placesOf([
     departure("3", [call("3"), { stopName: "Mühlburger Tor", localStopId: "mt" }]),
     departure("4"),
@@ -77,9 +76,8 @@ test("a stop nothing has been observed to part is one place", () => {
 });
 
 test("a trip calling at two platforms in turn parts them, whatever the codes suggest", () => {
-  // Europaplatz's four street platforms are two places 110 m apart, and nothing published says so
-  // except line 4 leaving `Gleis 3` at 08:58 and `Gleis 5` at 08:59. The eastbound working states
-  // the other half of the same fact, `Gleis 6` before `Gleis 4`.
+  // Europaplatz's street platforms are two places 110 m apart, shown only by line 4 leaving `Gleis
+  // 3` at 08:58 and `Gleis 5` at 08:59; eastbound, `Gleis 6` then `Gleis 4`.
   const places = placesOf([
     departure("3", streetDoubleCall),
     departure("4"),
@@ -97,9 +95,8 @@ test("a trip calling at two platforms in turn parts them, whatever the codes sug
 });
 
 test("a level is never merged into the one above it, however close the two stand", () => {
-  // `Gleis 5` is three metres from the tunnel's `Gleis 1(U)` and ten metres above it. Neither the
-  // feed nor GTFS states a height, so the stop point is what carries the level — and it is why
-  // distance may decide which merge happens first but never whether one may.
+  // `Gleis 5` is three metres from the tunnel's `Gleis 1(U)`, above it; only the stop point tells
+  // levels apart.
   const places = placesOf([
     departure("5", streetDoubleCall),
     departure("3"),
@@ -109,7 +106,7 @@ test("a level is never merged into the one above it, however close the two stand
 
   const tunnel = places.find((place) => place.providerStopPointId === "7001004");
   assert.deepEqual(tunnel?.platformCodes, ["1(U)", "2(U)"]);
-  // And it takes the operator's own name for itself out of the stop point's bracketed aside.
+  // The label comes from the stop point's bracketed aside.
   assert.equal(tunnel && getBoardingPlaceLabel(tunnel), "U");
 });
 
@@ -142,7 +139,7 @@ test("the platform reading stands the platforms under the place they belong to",
       group.boardingPlace && getBoardingPlaceLabel(group.boardingPlace),
       group.platformGroups.map(({ platformCode }) => platformCode),
     ]),
-    // Platform order, which is the order the signposts under them are already in.
+    // Platform order, as the signposts are.
     [
       ["U", ["1(U)"]],
       ["3 · 4", ["3", "4"]],
@@ -178,12 +175,8 @@ test("a direction says which place it leaves from only where all of its trips ag
 });
 
 test("a vehicle turning round is not two places, from whichever end it is read", () => {
-  // Turmberg's buses lay over four minutes between `Bstg. A` and `Bstg. D`, and the feed marks the
-  // first call as the origin of a run. Every board row departs from one of the stop's platforms, so
-  // one of the two calls is always the row's own — and that call arrives with no arrival time,
-  // looking exactly like an origin whether or not it is one. Read from the wrong end, the layover
-  // would part a terminus into halves; the mark is therefore collected where it can be trusted and
-  // subtracted from the separations at the end.
+  // Turmberg's buses lay over between `Bstg. A` and `Bstg. D`; the turnaround mark is only visible
+  // where neither call is the row's own, so it is collected there and subtracted at the end.
   const bay = (platformCode: string, overrides: Partial<TripCall> = {}): TripCall => ({
     stopName: "Turmberg",
     placeName: "Karlsruhe",
@@ -206,13 +199,12 @@ test("a vehicle turning round is not two places, from whichever end it is read",
       tripCalls,
     });
 
-  // The reading whose own row is the second call: the first states a departure and no arrival,
-  // which is the feed saying the run begins there.
+  // The reading whose row is the second call: the first states no arrival, a run origin.
   const fromD = [
     bay("A", { scheduledArrivalTime: undefined }),
     bay("D", { isCurrentStop: true, scheduledArrivalTime: undefined }),
   ];
-  // And the reading from the other end, where the mark is exactly the one thing not visible.
+  // From the other end, where the mark is invisible.
   const fromA = [bay("A", { isCurrentStop: true, scheduledArrivalTime: undefined }), bay("D")];
 
   for (const readings of [

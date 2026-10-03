@@ -1,33 +1,21 @@
 import { getRunTrajectoryProgress, type RunSegmentTrajectory } from "./vehicle-positioning";
 
 /**
- * One trajectory as browser keyframes, shared by every drawing that paints a mark along it.
- *
- * The domain model owns the motion — an acceleration–cruise–braking plan toward the next stop
- * (`vehicle-positioning.ts`). The browser cannot run a polynomial, so the plan is sampled into a
- * short list of keyframes the compositor interpolates linearly between: densely over the ramps,
- * where the curve bends, and once per crossing of a boundary the drawing cares about (a line
- * diagram's stop rows), where a mark must be at a known place on its own clock.
- *
- * The caller states where a mark stands at a progress — transforms are the drawing's business;
- * which instants deserve a keyframe is the trajectory's. A revised prediction that meets a mark
- * already painted starts its first keyframe from the painted transform, so the remaining ground is
- * corrected over a few seconds instead of snapping.
+ * One trajectory as Web Animation keyframes: the acceleration–cruise–braking curve
+ * (`vehicle-positioning.ts`) sampled densely on the ramps and at each boundary the drawing cares
+ * about. A revised plan starts from the painted transform, correcting over a few seconds.
  */
 
 /** A revised prediction meets the painted marker over this short visual correction. */
 export const TRAJECTORY_CORRECTION_MS = 3_000;
 
 /**
- * A placement no further than this from the mark it replaces — in links of the trip's own calls —
- * is corrected over the same few seconds a replan is, instead of snapped. The reading found the
- * vehicle a little away from where the mark stood, and covering that in `TRAJECTORY_CORRECTION_MS`
- * reads as the correction it is; a placement further than a link would be drawn as a journey no
- * vehicle was observed making, so it is painted where it belongs and nothing carries the old paint.
+ * A placement within this many links is corrected over `TRAJECTORY_CORRECTION_MS` like a replan;
+ * further ones are painted where they belong.
  */
 export const PLACEMENT_CORRECTION_MAX_LINKS = 1;
 
-/** Whether a placement's own travel is short enough to be corrected over rather than snapped. */
+/** Whether a placement is short enough to be corrected rather than snapped. */
 export const isCorrectivePlacement = (placedAfterLinks: number | undefined): boolean =>
   placedAfterLinks !== undefined && placedAfterLinks <= PLACEMENT_CORRECTION_MAX_LINKS;
 
@@ -37,25 +25,17 @@ export type TrajectoryKeyframe = { transform: string; offset: number };
 export type TrajectoryKeyframeOptions = {
   /** The trajectory the mark follows, as the placement sampled it. */
   trajectory: RunSegmentTrajectory;
-  /** Feed-clock instant the animation spans from; the trajectory is read from there. */
+  /** Feed-clock instant the animation starts at. */
   animationStartsAt: number;
-  /** The mark's transform at a progress along the link, in the drawing's own coordinate system. */
+  /** The mark's transform at a progress, in the drawing's coordinates. */
   getTransform: (progress: number) => string | undefined;
-  /**
-   * Progresses between the link's ends whose crossings are keyframed on their own clock — the
-   * boundaries a drawing places marks between. Beyond the link's ends they are ignored.
-   */
+  /** Progresses within the link whose crossings get their own keyframes. */
   boundaryProgresses?: readonly number[];
-  /** The transform the mark is painted at, which a replan carries briefly instead of snapping. */
+  /** The painted transform, which a replan starts from. */
   paintedTransform?: string;
 };
 
-/**
- * The keyframes one trajectory is painted from, from `animationStartsAt` to the next stop.
- *
- * Times are sampled where the curve is steepest and deduplicated, so each keyframe states a
- * distinct instant in order; offsets are ascending and end at 1, as a Web Animation requires.
- */
+/** Keyframes from `animationStartsAt` to the next stop: distinct, in order, offsets ending at 1. */
 export function getTrajectoryKeyframes({
   trajectory,
   animationStartsAt,
@@ -72,8 +52,7 @@ export function getTrajectoryKeyframes({
   const findPassageTime = (targetProgress: number) => {
     let before = animationStartsAt;
     let after = trajectory.arrivesAt;
-    // The curve is monotonic. A short binary search is both cheaper than per-frame JS animation
-    // and accurate enough that a skipped-stop marker crosses each boundary on its own clock.
+    // The curve is monotonic, so a short binary search finds each boundary crossing.
     for (let pass = 0; pass < 24; pass += 1) {
       const middle = (before + after) / 2;
       if (getRunTrajectoryProgress(trajectory, middle) < targetProgress) before = middle;

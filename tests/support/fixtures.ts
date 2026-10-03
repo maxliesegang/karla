@@ -1,11 +1,6 @@
 import type { Departure, TransitLine } from "../../src/data/transit-types.ts";
 
-/**
- * A departure with every field the type requires, for tests to override what they are about.
- *
- * One maker rather than one per test file, so a field the type starts requiring is added once
- * instead of drifting out of two dozen hand-written copies.
- */
+/** A departure with every required field, for tests to override. */
 export const createDeparture = (overrides: Partial<Departure> = {}): Departure => ({
   id: "departure",
   lineId: "2",

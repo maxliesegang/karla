@@ -26,7 +26,7 @@ import { run } from "./support/calls.ts";
 import { createRunMotions } from "../src/lib/vehicle-positioning.ts";
 import { createDeparture } from "./support/fixtures.ts";
 
-/** One drawing's motion record, shared across this file as the module global used to be. */
+/** One drawing's motion record, shared across this file. */
 const motions = createRunMotions();
 
 const call = (localStopId: string, providerStopPointId: string, platformCode = "1"): TripCall => ({
@@ -65,13 +65,7 @@ const board = (...departures: readonly Departure[]): DepartureBoard => ({
   departures,
 });
 
-/**
- * What a reading is built from: the runs its boards hand over, as the drawn set carries them.
- *
- * The reading reads the same runs the plan places marks for — a helper here stands in for the
- * union the view is handed (`useLineRunDepartures`), which is those rows plus the runs the
- * boards have stopped listing.
- */
+/** The runs a reading is built from, standing in for what `useLineRunDepartures` hands the view. */
 const drawn = (boards: readonly DepartureBoard[]): Departure[] =>
   boards.flatMap(({ departures }) => departures);
 
@@ -123,12 +117,6 @@ test("reads only adjacent observed calls into schematic edges", () => {
   );
 });
 
-/*
- * The plan draws a stop as the one place a rider stands in, so a trip crossing between the parts of
- * a complex -- one Marktplatz tunnel to the other -- is a trip that has not gone anywhere the plan
- * can draw. It must not become a corridor from a place to itself, and it must not break the chain
- * either: the calls on both sides of it still meet the plan.
- */
 test("crossing between the parts of one complex draws no corridor, and breaks no chain", () => {
   const reading = buildZentrumSchematicReading(
     drawn([
@@ -172,8 +160,7 @@ test("combines directions and repeated trips into one corridor line set", () => 
 });
 
 test("one trip named twice in the drawn set is one trip, not two", () => {
-  // The same trip arrives as a board row and, completed by its retained reading, as the drawn run
-  // beside it. Counted twice, it would outvote the short workings that two ordinary trips support.
+  // The same trip as a board row and as its retained reading must count once.
   const west = call("muehlburger-tor", "7000039");
   const europa = call("europaplatz", "7000037");
   const market = call("marktplatz", "7001003");
@@ -199,9 +186,7 @@ test("one trip named twice in the drawn set is one trip, not two", () => {
 });
 
 test("a run the boards have stopped naming still states the corridors its mark rides", () => {
-  // The drawn set is the runs the plan places, not the boards' rows alone: a run between two
-  // observation posts is on no board at all, and taking the drawing from the boards alone would
-  // take its line's lanes down under its own mark every few minutes.
+  // A run between posts is on no board, but its line still draws.
   const west = call("muehlburger-tor", "7000039");
   const europa = call("europaplatz", "7000037");
   const reading = buildZentrumSchematicReading([
@@ -215,8 +200,7 @@ test("a run the boards have stopped naming still states the corridors its mark r
 });
 
 test("a refresh that draws the same plan is handed the same plan, laid out once", () => {
-  // Laying the lanes out is the plan's dear reading; runs come and go every few seconds, the
-  // corridors and patterns they state a few times a day.
+  // Layout is expensive; runs change every few seconds, corridors a few times a day.
   const west = call("muehlburger-tor", "7000039");
   const europa = call("europaplatz", "7000037");
   const market = call("marktplatz", "7001003");
@@ -270,8 +254,7 @@ test("draws only the path used by the most timetable trips for each line", () =>
     reading.linePaths.map(({ lineId, nodes }) => [lineId, nodes.map(({ id }) => id)]),
     [["S5", ["muehlburger-tor", "europaplatz", "marktplatz", "kronenplatz"]]],
   );
-  // The reading remains honest about the less-used observed service; only its coloured line is
-  // omitted from the overview.
+  // The less-used service is still observed; only its coloured line is omitted.
   assert.ok(
     reading.edges.some(
       ({ from, to, lineIds }) => [from.id, to.id].includes("karlstor") && lineIds.includes("S5"),
@@ -314,10 +297,8 @@ test("keeps a through line level while the lines around it change", () => {
   assert.ok(linePath);
 
   const data = getZentrumSchematicLinePathData(linePath, reading.edges, reading.trackWidth);
-  // Line 1 leaves and line 3 joins at Europaplatz. Neither reserves an invisible lane on the edge
-  // where it is absent, and the through line holds the one lane it has been running: the narrower
-  // corridor hangs its band off the through lane's continuing position, so line 2 is the same line
-  // on both sides of the stop, and the companions keep the lanes either side of it.
+  // Line 1 leaves and line 3 joins at Europaplatz; neither reserves a lane where absent, and line 2
+  // keeps its lane across the stop.
   assert.match(data, /^M 110\.00 150\.50 /);
   assert.match(data, /L 374\.00 150\.50 L 572\.00 150\.50$/);
   const westCorridor = reading.edges.find(
@@ -335,11 +316,6 @@ test("keeps a through line level while the lines around it change", () => {
   );
 });
 
-/*
- * S1 and S11 are one service to anybody in the Zentrum, and KVV prints them in one colour because
- * what they differ over is an hour out of town. So they are drawn as one -- while S4 and S41, which
- * share a trunk number and nothing else, keep the lanes and the colours the operator gives them.
- */
 test("draws a trunk and its branches as one lane on the corridors they share", () => {
   const west = call("muehlburger-tor", "7000039");
   const europa = call("europaplatz", "7000037");
@@ -364,8 +340,7 @@ test("draws a trunk and its branches as one lane on the corridors they share", (
   );
   assert.ok(sharedEdge);
 
-  // Every line is still observed on the corridor and still has its own drawn pattern: what they
-  // share is the lane, and only where the operator signs them as one service.
+  // Each line keeps its own pattern; only the lane is shared, and only where signed as one service.
   assert.deepEqual(sharedEdge.lineIds, ["S1", "S4", "S5", "S11", "S41", "S51"]);
   assert.deepEqual([...sharedEdge.trackLineIds].sort(), ["S1", "S4", "S41", "S5"]);
   assert.equal(sharedEdge.trackLineIds.includes("2"), false);
@@ -394,10 +369,6 @@ test("draws a trunk and its branches as one lane on the corridors they share", (
   assert.notEqual(pathData.get("S1"), pathData.get("S5"));
 });
 
-/*
- * Sharing a lane is not being merged into one line. The branch keeps its own observed pattern, so
- * the two run together only as far as they were seen running together and part where they part.
- */
 test("parts a branch from its trunk where their observed patterns part", () => {
   const west = call("muehlburger-tor", "7000039");
   const europa = call("europaplatz", "7000037");
@@ -424,12 +395,12 @@ test("parts a branch from its trunk where their observed patterns part", () => {
     ]),
   );
 
-  // One lane for the pair west of the Europaplatz, and it is the same lane both of them start in.
+  // West of Europaplatz the pair shares one lane.
   assert.deepEqual([...orderOn("muehlburger-tor", "europaplatz")].sort(), ["2", "S1"]);
   assert.ok(pathData.get("S1")?.startsWith("M 110.00 157.50"));
   assert.ok(pathData.get("S11")?.startsWith("M 110.00 157.50"));
   assert.notEqual(pathData.get("S1"), pathData.get("S11"));
-  // South of the Europaplatz only the branch runs, and it has that corridor to itself.
+  // South of it only the branch runs.
   assert.deepEqual(orderOn("europaplatz", "karlstor"), ["S1"]);
 });
 
@@ -472,8 +443,7 @@ test("keeps lines with a longer shared route adjacent through busy corridors", (
   const assertAdjacent = (order: readonly string[], leftLineId: string, rightLineId: string) =>
     assert.equal(Math.abs(order.indexOf(leftLineId) - order.indexOf(rightLineId)), 1);
 
-  // These are route affinities, not named exceptions: the same rule discovers both pairs from the
-  // edges their current trips share, even though numerically sorted lines would split 1 from S2.
+  // Found from shared edges, not named exceptions.
   assertAdjacent(orderOn("muehlburger-tor", "europaplatz"), "1", "S2");
   assertAdjacent(orderOn("europaplatz", "karlstor"), "4", "5");
   assertAdjacent(orderOn("karlstor", "ettlinger-tor"), "4", "5");
@@ -528,9 +498,7 @@ test("orders a shared straight by the side on which its lines leave", () => {
       [from.id, to.id].includes("muehlburger-tor") && [from.id, to.id].includes("europaplatz"),
   );
 
-  // A later branch on the same side nests inside an earlier one: Karl-Wilhelm is above the
-  // eastbound line, Augartenstraße leaves below that at Marktplatz, and Karlstor leaves farthest
-  // below at Europaplatz. No line has to cross another to reach its branch.
+  // Later branches nest inside earlier ones, so no line crosses another to reach its branch.
   assert.deepEqual(westCorridor?.trackLineIds, ["3", "1", "4", "2"]);
   assert.match(pathData.get("3") ?? "", /^M 110\.00 143\.50 /);
   assert.match(pathData.get("1") ?? "", /^M 110\.00 150\.50 /);
@@ -538,11 +506,6 @@ test("orders a shared straight by the side on which its lines leave", () => {
   assert.match(pathData.get("2") ?? "", /^M 110\.00 164\.50 /);
 });
 
-/*
- * Lines sharing a corridor share one pair of rails, and the drawing says so: the lanes are laid
- * exactly as far apart as they are wide, so the colours meet and the corridor reads as one band as
- * wide as the traffic it carries rather than as a set of services running near one another.
- */
 test("lays neighbouring lanes exactly one lane width apart", () => {
   const west = call("muehlburger-tor", "7000039");
   const europa = call("europaplatz", "7000037");
@@ -564,7 +527,7 @@ test("lays neighbouring lanes exactly one lane width apart", () => {
   assert.ok(corridor);
   assert.equal(corridor.trackLineIds.length, 4);
 
-  // The corridor runs level, so where each lane starts states how far apart the lanes are laid.
+  // The corridor runs level, so lane start points give the spacing.
   const laneOffsets = corridor.trackLineIds.map((trackId) => {
     const linePath = reading.linePaths.find((path) => path.trackId === trackId);
     assert.ok(linePath);
@@ -579,18 +542,13 @@ test("lays neighbouring lanes exactly one lane width apart", () => {
   for (const [index, offset] of laneOffsets.slice(1).entries()) {
     assert.equal(offset - laneOffsets[index], reading.trackWidth);
   }
-  // And the band stays centred on the corridor the stops name, so a lane's neighbours changing
-  // moves it sideways by lanes rather than moving the corridor.
+  // The band stays centred on the corridor.
   assert.equal((laneOffsets[0] + laneOffsets[laneOffsets.length - 1]) / 2, 154);
 });
 
 /*
- * The Kaiserstraße is one corridor to the eye, drawn from corridors that carry different numbers
- * of lines. A corridor that re-centres its band on its own middle re-centres every line in it at
- * every stop, and the lines running along it step aside at each one. So a straight is anchored
- * once, at its busiest corridor, and a narrower straight hangs its lanes off the through lanes'
- * continuing positions: the two lines between the Europaplatz and the Marktplatz run at the top
- * of the band, level with the rest of the straight, instead of stepping down and back up.
+ * A straight is anchored at its busiest corridor and narrower corridors hang off the through lanes,
+ * so lines along the Kaiserstraße do not step aside at each stop.
  */
 test("hangs a narrower straight off the top of the band its through lines run in", () => {
   const calls = (stopIds: readonly string[]) => stopIds.map((stopId) => call(stopId, "7000000"));
@@ -632,9 +590,8 @@ test("hangs a narrower straight off the top of the band its through lines run in
     ]),
   );
 
-  // The through lines hold one line from the Mühlburger Tor to the Durlacher Tor, across both
-  // stops, and the two-lane Europaplatz–Marktplatz corridor carries them where they arrive -- at
-  // the top of its neighbours' band -- rather than re-centring them on its own middle.
+  // The through lines run level from Mühlburger Tor to Durlacher Tor, at the top of the narrower
+  // band between Europaplatz and Marktplatz.
   assert.equal(
     pathData.get("1"),
     "M 110.00 136.50 L 374.00 136.50 L 572.00 136.50 L 726.00 136.50 L 858.00 136.50",
@@ -643,8 +600,7 @@ test("hangs a narrower straight off the top of the band its through lines run in
     pathData.get("2"),
     "M 110.00 143.50 L 374.00 143.50 L 572.00 143.50 L 726.00 143.50 L 858.00 143.50",
   );
-  // And the lines turning off the straight bend on the side they leave it, into the lanes their
-  // branches have to themselves.
+  // Lines turning off bend on the side they leave.
   assert.match(pathData.get("3") ?? "", /^M 110\.00 150\.50 L 374\.50 150\.50 A /);
   assert.match(
     pathData.get("7") ?? "",
@@ -662,11 +618,6 @@ const corridorRuns = (lineCount: number) =>
     ),
   ]);
 
-/*
- * A lane is only as wide as the drawing can afford, and every lane in it is that width: one width
- * for the whole plan is what lets a line be a single stroke, so a corridor busier than the band
- * thins the drawing rather than spilling over the corridors beside it.
- */
 test("thins every lane together when a corridor outgrows the band", () => {
   const busy = buildZentrumSchematicReading(corridorRuns(12));
   const busier = buildZentrumSchematicReading(corridorRuns(16));
@@ -674,14 +625,10 @@ test("thins every lane together when a corridor outgrows the band", () => {
 
   assert.equal(busy.edges[0]?.trackLineIds.length, 12);
   assert.ok(busy.trackWidth < quiet.trackWidth);
-  // Past the band, the band holds its width and the lanes share it.
+  // Past the band, the lanes share its width.
   assert.equal(busy.trackWidth * 12, busier.trackWidth * 16);
 });
 
-/*
- * A line keeps one weight on screen: drawn on a smaller plan its lanes are wider in plan units,
- * so it does not shrink to a hairline with the plan.
- */
 test("draws a lane at one width on screen, whatever size the plan is drawn at", () => {
   const runs = corridorRuns(2);
   const small = buildZentrumSchematicReading(runs, ZENTRUM_SCHEMATIC_VIEWBOX.width / 2);
@@ -694,7 +641,7 @@ test("draws a lane at one width on screen, whatever size the plan is drawn at", 
     onScreen(small, ZENTRUM_SCHEMATIC_VIEWBOX.width / 2),
     onScreen(large, ZENTRUM_SCHEMATIC_VIEWBOX.width * 2),
   );
-  // The lanes still meet: neighbours stand one lane width apart.
+  // Neighbours still stand one lane width apart.
   const [first, second] = small.edges[0].trackLineIds.map((trackId) => {
     const linePath = small.linePaths.find((path) => path.trackId === trackId);
     assert.ok(linePath);
@@ -721,7 +668,7 @@ test("a resize redraws the lanes without laying them out again", () => {
   const draw = createZentrumSchematicDrawer();
   const wide = draw(layout, 1200);
 
-  // A resize too small to show keeps the reading, so nothing memoized on it is redrawn.
+  // A resize too small to show keeps the reading.
   assert.equal(draw(layout, 1201), wide);
 
   const narrow = draw(layout, 600);
@@ -748,9 +695,8 @@ test("does not reserve lanes for services that join later on a straight", () => 
   assert.ok(linePath);
 
   const data = getZentrumSchematicLinePathData(linePath, reading.edges, reading.trackWidth);
-  // Line 3 joins at Ebertstraße. It cannot add a lane to the line-6-only corridors before it --
-  // Welfenstraße–Barbarossaplatz still carries one lane -- but the lane line 6 holds there is the
-  // one it runs east of Ebertstraße: a through lane keeps its line across the stop it calls at.
+  // Line 3 joins at Ebertstraße; line 6 keeps the lane it runs east of it on the one-lane corridors
+  // before.
   assert.deepEqual(
     reading.edges.find(
       ({ from, to }) =>
@@ -805,8 +751,7 @@ test("rounds right-angle turns around the intersection of their offset lanes", (
 });
 
 test("reads a right-angle turn as finite points a mark can ride", () => {
-  // The bend is sampled for the mark as well as stated for the stroke, and a sample that lost its
-  // footing -- a turn angle asked of the wrong vectors -- would put a mark nowhere at all.
+  // A mis-sampled bend would put the mark nowhere.
   const reading = buildZentrumSchematicReading(
     drawn([
       board(
@@ -832,7 +777,7 @@ test("reads a right-angle turn as finite points a mark can ride", () => {
     assert.ok(path.steps.every((step) => Number.isFinite(step)));
     assert.equal(path.points.length, path.steps.length);
   }
-  // The bend the stroke rounds is the bend the ride turns: the corner itself is on the ride.
+  // The corner the stroke rounds is on the ride.
   const throughTivoli = paths.get(getEdgeKey("tivoli", "werderstrasse"));
   assert.ok(throughTivoli);
   assert.ok(throughTivoli.points.some((point) => Math.hypot(point.x - 726, point.y - 616) < 20));
@@ -933,7 +878,7 @@ test("places a vehicle on the link its timings put it on, and keeps its directio
   assert.equal(vehicle?.to.id, "marktplatz");
   assert.ok((vehicle?.progress ?? 0) > 0);
   assert.ok((vehicle?.progress ?? 1) < 1);
-  // The mark points the way the vehicle is going, whatever the plan's layout has since become.
+  // The mark points the way the vehicle goes.
   assert.equal(
     vehicle?.angle,
     (Math.atan2(vehicle.to.y - vehicle.from.y, vehicle.to.x - vehicle.from.x) * 180) / Math.PI,
@@ -1130,12 +1075,7 @@ test("keeps one stable marker through a Zentrum turnaround", () => {
   );
 });
 
-/*
- * A mark rides the lane its line is drawn in, not a side of the corridor of its own: a vehicle
- * stands where its colour runs. Both of a line's directions hold the one lane, so trams meeting
- * cover one another for the passing moment; what parts the marks is the lane each line holds,
- * not the way it is going.
- */
+/* Both directions of a line hold one lane, so meeting trams briefly overlap. */
 test("marks ride their line's lane, either way along the corridor", () => {
   const timedCall = (
     localStopId: string,
@@ -1191,7 +1131,7 @@ test("marks ride their line's lane, either way along the corridor", () => {
     motions,
   );
 
-  // The same level corridor, walked in opposite directions.
+  // One level corridor, walked both ways.
   assert.equal(west?.from.id, "kronenplatz");
   assert.equal(west?.to.id, "marktplatz");
   assert.equal(east?.from.id, "marktplatz");
@@ -1199,14 +1139,13 @@ test("marks ride their line's lane, either way along the corridor", () => {
 
   const corridorY = west.from.y;
   assert.equal(corridorY, west.to.y);
-  // One lane, held either way along the corridor: both marks stand the same distance off the
-  // middle, on the same side of it, where the line's colour runs.
+  // Both marks stand on the line's lane.
   assert.equal(west.y, east.y);
   assert.notEqual(west.y, corridorY);
-  // And the step is sideways only: along the lane each mark stands exactly where its timing put it.
+  // Along the lane, each mark is where its timing puts it.
   assert.equal(west.x, west.from.x + (west.to.x - west.from.x) * west.progress);
   assert.equal(east.x, east.from.x + (east.to.x - east.from.x) * east.progress);
-  // A second line on the corridor holds a lane of its own, not the S-Bahn's.
+  // Another line holds its own lane.
   assert.notEqual(tramMark?.y, west.y);
   assert.equal(
     tramMark?.x,
@@ -1214,12 +1153,7 @@ test("marks ride their line's lane, either way along the corridor", () => {
   );
 });
 
-/*
- * The mark rides the drawn stretch of its line -- the lane and the bends the stroke paints -- not
- * a straight of its own. What that buys is the handover: two corridors' rides meet on the stroke,
- * where it crosses the stop's capsule, so a mark passing a stop stays on its line's lane through
- * the turn instead of jumping sideways from one corridor's offset to the next.
- */
+/* Marks ride the drawn stroke, so rides on two corridors meet on the stop's capsule. */
 test("hands a mark over between corridors exactly where its line's stroke turns", () => {
   const timedCall = (
     localStopId: string,
@@ -1242,8 +1176,7 @@ test("hands a mark over between corridors exactly where its line's stroke turns"
   );
 
   const reading = buildZentrumSchematicReading(drawn([board(through)]));
-  // A hair either side of the Europaplatz: still finishing the corridor before it, and already
-  // standing on the one after it.
+  // Just before and just after Europaplatz.
   const [arriving] = getZentrumSchematicVehicles(
     reading,
     [through],
@@ -1259,20 +1192,19 @@ test("hands a mark over between corridors exactly where its line's stroke turns"
   assert.equal(arriving?.to.id, "europaplatz");
   assert.equal(departing?.from.id, "europaplatz");
 
-  // The arriving ride ends where the departing ride begins, on the stop's capsule.
+  // The arriving ride ends where the departing one begins, on the capsule.
   const last = arriving.path.points.at(-1);
   const first = departing.path.points[0];
   assert.ok(last && first);
   assert.equal(last.x, first.x);
   assert.equal(last.y, first.y);
-  // And the arrival is drawn a hair short of it, so the handover itself moves nothing.
+  // The handover moves nothing.
   assert.ok(Math.hypot(arriving.x - first.x, arriving.y - first.y) < 4);
 });
 
 test("parks a mark inside a stop complex, pointing the way out", () => {
-  // The S1 crosses between Marktplatz's two tunnels: a link between two calls of one stop, which
-  // the plan draws no corridor for. The mark used to leave the plan for the whole crossing; it
-  // parks where the leaving corridor's lane begins instead, facing the way the vehicle will go.
+  // The S1 crossing between Marktplatz's tunnels has no corridor; the mark parks where the leaving
+  // corridor's lane begins, facing its way out.
   const timedCall = (
     localStopId: string,
     providerStopPointId: string,
@@ -1306,7 +1238,7 @@ test("parks a mark inside a stop complex, pointing the way out", () => {
   assert.equal(parked.from.id, "marktplatz");
   assert.equal(parked.to.id, "marktplatz");
   assert.equal(parked.path.points.length, 1);
-  // The park is not the stop itself but where the corridor out of it begins its lane.
+  // Parked where the corridor out begins its lane, not on the stop.
   const leavingPath = reading.vehiclePathsByLineId
     .get("S1")
     ?.get(getEdgeKey("marktplatz", "europaplatz"));
@@ -1317,16 +1249,15 @@ test("parks a mark inside a stop complex, pointing the way out", () => {
       : reverseZentrumSchematicVehiclePath(leavingPath);
   assert.equal(parked.path.points[0]?.x, oriented.points[0].x);
   assert.equal(parked.path.points[0]?.y, oriented.points[0].y);
-  // And the mark faces the way its vehicle will leave, not the way it came in.
+  // Facing the way out.
   assert.ok(parked.angle !== 0);
   const heading = getZentrumSchematicVehiclePathPlacement(oriented, 0).angle;
   assert.equal(parked.angle, heading);
 });
 
 test("rides the line's lane through a stop the feed left untimed", () => {
-  // The feed times a link between two calls and can leave a call between them untimed. The
-  // vehicle still names the stop, so the mark follows the line's drawn lane through it rather
-  // than a straight chord across it.
+  // An untimed call between two timed ones: the mark follows the lane through the stop, not a
+  // chord.
   const timedCall = (
     localStopId: string,
     providerStopPointId: string,
@@ -1358,7 +1289,7 @@ test("rides the line's lane through a stop the feed left untimed", () => {
   assert.ok(vehicle);
   assert.equal(vehicle.from.id, "muehlburger-tor");
   assert.equal(vehicle.to.id, "karlstor");
-  // The ride passes the Europaplatz it is drawn through, not a straight over it.
+  // The ride passes through Europaplatz.
   const europaplatz = ZENTRUM_SCHEMATIC_NODES.find(({ id }) => id === "europaplatz");
   assert.ok(europaplatz);
   assert.ok(
@@ -1368,10 +1299,6 @@ test("rides the line's lane through a stop the feed left untimed", () => {
   );
 });
 
-/*
- * What the vehicle map colours is the service still to come: a corridor is lit while a vehicle on
- * the map is still to run it, and goes out behind the vehicles as they pass.
- */
 test("lights the corridors ahead of a placed vehicle, and none behind it", () => {
   const timedCall = (
     localStopId: string,
@@ -1404,7 +1331,7 @@ test("lights the corridors ahead of a placed vehicle, and none behind it", () =>
     "kronenplatz\u0000marktplatz",
   ]);
 
-  // Past the Marktplatz, the corridor behind has gone out; the one ahead is still lit.
+  // Past Marktplatz the corridor behind is out; the one ahead is lit.
   const [past] = getZentrumSchematicVehicles(
     reading,
     [eastbound],
@@ -1414,11 +1341,7 @@ test("lights the corridors ahead of a placed vehicle, and none behind it", () =>
   assert.deepEqual([...(past?.aheadEdgeIds ?? [])], ["kronenplatz\u0000marktplatz"]);
 });
 
-/*
- * The vehicle map colours a line stretch by stretch, so the drawn pattern must come apart the
- * same way it is drawn: one stretch per corridor, the turn colouring with the corridor being
- * entered, and the stretches joining into the one line the whole-path reading lays.
- */
+/* One stretch per corridor, turns going with the corridor entered, joining into the path. */
 test("splits a drawn line at the stops without losing or repeating any of it", () => {
   const reading = buildZentrumSchematicReading(
     drawn([
@@ -1450,12 +1373,12 @@ test("splits a drawn line at the stops without losing or repeating any of it", (
       y: Number(y),
     }));
   const [west, south] = segments.map(({ data }) => pointsOf(data));
-  // The stretches meet, neither losing nor repeating any of the line between them...
+  // The stretches meet without gaps or overlap...
   assert.deepEqual(west.at(-1), south[0]);
   const whole = getZentrumSchematicLinePathData(linePath, reading.edges, reading.trackWidth);
   assert.ok(whole.startsWith(`M ${west[0].x.toFixed(2)} ${west[0].y.toFixed(2)} `));
   assert.ok(whole.endsWith(` ${south.at(-1)?.x.toFixed(2)} ${south.at(-1)?.y.toFixed(2)}`));
-  // ...and they meet on Europaplatz's capsule, where the line's marks halt.
+  // ...on Europaplatz's capsule, where marks halt.
   const [capsule] =
     reading.stopMarks.find(({ nodeId }) => nodeId === "europaplatz")?.capsules ?? [];
   assert.ok(capsule);
@@ -1486,13 +1409,8 @@ test("cuts the highlighted path at a vehicle's position inside a corridor", () =
 });
 
 /*
- * The authored drawing surface, checked against itself.
- *
- * Everything else about the Zentrum is observed and fails loudly. This table is authored, and it
- * fails silently: a place drawn off the grid puts a corridor at an angle the plan does not draw,
- * and a place drawn on top of its neighbour hides a name, with nothing in the running app to say
- * so. `npm run solve:zentrum` is the other half of this -- it asks the feed whether the drawing is
- * still the closest octilinear one to the city.
+ * The authored layout, checked against itself: an off-grid node or a crowded label fails silently
+ * in the app. `npm run solve:zentrum` checks it against the feed.
  */
 test("a node is a Zentrum stop, and every Zentrum stop has one", () => {
   const nodeIds = ZENTRUM_SCHEMATIC_NODES.map((node) => node.id);
@@ -1527,12 +1445,7 @@ test("every node is drawn inside the window the plan is cropped to", () => {
   );
 });
 
-/*
- * The separation the layout was solved for, held against the table it produced. Two places drawn
- * closer than a step and a half cannot both carry a legible name, and the drawing has no way to
- * report that: the labels simply overlap on someone's screen. So the constraint the annealing ran
- * under is stated here, where editing a node by hand has to pass it.
- */
+/* The separation the layout was solved for; closer places cannot both carry a legible name. */
 test("no two places stand closer than the step and a half the layout keeps", () => {
   const minimum = ZENTRUM_SCHEMATIC_GRID * 1.5;
   const tooClose = ZENTRUM_SCHEMATIC_NODES.flatMap((node, index) =>
@@ -1544,12 +1457,8 @@ test("no two places stand closer than the step and a half the layout keeps", () 
 });
 
 /*
- * A corridor's order is not decided by the corridor. Lines 3 and 4 run the Kaiserstraße together
- * and turn south together at the Europaplatz, so nothing between the Mühlburger Tor and the
- * Karlstor tells them apart; what tells them apart is the Karlstor itself, where 3 carries on south
- * and 4 leaves east. Ordering each corridor by the branches leaving it could not see that far, and
- * left the two to cross somewhere. The order they need at the Karlstor is the order they must
- * already be in two corridors earlier, which is the numeric one turned round.
+ * Lines 3 and 4 run the Kaiserstraße together and part only at Karlstor (3 south, 4 east), so the
+ * order they need there must hold two corridors earlier.
  */
 test("orders a corridor for a parting its lines have not reached yet", () => {
   const reading = buildZentrumSchematicReading(
@@ -1581,20 +1490,15 @@ test("orders a corridor for a parting its lines have not reached yet", () => {
         [from.id, to.id].includes(leftStopId) && [from.id, to.id].includes(rightStopId),
     )?.trackLineIds ?? [];
 
-  // 4 leaves east at the Karlstor, so it holds the eastern lane of the Kriegsstraße; 3 carries on
-  // south and holds the western one. The Kaiserstraße is then ordered to arrive that way round,
-  // with 1 north of both because it is the one that does not turn at all.
+  // 4 leaves east, so it holds the Kriegsstraße's eastern lane; line 1, which does not turn, is
+  // north of both.
   assert.deepEqual(orderOn("europaplatz", "karlstor"), ["4", "3"]);
   assert.deepEqual(orderOn("muehlburger-tor", "europaplatz"), ["1", "4", "3"]);
 });
 
 /*
- * The same fault at the scale a group makes it. The S-Bahnen arriving from the east leave the
- * Kaiserstraße southwards at the Marktplatz, the ones arriving from the west leave it there too,
- * and beyond the Marktplatz the two groups share every corridor. Putting one of them right on the
- * corridor it turns into breaks it again on the next corridor by exactly as much, so no single
- * move improves anything and a drawing ordered corridor by corridor leaves the groups woven
- * together the whole way south.
+ * S-Bahnen from east and west both turn south at Marktplatz and then share every corridor; fixing
+ * one corridor breaks the next, so groups must be carried as blocks.
  */
 test("keeps groups joining a corridor from opposite sides from weaving down it", () => {
   const marktplatz = call("marktplatz", "7001003");
@@ -1623,12 +1527,10 @@ test("keeps groups joining a corridor from opposite sides from weaving down it",
         [from.id, to.id].includes(leftStopId) && [from.id, to.id].includes(rightStopId),
     )?.trackLineIds ?? [];
 
-  // Lanes on the Ettlinger Tor corridors are numbered west-first, so the pair that came from the
-  // east holds the eastern lanes and the pair that came from the west the western ones: neither
-  // group crosses the other to reach the corridor, and neither unpicks itself going down it.
+  // Lanes are numbered west-first: the eastern pair holds the eastern lanes, so neither group
+  // crosses.
   assert.deepEqual(orderOn("marktplatz", "ettlinger-tor"), ["S4", "S8", "S1", "S2"]);
   assert.deepEqual(orderOn("ettlinger-tor", "kongresszentrum"), ["S4", "S8", "S1", "S2"]);
-  // And on the Kaiserstraße east of the Marktplatz the turning pair rides south of line 1, which
-  // is the side they turn towards.
+  // East of Marktplatz the turning pair rides south of line 1, the side they turn to.
   assert.deepEqual(orderOn("kronenplatz", "marktplatz").indexOf("1"), 0);
 });

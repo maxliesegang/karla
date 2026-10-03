@@ -25,10 +25,7 @@ import {
   getZentrumLitStretchOffset,
 } from "./ZentrumSchematicDrawing";
 
-/**
- * The plan width in CSS pixels from which every stop is named. Measured on the laid-out plan, not
- * the zoom step, because what matters is the room the names get.
- */
+/** The plan width in CSS pixels from which every stop is named (measured, not the zoom step). */
 const ZENTRUM_NAME_EVERY_STOP_WIDTH = 1000;
 
 /** How soon a stop is reached from the opened one, and the line that gets the rider there. */
@@ -50,8 +47,8 @@ const getBendProgresses = (mark: ZentrumVehicleMark): readonly number[] =>
   mark.path.steps.slice(1, -1);
 
 /**
- * The plan: the drawing, the stops on it and the marks moving over it. Everything is placed in
- * the canvas' own proportional coordinates, so zoom and resize re-resolve the same placements.
+ * The plan: drawing, stops and moving marks, in proportional coordinates so zoom and resize
+ * re-resolve.
  */
 export function ZentrumSchematicCanvas({
   schematic,
@@ -78,12 +75,9 @@ export function ZentrumSchematicCanvas({
   vehicles: readonly ZentrumSchematicVehicle[];
   /** What is lit over the route traces, or nothing to draw every line whole. */
   overlay?: ZentrumSchematicOverlay;
-  /** The countdown on each tram the opened stop waits for. Present, it recedes every other mark. */
+  /** The countdown on each tram the opened stop waits for; when present, other marks recede. */
   vehicleMinutesById?: ReadonlyMap<string, number>;
-  /**
-   * The minutes each stop is reached in from the opened one, printed before its name. Present, it
-   * recedes every stop it does not reach.
-   */
+  /** Minutes to each stop from the opened one, printed before its name; unreached stops recede. */
   stopMinutesByNodeId?: ReadonlyMap<string, ZentrumStopTravelTag>;
   selectedVehicleId?: string;
   onSelectVehicle: (vehicleId: string) => void;
@@ -127,9 +121,8 @@ export function ZentrumSchematicCanvas({
     [schematic.drawnPaths, getSign],
   );
 
-  // Each mark moves on one Web Animation per link, as in the line diagram. Positions are in
-  // container units, so zoom and resize re-resolve the same animation; only a replan replaces it.
-  // A changed layout or fit restarts them: the paint a replan carries over would not match.
+  // One Web Animation per link, in container units, so zoom and resize keep it; a changed layout or
+  // fit restarts them.
   const geometrySignature = `${planWidth ?? zoom}|${schematic.layoutKey}`;
   const vehicleMarks: ZentrumVehicleMark[] = vehicles.map((vehicle) => ({
     ...vehicle,
@@ -143,7 +136,7 @@ export function ZentrumSchematicCanvas({
     getTransform: (mark, progress) => getZentrumVehicleTransform(mark.path, progress),
     getBoundaryProgresses: getBendProgresses,
   });
-  // A lit stretch follows its mark's own keyframes, so the colour ends exactly at the mark.
+  // A lit stretch uses its mark's keyframes, so the colour ends at the mark.
   const stretchMarks: ZentrumLitStretchMark[] = (overlay?.stretches ?? []).map(
     ({ vehicle, end }) => ({
       ...vehicle,
@@ -240,8 +233,7 @@ function ZentrumSchematicVehicleMark({
   const sign = getSign(vehicle.lineId);
   const countdown = minutes === undefined ? undefined : minutes <= 0 ? "jetzt" : `${minutes} min`;
   const place = describeVehiclePlace(vehicle);
-  // The whole position is one transform in container units, shared by the static paint and the
-  // keyframes, so handovers and replans are seamless.
+  // One transform in container units for paint and keyframes, so handovers are seamless.
   const style = {
     transform: getZentrumVehicleTransform(vehicle.path, vehicle.progress),
     "--zentrum-line-color": sign.color,
@@ -273,10 +265,7 @@ function ZentrumSchematicVehicleMark({
   );
 }
 
-/**
- * The stops a reader steers by: where corridors meet or end. Named whatever the room, because all
- * names at once bury a small plan.
- */
+/** Stops where corridors meet or end: always named. */
 const getJunctionIds = ({ edges, lineIdsByNodeId }: ZentrumSchematicReading): Set<string> => {
   const corridorCountByNodeId = new Map<string, number>();
   for (const { from, to } of edges) {
@@ -289,7 +278,7 @@ const getJunctionIds = ({ edges, lineIdsByNodeId }: ZentrumSchematicReading): Se
   );
 };
 
-/** The stop buttons, kept apart from the marks so they do not re-render every second. */
+/** The stop buttons, apart from the marks so they do not re-render every second. */
 const ZentrumSchematicStops = memo(function ZentrumSchematicStops({
   schematic,
   highlightedLineIds,
@@ -308,7 +297,7 @@ const ZentrumSchematicStops = memo(function ZentrumSchematicStops({
   onSelectStation: (stationId: string) => void;
 }) {
   const { edges, lineIdsByNodeId, stopMarks, trackWidth } = schematic;
-  // Placed here rather than with the drawing: a printed travel time makes every name taller.
+  // Here, not with the drawing: a printed travel time makes every name taller.
   const hasTimes = stopMinutesByNodeId !== undefined;
   const labelsByNodeId = useMemo(
     () => placeZentrumSchematicLabels(edges, stopMarks, trackWidth, planWidth, hasTimes),
@@ -339,16 +328,14 @@ const ZentrumSchematicStops = memo(function ZentrumSchematicStops({
         const isMuted = stopMinutesByNodeId
           ? minutes === undefined && !isSelected
           : highlightedLineIds !== undefined && !isHighlighted;
-        // Only a followed line names its stops: an opened stop's lines cover most of the plan.
-        // A name the placer could not set clear is printed only when pointed at.
+        // Only a followed line names its stops. A name the placer could not fit shows on hover.
         const isNamed =
           isSelected ||
           (label?.fits !== false &&
             (showsEveryName ||
               junctions.has(node.id) ||
               (selectedLineId !== undefined && isHighlighted)));
-        // The button is the stop's capsule, the thing a finger lands on; the name hangs off it
-        // where the placer set it.
+        // The button is the capsule; the name hangs where the placer set it.
         const centre = stopMark
           ? {
               x: (stopMark.main.from.x + stopMark.main.to.x) / 2,
@@ -362,8 +349,8 @@ const ZentrumSchematicStops = memo(function ZentrumSchematicStops({
             className="zentrum-schematic-stop"
             data-side={label?.side ?? node.labelSide ?? "below"}
             data-muted={isMuted}
-            /* A reached stop shows its minutes even where its name is held back for the room --
-               but not where the placer found no room at all, which the panel lists instead. */
+            /* A reached stop shows its minutes even where its name is held back, unless it found
+               no room. */
             data-named={
               isNamed ? "true" : minutes !== undefined && label?.fits !== false ? "time" : "false"
             }

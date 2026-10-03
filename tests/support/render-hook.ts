@@ -1,9 +1,6 @@
 /**
- * A minimal `renderHook` for the node test runner: happy-dom supplies the document, React renders a
- * component that calls the hook, and `act` flushes effects and state updates.
- *
- * Importing this registers happy-dom's globals for the whole test file; each test file runs in its
- * own process, so the pure-module tests never see them.
+ * A minimal `renderHook` on happy-dom for the node runner. Importing it registers happy-dom's
+ * globals for the file; each test file runs in its own process.
  */
 import { GlobalRegistrator } from "@happy-dom/global-registrator";
 

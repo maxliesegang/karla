@@ -36,9 +36,8 @@ for the period `20260614`–`20261212`, and KVV rebuilds it close to daily.
 GTFS names a station `Pde:08212:1011` where EFA names the same stop `de:08212:1011` — the same
 national id under a `P`. The catalog joins the two sources on that id.
 
-EFA's numeric ids relate to global ids by dropping a leading digit (`7000089` → `de:08212:89`), but
-that is a property of the numbering rather than a rule either publisher states, so the generator
-takes the pairing from EFA's own `XML_STOPLIST_REQUEST` output instead of reconstructing it.
+EFA's numeric ids happen to relate by dropping a leading digit (`7000089` → `de:08212:89`), but no
+publisher states that, so the generator takes the pairing from `XML_STOPLIST_REQUEST`.
 
 ## What it answers that EFA does not
 
@@ -59,20 +58,14 @@ counted once. It ranks stops against each other and must not be presented as a f
 
 ## What it does not answer
 
-**Places.** GTFS has no locality field. `parent_station` is one Haltestelle — Marktplatz is two
-stations in GTFS exactly as it is in EFA — so which stops make up one place comes from EFA's
-`omc`/`placeID`, which is why the generator reads both sources.
+**Places.** GTFS has no locality field, and `parent_station` is one Haltestelle (Marktplatz is two
+stations, as in EFA). Which stops form one place comes from EFA's `omc`/`placeID`.
 
-**Walking transfers.** `transfers.txt` holds 69,213 rows but only 230 cross-station pairs, 24 of
-them in Karlsruhe, and it states just one of the five tunnel/street pairs in the Zentrum.
+**Walking transfers.** `transfers.txt` has 69,213 rows but only 230 cross-station pairs, 24 in
+Karlsruhe, and just one of the Zentrum's five tunnel/street pairs. Stop identity no longer needs them:
+EFA answers both levels from either stop id, so each place is one local stop (`kvv-stop-mappings.ts`).
 
-KARLA no longer needs them for stop identity. EFA answers both levels of such a place from either
-stop id — a board requested for `7000037` and one for `7001004` come back with the same departures
-at Europaplatz — so each place is one local stop. See `kvv-stop-mappings.ts`.
-
-That does not make every change at such a place a step across the platform. `stops.txt` is the one
-source here that states platform positions, and it is what showed that Europaplatz's `Gleis 3` and
-`Gleis 5` are 107 m apart while its `Gleis 5` is 3 m from the tunnel's `Gleis 1(U)` — so distance
-alone can neither part the street platforms nor keep the levels apart, since neither GTFS nor EFA
-publishes a height. Which platforms are one place to stand is therefore read from the trips
-themselves (`src/lib/boarding-places.ts`); these positions only order the merges.
+**Heights.** `stops.txt` gives platform positions: Europaplatz's `Gleis 3` and `Gleis 5` are 107 m
+apart, while `Gleis 5` is 3 m from the tunnel's `Gleis 1(U)`. With no height in either source,
+distance cannot decide boarding places; they are read from trips (`src/lib/boarding-places.ts`), and
+positions only order the merges.

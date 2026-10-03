@@ -47,11 +47,8 @@ export default function App() {
   const [nearbyReturnStopId, setNearbyReturnStopId] = useState<string>();
   const route = useAppRoute();
   const isNarrowViewport = useIsNarrowViewport();
-  // Which views are in play at all is `view-layout.ts`'s question; the two answers the data hooks
-  // need are asked before the selection resolves, because they decide what is fetched. One
-  // observation cycle feeds the running-line list and whichever primary panel is visible, which
-  // keeps the shell and the Zentrum view consistent; its cadence is decided by whether anything in
-  // view actually reads from it.
+  // Decided before the selection resolves, since they decide what is fetched; the observation's
+  // cadence depends on whether anything in view reads it.
   const isStationBoardView = isStationBoardStopView(route.view, isStationBoardMode);
   const isObservedNetworkInView = readsObservedNetwork(route.view);
   const {
@@ -60,17 +57,14 @@ export default function App() {
     coverage: zentrumCoverage,
   } = useZentrumNetwork({ isEnabled: !isStationBoardView, isInView: isObservedNetworkInView });
   const network = useTransitNetwork(observedNetwork);
-  // Stop, line and trip are each resolved against live data and the address rewritten to whatever
-  // still resolved; the shell only picks a panel for the result.
+  // Stop, line and trip resolve against live data; the shell picks a panel for the result.
   const selection = useSelectionChain(route, network, observationBoards);
   const { selectedStop } = selection;
   const stopTopologyBoard = useStopTopologyBoard(
     route.view === "stop" && !route.lineId && !isStationBoardView ? selectedStop?.id : undefined,
   );
-  // The line's own boards teach this stop's memory too: their trips carry complete sequences read
-  // at this very stop, and they arrive in the one view the topology board is deliberately not asked
-  // for. This costs no request — the boards are already in hand — and it is what lets a corridor
-  // stay grouped, and a bundled sibling stay offered, while a line is being read.
+  // The line's boards also teach this stop's corridors (their trips carry full sequences read
+  // here), at no extra request.
   const stopTopologyBoards = useMemo(
     () => [...selection.lineDepartureBoards, ...observationBoards],
     [observationBoards, selection.lineDepartureBoards],
@@ -80,17 +74,14 @@ export default function App() {
     stopTopologyBoard,
     stopTopologyBoards,
   );
-  // The places this stop is, from the same readings and for the same reason: which platforms a
-  // vehicle calls at in turn is only ever stated in a calling sequence.
+  // Boarding places come from calling sequences too.
   const stopBoardingPlaces = useStopBoardingPlaces(
     route.view === "stop" ? selectedStop?.id : undefined,
     stopTopologyBoard,
     stopTopologyBoards,
     selection.departureBoard,
   );
-  // Which siblings this stop's corridor could be read with. Derived from what the visit has already
-  // observed, so the offer appears where the evidence for it does — a rider who came through the
-  // stop's own board has it in hand — and never costs a reading of its own.
+  // Bundle offers from what the visit observed; no extra request.
   const selectedLineId = selection.lineSelection.lineId;
   const lineBundleOffers = useMemo(
     () =>
@@ -104,20 +95,16 @@ export default function App() {
   const feedNow = useFeedNow(selection.departureBoard);
   const locatableStops = useLocatableStops(network, observationBoards);
   const nearbyStopsController = useNearbyStops(locatableStops, !isStationBoardView);
-  // Watched only while a ride is being read, which is the only view that has a use for it.
+  // Only a ride uses the position.
   const ridePosition = useRidePosition(route.isRide && !isStationBoardMode);
-  // A board mounted at one stop has no use for what the operator published about the rest of the
-  // network, and asking for it every quarter of an hour for the rest of the day would buy nothing.
+  // A station board skips notices.
   const noticeBoard = useServiceNotices(!isStationBoardView);
-  // Only a stop the rider actually read is remembered — never one they passed through on a ride.
+  // Only stops actually read are remembered, never ones passed on a ride.
   const { recentStopId, recentStops } = useStopRecall(
     route.view === "stop" && !route.isRide ? selectedStop : undefined,
   );
 
-  // What the resolved address means for the two halves of the dashboard: which is present, which is
-  // wide, and — through the keys — what each is showing. Derived before the loading and dead-end
-  // returns below, because which half changed is a fact about every render and not only the ones
-  // that reach the dashboard.
+  // The layout, derived before the early returns so panel changes are tracked every render.
   const layout = getViewLayout({
     route,
     selection: {
@@ -135,8 +122,7 @@ export default function App() {
 
   useViewShortcuts({ searchInputRef, isEnabled: !isStationBoardMode });
   useStationBoardReload(stationBoardConfig?.reloadMinutes);
-  // The app opens on the stop the rider last read, and on the home for a rider with no history —
-  // never on a permission prompt that can say nothing until it has been answered.
+  // Opens on the last-read stop, or home; never on a permission prompt.
   useInitialLanding(!isStationBoardMode, recentStopId);
 
   const showNearbyStops = (returnStopId?: string) => {
@@ -162,7 +148,7 @@ export default function App() {
 
   const { activeView, isLineInView, isRideInView, isStandaloneView } = layout;
 
-  // The notices for the stop in view and its lines, disclosed from the stop's own menu.
+  // Notices for the stop in view and its lines.
   const stopNotices =
     noticeBoard?.dataStatus === "live" && !isStandaloneView && selectedStop
       ? findNoticesForStop(noticeBoard.notices, selectedStop.id, [
@@ -171,8 +157,7 @@ export default function App() {
         ])
       : [];
 
-  // The shell is KVV red by default; while a line is in view it takes that line's sign colour,
-  // so the bar, the panel and the badges read as one surface instead of three.
+  // KVV red by default; a line in view lends its colour so bar, panel and badges read as one.
   const shellThemeStyle =
     isLineInView && selection.selectedLine
       ? ({
@@ -181,9 +166,7 @@ export default function App() {
         } as React.CSSProperties)
       : undefined;
 
-  // On board the device is the better witness of where the vehicle is, so the ride reads its own
-  // position where the rider has granted one and falls back to the feed's estimate where it cannot
-  // — the whole of that decision is in `lib/ride-position.ts`.
+  // The ride uses the rider's position where granted (`lib/ride-position.ts`).
   const rideProgress =
     isRideInView && selection.selectedDeparture
       ? getRideProgress(selection.selectedDeparture.tripCalls ?? [], feedNow, {
@@ -210,10 +193,7 @@ export default function App() {
         "app-shell",
         isStationBoardMode && "station-board-mode",
         isRideInView && "ride-mode",
-        /* The plan read at the size of the screen. The shell keeps its three rows and simply gives
-           the middle one the bar's height as well: nothing is overlaid, nothing behind it is left
-           focusable, and the provenance footer keeps its promise to state the source in every
-           state — which an overlay covering it would have quietly broken. */
+        /* Fullscreen plan: the middle row takes the bar's height; nothing overlays the footer. */
         route.view === "zentrum" && route.isZentrumFullscreen && "zentrum-fullscreen",
       )}
       style={shellThemeStyle}
@@ -227,9 +207,7 @@ export default function App() {
       />
       <div
         className={classNames(...getDashboardClassNames(layout))}
-        /* Which half of the dashboard this navigation changed. The half that changed carries its own
-           entrance, because it is mounted under a new key; this is read only where both changed at
-           once, so the board can follow the panel beside it instead of starting with it. */
+        /* Which half changed; only read when both did, so the board can follow the panel. */
         data-panel-change={panelChange}
       >
         {layout.isStationBoardView && stationBoardConfig ? (
@@ -243,14 +221,10 @@ export default function App() {
           />
         ) : (
           <>
-            {/* The half that stands beside the board wherever two panels fit — the selected line's
-                diagram — and the whole width on every view that has no board at all. A stop has no
-                panel here: its board is the view, and the three orders of that board are the three
-                ways it is read. */}
+            {/* The diagram beside the board, or the whole width where there is no board. */}
             {layout.hasPrimaryPanel && (
-              /* Keyed by what it is showing rather than by how it is being read: another line
-                 re-mounts it beside a board that has not moved, while another trip of the same line
-                 and another stop on it leave it standing and let the diagram glide. */
+              /* Keyed by what it shows: another line re-mounts it; another trip or stop of the
+                 line glides. */
               <section className="primary-panel" key={layout.primaryKey}>
                 {activeView === "home" && (
                   <HomeEntry
@@ -288,8 +262,7 @@ export default function App() {
                 {activeView === "settings" && <SettingsView />}
                 {isLineInView && selection.selectedLine && (
                   <>
-                    {/* The ride's one permanent surface: what a rider on board is reading, kept above
-                      the diagram and out of its scrollport so it cannot scroll away. */}
+                    {/* The ride's status card, outside the scrollport so it stays. */}
                     {rideProgress && selection.selectedDeparture && (
                       <RideStatusPanel
                         line={selection.selectedLine}
@@ -305,10 +278,8 @@ export default function App() {
                             : undefined
                         }
                         onShowPosition={() => setRunPositionRequest((request) => request + 1)}
-                        /* Ending a ride leaves it behind at the stop it reached — the Ausstieg the
-                         rider marked, or failing that where the trip itself ends. That is a
-                         different act from stepping up, which returns to where the ride was begun,
-                         and the two are spelled differently because they lead to different places. */
+                        /* Ending a ride lands at the Ausstieg or the trip's end; stepping up
+                           returns to its origin. */
                         onEndRide={() =>
                           navigateTo(
                             routePaths.stop(
@@ -326,10 +297,8 @@ export default function App() {
                       network={network}
                       stop={selectedStop!}
                       departure={selection.selectedDeparture}
-                      /* The address, not the reading: the boards behind a trip are all keyed by the
-                         stop, so walking along the line loses the departure for as long as they
-                         take to answer for the new one. The trip the rider chose is unchanged
-                         throughout, and the diagram holds its drawing and its place by it. */
+                      /* The address, not the departure, which blinks while boards re-key after a
+                         step. */
                       addressId={route.addressId}
                       preferredDestination={selection.preferredDestination}
                       departureBoard={selection.departureBoard}
@@ -338,8 +307,7 @@ export default function App() {
                       isRide={selection.isRide}
                       bundledLines={selection.bundledLines}
                       bundleOffers={lineBundleOffers}
-                      /* The bundle is a level of the address, so choosing one is navigating to it:
-                         the reading a rider arrives at is the reading they can share. */
+                      /* The bundle is part of the address, so choosing one navigates. */
                       onChangeBundle={(bundledLineIds) =>
                         navigateTo(
                           getSelectionPath({
@@ -361,8 +329,7 @@ export default function App() {
               </section>
             )}
             {layout.hasDepartureBoard && (
-              /* The other half of the same rule: another stop is another board, and a line or a
-                 trip chosen from this board leaves it standing. */
+              /* Keyed by stop: a line or trip chosen from this board leaves it standing. */
               <DepartureBoardPanel
                 key={layout.boardKey}
                 panelRef={departurePanelRef}
@@ -379,9 +346,7 @@ export default function App() {
                 isStacked={isNarrowViewport}
                 boardReadingCount={selection.boardReadingCount}
                 onRefresh={selection.refreshBoard}
-                /* What KVV announced about this stop, at the board's foot. It rides the board
-                   because that is the list it answers for, and it stays while one of the stop's
-                   lines is in view. */
+                /* The stop's notices at the board's foot, kept while one of its lines shows. */
                 bottomMenu={
                   activeView === "stop" || isLineInView ? (
                     <StopBottomMenu
@@ -400,9 +365,7 @@ export default function App() {
       </div>
       <DataProvenanceFooter
         showsNoticesLink={!isStationBoardMode && activeView !== "notices"}
-        /* The home asks for no reading, so it is handed none: the footer names the source and
-           states no condition, rather than reporting a load that was never started. The settings
-           stand with it — they read nothing of the network either. */
+        /* Home and settings read nothing, so the footer names the source without a status. */
         {...(activeView === "notices"
           ? { serviceNoticeBoard: noticeBoard }
           : activeView === "home" || activeView === "settings"

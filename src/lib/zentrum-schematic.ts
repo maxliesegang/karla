@@ -13,9 +13,9 @@ import {
   type RunPlacementPhase,
   type RunSegmentTrajectory,
 } from "./vehicle-positioning";
-import { getDistanceMeters } from "./geo";
+import { type Located, getDistanceMeters } from "./geo";
 import { compareLineIds } from "./line-families";
-import { findTurnarounds } from "./line-turnarounds";
+import { findTurnarounds, type TurnaroundIndex } from "./line-turnarounds";
 import {
   type SchematicPoint,
   type ZentrumSchematicBoardingPlace,
@@ -190,42 +190,19 @@ const getMedian = (values: readonly number[]): number | undefined =>
     ? undefined
     : [...values].sort((left, right) => left - right)[Math.floor(values.length / 2)];
 
-/** How far apart two platforms stand, or undefined where the feed placed either nowhere. */
-const getPlatformDistance = (
-  left: ZentrumSchematicPlatform,
-  right: ZentrumSchematicPlatform,
-): number | undefined => {
-  const [leftLatitude, leftLongitude, rightLatitude, rightLongitude] = [
-    left.latitudes,
-    left.longitudes,
-    right.latitudes,
-    right.longitudes,
-  ].map(getMedian);
-  if (
-    leftLatitude === undefined ||
-    leftLongitude === undefined ||
-    rightLatitude === undefined ||
-    rightLongitude === undefined
-  ) {
-    return undefined;
-  }
-  return getDistanceMeters(leftLatitude, leftLongitude, {
-    latitude: rightLatitude,
-    longitude: rightLongitude,
-  });
-};
+/** Where a platform stands: the median of where the feed placed its calls, unplaced if nowhere. */
+const getPlatformPosition = ({ latitudes, longitudes }: ZentrumSchematicPlatform): Located => ({
+  latitude: getMedian(latitudes),
+  longitude: getMedian(longitudes),
+});
 
 const isArmSubset = (left: ZentrumSchematicPlatform, right: ZentrumSchematicPlatform): boolean =>
   [...left.arms.keys()].every((nodeId) => right.arms.has(nodeId));
 
 /**
- * A stop's platforms gathered into the places a rider walks between.
- *
- * Two platforms are one place where they stand together on the ground, or where one serves only
- * corridors the other serves too: Europaplatz's street platforms on the Kaiserstraße serve the
- * corridor its tunnel does, and are one stop with it, while those on the Karlstraße serve the
- * branch south that no tunnel platform runs, and are another. A platform two places could claim
- * goes to the nearer.
+ * A stop's platforms grouped into places: platforms standing together, or one serving only
+ * corridors another serves (Europaplatz's Kaiserstraße platforms join its tunnel; the Karlstraße
+ * ones serve the south branch and stay apart). Contested platforms go to the nearer place.
  */
 const groupPlatformsIntoPlaces = (
   platforms: readonly ZentrumSchematicPlatform[],
@@ -236,10 +213,16 @@ const groupPlatformsIntoPlaces = (
   const join = (left: number, right: number) => {
     parents[find(left)] = find(right);
   };
-  for (const [left, platform] of platforms.entries()) {
+  const positions = platforms.map(getPlatformPosition);
+  const getDistance = (left: number, right: number): number => {
+    const { latitude, longitude } = positions[left];
+    return latitude === undefined || longitude === undefined
+      ? Number.POSITIVE_INFINITY
+      : getDistanceMeters(latitude, longitude, positions[right]);
+  };
+  for (let left = 0; left < platforms.length; left += 1) {
     for (let right = left + 1; right < platforms.length; right += 1) {
-      const distance = getPlatformDistance(platform, platforms[right]);
-      if (distance !== undefined && distance <= ZENTRUM_SCHEMATIC_BOARDING_PLACE_RADIUS_METERS) {
+      if (getDistance(left, right) <= ZENTRUM_SCHEMATIC_BOARDING_PLACE_RADIUS_METERS) {
         join(left, right);
       }
     }
@@ -255,8 +238,7 @@ const groupPlatformsIntoPlaces = (
     if (supersets.length === 0) continue;
     const nearest = [...supersets].sort(
       (left, right) =>
-        (getPlatformDistance(platform, platforms[left]) ?? Number.POSITIVE_INFINITY) -
-          (getPlatformDistance(platform, platforms[right]) ?? Number.POSITIVE_INFINITY) ||
+        getDistance(index, left) - getDistance(index, right) ||
         platforms[right].callCount - platforms[left].callCount,
     )[0];
     join(index, nearest);
@@ -470,12 +452,9 @@ export function buildZentrumSchematicReading(
 }
 
 /**
- * A reader that lays the plan out again only when what it draws has changed.
- *
- * Runs come and go every few seconds; corridors and patterns change a few times a day, and the
- * layout costs tens of milliseconds. A refresh that only swapped runs returns the same object, so
- * everything memoized on it stays put. Boarding places count calls, so they can change on their
- * own; the lanes are kept then.
+ * A reader that lays the plan out again only when corridors or drawn patterns changed, since the
+ * layout costs tens of milliseconds and runs change every few seconds. Boarding places can change
+ * alone; the lanes are kept then.
  */
 export function createZentrumSchematicReader(): (
   drawnVehicles: readonly Departure[],
@@ -497,12 +476,8 @@ export function createZentrumSchematicReader(): (
 }
 
 /**
- * A drawer that lays a layout's lanes at the width its plan is drawn at.
- *
- * The width follows the plan's size on screen (`getZentrumSchematicTrackWidth`), so a resize or a
- * zoom redraws the geometry but never re-solves the lanes. A layout drawn at the width it was last
- * drawn at returns the same reading. Where the marks halt and the lit stretches are cut follows the
- * capsules, which follow the boarding places, so all of it is redrawn together.
+ * A drawer that lays a layout's lanes at the plan's on-screen width, so a resize redraws geometry
+ * without re-solving lanes. The same width returns the same reading.
  */
 export function createZentrumSchematicDrawer(): (
   layout: ZentrumSchematicLayout,
@@ -520,19 +495,19 @@ export function createZentrumSchematicDrawer(): (
       trackWidth,
       layout.boardingPlacesByNodeId,
     );
-    // From the final edges, so marks ride the geometry the stroke paints, and both the marks and
-    // the lit stretches stop at the capsules.
+    // From the final edges, so marks ride the painted geometry and halt at the capsules.
     const stopLinesByNodeId = new Map(stopMarks.map(({ nodeId, capsules }) => [nodeId, capsules]));
+    const vehiclePathsByLineId = new Map(
+      linePaths.map((linePath) => [
+        linePath.lineId,
+        getZentrumSchematicVehiclePathsByEdgeId(linePath, edges, trackWidth, stopLinesByNodeId),
+      ]),
+    );
     last = {
       ...layout,
       trackWidth,
-      drawnPaths: getZentrumSchematicDrawnPaths(linePaths, edges, trackWidth, stopLinesByNodeId),
-      vehiclePathsByLineId: new Map(
-        linePaths.map((linePath) => [
-          linePath.lineId,
-          getZentrumSchematicVehiclePathsByEdgeId(linePath, edges, trackWidth, stopLinesByNodeId),
-        ]),
-      ),
+      drawnPaths: getZentrumSchematicDrawnPaths(linePaths, edges, trackWidth, vehiclePathsByLineId),
+      vehiclePathsByLineId,
       stopMarks,
     };
     lastLayout = layout;
@@ -603,12 +578,12 @@ const getZentrumSchematicPlacedRuns = (
   departures: readonly Departure[],
   feedNow: number,
   motions: RunMotions,
+  turnarounds: TurnaroundIndex,
 ): readonly ZentrumSchematicPlacedRun[] => {
   const edgeByKey = new Map(reading.edges.map((edge) => [edge.id, edge]));
   const trackIdByLineId = new Map(
     reading.linePaths.map(({ lineId, trackId }) => [lineId, trackId]),
   );
-  const turnarounds = findTurnarounds(departures);
   const turningKeyByMarkKey = new Map<string, string>();
   for (const [arrivalKey, departureKey] of turnarounds.turningDepartureKeyByArrivalKey) {
     turningKeyByMarkKey.set(arrivalKey, departureKey);
@@ -828,16 +803,18 @@ const getPathLength = (points: readonly SchematicPoint[]): number =>
   );
 
 /**
- * Estimated positions for observed vehicles whose current link is drawn. `getRunPlacement` owns
- * the timing. A mark rides its line's lane in both directions, so trams meeting briefly overlap.
+ * Positions for observed vehicles whose current link is drawn; `getRunPlacement` owns the timing.
+ * Marks ride their line's lane both ways, so meeting trams briefly overlap. Callers ticking every
+ * second pass precomputed turnarounds.
  */
 export function getZentrumSchematicVehicles(
   reading: ZentrumSchematicReading,
   departures: readonly Departure[],
   feedNow: number,
   motions: RunMotions,
+  turnarounds: TurnaroundIndex = findTurnarounds(departures),
 ): ZentrumSchematicVehicle[] {
-  return getZentrumSchematicPlacedRuns(reading, departures, feedNow, motions).map(
+  return getZentrumSchematicPlacedRuns(reading, departures, feedNow, motions, turnarounds).map(
     ({
       departure,
       trackId,

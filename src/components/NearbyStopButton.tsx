@@ -2,15 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { NearbyStopsController } from "../hooks/nearby-stops";
 import { navigateTo, routePaths } from "../routing";
 
-/**
- * Locates only on request, then opens the closest useful stop.
- *
- * Two places want this one control and want it to look like where it stands: a glyph-sized chip in
- * the bar, where it is one of several things a view carries, and a full action on the home, where
- * "the stop I am standing at" is one of the three ways the page answers its only question. The
- * behaviour is the same in both — the variant decides its surface and how much of its label it
- * prints, and nothing else.
- */
+/** Locates on request, then opens the closest useful stop. As a bar chip or a full home action. */
 export function NearbyStopButton({
   controller,
   currentPageStopId,
@@ -21,7 +13,7 @@ export function NearbyStopButton({
   /** Set only on a plain stop page, not on a line or ride nested beneath it. */
   currentPageStopId?: string;
   onShowAlternatives: () => void;
-  /** Where it stands: the shell's bar, or the home page itself. */
+  /** The bar or the home page. */
   variant?: "bar" | "page";
 }) {
   const isRequestedRef = useRef(false);
@@ -38,8 +30,7 @@ export function NearbyStopButton({
     }
   }, [controller.status, nearestStop]);
 
-  // The correction belongs to the one page opened by the location action. Once the rider leaves
-  // it, returning through history is a new navigation and the bar offers location again.
+  // The correction applies to the page the location action opened; leaving it resets the button.
   useEffect(() => {
     if (!locatedStopId) return;
     if (currentPageStopId === locatedStopId) {
@@ -88,7 +79,7 @@ export function NearbyStopButton({
         <circle cx="10" cy="10" r="3.25" />
         <path d="M10 2.25v2M10 15.75v2M2.25 10h2M15.75 10h2" />
       </svg>
-      {/* The bar has room for a word; the page has room for the question the word stands for. */}
+      {/* The bar shows a word; the page the full question. */}
       <span>
         {isPageAction
           ? canCorrectLocation

@@ -3,8 +3,7 @@ import { transitSource } from "../data/transit-source";
 import type { Departure, DepartureBoard } from "../data/transit-types";
 
 /**
- * The version of the run readings one view uses: a string, because `useSyncExternalStore` compares
- * snapshots by identity and a primitive is stable by construction.
+ * A version string for the view's runs; a primitive is a stable `useSyncExternalStore` snapshot.
  */
 function useRunReadingVersion(rowIds: readonly string[]): string {
   const subscribe = useCallback(
@@ -15,10 +14,7 @@ function useRunReadingVersion(rowIds: readonly string[]): string {
   return useSyncExternalStore(subscribe, getVersion, getVersion);
 }
 
-/**
- * The runs behind these rows, read from the source's `RunReadingStore`.
- * Memoize `rowIds`: they are the identity of everything read from the result.
- */
+/** The runs behind these rows, from the `RunReadingStore`. Memoize `rowIds`. */
 export function useRuns(rowIds: readonly string[]): readonly Departure[] {
   const version = useRunReadingVersion(rowIds);
   return useMemo(
@@ -37,11 +33,8 @@ const NO_BOARDS: readonly DepartureBoard[] = [];
 const NO_ROW_IDS: readonly string[] = [];
 
 /**
- * `departure` while there is one; otherwise the run last seen under `key`, read back from the store.
- *
- * This is how a view keeps a run across a moment nothing lists it — a board re-keyed by a step along
- * the line, or a ride whose run has left every board. Only the id is held; the reading is always the
- * store's. A new `key` holds nothing until a departure is seen under it.
+ * `departure` while there is one, else the run last seen under `key`, from the store: keeps a run
+ * while nothing lists it (a re-keyed board, a departed ride). A new `key` holds nothing.
  */
 export function useHeldRun(
   key: string | undefined,
@@ -60,13 +53,7 @@ export function useHeldRun(
   return departure ?? run;
 }
 
-/**
- * These boards with every row as the store reads it now.
- *
- * A board is a snapshot of which runs a stop listed; a run re-read after the board was fetched is
- * news on every board that lists it. Every board hook hands its boards out through here, so no view
- * ever holds a row it has to look up again.
- */
+/** These boards with every row as the store reads it now; every board hook passes through here. */
 export function useLiveBoards(boards: readonly DepartureBoard[]): readonly DepartureBoard[] {
   const rowIds = useMemo(
     () => boards.flatMap((board) => board.departures.map(({ id }) => id)),

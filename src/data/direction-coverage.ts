@@ -7,27 +7,20 @@ import type {
 import { createRunCollector, isDepartureWithin } from "./departure-runs";
 import { sortDeparturesByExpectedInstant } from "../lib/departure-order";
 
-/** One supplement answers for every sparse direction at once, so its rows are shared far wider. */
+/** One supplement serves every sparse direction, so it gets more rows. */
 const DIRECTION_SUPPLEMENT_LIMIT = 40;
 /**
- * How many filtered passes a completion may spend. Every pass after the first carries only the
- * directions the full answer before it still starved, so it asks for fewer lines than the one
- * before it; the cap is what stops a feed that keeps answering with the wrong rows from being
- * asked forever.
+ * Filtered passes per completion; each asks for fewer directions, and the cap stops endless
+ * retries.
  */
 const MAX_DIRECTION_SUPPLEMENT_PASSES = 3;
-/**
- * How long a coverage supplement stands. What runs here is not a countdown: an hourly bus found
- * once is still leaving at the same minute five minutes later, and asking again every thirty
- * seconds spent more on rarely-read rows than on the board the rider is reading.
- */
+/** How long a supplement stands: an hourly bus found once still leaves at the same minute. */
 const DIRECTION_SUPPLEMENT_TTL_MS = 5 * 60_000;
 const DEFAULT_DIRECTION_COVERAGE_HORIZON_MS = 2 * 60 * 60_000;
 
 /**
- * The completion a request asks for, read once so that the reading kept under a key and the passes
- * that produced it can never disagree about what was asked. A request that wants no completion, or
- * whose calling sequences make one far too heavy to widen, answers nothing here.
+ * The completion a request asks for, read once; nothing where none is wanted or calls make it too
+ * heavy.
  */
 export type DirectionCoverage = { minimum: number; horizonMs: number; key: string };
 
@@ -48,33 +41,21 @@ type FetchSupplement = (
 ) => Promise<{ departures: readonly Departure[]; rowLimitReached: boolean }>;
 
 /**
- * Completes a basic board just far enough for the stop's line overview to answer "what runs here?".
- *
- * Candidate ids come from the same monitor response, but only returned departure rows become
- * visible facts. The completion is a reading of its own with its own life
- * (`DIRECTION_SUPPLEMENT_TTL_MS`), not part of the thirty-second cycle. It has to be, or it never
- * stops: a stop whose rare lines run hourly is under-covered on every single refresh, so a pass
- * tied to the board's cadence asks again forever and spends more than the board it completes.
- *
- * Held rows are published only for departures further away than the reading is old, so a delay
- * that has moved since cannot mislead a rider about something imminent. Anything nearer than that
- * is the fresh board's to state — and at a stop busy enough for this to matter, the fresh board
- * already reaches it. A supplement past its life is dropped rather than aged further, and a failed
- * pass adds nothing at all.
+ * Completes a basic board so the line overview can answer "what runs here?". Candidates come from
+ * the monitor's metadata; only returned rows are shown. Supplements live on their own TTL, or a
+ * stop with hourly lines would re-ask every refresh. Held rows show only for departures further
+ * away than the reading is old; expired supplements drop, failed passes add nothing.
  */
 export class DirectionCoverageCompleter {
-  /** Query candidates from EFA's monitor metadata; they are never rendered without a live row. */
+  /** Query candidates from the monitor's metadata; never shown without a live row. */
   private readonly servingDirectionIdsByStopId = new Map<string, readonly string[]>();
-  /** The rare directions a live board could not reach, kept as their own short-lived reading. */
+  /** The short-lived supplements for directions the board missed. */
   private readonly supplements = new Map<
     string,
     { receivedAt: number; departures: readonly Departure[] }
   >();
 
-  /**
-   * What the stop's own board said it serves. Only an unfiltered reading may state this: a filtered
-   * board saw only the lines it asked about, so recording it would shrink the very set this reads.
-   */
+  /** What the stop's unfiltered board says it serves; a filtered board would shrink the set. */
   rememberServingDirections(stopId: string, directionIds: readonly string[]): void {
     this.servingDirectionIdsByStopId.set(stopId, directionIds);
   }
@@ -112,8 +93,7 @@ export class DirectionCoverageCompleter {
       }
     }
 
-    // Counted in one pass over the departures rather than one pass per direction: a busy post
-    // answers with forty rows and serves twenty directions, and this is re-asked after every read.
+    // One pass over the departures, not one per direction; re-run after every read.
     const getMissing = () => {
       const coveredByDirection = new Map<string, number>();
       for (const departure of collected.departureById.values()) {
@@ -134,10 +114,8 @@ export class DirectionCoverageCompleter {
 
     const supplemented: Departure[] = [];
     try {
-      // The limit applies to the combined filtered answer, not once per line. A full answer that
-      // still starves some directions earns another pass carrying only those: one retry does not
-      // always settle the skew that spends a busy stop's rows on the lines needing them least.
-      // A pass runs only after progress, so each one is a smaller ask, never a wider one.
+      // The limit applies to the combined answer. A full answer that still starves directions earns
+      // a pass for only those, and only after progress.
       for (let pass = 0; pass < MAX_DIRECTION_SUPPLEMENT_PASSES && missing.length > 0; pass += 1) {
         const limit = Math.min(
           DIRECTION_SUPPLEMENT_LIMIT,
@@ -161,7 +139,7 @@ export class DirectionCoverageCompleter {
     return this.toCoveredBoard(base, collected.departureById, feedNow, horizonMs);
   }
 
-  /** The completed reading: the live board's own facts, in one order, inside the stated window. */
+  /** The completed board: live facts, one order, inside the window. */
   private toCoveredBoard(
     base: LiveDepartureBoard,
     departureById: ReadonlyMap<string, Departure>,

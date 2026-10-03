@@ -3,12 +3,9 @@ import { getCallKey } from "./trip-calls";
 import { getRunMarkKey, isSameRun } from "./trips";
 
 /**
- * Two separately addressed timetable trips that run as one consist until the shorter one ends.
- *
- * EFA does not publish a formation or coupling field. This relationship is therefore deliberately
- * narrower than "two rows at the same time": both trips must leave as the same line from the same
- * physical point, every call of the shorter trip must prefix the longer route, and every schedule
- * time both publish must agree. Branches, duplicate trips and uncertain readings remain separate.
+ * Two separately addressed trips running as one consist until the shorter ends. EFA publishes no
+ * coupling, so pairing is strict: same line and departure point, the shorter route a prefix of the
+ * longer, and every shared schedule time equal.
  */
 export type JoinedRunPortionPair = {
   terminating: Departure;
@@ -65,10 +62,7 @@ function findJoinedPair(first: Departure, second: Departure): JoinedRunPortionPa
   return sharedUntil ? { terminating, continuing, sharedUntil } : undefined;
 }
 
-/**
- * Finds only unambiguous pairs. A bucket containing three portions is left alone until the product
- * has a truthful way to describe and draw more than one split.
- */
+/** Unambiguous pairs only; a bucket of three portions is left alone. */
 export function getJoinedRunPortionPairs(
   departures: readonly Departure[],
 ): readonly JoinedRunPortionPair[] {
@@ -86,7 +80,7 @@ export function getJoinedRunPortionPairs(
   });
 }
 
-/** Finds the completed trip reading that belongs to a possibly basic board row. */
+/** The pair a possibly basic board row belongs to. */
 export function findJoinedRunPortionPair(
   departure: Departure,
   joinedPortionPairs: readonly JoinedRunPortionPair[],

@@ -19,19 +19,14 @@ test("writes vehicle lanes without CSS multiplication older iOS Safari rejects",
 });
 
 test("measures a vehicle against the centre of its stop node", () => {
-  // A node is anchored by its own centre — placed at a point on its track and then pulled back over
-  // that point by a transform, which never reaches layout. So the offset measured is already the
-  // centre, and the same point is read whatever size the node happens to be drawn at: an ordinary
-  // stop, a terminus, or the rider's own stop, which draws the largest node of the three. Counting
-  // half a node again would carry every mark below the stop it is standing at, farthest at the one
-  // stop where that is most visible.
+  // The node is centred by a transform, which does not affect layout, so the measured offset is the
+  // centre, whatever the node's size.
   assert.equal(getMeasuredNodeCenterOffset(100, 4, 24), 128);
   assert.equal(getMeasuredNodeCenterOffset(100, 0, 24), 124);
 });
 
 test("a fork's junction node is read where the rails actually meet", () => {
-  // A junction's node sits at one end of its track rather than in the middle, by that same centre
-  // anchor, which is why the node is measured at all instead of the middle of the row.
+  // A junction's node sits at one end of its track, which is why the node is measured.
   assert.equal(getMeasuredNodeCenterOffset(200, 0, 0), 200);
   assert.equal(getMeasuredNodeCenterOffset(200, 0, 34), 234);
 });
@@ -39,8 +34,8 @@ test("a fork's junction node is read where the rails actually meet", () => {
 const place = (index: number, chainKey = "S1:A>B>C>D") => ({ index, chainKey });
 
 test("a step along the line is one note that moved, whichever way it steps", () => {
-  // Toward the destination or back along it, the note glides up into its new place either way —
-  // the only question is whether it has a previous place in this diagram to move from at all.
+  // Either way along the line, the note glides; the question is only whether it has a previous
+  // place.
   assert.equal(describeCurrentStopMove(place(3), place(2)), "travelled");
   assert.equal(describeCurrentStopMove(place(1), place(2)), "travelled");
 });
@@ -50,13 +45,12 @@ test("a diagram standing still has nothing to say", () => {
 });
 
 test("another stop chain is not a move within anything", () => {
-  // Another line, the other direction, a variant calling elsewhere: the rows are not the same rows,
-  // so the note is simply where it is rather than having travelled there.
+  // A different chain is not a move.
   assert.equal(describeCurrentStopMove(place(3), place(1, "S2:X>Y>Z")), undefined);
 });
 
 test("a note that was not on the diagram has not moved onto it", () => {
-  // The ride marks no stop of its own, and a stop off the drawn trip resolves to no row at all.
+  // A ride marks no stop; a stop off the drawn trip has no row.
   assert.equal(describeCurrentStopMove(place(-1), place(2)), undefined);
   assert.equal(describeCurrentStopMove(place(2), place(-1)), undefined);
 });
@@ -65,7 +59,7 @@ const { chooseLineDiagramRun, getCurrentStopIndex, isCurrentLineDiagramStop } = 
   "../src/lib/line-diagram.ts"
 );
 
-/** A trip of line 2, stated by the stops it calls at in travel order. */
+/** A line 2 trip, by its stops in travel order. */
 const trip = (id: string, destination: string, stopIds: readonly string[]) =>
   createDeparture({
     id,
@@ -96,15 +90,12 @@ const chooseAt = (
   });
 
 test("walking along the line keeps the trip the line is already drawn from", () => {
-  // Both directions run past every stop of a line, so choosing again at each one turned the diagram
-  // around under a rider who had only stepped along it. The same trip means literally the same stop
-  // chain, which is what leaves the diagram standing while the note under the stop name moves.
+  // Holding the trip keeps the chain, so stepping along the line does not flip the diagram.
   assert.equal(chooseAt("c", OUTBOUND), OUTBOUND);
 });
 
 test("a stop the held trip does not call at is drawn afresh, pointing the same way", () => {
-  // Nothing to hold on to — but the direction it was last read in still stands, so a line reopened
-  // further out is not turned around either.
+  // Nothing to hold, but the last direction still stands.
   const chosen = chooseLineDiagramRun({
     lineId: "2",
     riderStopIds: ["b"],
@@ -115,8 +106,7 @@ test("a stop the held trip does not call at is drawn afresh, pointing the same w
     boardDepartures: [],
   });
   assert.equal(chosen?.destination, "Wörth");
-  // Among the trips heading that way, the one that runs farthest: drawn from a short working the
-  // line stops short of its own ends.
+  // The farthest-running trip that way, not a short working.
   assert.equal(chosen, OUTBOUND);
 });
 
@@ -165,24 +155,22 @@ test("without a chain to draw, the plain board still states a direction", () => 
   assert.equal(chosen, boardRow);
 });
 
-/** A drawn line, as the rows the rider reads name their stops. */
+/** A drawn line's rows. */
 const ROWS = ["d", "c", "b", "a"].map((stopId) => ({ stopId }));
 
 test("the rider's own row is the one the address names, answered or not", () => {
-  // The row they tapped, held through the moment the new stop's boards are still being read: the
-  // note has one place to be for one step along the line, not one and then another.
+  // The tapped row holds while the new stop's boards load.
   assert.equal(getCurrentStopIndex(ROWS, "b", undefined), 2);
   assert.equal(getCurrentStopIndex(ROWS, "b", "b"), 2);
 });
 
 test("a board answering for another stop point does not move the note off the tapped row", () => {
-  // The reading that arrives a few hundred milliseconds later can name a stop point of the same
-  // complex, which is no row of this chain at all. That is not a step the rider took.
+  // A later reading naming another point of the complex is not a step.
   assert.equal(getCurrentStopIndex(ROWS, "b", "b-platform-2"), 2);
 });
 
 test("the boarding stop point answers where the address names a stop the chain does not", () => {
-  // A stop-complex page listing a departure that physically leaves from one of its other points.
+  // A complex page listing a departure from another of its points.
   assert.equal(getCurrentStopIndex(ROWS, "complex", "c"), 1);
 });
 

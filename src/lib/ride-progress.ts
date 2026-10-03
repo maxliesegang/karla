@@ -3,52 +3,37 @@ import { getRidePosition, type RidePositionFix } from "./ride-position";
 import { getTripCallInstant } from "./trip-calls";
 
 /**
- * Where a ride has got to.
- *
- * A rider on board asks three things and no others: what the next stop is, how long until they are
- * there, and how many stops until the one they want. Everything here answers one of those, read off
- * the trip's own calls — the schedule the feed states plus the deviation it measures beside it,
- * never a running time assumed from the two.
- *
- * A call is *past* once the vehicle is due to have left it. That is the same reading the line
- * diagram uses, so the row a rider sees highlighted and the stop the ride status names are always the
- * same stop.
- *
- * On board there is a better witness than the timetable, and it is the rider's own device. Where a
- * fix is in hand it decides which call is next and how much of the link to it is left — the feed's
- * estimate says when the vehicle is *due* to have left a stop, the fix says whether it has. The
- * timetable is still what turns the remaining distance into minutes, because it is the only account
- * of how long this link takes. A fix that cannot be placed (see `lib/ride-position.ts`) changes
- * nothing: the reading falls back to the feed's, and says which of the two it is.
+ * Where a ride has got to: the next stop, minutes to it, stops to the Ausstieg. A call is past once
+ * the vehicle is due to have left it, as in the line diagram. Where the rider's position is placed,
+ * it decides the next call and remaining distance; the timetable turns that into minutes. Otherwise
+ * the feed's schedule decides, and `source` says which.
  */
 
 export type RideProgress = {
-  /** Which witness this reading came from, so a view never presents one as the other. */
+  /** Which source this reading came from. */
   source: "position" | "schedule";
-  /** Metres still to run to the next call, where the position placed the vehicle. */
+  /** Metres to the next call, where the position placed the vehicle. */
   metersToNextCall?: number;
-  /** The call the vehicle is running towards, or nothing once the last one is behind it. */
+  /** The call ahead; none once the last is behind. */
   nextCall?: TripCall;
   /** Minutes until that call, from the feed's clock. */
   minutesToNextCall?: number;
-  /** How many calls the trip has already made, which is what a collapsed history counts. */
+  /** Calls already made. */
   passedCallCount: number;
-  /** The rider's marked Ausstieg, when it is still ahead of the vehicle. */
+  /** The Ausstieg, while still ahead. */
   alightingCall?: TripCall;
-  /** Calls still to make before the Ausstieg, the next one included. */
+  /** Calls before the Ausstieg, the next one included. */
   stopsToAlighting?: number;
-  /** The vehicle is due at the Ausstieg next: the point at which a rider has to stand up. */
+  /** The Ausstieg is next: time to stand up. */
   isAlightingNext: boolean;
-  /** Either the Ausstieg is behind the vehicle, or the trip has made its last call. */
+  /** The Ausstieg is behind, or the trip has made its last call. */
   isFinished: boolean;
-  /** Where the ride ended, for the wording that replaces the countdown. */
+  /** Where the ride ended. */
   finalCall?: TripCall;
 };
 
 /**
- * Minutes to the next call from where the rider actually is: the share of the link still ahead of
- * them, spent at the pace the timetable gives that link. Without a timed link there is no pace to
- * spend, and the caller keeps the feed's own countdown.
+ * Minutes to the next call: the remaining share of the link at the timetable's pace; none untimed.
  */
 function getMinutesFromLinkProgress(
   tripCalls: readonly TripCall[],
@@ -63,11 +48,11 @@ function getMinutesFromLinkProgress(
   return Math.max(0, Math.round((linkDuration * (1 - linkProgress)) / 60_000));
 }
 
-/** What a ride reads besides its calls: where the rider is going, and where they are. */
+/** A ride's options besides its calls. */
 export type RideProgressOptions = {
-  /** The stop the rider marked as their Ausstieg, where they have marked one. */
+  /** The rider's Ausstieg. */
   alightingStopId?: string;
-  /** The rider's own position, where they have granted it and it is fresh. */
+  /** The rider's position, where granted and fresh. */
   fix?: RidePositionFix;
 };
 
@@ -76,16 +61,14 @@ export function getRideProgress(
   feedNow: number,
   { alightingStopId, fix }: RideProgressOptions = {},
 ): RideProgress {
-  // A call with no time cannot be placed against the clock, so it is neither past nor ahead: the
-  // last call that is definitely past is what the position is read from.
+  // An untimed call is neither past nor ahead.
   const isPast = (call: TripCall) => {
     const instant = getTripCallInstant(call);
     return instant !== undefined && feedNow > instant;
   };
 
   const scheduledNextIndex = tripCalls.findIndex((call) => !isPast(call));
-  // The trip is over when the feed says its last call is behind the vehicle; a fix cannot extend a
-  // ride past its end, so placement is only consulted while the trip is still running.
+  // A fix cannot extend a ride past its last call.
   const position =
     fix && scheduledNextIndex >= 0 ? getRidePosition(tripCalls, fix, scheduledNextIndex) : null;
 
@@ -110,8 +93,7 @@ export function getRideProgress(
     alightingIndex >= 0 && !isAlightingPassed ? tripCalls[alightingIndex] : undefined;
 
   return {
-    // A placed reading whose minutes had to come from the timetable is still a placed reading:
-    // which stop is next is the fact the rider reads first, and that one came from the fix.
+    // The next stop came from the fix, even if the minutes came from the timetable.
     source: position ? "position" : "schedule",
     metersToNextCall: position?.metersToNextCall,
     nextCall,

@@ -1,20 +1,14 @@
 /**
- * Distances on the ground, for the two questions the app asks of a coordinate: how far apart two
- * places are, and where one of them falls relative to another.
- *
- * Both readings are approximations and are only ever presented as such — a straight line between
- * two points, never a route someone could walk or ride. What they are used for is ranking and
- * placement, where the error of a spherical earth is orders of magnitude below the accuracy of the
- * fixes being ranked.
+ * Straight-line distances and local projections, for ranking and placement only, never as routes.
  */
 
 const EARTH_RADIUS_METERS = 6_371_000;
 const toRadians = (degrees: number) => (degrees * Math.PI) / 180;
 
-/** Anything the feed gives a place to — a stop, a calling point — which it may also leave unplaced. */
+/** Anything the feed may locate; either coordinate may be missing. */
 export type Located = { latitude?: number; longitude?: number };
 
-/** Great-circle distance, or infinity where the other place is not located at all. */
+/** Great-circle distance; infinity where the other place is unlocated. */
 export function getDistanceMeters(latitude: number, longitude: number, other: Located): number {
   if (other.latitude === undefined || other.longitude === undefined)
     return Number.POSITIVE_INFINITY;
@@ -31,10 +25,7 @@ export function getDistanceMeters(latitude: number, longitude: number, other: Lo
 /** Metres east and north of an origin. */
 export type LocalPoint = { x: number; y: number };
 
-/**
- * A place as metres east and north of the origin. Over the few kilometres anything here spans, the
- * flat projection is accurate to well under the accuracy of the fixes measured against it.
- */
+/** Metres east and north of the origin; a flat projection is ample over a few kilometres. */
 export function toLocalMeters(
   latitude: number,
   longitude: number,
@@ -49,10 +40,7 @@ export function toLocalMeters(
   };
 }
 
-/**
- * A distance as a rider reads it: metres while they are worth counting, kilometres once they are
- * not. Rounded to ten metres, because a straight-line estimate does not know the last five.
- */
+/** A distance as a rider reads it: metres, then kilometres; rounded to ten metres. */
 export function formatDistance(meters: number): string {
   return meters < 1_000
     ? `${Math.max(10, Math.round(meters / 10) * 10)} m`

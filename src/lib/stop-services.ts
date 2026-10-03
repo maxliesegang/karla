@@ -10,18 +10,13 @@ import { findHomePlaceName, getBaseName, getQualifiedStopName } from "./stop-nam
 import { isSameLineFamily } from "./line-families";
 import { getCallKey, getCallSequenceKey, getCallsAfterCurrentStop } from "./trip-calls";
 
-/** Every name a stop goes by, for matching a name the feed states against our own stops. */
+/** Every name a stop goes by. */
 const getStopNameVariants = (stop: TransitStop): string[] =>
   [stop.name, stop.alias].filter((name): name is string => Boolean(name));
 
 /**
- * Resolves a stop name from a trip call to a supported local stop, without leaking name-derived ids
- * into views.
- *
- * Matched on the base name as well as the one the feed stated, because the two are not the same
- * string: a local stop is the place (`Marktplatz`), and a call names the platform it is made at
- * (`Marktplatz (Kaiserstraße U)`). This is the fallback for a call the provider id did not resolve,
- * so the name is all there is to go on.
+ * Resolves a call's stop name to a local stop, also by base name, since a call names its platform
+ * (`Marktplatz (Kaiserstraße U)`). The fallback where the provider id did not resolve.
  */
 export function findStopByName(network: TransitNetwork, name: string): TransitStop | undefined {
   const baseName = getBaseName(name);
@@ -33,19 +28,19 @@ export function findStopByName(network: TransitNetwork, name: string): TransitSt
   );
 }
 
-/** Whether two observed departures are interchangeable as the same direction and route pattern. */
+/** Whether two departures share direction and route pattern. */
 export function hasCompatibleStopPattern(first: Departure, second: Departure): boolean {
   if (!isSameLineFamily(first.lineId, second.lineId)) return false;
   if (first.destination !== second.destination) return false;
 
   const firstCalls = getCallsAfterCurrentStop(first);
   const secondCalls = getCallsAfterCurrentStop(second);
-  // A basic board cannot prove a branch difference. Destination is the narrowest available fact.
+  // A basic board cannot show a branch difference; destination is the best evidence.
   if (firstCalls.length === 0 || secondCalls.length === 0) return true;
   return getCallSequenceKey(firstCalls) === getCallSequenceKey(secondCalls);
 }
 
-/** The next non-cancelled trip that offers the same observed route after this departure. */
+/** The next running trip on the same observed route. */
 export function findNextCompatibleDeparture(
   departures: readonly Departure[],
   departure: Departure,
@@ -60,18 +55,13 @@ export function findNextCompatibleDeparture(
     );
 }
 
-/** The two ends a line runs between as seen from one stop, or one end where it only leaves one way. */
+/** The line's ends as seen from one stop; one where it only leaves one way. */
 export function getLineTermini(line: TransitLine): string[] {
   if (line.farthestRunTermini?.length) return [...line.farthestRunTermini];
   return [...new Set(line.destinations)].slice(0, 2);
 }
 
-/**
- * The farthest run observed for one line among these departures, as its calls.
- *
- * Reach is the run's own length — the number of distinct calls — which is what makes a whole run
- * beat the short workings beside it, whatever order the boards were read in.
- */
+/** The farthest run observed for a line, by distinct calls, so a whole run beats short workings. */
 function findFarthestLineRunCalls(
   lineId: string,
   departures: readonly Pick<Departure, "lineId" | "tripCalls">[],
@@ -89,14 +79,13 @@ function findFarthestLineRunCalls(
   return farthestCalls;
 }
 
-/** The ends of one run, qualified the way a compact heading has to state them. */
+/** A run's ends, qualified for a compact heading. */
 function getRunTermini(calls: readonly TripCall[]): {
   firstTerminus: string;
   lastTerminus: string;
 } {
-  // Rows can state a stop's locality on a separate line, but a heading cannot. Fold it into an end
-  // whose bare stop name does not identify the place: KVV calls line 2's western end plain `Nord`
-  // inside `Knielingen`, for example, so the heading must read `Knielingen Nord`.
+  // Headings fold in the locality where the bare name is ambiguous (line 2's `Nord` in
+  // `Knielingen`).
   const homePlaceName = findHomePlaceName(calls);
   return {
     firstTerminus: getQualifiedStopName(calls[0], homePlaceName),
@@ -105,14 +94,8 @@ function getRunTermini(calls: readonly TripCall[]): {
 }
 
 /**
- * The two ends the line was seen running between at its farthest, as a line list reads them.
- *
- * The same observation `getFarthestLineRun` draws a whole-line view out of, read once for the
- * list instead of per view: the farthest run observed for the line states where it actually runs,
- * where its destinations — the words on the vehicle's front, with the short workings among them —
- * only suggest it. `undefined` where no run was observed far enough, and where the farthest run
- * turns on itself: a loop's two ends are one place, and the line's destinations still say which
- * one it serves.
+ * The line's ends at its farthest observed run, for the line list. `undefined` where none reached
+ * far enough or it loops; the destinations then stand in.
  */
 export function getFarthestLineRunTermini(
   lineId: string,
@@ -124,26 +107,17 @@ export function getFarthestLineRunTermini(
   return firstTerminus === lastTerminus ? undefined : [firstTerminus, lastTerminus];
 }
 
-/** The farthest run observed for a line, as a whole-line reading of it needs it. */
+/** The farthest run observed for a line. */
 export type FarthestLineRun = {
   firstTerminus: string;
   lastTerminus: string;
-  /**
-   * The run's calls, oriented like the diagram on screen — the chain a whole-line view is drawn
-   * out to. `undefined` where no run has been observed far enough to draw, which leaves the view
-   * with the chain it was drawn from and the ends the line's destinations name.
-   */
+  /** Its calls, oriented like the diagram; `undefined` where none reached far enough. */
   calls: readonly TripCall[] | undefined;
 };
 
 /**
- * The farthest complete run observed for a line, oriented like the diagram on screen.
- *
- * A line view is often first drawn from a short working because that is the next trip at the
- * rider's stop. That trip is a truthful shape for its own run, but its ends are not the ends of the
- * whole line. The other line boards are already in hand to place vehicles; their longest distinct
- * call sequence is both the best observation of how far the line reaches and the shape that reach
- * is drawn in.
+ * The farthest complete run observed for a line, oriented like the diagram, so a view first drawn
+ * from a short working can show the whole line.
  */
 export function getFarthestLineRun(
   line: TransitLine,
@@ -166,8 +140,7 @@ export function getFarthestLineRun(
   const firstDiagramIndex = diagramIndices[0];
   const nextDiagramIndex = diagramIndices.find((index) => index !== firstDiagramIndex);
 
-  // Diagram rows run from destination back toward origin. Two shared calls say which physical end
-  // belongs at its top even when the farthest observation came from a trip in the other direction.
+  // Rows run destination to origin; two shared calls decide which end is on top.
   const runsTowardStart =
     firstDiagramIndex !== undefined && nextDiagramIndex !== undefined
       ? nextDiagramIndex > firstDiagramIndex

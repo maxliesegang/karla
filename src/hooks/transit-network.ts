@@ -8,11 +8,7 @@ import {
 } from "../lib/observed-network";
 import { useKeyedLoad } from "./keyed-load";
 
-/**
- * The stops the app can resolve, plus the lines the feed is currently running. The stops are stable
- * for the session; the lines are read from the live Zentrum observation, so the app never offers a
- * rider a line that is not running.
- */
+/** The resolvable stops plus the lines currently running, read from the live observation. */
 export function useTransitNetwork(observedNetwork: ObservedNetwork): TransitNetwork {
   return useMemo(
     () => ({ ...transitSource.getNetwork(), lines: getObservedTransitLines(observedNetwork) }),
@@ -20,13 +16,7 @@ export function useTransitNetwork(observedNetwork: ObservedNetwork): TransitNetw
   );
 }
 
-/**
- * What asking the provider about a deep-linked stop produced.
- *
- * A read that failed is kept apart from a definite answer of "nothing": a feed that did not answer
- * is not evidence that a stop does not exist, and presenting the one as the other turns a network
- * hiccup into a dead end.
- */
+/** A provider lookup's outcome; a failed read is not "no such stop". */
 type RemoteStopResolution =
   | { status: "found"; stop: TransitStop }
   | { status: "missing" }
@@ -38,22 +28,20 @@ const resolveRemoteTransitStop = (stopId: string): Promise<RemoteStopResolution>
     () => ({ status: "failed" as const }),
   );
 
-/** Resolves local core-network stops immediately and provider-backed network stops on demand. */
+/** Known stops at once; provider stops on demand. */
 export function useTransitStop(
   stopId: string | undefined,
   { reloadNonce }: { reloadNonce?: number } = {},
 ): {
   stop: TransitStop | undefined;
   loading: boolean;
-  /** The provider read failed rather than answered; asking again is meaningful. */
+  /** The provider read failed, so asking again makes sense. */
   failed: boolean;
 } {
-  // Everything the session already knows, which is more than the authored network: a stop met
-  // through a board or through a trip's calls is known for the rest of the session. Walking along a
-  // line diagram is the case this exists for — every stop of it was read from the trip drawing it,
-  // so tapping one is a lookup and the view never has to render the not-knowing.
+  // Everything the session knows (stops met through boards and trips), so stepping along a line
+  // diagram is a lookup without a loading state.
   const local = stopId ? transitSource.getKnownStop(stopId) : undefined;
-  // The provider is only asked where the session has no answer of its own.
+  // Only asks the provider without a session answer.
   const remote = useKeyedLoad(stopId && !local ? stopId : null, resolveRemoteTransitStop, {
     reloadNonce,
   });
@@ -66,9 +54,7 @@ export function useTransitStop(
   };
 }
 
-/**
- * The observed stops a rider could be located against, as the nearby ranking wants them.
- */
+/** Observed stops the nearby ranking can locate against. */
 export function useLocatableStops(
   network: TransitNetwork,
   departureBoards: readonly DepartureBoard[],
@@ -78,7 +64,7 @@ export function useLocatableStops(
     for (const stop of network.stops) {
       if (stop.latitude !== undefined) byId.set(stop.id, stop);
     }
-    // The authored stops carry the better names, so an observed position only fills a gap.
+    // Authored names win; observed positions only fill gaps.
     for (const position of getObservedStopPositions(departureBoards)) {
       if (byId.has(position.id)) continue;
       byId.set(position.id, {

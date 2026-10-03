@@ -1,27 +1,20 @@
-import type { Departure, DepartureReadingTimes, TripCall } from "../data/transit-types";
-import { FEED_REVISION_INTERVAL_MS } from "./feed-clock";
+import type { Departure } from "../data/transit-types";
 import { collapseTurnaroundCalls, statesRunEnd, statesRunStart } from "./trip-calls";
 import { getRunMarkKey } from "./trips";
 
 /**
- * Turns timed calls into event-driven vehicle trajectories.
+ * Turns a run's timed calls into vehicle trajectories.
  *
- * A marker has one appointment: leave the last stop after its departure and reach the next at its
- * expected arrival. Time merely evaluates that stable segment. When a refresh changes the arrival,
- * the remaining segment is re-planned from the ground already covered; no target is chased and no
- * marker moves backwards. A marker is placed back at a stop only when that stop's own realtime fact
- * says its departure is still ahead. Placements are never animated as journeys.
+ * Placement reads only the run's own calls and the clock, never a board row: the same run is merged
+ * into a different row on every board, and every view must draw it in one place. A mark keeps one
+ * appointment per link (leave a stop, reach the next on time); a refresh re-plans the rest of the
+ * link from the ground covered. Marks never move backwards and placements are never animated.
  */
 
 /**
- * What a mark is doing where it stands.
- *
- * A running mark is read off the link the trip says the vehicle is on. The two standing phases are
- * the ends of the run, and they are kept apart from running because they are a weaker statement:
- * neither says a vehicle was measured anywhere. `beforeStart` is a trip the feed monitors and has
- * not begun — its terminus is where it is due out from; `afterEnd` is a trip whose own calls have
- * run out at its final one. Which vehicle turns back into which departure is not published
- * anywhere (see docs/kvv-efa-api.md), so the two are never joined into one standing vehicle.
+ * What a mark is doing where it stands. `beforeStart` (a monitored run due out of its first stop)
+ * and `afterEnd` (a run at its final stop) are weaker than `running`: no vehicle was measured.
+ * Arrivals and their turning departures are never joined; the feed does not publish that link.
  */
 export type RunPlacementPhase = "running" | "beforeStart" | "afterEnd";
 
@@ -33,30 +26,19 @@ export type RunPlacement = {
   progress: number;
   phase: RunPlacementPhase;
   /**
-   * Whether the mark got here by travelling or by being put here.
-   *
-   * Stated rather than inferred, because only this module knows which it was. A diagram comparing
-   * two painted coordinates can see that a mark moved a long way, but not whether it moved because
-   * a vehicle is making up time — which should be animated — or because the reading found it
-   * somewhere else, a trip came back after a gap, or this is its first paint — none of which is a
-   * journey, and all of which look like a train sliding across the diagram when animated.
+   * Whether the mark got here by travelling or by being put here (a first paint, a gap, a reading
+   * elsewhere). Only travel is animated.
    */
   motion: RunPlacementMotion;
   /**
-   * How far a placement put the mark from where it was drawn, as one continuous count of the
-   * trip's own links: whole links between the two positions, the fractions at either end included.
-   * Only a placement states it, and only where the drawn mark's own segment still exists in this
-   * reading — it is the measure a drawing corrects a nearby placement over instead of snapping it,
-   * and there is nothing to correct where no mark was drawn (see
-   * `lib/vehicle-trajectory-animation.ts`).
+   * How far a placement moved the drawn mark, in links. Stated only where the drawn segment still
+   * exists, so a drawing can correct a small placement instead of snapping it.
    */
   placedAfterLinks?: number;
   /**
-   * The current link's motion as one appointment with its next stop.
-   *
-   * The renderer follows one acceleration–cruise–braking plan from `startProgress` at `startsAt`
-   * and reaches the next stop at `arrivesAt`. The plan is stable while time passes; only a new feed
-   * reading or the handover to the following link replaces it.
+   * The current link as one appointment with the next stop: an acceleration–cruise–braking plan
+   * from `startProgress` at `startsAt` to arrival at `arrivesAt`. Replaced only by a new reading or
+   * the next link.
    */
   trajectory?: RunSegmentTrajectory;
 };
@@ -84,71 +66,19 @@ export type RunSegmentTrajectory = {
 const RUN_MOTION_STALE_MS = 120_000;
 /** Runs remembered for smoothing before the untouched ones are swept out. */
 const RUN_MOTION_CAPACITY = 256;
-/**
- * This close to the trip's own position, the mark has arrived and stops trailing it — and this
- * close to a call, it is standing at that call rather than running away from it.
- */
+/** Progress within this of a target or a call counts as reaching it. */
 const SETTLED_TOLERANCE = 0.005;
 /** Share of a link's available running time used to change speed at either end. */
 const SEGMENT_SPEED_RAMP_SHARE = 0.15;
 /**
- * How far apart two accounts of one departure must be before the newer one is information.
- *
- * A stop row publishes its times to the minute and a sequence to the second, so the same departure
- * read both ways disagrees by up to a minute without either account being wrong. Within that
- * rounding the row says nothing the sequence does not, and reading it as a correction made the
- * reading flip between "departed" and "not yet departed" across the minute boundary — the mark
- * leaping back to its terminus and away again on every refresh.
- */
-const ROW_DEPARTURE_PRECISION_MS = 60_000;
-/**
- * How much later than the row its own calling sequence must have been read before the row stops
- * correcting it: one feed revision, `FEED_REVISION_INTERVAL_MS`.
- *
- * A sequence read that much after the row has already seen everything the row could tell it and one
- * revision more. Below that the two are accounts of the same moment: a stop's board and the trips
- * behind it are fetched in one refresh and land milliseconds apart in whichever order the requests
- * complete, and reading that ordering as staleness would throw away the row correction everywhere
- * it is right.
- */
-const ROW_SUPERSEDED_BY_SEQUENCE_MS = FEED_REVISION_INTERVAL_MS;
-/**
- * How long before a trip is due out of its first stop it is drawn standing there *on its own*.
- *
- * A terminus spends much of its day with no mark on it at all: the run that arrived has ended and
- * the next has not begun, which is exactly the turnaround a rider watching the line wants to see.
- * The trip that is due out is the one fact published about it, so it is drawn — and drawn as
- * standing, because a monitored trip that has not started is not a vehicle anybody has placed.
- *
- * The lead is measured against the departure as the feed times it, delay included, so it is the
- * real stand rather than the timetable's. It is long enough to cover an ordinary turn end to end:
- * line 3 turns at Forststraße on eleven scheduled minutes, and a turn that long is drawn from this
- * lead alone wherever no pairing was found for it — a reading that has caught only one run starting
- * at that terminus cannot measure the headway a pairing is bounded by, and falls back on a window
- * shorter than the turn (`lib/line-turnarounds.ts`). Held at six minutes the diagram
- * showed nothing at all standing at the terminus for the middle of every such turn, while a rider
- * on the platform was looking straight at the tram. A trip the feed monitors and times out of a
- * stop it is due away from within nine minutes is standing there, and that is drawn without
- * needing to know which arrival it came in on.
- *
- * A longer stand than the lead needs a second fact, and `standFrom` is it: a caller that has found
- * the arrival this departure turns out of states when that stand began, and the mark is drawn from
- * then rather than from this lead.
- *
- * Either way the stand belongs to the stop the run *starts* from, as the feed states it, and to no
- * other: see `findRunEndStops`. And a lead this long will reach back past an unrelated arrival
- * still standing at the same terminus, which is one platform holding two marks — the diagram drops
- * one of them rather than claiming two vehicles (`lib/line-diagram.ts`).
+ * How long before a monitored run is due out of its first stop it is drawn standing there without
+ * a known arrival. Measured against the delayed departure, and long enough for line 3's
+ * eleven-minute turn at Forststraße. A found turnaround (`standFrom`) can stand it longer.
  */
 const DEPARTURE_STAND_LEAD_MS = 9 * 60_000;
 /**
- * How long a trip keeps its mark at its final call.
- *
- * Its calls say the vehicle is due there and say nothing after it, so the mark stands at the
- * terminus rather than vanishing at the minute it pulls in. Kept inside the grace the observation
- * itself is retained for (`lib/line-run-departures.ts`), so a mark never outlives the trip
- * behind it — and only where the feed says the run ends there, since a reading that merely stops
- * short says nothing about a vehicle standing anywhere.
+ * How long a run keeps its mark at its final call, where the feed says it ends there. Within the
+ * grace its observation is retained for (`lib/line-run-departures.ts`).
  */
 const TERMINUS_STAND_MS = 90_000;
 
@@ -159,24 +89,13 @@ const toInstant = (value: string | undefined): number | undefined => {
 
 const clampUnit = (value: number) => Math.min(1, Math.max(0, value));
 
-/**
- * Whether the calls beside a row were read late enough to have answered the row's own question.
- *
- * A departure with no calls clock has had no sequence read behind it at all, so there is nothing
- * for the row to have been superseded by and the row stands — the same answer a departure that
- * states no clocks gets.
- */
-const isRowSupersededBySequence = (readAt: DepartureReadingTimes | undefined): boolean =>
-  readAt?.sequenceReadAt !== undefined &&
-  readAt.sequenceReadAt - readAt.rowReadAt > ROW_SUPERSEDED_BY_SEQUENCE_MS;
-
 type TimedCall = {
   stopId: string;
   arrival: number;
   departure: number;
   /** The departure was stated at this call, rather than copied from another monitored call. */
   departureIsExplicit: boolean;
-  /** The board row repeated beside a detailed sequence's copy of this same call. */
+  /** Repeated beside the sequence's own copy of the boarding call. */
   isPublishedCurrentCall: boolean;
 };
 
@@ -189,60 +108,27 @@ type ScheduledCall = {
   scheduledArrival: number;
   scheduledDeparture: number;
   /**
-   * What the feed states for this call, or nothing where it monitors none of it. The two ends are
-   * one fact or no fact: a call the feed says anything about states both, because a deviation
-   * given for one end describes the other until the feed itself separates them.
+   * What the feed states for this call. A deviation for one end applies to both until the feed
+   * separates them.
    */
   statedShift?: CallShift;
-  /** The one call this departure was actually read at, whose row is the freshest fact in hand. */
-  isBoardingCall: boolean;
-  /** Explicit provider marker distinguishing a duplicate board call from real same-stop travel. */
+  /** Marks a duplicate board call, as opposed to real travel between platforms of one stop. */
   isPublishedCurrentCall: boolean;
 };
 
-/**
- * The call the board row itself describes: the one the producing board marked — but only where the
- * mark is about the stop the row was read at, and that stop's own call otherwise.
- *
- * A run read as rows is read once and merged into every stop's row of it
- * (`getLineDepartureBoards`), so one reading's marker travels with copies of the row it was not
- * read from. Taking a marked call at *another* stop as this row's boarding call re-timed the run
- * from there: the row's own prediction, measured against another stop's departure, read as a
- * correction and moved every call past it. The stop is the question that is actually being asked —
- * which call of the rider's stop the row was published at — and the marker answers it only at the
- * stop it was made for.
- */
-function findBoardingCallIndex(departure: Departure, calls: readonly TripCall[]): number {
-  const boardingStopId = departure.boardingLocalStopId;
-  const firstAtStop =
-    boardingStopId === undefined
-      ? -1
-      : calls.findIndex((call) => call.localStopId === boardingStopId);
-  if (firstAtStop < 0) return calls.findIndex((call) => call.isCurrentStop);
-  const markedAtStop = calls.findIndex(
-    (call) => call.isCurrentStop && call.localStopId === boardingStopId,
-  );
-  return markedAtStop >= 0 ? markedAtStop : firstAtStop;
-}
-
-/** Calls that can carry a mark: a known stop, a known row in the diagram, and a known time. */
+/** Calls with a known stop and a known time. */
 function getScheduledCalls(departure: Departure): ScheduledCall[] {
-  // Only a repeated call explicitly marked as a run boundary is one physical stand reported twice.
-  // Other consecutive calls of the same local stop can be real travel between platforms, and the
-  // diagram draws that link, so the vehicle timeline must preserve it as well.
+  // Only a repeated call marked as a run boundary is one stand reported twice; other repeats of a
+  // stop can be real travel between its platforms.
   const calls = collapseTurnaroundCalls(departure.tripCalls ?? []);
-  const boardingIndex = findBoardingCallIndex(departure, calls);
-  return calls.flatMap((call, index) => {
+  return calls.flatMap((call) => {
     if (!call.localStopId) return [];
     const arrival = toInstant(call.scheduledArrivalTime);
     const departureTime = toInstant(call.scheduledDepartureTime);
     const time = departureTime ?? arrival;
     if (time === undefined) return [];
-    // A call stating one deviation states it about both of its ends; two are only ever kept apart
-    // where the feed itself keeps them apart. The ends of a run are the exception from the other
-    // side: the feed states no arrival for a run's first call and no departure for its last, so
-    // there the one stated side is the whole statement — dropping it read a departure the feed was
-    // tracking as one it was not, and a held-at-the-terminus vehicle read as unmonitored.
+    // One stated end applies to both. A run's first call has no arrival and its last no departure,
+    // so there the one side is the whole statement.
     const arrivalDelay = call.arrivalDelayMinutes ?? call.delayMinutes;
     const departureDelay = call.delayMinutes ?? call.arrivalDelayMinutes;
     return [
@@ -257,7 +143,6 @@ function getScheduledCalls(departure: Departure): ScheduledCall[] {
                 arrival: (arrivalDelay ?? departureDelay ?? 0) * 60_000,
                 departure: (departureDelay ?? arrivalDelay ?? 0) * 60_000,
               },
-        isBoardingCall: index === boardingIndex,
         isPublishedCurrentCall: call.isCurrentStop === true,
       },
     ];
@@ -265,15 +150,8 @@ function getScheduledCalls(departure: Departure): ScheduledCall[] {
 }
 
 /**
- * A deviation for every call, carried across the ones the feed does not monitor.
- *
- * Only part of a run is monitored: a sequence routinely states a deviation for the calls near the
- * vehicle and nothing at all for the rest. Reading an unmonitored call as *on time* is not the
- * neutral choice it looks like — it is a claim that the vehicle makes up its whole delay on the
- * next link, and the times it produces run backwards, which had a mark cross those links at the
- * dwell floor and sprint away down the line. A delay in fact persists until it is recovered, and
- * the feed says so by restating it, so the last stated deviation is carried forward and the first
- * one is carried back over the calls before it.
+ * A deviation for every call: the feed monitors only calls near the vehicle, and a delay persists
+ * until recovered, so the last stated deviation carries forward and the first carries back.
  */
 function resolveCallShifts(calls: readonly ScheduledCall[]): CallShift[] {
   const shifts: CallShift[] = [];
@@ -291,116 +169,20 @@ function resolveCallShifts(calls: readonly ScheduledCall[]): CallShift[] {
 }
 
 /**
- * The deviation the board row states at its own stop, where the row is the later of the two
- * readings the departure was merged from.
+ * The calls a mark travels along, clamped so times never run backwards: deviations from readings of
+ * different ages can time a call before the one behind it.
  *
- * A row is re-read on its board's cadence; the calling sequence behind it is a separate reading on
- * a cadence of its own. On a stop's board the row is much the fresher of the two, so on most
- * refreshes it knows something the sequence does not yet, and the same rule the rest of the app
- * follows — the stop row is the statement about when this vehicle leaves *here* — decides it. The
- * difference is carried down the rest of the run, exactly as an unmonitored call carries the last
- * stated deviation.
- *
- * Which reading is the later one is not a constant, though, and reading it as one put marks back at
- * stops they had left. The Zentrum inverts the usual relation: its observation posts are read every
- * five minutes while every run they name is re-read within one, so for most of each cycle the row
- * beside a fresh sequence is minutes of history. Taken as a correction it re-timed the whole run
- * from a stop the vehicle had already left — the mark hauled back to the post, held there until the
- * stale prediction elapsed, and then thrown a full link forward. So the row corrects the sequence
- * only where it is not itself the older reading (`Departure.readAt`), and a departure that states
- * no two clocks is one reading and keeps the rule its board's cadence implies.
- *
- * It holds only while that departure is still ahead. A row is a *prediction* about a vehicle that
- * has not left yet, which is the only kind of row a departure board carries; once the vehicle has
- * gone, the same fields are a record of something that already happened, and a retained trip keeps
- * restating them long after. Carrying that down the rest of the run would let a reading from four
- * stops back overrule the deviations the sequence states ahead of the vehicle — worst exactly where
- * the sequence is freshest, on a ride being re-read on its own.
+ * `originStatedShift` is the delay the feed states for the first call itself, not one carried back
+ * from further along; only that says the vehicle is standing at its terminus.
  */
-function getRowDepartureShift(
-  departure: Departure,
-  boardingCall: ScheduledCall | undefined,
-  sequenceShift: CallShift | undefined,
-  feedNow: number,
-): number | undefined {
-  if (!boardingCall || !sequenceShift) return undefined;
-  if (isRowSupersededBySequence(departure.readAt)) return undefined;
-  const predicted = toInstant(departure.predictedDepartureTime);
-  const scheduled = toInstant(departure.scheduledDepartureTime);
-  const stated =
-    predicted ??
-    (scheduled === undefined || departure.delayMinutes === undefined
-      ? undefined
-      : scheduled + departure.delayMinutes * 60_000);
-  if (stated === undefined) return undefined;
-  // Both accounts have to put the departure behind us before the row is treated as history: a row
-  // saying the vehicle is still here is precisely the correction worth having when the sequence has
-  // already let it go.
-  const sequenceDeparture = boardingCall.scheduledDeparture + sequenceShift.departure;
-  if (Math.max(stated, sequenceDeparture) < feedNow) return undefined;
-  // Counted against the row's own published time rather than the call's: a stop complex can publish
-  // the row at one of its stop points and time the sequence at another.
-  const rowShift = stated - boardingCall.scheduledDeparture;
-  // Below the row's own resolution a disagreement is rounding, not news: a row publishing 09:15 for
-  // a departure the sequence times at 09:14:48 has not said the vehicle is late. Repeated as a
-  // correction it re-timed the departure across the minute boundary and back again, which is the
-  // flip the reading must not make.
-  if (Math.abs(rowShift) < ROW_DEPARTURE_PRECISION_MS) return undefined;
-  return rowShift;
-}
-
-/**
- * The calls a mark travels along: real times, in order, and never running backwards.
- *
- * The clamp is the last step and it is not cosmetic. Deviations arrive per call and per end, from
- * readings of different ages, and nothing in the feed guarantees that they compose into a sequence
- * a vehicle could actually run: a call revised later than the one behind it can be timed before it.
- * A link of negative length has no pace to travel at, so the mark would cover it at the dwell
- * floor. Held to the call behind it, such a link becomes what it really is — no time at all — and
- * the mark stands where it is until the next call is due.
- *
- * Alongside the calls it answers one question about the origin: how far the reading's own first
- * call was re-timed *there*, by the feed stating a deviation for it or by the row at the stop it
- * leaves from — and nothing where the re-timing came from a deviation stated further along the run
- * and carried back over the calls the feed does not monitor (`resolveCallShifts`). The two readings
- * of a late origin are very different claims — one says the vehicle is standing at its terminus,
- * the other says nothing about where it is at all — and which mark may be drawn for each is decided
- * on it.
- */
-function getTimedCalls(
-  departure: Departure,
-  feedNow: number,
-): { calls: TimedCall[]; originStatedShift: number | undefined } {
+function getTimedCalls(departure: Departure): {
+  calls: TimedCall[];
+  originStatedShift: number | undefined;
+} {
   const calls = getScheduledCalls(departure);
   const shifts = resolveCallShifts(calls);
-  const boardingIndex = calls.findIndex((call) => call.isBoardingCall);
-  const rowShift = getRowDepartureShift(
-    departure,
-    calls[boardingIndex],
-    shifts[boardingIndex],
-    feedNow,
-  );
-  // Read before the row's correction lands: a correction applied at the boarding call is the row's
-  // own statement about the origin, and only a *later* one says the vehicle is still there.
-  const statedSequenceShift =
-    calls[0]?.statedShift !== undefined ? (shifts[0]?.departure ?? 0) : undefined;
-  const originStatedShift =
-    statedSequenceShift !== undefined && statedSequenceShift > 0
-      ? statedSequenceShift
-      : rowShift !== undefined && rowShift > 0 && boardingIndex === 0
-        ? rowShift
-        : undefined;
-  if (rowShift !== undefined) {
-    const correction = rowShift - shifts[boardingIndex].departure;
-    for (let index = boardingIndex; index < shifts.length; index += 1) {
-      shifts[index] = {
-        // The row says when the vehicle leaves this stop, not when it reached it: the call it is
-        // already standing at keeps its own arrival, and every call ahead takes the correction.
-        arrival: shifts[index].arrival + (index === boardingIndex ? 0 : correction),
-        departure: shifts[index].departure + correction,
-      };
-    }
-  }
+  const originShift = calls[0]?.statedShift?.departure;
+  const originStatedShift = originShift !== undefined && originShift > 0 ? originShift : undefined;
 
   const timed: TimedCall[] = [];
   let earliest = Number.NEGATIVE_INFINITY;
@@ -415,16 +197,14 @@ function getTimedCalls(
     if (isDuplicateBoardCall) {
       previous.arrival = Math.min(previous.arrival, arrival);
       previous.departure = Math.max(previous.departure, callDeparture);
-      previous.departureIsExplicit ||=
-        call.statedShift !== undefined || (rowShift !== undefined && index === boardingIndex);
+      previous.departureIsExplicit ||= call.statedShift !== undefined;
       previous.isPublishedCurrentCall ||= call.isPublishedCurrentCall;
     } else {
       timed.push({
         stopId: call.stopId,
         arrival,
         departure: callDeparture,
-        departureIsExplicit:
-          call.statedShift !== undefined || (rowShift !== undefined && index === boardingIndex),
+        departureIsExplicit: call.statedShift !== undefined,
         isPublishedCurrentCall: call.isPublishedCurrentCall,
       });
     }
@@ -432,43 +212,25 @@ function getTimedCalls(
   return { calls: timed, originStatedShift };
 }
 
-/** The feed's departure is the start of motion; no extra dwell or speed is invented. */
 function getStandingEnd(here: TimedCall): number {
   return Math.max(here.arrival, here.departure);
 }
 
 /**
- * Whether the feed is watching this run at all.
- *
- * It decides one thing only: whether a trip that has not started is drawn standing at the stop it
- * is due out of. A monitored trip is one the operator's own system is following; an unmonitored one
- * is a line in a timetable, and a timetable is not evidence that anything is at that terminus.
+ * Whether any call states a deviation, as a monitored call does even when on time. Only a
+ * monitored run that has not started is drawn standing at its terminus.
  */
-function isMonitoredRun(departure: Departure): boolean {
-  return (
-    departure.status === "realtime" ||
-    departure.predictedDepartureTime !== undefined ||
-    departure.delayMinutes !== undefined ||
-    (departure.tripCalls ?? []).some(
-      (call) => call.delayMinutes !== undefined || call.arrivalDelayMinutes !== undefined,
-    )
+const isMonitoredRun = (departure: Departure): boolean =>
+  (departure.tripCalls ?? []).some(
+    (call) => call.delayMinutes !== undefined || call.arrivalDelayMinutes !== undefined,
   );
-}
 
 /** Where the feed says a run begins and ends, as the stops those two calls resolve to. */
 type RunEndStops = { startStopId?: string; endStopId?: string };
 
 /**
- * The ends of the run among the calls a mark travels along, as the feed states them.
- *
- * Both stands a diagram draws are claims about a *line*: one says a vehicle is waiting to set out
- * from here, the other that a run finishes here. Neither may be made from the fact that our copy of
- * a sequence happens to begin or end at a call — a reading cut short stops mid-route while the
- * vehicle keeps going, and a stand drawn there parks a mark at a stop nothing terminates at. So the
- * feed has to say it (`statesRunStart` / `statesRunEnd`), and the stop it said it about is returned
- * rather than a flag, so the chain a mark actually travels has to still end there: calls with no
- * usable time or no stop of ours are dropped on the way, and a chain that lost its last call ends
- * mid-route exactly as a cut reading does.
+ * The run's ends among the travelled calls, only where the feed states them: a reading cut short
+ * ends mid-route, and a stand drawn there would park a mark where nothing terminates.
  */
 function findRunEndStops(departure: Departure): RunEndStops {
   const tripCalls = departure.tripCalls ?? [];
@@ -480,45 +242,25 @@ function findRunEndStops(departure: Departure): RunEndStops {
   };
 }
 
-/** What placing a mark knows beyond its calls and the clock: the facts about the run around it. */
 type CallPositionContext = {
-  /** Whether the feed is watching this run, which is what lets a not-yet-started trip stand. */
   isMonitored: boolean;
   /** When the stand at the first stop began, where a turnaround has been found for it. */
   standFrom: number | undefined;
-  /** The ends of the run, which alone may carry a standing mark. */
+  /** Only the ends of the run may carry a standing mark. */
   runEnds: RunEndStops;
-  /**
-   * How far the feed has re-stated the origin's own departure, where it has: the one deviation
-   * that says the vehicle is standing where the run starts from rather than anywhere along it.
-   */
+  /** The delay the feed states for the first call itself; see `getTimedCalls`. */
   originStatedShift: number | undefined;
 };
 
-/**
- * Where the trip itself says the vehicle is, as one coordinate along its calls, and what that is.
- *
- * The phase is the whole of what the reading claims about a stand: `beforeStart` is only ever read
- * at the stop the run starts from, and whether that stand was found from an observed arrival
- * (`lib/line-turnarounds.ts`), from a re-stated origin or merely from the lead before the departure
- * does not change what it says — the run has not begun, so the vehicle is at that stop and on no
- * link. `getRunPlacement` reads it that way against a mark already drawn travelling.
- */
+/** Where the run says the vehicle is, as one coordinate along its calls, and in which phase. */
 type RunCallPosition = {
   position: number;
   phase: RunPlacementPhase;
 };
 
 /**
- * A reading that places nothing, and why — because the two are answered very differently.
- *
- * `unplaceable` is a reading with nothing in it: a sequence of one call, one trimmed past the
- * vehicle, a trip not yet due to stand anywhere. It says nothing about where the vehicle is, so a
- * mark already drawn keeps the ground it stood on while the next refreshes are waited for.
- *
- * `finished` is a statement rather than a silence: this run is over. Holding a mark through it is
- * how a tram came to sit at the stop its trip ended at for as long as a board kept listing that
- * trip, so the mark is let go on the spot.
+ * Why a reading places nothing. `unplaceable` says nothing about the vehicle, so a drawn mark is
+ * held; `finished` says the run is over, so the mark is dropped.
  */
 type EmptyReading = "unplaceable" | "finished";
 
@@ -530,16 +272,9 @@ function findCallPosition(
   if (calls.length < 2) return "unplaceable";
   const first = calls[0];
   const last = calls[calls.length - 1];
-  // Standing at the stop it is due out of: for the last few minutes before it leaves, or — where
-  // the arrival it turns out of has been found — for the whole of the stand since that arrival.
-  // Only ever at the stop the run itself starts from; anywhere else the vehicle is simply not here
-  // yet, and drawing it standing would put a departure mark mid-route.
-  //
-  // A departure the feed has re-stated later keeps its stand: the vehicle is standing there — that
-  // is what the re-statement is a measurement of — and letting the stand lapse because the lead is
-  // now measured against the later time would blink the mark off and on across the revision. The
-  // stand is still bounded by the lead, measured against the departure it was published for, so a
-  // delay planned long ahead does not stand a mark at the terminus hours early.
+  // Standing at the first stop: within the lead before departure, or since its turnaround arrival.
+  // A later re-stated departure keeps the stand, still bounded by the lead from the published
+  // time, so the mark does not blink across the revision.
   if (feedNow < first.arrival) {
     if (first.stopId !== runEnds.startStopId) return "unplaceable";
     const isDueOut = isMonitored && first.departure - feedNow <= DEPARTURE_STAND_LEAD_MS;
@@ -552,20 +287,14 @@ function findCallPosition(
       ? { position: 0, phase: "beforeStart" }
       : "unplaceable";
   }
-  // Whether the feed says the run ends at the last call in hand. Where it does not, a reading past
-  // that call has merely run out ahead of a vehicle still on the line, which says nothing about a
-  // vehicle standing anywhere and holds nothing.
+  // Past a last call the feed does not call the run's end, the reading has only run out.
   const runEndsHere = last.stopId === runEnds.endStopId;
 
-  // Past the stand the final call is held for: the run is over and the vehicle has gone off the
-  // line.
   if (feedNow > last.departure + TERMINUS_STAND_MS) {
     return runEndsHere ? "finished" : "unplaceable";
   }
 
-  // The arrival instant belongs to the terminus already. This inclusive boundary matters when a
-  // second trip departs at exactly the same instant: the arrival is then a finished half of the
-  // turnaround and can be replaced by the outgoing trip's single mark.
+  // Inclusive, so a trip departing at this very instant can replace the arrival's mark.
   if (feedNow >= last.arrival && runEndsHere) {
     return { position: calls.length - 1, phase: "afterEnd" };
   }
@@ -575,13 +304,10 @@ function findCallPosition(
     const next = calls[index + 1];
     if (feedNow > next.arrival) continue;
 
-    // Standing at the stop: the mark belongs on the stop, not part-way down the next link.
     const standingEnd = getStandingEnd(here);
     if (feedNow <= standingEnd) return { position: index, phase: "running" };
 
-    // The timetable gives the best average speed estimate in hand. This locates the timed link;
-    // `getSegmentForPosition` evaluates the shared motion curve within it so the domain and browser
-    // agree about the gentle acceleration and braking around that average.
+    // The timed link; progress within it follows the shared motion curve.
     const run = next.arrival - standingEnd;
     return {
       position: index + (run > 0 ? clampUnit((feedNow - standingEnd) / run) : 1),
@@ -589,9 +315,7 @@ function findCallPosition(
     };
   }
 
-  // Every link has been passed, so the reading is past the last call the trip states. A run that
-  // ends there was already answered as a stand at its terminus above; this is the other case — the
-  // calls ran out before the vehicle did, and there is nothing honest left to draw.
+  // Past every link of a run that does not end here: the calls ran out before the vehicle did.
   return "unplaceable";
 }
 
@@ -612,25 +336,16 @@ type RunMotion = {
   segment: SegmentAnchor;
   shownAt: number;
   /**
-   * When the trip itself last said where the vehicle was.
-   *
-   * Kept apart from `shownAt` — when the mark was last *drawn* — because only this one can bound
-   * how long a mark is held over readings that place nothing. A diagram asks for its marks every
-   * second, so a gap measured from the last drawing is closed again by the very tick that widened
-   * it and never expires at all: a mark held that way outlived its trip by as long as anything
-   * kept asking for it.
+   * When the run last placed the vehicle. Bounds how long a mark is held over empty readings, which
+   * `shownAt` cannot: it advances every tick.
    */
   readAt: number;
   shown: RunPlacement;
 };
 
 /**
- * What one drawing remembers of the marks it has painted, keyed by mark: the trajectory each is on,
- * so a refresh continues a mark's motion instead of placing it afresh.
- *
- * Owned by the drawing that paints the marks (`createRunMotions`) and handed to every placement it
- * makes, so continuity is explicit state rather than a module global — and every placement in one
- * paint shares it, as a bundle's trunk and branches place the same run.
+ * The trajectories one drawing has painted, keyed by mark, so a refresh continues a mark's motion.
+ * Owned by the drawing (`createRunMotions`) and shared by every placement in one paint.
  */
 export type RunMotions = Map<string, RunMotion>;
 
@@ -744,11 +459,8 @@ function createMotionSegment(
     };
   }
   const ramp = duration * SEGMENT_SPEED_RAMP_SHARE;
-  // The inherited velocity has to leave enough distance for the ramp and final braking phase. A
-  // very late revision can otherwise ask the polynomial to run backwards in order to arrive.
-  // Keep half the remaining ground for the cruise and braking phases. Allowing the inherited
-  // speed to consume all of it during the first ramp made a heavily delayed vehicle reach the
-  // stop early and then sit at 100% until the revised arrival.
+  // Keep half the remaining ground for cruise and braking, so a late revision neither runs the
+  // curve backwards nor arrives early and waits.
   const startVelocity = Math.min(Math.max(0, requestedStartVelocity), distance / ramp);
   const cruiseVelocity = (distance - 0.5 * ramp * startVelocity) / (duration - ramp);
   return {
@@ -796,9 +508,7 @@ function getSegmentForPosition(
 ): { index: number; segment: SegmentAnchor; progress: number } {
   const index = Math.min(calls.length - 2, Math.max(0, Math.floor(position.position)));
   const scheduled = createScheduledSegment(calls, index);
-  // `findCallPosition` identifies the timed link. Once it has, read progress from the same motion
-  // curve the browser will paint rather than from a second, linear interpolation. Otherwise the
-  // first sight of a vehicle and the following animation disagree about where that clock places it.
+  // Read progress from the same curve the browser paints, so first sight and animation agree.
   const readProgress = clampUnit(position.position - index);
   const progress =
     readProgress > SETTLED_TOLERANCE && readProgress < 1 - SETTLED_TOLERANCE
@@ -852,7 +562,6 @@ function placementFromSegment(
   };
 }
 
-/** What a refresh decided to draw: the link a mark is on, and how it came to be there. */
 type DrawnMotion = {
   segment: SegmentAnchor;
   phase: RunPlacementPhase;
@@ -860,16 +569,9 @@ type DrawnMotion = {
 };
 
 /**
- * The new reading, read against the mark already on the screen.
- *
- * A reading alone says where the trip is; it does not say whether the mark may travel there. That
- * is the whole of what this decides, and every answer is one of three: keep the appointment the
- * mark is already keeping, re-plan the current link from the ground it has covered, or state that
- * the mark was *put* somewhere — never animated across stops no vehicle was observed traversing.
- *
- * The one rule underneath all of them: a mark never moves backwards. A carried deviation can
- * re-time a sequence so the computed reading lands behind the mark, and that is a revision of the
- * clock, not evidence that a tram reversed.
+ * The new reading against the mark already drawn: keep the current appointment, re-plan the link
+ * from the ground covered, or place the mark. A mark never moves backwards; a carried deviation
+ * that puts the reading behind it re-times the clock, it does not reverse the tram.
  */
 function reconcileWithDrawnMark(
   calls: readonly TimedCall[],
@@ -884,9 +586,7 @@ function reconcileWithDrawnMark(
   const previousIndex = findSegmentIndex(calls, previous.segment);
   const previousProgress = getSegmentProgress(previous.segment, feedNow);
   const previousVelocity = getSegmentVelocity(previous.segment, feedNow);
-  // The braking curve deliberately spends its last moments very close to the stop. Proximity is
-  // not arrival: treating 99.5% as attained let a refresh bypass forward-only reconciliation and
-  // place the mark backwards during precisely the gentle approach this curve introduces.
+  // The braking curve lingers near the stop; only the arrival instant counts as arrived.
   const hasReachedStop = feedNow >= previous.segment.arrivesAt;
   const continuing = (segment: SegmentAnchor): DrawnMotion => ({
     segment,
@@ -894,33 +594,18 @@ function reconcileWithDrawnMark(
     motion: "travelled",
   });
 
-  // The reading says the vehicle has not left this call yet: a run the feed says has not begun
-  // (`beforeStart` is only ever read at the stop the run starts from), or a departure the call
-  // itself states is still ahead. Either way the vehicle is standing, not on the link — and that
-  // holds whatever the mark was doing, which is what keeps a re-timed sequence from turning a stand
-  // into a journey. Every branch below re-plans the *current* link from the ground the mark has
-  // covered, which is the right answer for a vehicle under way and an invented departure for one
-  // still at its stop: a waiting terminus mark, re-planned on each refresh, set off down the first
-  // link minutes before its vehicle did.
+  // The vehicle has not left this call: the run has not begun, or the call states its departure is
+  // still ahead. It is standing, whatever the mark was doing, so it is not re-planned down the
+  // link.
   const standsAtCall =
     reading.phase === "beforeStart" ||
     (read.progress <= SETTLED_TOLERANCE &&
       calls[read.index].departureIsExplicit &&
       calls[read.index].departure > feedNow);
   if (standsAtCall) {
-    // A stand along the run may hold a mark at the stop it has not left yet; it may never carry one
-    // back past a stop it has. The reading can put such a stand on a link behind the drawn mark — a
-    // call re-timed later than the ones behind it does exactly that, and so does a row read at a
-    // stop the mark is already past — and answered as a stand the mark was hauled back whole links
-    // to wait at a platform its vehicle had pulled out of minutes ago. So the drawn link is kept
-    // wherever this timeline still names it: the mark finishes the ground it was covering, on the
-    // revised clock, and the stand is left to a reading that reaches it.
-    //
-    // Two stands are excepted, and both are statements rather than re-timings. `beforeStart` says
-    // the run has not begun at all — the feed re-stating a monitored origin later is a measurement
-    // of a vehicle standing at its terminus, and the mark belongs there however far along the
-    // optimistic reading had drawn it. And the stop the mark is *leaving*, saying its own departure
-    // is still ahead, is the direct platform fact the branch below is for.
+    // A stand behind the drawn mark comes from a call re-timed later, so the mark finishes its link
+    // on the revised clock instead of being hauled back. Exceptions: `beforeStart`, which says the
+    // run has not begun, and the stop the mark is leaving stating its departure is still ahead.
     if (reading.phase !== "beforeStart" && previousIndex > read.index) {
       return hasReachedStop
         ? continuing({
@@ -940,11 +625,8 @@ function reconcileWithDrawnMark(
     return {
       segment: createScheduledSegment(calls, read.index),
       phase: reading.phase,
-      // A direct platform fact outweighs the interpolated journey that had already been drawn.
-      // Only a mark drawn standing at this very stop has nothing to be corrected about, though:
-      // one drawn further back -- down the link it was travelling, or at the stop before it -- was
-      // found by the reading somewhere else, which is a placement, and is corrected over rather
-      // than travelled across.
+      // A platform fact outweighs the drawn journey. A mark already standing here travelled; one
+      // drawn elsewhere was placed.
       motion:
         previousIndex === read.index && previousProgress <= SETTLED_TOLERANCE
           ? "travelled"
@@ -953,25 +635,21 @@ function reconcileWithDrawnMark(
   }
 
   if (previous.timelineKey === timelineKey) {
-    // No observation changed: keep one trajectory instead of rebuilding it on every clock tick.
+    // No new observation: keep the trajectory.
     if (previousIndex === read.index) return { ...asRead, segment: previous.segment };
-    // The previous appointment finished and the trip handed over to its following link.
     if (read.index > previousIndex && hasReachedStop) return asRead;
-    // The same reading cannot move a vehicle to an earlier link. Keep its current appointment,
-    // including an attained stop, until the reading itself reaches that ground.
+    // The same reading cannot move a vehicle to an earlier link.
     return previousIndex >= 0 ? continuing(previous.segment) : placed;
   }
 
   if (previousIndex === read.index) {
-    // The arrival moved: cancel the old appointment and spend the new remaining time from the exact
-    // ground already covered.
+    // The arrival moved: re-plan the remaining time from the ground covered.
     if (!hasReachedStop) {
       return continuing(
         createRemainingSegment(calls, read.index, previousProgress, feedNow, previousVelocity),
       );
     }
-    // The old appointment has reached the stop but a carried delay now puts the interpolation
-    // behind it. Hold the attained stop until the revised reading catches up; never reverse.
+    // Reached the stop, but a carried delay puts the reading behind it: hold until it catches up.
     if (!calls[read.index].departureIsExplicit) {
       return continuing({
         ...createRemainingSegment(calls, read.index, 1, feedNow),
@@ -981,36 +659,26 @@ function reconcileWithDrawnMark(
     return asRead;
   }
 
-  // A carried delay may put the computed reading on an earlier link. It is not evidence that the
-  // vehicle reversed, so finish the link it was already traversing on the revised clock — while
-  // that link still has an arrival ahead of it. (Whether the reading itself says the vehicle is
-  // still standing at that stop is already answered above: it can only say so about `read.index`,
-  // and this is the branch where the mark is on some other link.)
+  // A carried delay puts the reading on an earlier link: finish the current one on the revised
+  // clock while its arrival is still ahead.
   if (previousIndex >= 0 && !hasReachedStop && calls[previousIndex + 1].arrival > feedNow) {
     return continuing(
       createRemainingSegment(calls, previousIndex, previousProgress, feedNow, previousVelocity),
     );
   }
-  // A genuinely different account of the vehicle's link is a placement, never animated across stops
-  // the vehicle was not observed traversing.
+  // A different account of the link is a placement.
   return placed;
 }
 
-/** Newest last, so the sweep's eviction order is the order the marks were last spoken for. */
+/** Newest last, so the sweep evicts the least recently used. */
 function rememberMotion(motions: RunMotions, key: string, motion: RunMotion) {
   motions.delete(key);
   motions.set(key, motion);
 }
 
 /**
- * How far a placement puts the mark from where it was drawn, as one continuous count of links.
- *
- * The mark's painted position is its appointment read at the same instant the placement is, so the
- * two are comparable although one is a plan and the other a reading — and the distance is what
- * lets a drawing tell a placement that barely moved the mark from one that put it somewhere else
- * entirely. A segment this timeline no longer names — a sequence re-cut around the vehicle, a
- * diverted route — cannot be measured against, and an unmeasurable placement is left to be
- * snapped, the way an unmeasurable distance deserves.
+ * How far a placement moves the mark from its painted position, in links; undefined where this
+ * timeline no longer names the drawn segment.
  */
 function getPlacementTravel(
   calls: readonly TimedCall[],
@@ -1025,12 +693,9 @@ function getPlacementTravel(
 }
 
 /**
- * The vehicle's current segment as an appointment with the next stop.
- *
- * Time passing merely evaluates the stable appointment. A refresh re-plans the remaining part of
- * the same link from the marker's present position. It never reverses to follow a later estimate.
- * The sole exception is direct evidence that the departure behind it is still in the future; that
- * corrects the estimate by placing the marker back at the stop, without animating a reverse trip.
+ * The vehicle's current segment as an appointment with the next stop. A refresh re-plans the rest
+ * of the link and never reverses, except that a call stating its departure is still ahead places
+ * the mark back at that stop.
  */
 export function getRunPlacement(
   motions: RunMotions,
@@ -1046,7 +711,7 @@ export function getRunPlacement(
     return null;
   }
 
-  const { calls, originStatedShift } = getTimedCalls(departure, feedNow);
+  const { calls, originStatedShift } = getTimedCalls(departure);
   const reading = findCallPosition(calls, feedNow, {
     isMonitored: isMonitoredRun(departure),
     standFrom,
@@ -1054,8 +719,7 @@ export function getRunPlacement(
     originStatedShift,
   });
   const timelineKey = getTimelineKey(calls);
-  // A run the feed says is over takes its mark with it, and its trajectory: whatever was drawn for
-  // it, there is no vehicle there to draw any more.
+  // A finished run drops its mark and trajectory.
   if (reading === "finished") {
     motions.delete(key);
     return null;
@@ -1082,8 +746,7 @@ export function getRunPlacement(
           )
         : previous.segment;
     const shown = placementFromSegment(segment, feedNow, "running", "travelled");
-    // `readAt` deliberately stays where it was: this reading placed nothing, and the grace a held
-    // mark is kept for is measured from the last reading that did.
+    // `readAt` stays: the hold is measured from the last reading that placed the mark.
     rememberMotion(motions, key, { ...previous, timelineKey, segment, shownAt: feedNow, shown });
     return shown;
   }

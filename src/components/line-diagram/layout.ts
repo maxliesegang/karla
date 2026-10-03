@@ -2,10 +2,7 @@ import { useLayoutEffect, useRef, useState } from "react";
 import { scrollIntoView } from "../../lib/scroll";
 
 /**
- * Layout measurement and placement for the line diagram.
- *
- * These hooks read and watch the diagram's real DOM — row centres, scroll extents, the addressed
- * row — and turn them into state the panel and the vehicle layer render from. They are the only
+ * Layout measurement for the line diagram: row centres, scroll extents, the addressed row. The only
  * place the diagram's class names and data attributes are queried.
  */
 
@@ -21,11 +18,8 @@ const EMPTY_VEHICLE_LAYER_GEOMETRY: VehicleLayerGeometry = {
 };
 
 /**
- * A marker's horizontal coordinate, written without CSS typed multiplication.
- *
- * Safari before 18.2 rejects a whole transform containing multiplication in `calc()`. Repeating
- * the lane step as additions says the same thing using the interoperable arithmetic supported by
- * older iPhones as well. Lane indexes are small, bounded integers assigned by `vehicle-lanes`.
+ * A marker's horizontal coordinate as repeated additions: Safari before 18.2 rejects multiplication
+ * in a transform's `calc()`. Lane indexes are small.
  */
 export function getVehicleLeftOffset(
   trackLeft: number,
@@ -41,46 +35,25 @@ export function getVehicleLeftOffset(
 }
 
 /**
- * Where the diagram stands, and the one question of when it is allowed to move itself.
- *
- * It places itself when the rider opens something new to read — a line, or a trip pinned on it —
- * and never again. Walking along the line to another of its stops is not opening anything: the
- * rows the rider tapped are the rows they are still reading, so the list stays exactly where it
- * was and the only thing that changes is which row is marked as theirs. That mark travelling
- * between two rows the rider can both see is the whole of what that navigation looks like, and it
- * is why the stop is deliberately no part of the key here.
- *
- * What it places itself on is what was opened. A pinned trip is a vehicle somewhere on the line,
- * and where that vehicle is is the thing the rider chose it to see; the stop they would board at
- * is a row they already had in view. Without a pinned trip there is no vehicle to stand on and the
- * rider's own stop is the reading, so the same effect falls back to it — which is also what a line
- * opened at a stop lands on.
- *
- * Opening arrives already placed: there is no previous reading to travel from, and an animation
- * would only make the rider wait to see where they are. Pinning a trip on a line already open does
- * have a previous position, and gliding between the two rows is what says the two readings are of
- * one line. A different stop chain — another line, the other direction, a variant calling
- * elsewhere — is not a move within anything, so it is placed rather than travelled to, the same
- * reasoning that remounts the vehicle layer on that key. Between all of these every scroll belongs
- * to the rider: live data and clock ticks never move the list. Vehicle marks are measured and move
- * independently, so they are deliberately no part of this.
+ * Scrolls the diagram only when something new is opened (a line, or a pinned trip), never when the
+ * rider steps to another stop of the line. A pinned trip places on its vehicle, else the rider's
+ * stop. Opening jumps; pinning a trip on an open line glides; a new stop chain jumps. Live data and
+ * ticks never scroll.
  */
 export function useStopPlacement({
   placementKey,
   chainKey,
   containerRef,
 }: {
-  /** The line or the trip being read, never the stop — see above. `null` places nothing. */
+  /** The line or trip being read, never the stop. `null` places nothing. */
   placementKey: string | null;
-  /** The stop chain the placement is made in; travelling only happens within one of these. */
+  /** The stop chain; gliding only happens within one. */
   chainKey: string;
   containerRef: React.RefObject<HTMLDivElement | null>;
 }) {
   const placedRef = useRef<{ key: string; chainKey: string } | null>(null);
 
-  // The row placed on can arrive after the line or trip sequence, and a pinned trip's vehicle can
-  // arrive after both. Do not consume the placement until one of them exists; after that, live data
-  // and clock ticks cannot move the list again — including the mark itself, which keeps moving.
+  // Wait until the target row (or the pinned trip's vehicle) exists; then the placement is spent.
   useLayoutEffect(() => {
     const container = containerRef.current;
     if (!placementKey || !container) {
@@ -104,30 +77,15 @@ export function useStopPlacement({
 }
 
 /**
- * Whether the rider's own stop moved between two readings of one diagram.
- *
- * Walking along the line changes one thing on the screen and this is it: the note under a stop name
- * saying where the rider is. The diagram itself does not move — the rows they tapped are the rows
- * they are still reading (`useStopPlacement`) — so the note is the whole of what that navigation
- * looks like, and the one question here is whether it has a previous place in this diagram to move
- * from, or is simply where it is. Derived while rendering rather than in an effect, for the same
- * reason the dashboard derives which of its halves changed: the answer has to be on the element in
- * the commit that mounts the note, or the motion it orders would already be a frame under way.
- *
- * A different stop chain is not a move within anything — the rows themselves are not the same rows —
- * and neither is a marker that was not on the diagram at all. Both say the note is simply where it
- * is.
+ * Whether the rider's stop note moved within one diagram, derived during render so the motion is
+ * on the element from its first commit. A new chain or a first appearance is no move.
  */
 export type CurrentStopMove = "travelled" | undefined;
 
-/** Where the rider's own stop stood, in the chain it stood in. `-1` is a diagram not marking one. */
+/** The rider's stop and the chain it was in; `-1` marks none. */
 export type CurrentStopPlace = { index: number; chainKey: string };
 
-/**
- * Whether two of those are two places of one note. Separated from the hook because it is a fact
- * about two readings and not about React: the same chain and two different rows on it is one note
- * that moved.
- */
+/** Whether two places are one note that moved: same chain, different rows. */
 export function describeCurrentStopMove(
   previous: CurrentStopPlace,
   next: CurrentStopPlace,
@@ -152,7 +110,7 @@ export function useCurrentStopMove(currentStopIndex: number, chainKey: string): 
   return move;
 }
 
-/** A ride moves only when the rider explicitly asks to return to its position. */
+/** A ride moves only when the rider asks to return to its position. */
 export function useRequestedRunPosition(
   request: number,
   containerRef: React.RefObject<HTMLDivElement | null>,
@@ -164,8 +122,7 @@ export function useRequestedRunPosition(
     const anchor = containerRef.current?.querySelector<HTMLElement>(
       '[data-run-position-anchor="true"]',
     );
-    // A next-call row is normally available before the button can be pressed. If live data is in
-    // the middle of replacing the sequence, leave the request pending and fulfil it next render.
+    // If the sequence is being replaced, fulfil the request next render.
     if (!anchor) return;
     anchor.scrollIntoView({ block: "center", inline: "nearest", behavior: "auto" });
     handledRequestRef.current = request;
@@ -173,14 +130,8 @@ export function useRequestedRunPosition(
 }
 
 /**
- * The node centre in stop-list coordinates, without the visual translation applied by sticky UI.
- *
- * A node is anchored by its own centre: it is placed at a point on its track — the middle of an
- * ordinary row, either end of a fork's junction — and then pulled back over that point by half its
- * own size in each direction. That pull-back is a transform, so it never reaches layout, and the
- * offset measured here is already the centre. Adding half the node's height to it would push every
- * mark below the node it belongs to, by more the larger the node is: farthest at the rider's own
- * stop, which is exactly where a mark being off the node is most visible.
+ * The node centre in stop-list coordinates. The node is centred by a transform, which does not
+ * affect layout, so the measured offset is already the centre.
  */
 export const getMeasuredNodeCenterOffset = (
   rowOffsetTop: number,
@@ -189,24 +140,16 @@ export const getMeasuredNodeCenterOffset = (
 ): number => rowOffsetTop + trackOffsetTop + nodeOffsetTop;
 
 /**
- * The real row centres the vehicle marks travel between, measured from the diagram's own layout.
- *
- * Markers live once in a continuous layer rather than once per stop row. Row centres are measured
- * because qualifiers, call times and the current-stop note can make row heights differ.
- * ResizeObserver runs only when layout changes; the one-second vehicle tick reuses this geometry.
- *
- * Measurement is a render behind the chain it measures, so between the two there is one render in
- * which the offsets in state belong to rows that are no longer on the screen. Nothing is returned
- * for it — a mark placed against another chain's rows is worse than no mark for one frame — and
- * that is settled here rather than at each call site, where two copies of the same guard is one
- * copy too many.
+ * Measured row centres for the vehicle layer (rows differ in height). ResizeObserver re-measures on
+ * layout changes; the tick reuses it. Returns nothing for the one render where the measurement
+ * still belongs to the previous chain.
  */
 export function useVehicleLayerGeometry({
   stopListRef,
   coordinateKey,
 }: {
   stopListRef: React.RefObject<HTMLDivElement | null>;
-  /** The stop chain the geometry belongs to; a different chain gets measured from scratch. */
+  /** The chain the geometry belongs to; a new one is measured from scratch. */
   coordinateKey: string;
 }): VehicleLayerGeometry {
   const [geometry, setGeometry] = useState(EMPTY_VEHICLE_LAYER_GEOMETRY);
@@ -220,8 +163,7 @@ export function useVehicleLayerGeometry({
       const track = stopRows[0]?.querySelector<HTMLElement>(".line-diagram-track");
       const nextGeometry = {
         coordinateKey,
-        // The node, not the row: wrapped names and call details make the row's own centre
-        // incidental, while the node is the point the rail and marker actually meet.
+        // The node, not the row: it is where rail and marker meet.
         stopCenterOffsets: stopRows.map((row) => {
           const rowTrack = row.querySelector<HTMLElement>(".line-diagram-track");
           const node = rowTrack?.querySelector<HTMLElement>(".line-diagram-node");

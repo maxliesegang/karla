@@ -5,6 +5,7 @@ import {
   type ZentrumSchematicEdge,
   type ZentrumSchematicLinePath,
   type ZentrumSchematicNode,
+  type ZentrumSchematicStroke,
   crossProduct,
   dotProduct,
   getTrackOffset,
@@ -19,17 +20,10 @@ import {
   getZentrumSchematicLaneBends,
 } from "./zentrum-schematic-paths";
 
-/** A straight stroke on the plan: a capsule's spine, or the link between two capsules. */
-export type ZentrumSchematicStroke = { from: SchematicPoint; to: SchematicPoint };
-
 /**
- * A stop's mark, as a printed network plan draws one: one capsule for each place to stand, laid
- * square across every lane calling there where those lanes run straight, and the places of one
- * stop joined into one shape by a link.
- *
- * A stop is one capsule wherever the feed says it is one place, however many platforms and levels
- * it has: the stop page says which platform. Where its platforms are places apart (Karlstor's line
- * 3 and its lines 4 and 5, a street apart), each place stands on the arm only it serves.
+ * A stop's mark as a printed plan draws it: one capsule per place to stand, square across the lanes
+ * where they run straight, places of one stop joined by a link. Places apart (Karlstor's line 3 and
+ * lines 4/5, a street apart) each stand on the arm only they serve.
  */
 export type ZentrumSchematicStopMark = {
   nodeId: string;
@@ -48,8 +42,7 @@ export const ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH = 1.15;
 export const ZENTRUM_SCHEMATIC_STOP_CAPSULE_FILL = 0.62;
 
 /**
- * A link is a dotted rule, the plan's mark for a walk between two places of one stop: each dot is
- * this many lanes across, and the dots stand `ZENTRUM_SCHEMATIC_STOP_LINK_PITCH` lanes apart.
+ * A link is a dotted rule (a walk between places): dot width in lanes, dots `..._LINK_PITCH` apart.
  */
 export const ZENTRUM_SCHEMATIC_STOP_LINK_WIDTH = 0.32;
 
@@ -58,19 +51,21 @@ export const ZENTRUM_SCHEMATIC_STOP_LINK_PITCH = 0.8;
 /** How far a capsule reaches past the band's paint, in lanes, so it reads as crossing it. */
 const ZENTRUM_SCHEMATIC_STOP_OVERHANG = 0.1;
 
-/** The room a capsule keeps from a bend, a band it does not mark, or another capsule, in lanes. */
+/** Clearance from a bend, an unmarked band or another capsule, in lanes. */
 const ZENTRUM_SCHEMATIC_STOP_CLEARANCE = 0.4;
 
-/** How much further than its nearest clear spot a stop's main place may stand, in lanes, to let
- * the stop's other place link to it cleanly. */
+/**
+ * How much further from the stop the main place may stand so the other place links cleanly, in
+ * lanes.
+ */
 const ZENTRUM_SCHEMATIC_STOP_SLACK = 6;
 
 /** How far a link stands off a curve, in lanes: a lane where it can, less where it must. */
 const ZENTRUM_SCHEMATIC_LINK_CLEARANCES = [1, 0.5, 0];
 
 /**
- * How far along its corridor a capsule may stand: up to halfway, since the next stop's own
- * capsules stand at the other end.
+ * How far along its corridor a capsule may stand: halfway, since the next stop's are at the other
+ * end.
  */
 const ZENTRUM_SCHEMATIC_STOP_MAXIMUM_REACH = 0.5;
 
@@ -80,10 +75,12 @@ const ZENTRUM_SCHEMATIC_LANE_PAINT = 0.72;
 /** One corridor as it leaves a stop: the way out, how far it runs, and the lanes it carries. */
 type ZentrumSchematicNodeArm = {
   edge: ZentrumSchematicEdge;
-  /** The stop at the far end, which is what a boarding place names its corridors by. */
+  /** The stop at the far end, which boarding places name corridors by. */
   nodeId: string;
   outward: SchematicPoint;
   length: number;
+  /** The corridor's band paint, which other places' capsules and every link keep off. */
+  band: Outline;
 };
 
 type Outline = readonly SchematicPoint[];
@@ -91,6 +88,7 @@ type Outline = readonly SchematicPoint[];
 const getNodeArms = (
   node: ZentrumSchematicNode,
   edges: readonly ZentrumSchematicEdge[],
+  trackWidth: number,
 ): readonly ZentrumSchematicNodeArm[] =>
   edges.map((edge) => {
     const other = edge.from.id === node.id ? edge.to : edge.from;
@@ -99,6 +97,7 @@ const getNodeArms = (
       nodeId: other.id,
       outward: getUnitVector(node, other),
       length: Math.hypot(other.x - node.x, other.y - node.y),
+      band: getBandOutline(edge, trackWidth),
     };
   });
 
@@ -106,17 +105,53 @@ const getNodeArms = (
 const isOppositeArm = (left: ZentrumSchematicNodeArm, right: ZentrumSchematicNodeArm): boolean =>
   dotProduct(left.outward, right.outward) < -0.99;
 
+/** Each straight through a stop, as the two arms it runs out on. */
+const getStraights = (arms: readonly ZentrumSchematicNodeArm[]): ZentrumSchematicNodeArm[][] =>
+  arms.flatMap((arm, index) =>
+    arms
+      .slice(index + 1)
+      .filter((other) => isOppositeArm(arm, other))
+      .map((other) => [arm, other]),
+  );
+
+/** The bands one capsule can cross at the stop itself: each straight, and each arm none runs on. */
+const getStopBands = (arms: readonly ZentrumSchematicNodeArm[]): ZentrumSchematicNodeArm[][] => [
+  ...getStraights(arms),
+  ...arms.filter((arm) => !arms.some((other) => isOppositeArm(arm, other))).map((arm) => [arm]),
+];
+
+/** The cheapest of some options, the first among equals; undefined where there are none. */
+const getCheapest = <Option extends { cost: number }>(
+  options: readonly Option[],
+): Option | undefined =>
+  options.reduce<Option | undefined>(
+    (best, option) => (!best || option.cost < best.cost ? option : best),
+    undefined,
+  );
+
+/** Half a capsule's width with the room it keeps around it, in schematic units. */
+const getCapsuleKeepOut = (trackWidth: number): number =>
+  trackWidth * (ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH / 2 + ZENTRUM_SCHEMATIC_STOP_CLEARANCE);
+
+/**
+ * How far a capsule's spine runs past the outermost lane's middle, so it reaches past the paint.
+ */
+const getCapsuleOverhang = (trackWidth: number): number =>
+  trackWidth * (0.5 + ZENTRUM_SCHEMATIC_STOP_OVERHANG);
+
 const getNormal = (edge: ZentrumSchematicEdge): SchematicPoint => {
   const run = orientCorridorRun(edge);
   return { x: -run.y, y: run.x };
 };
 
-/** How far a capsule reaches either side of a corridor's middle to cross every lane on these arms. */
+/**
+ * How far a capsule reaches either side of the corridor's middle to cross every lane on these arms.
+ */
 const getBandExtent = (
   arms: readonly ZentrumSchematicNodeArm[],
   trackWidth: number,
 ): { lowest: number; highest: number } => {
-  const overhang = trackWidth * (0.5 + ZENTRUM_SCHEMATIC_STOP_OVERHANG);
+  const overhang = getCapsuleOverhang(trackWidth);
   return {
     lowest: Math.min(...arms.map(({ edge }) => getTrackOffset(edge, 0, trackWidth))) - overhang,
     highest:
@@ -209,9 +244,8 @@ export const isOverlapping = (left: Outline, right: Outline): boolean =>
   );
 
 /**
- * The capsule a corner stop is drawn with, as TfL draws a station on a bend: one pill along the
- * corner's diagonal, through the middle of each lane's curve. The curves are drawn round one
- * corner, so their middles stand in a line. Undefined where they do not.
+ * A corner stop's capsule, as TfL draws one: a pill along the corner's diagonal through the middle
+ * of each lane's curve. Undefined where the middles do not line up.
  */
 const getCornerCapsule = (
   [first, second]: readonly ZentrumSchematicNodeArm[],
@@ -230,7 +264,7 @@ const getCornerCapsule = (
   if (middles.some((point) => Math.abs(across(point) - middle) > trackWidth * 0.35)) {
     return undefined;
   }
-  const overhang = trackWidth * (0.5 + ZENTRUM_SCHEMATIC_STOP_OVERHANG);
+  const overhang = getCapsuleOverhang(trackWidth);
   const at = (distance: number) => ({
     x: bisector.x * distance - bisector.y * middle,
     y: bisector.y * distance + bisector.x * middle,
@@ -245,10 +279,9 @@ const getCornerCapsule = (
 type ZentrumSchematicCapsuleOption = { capsule: ZentrumSchematicStroke; reach: number };
 
 /**
- * Where one place's capsule can stand: square across its lanes where they run straight, as near
- * the stop as that allows. At the stop itself where nothing bends or crosses there; else stepped
- * out along each of its arms that carries every lane it marks, to the first spot clear of every
- * bend, every band it does not mark, and every capsule already laid.
+ * Where a place's capsule can stand: square across its straight lanes, as near the stop as clear.
+ * At the stop if nothing bends there, else stepped out along each arm carrying all its lanes to the
+ * first spot clear of bends, unmarked bands and laid capsules.
  */
 const getCapsuleOptions = (
   node: ZentrumSchematicNode,
@@ -259,14 +292,7 @@ const getCapsuleOptions = (
   slack = 0,
 ): readonly ZentrumSchematicCapsuleOption[] => {
   const { covers, isClear } = getPlaceFit(chosen, arms, obstacles, trackWidth);
-  const atStop = [
-    ...chosen.flatMap((arm, index) =>
-      chosen.slice(index + 1).flatMap((other) => (isOppositeArm(arm, other) ? [[arm, other]] : [])),
-    ),
-    ...chosen
-      .filter((arm) => !chosen.some((other) => isOppositeArm(arm, other)))
-      .map((arm) => [arm]),
-  ].flatMap((band) => {
+  const atStop = getStopBands(chosen).flatMap((band) => {
     const capsule = getBandCapsule(node, band, 0, trackWidth);
     return covers(band) && isClear(capsule, band) ? [{ capsule, reach: 0 }] : [];
   });
@@ -299,17 +325,16 @@ const getPlaceFit = (
   trackWidth: number,
 ) => {
   const needed = new Set(chosen.flatMap(({ edge }) => edge.trackLineIds));
-  const halfWidth =
-    trackWidth * (ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH / 2 + ZENTRUM_SCHEMATIC_STOP_CLEARANCE);
+  const halfWidth = getCapsuleKeepOut(trackWidth);
   return {
     covers: (band: readonly ZentrumSchematicNodeArm[]) =>
       [...needed].every((trackId) => band.some(({ edge }) => edge.trackLineIds.includes(trackId))),
     isClear: (capsule: ZentrumSchematicStroke, band: readonly ZentrumSchematicNodeArm[]) => {
       const outline = getStrokeOutline(capsule, halfWidth);
-      const crossed = arms
-        .filter((arm) => !band.includes(arm))
-        .map((arm) => getBandOutline(arm.edge, trackWidth));
-      return [...obstacles, ...crossed].every((obstacle) => !isOverlapping(outline, obstacle));
+      return (
+        obstacles.every((obstacle) => !isOverlapping(outline, obstacle)) &&
+        arms.every((arm) => band.includes(arm) || !isOverlapping(outline, arm.band))
+      );
     },
   };
 };
@@ -321,10 +346,8 @@ const OCTILINEAR_DIRECTIONS: readonly SchematicPoint[] = Array.from({ length: 8 
 }));
 
 /**
- * The second place's capsule for a main one already laid, and the link joining them: the link runs
- * one of the plan's eight ways from an end of the main capsule to an end of this one, which fixes
- * how far out along its arm this capsule stands. Of those that fit, the nearest wins. Undefined
- * where none fits.
+ * The second place's capsule for a laid main one, and their link: an octilinear link from an end of
+ * the main capsule fixes how far out this one stands. The nearest fit wins; undefined if none.
  */
 const getLinkedCapsule = (
   node: ZentrumSchematicNode,
@@ -376,15 +399,12 @@ const getLinkedCapsule = (
         ),
       );
     });
-  return solutions.reduce<(typeof solutions)[number] | undefined>(
-    (best, solution) => (!best || solution.cost < best.cost ? solution : best),
-    undefined,
-  );
+  return getCheapest(solutions);
 };
 
 /**
- * The arms a place is drawn on: those the stop's other places do not use, since every place
- * shares the busy corridor (at Karlstor, both run to Europaplatz). Else its own arms.
+ * The arms a place is drawn on: those the stop's other places do not use (every place shares the
+ * busy corridor, as at Karlstor), else its own.
  */
 const getPlaceArms = (
   place: ZentrumSchematicBoardingPlace,
@@ -398,45 +418,30 @@ const getPlaceArms = (
   return own.filter((arm) => shares(arm) === fewest);
 };
 
-/**
- * Where no capsule can mark a place whole and clear, it is marked at the stop itself: one capsule
- * across each straight, crossing there, and one across each arm no straight runs on.
- */
+/** The fallback: one capsule across each straight at the stop, and one across each other arm. */
 const getStopCapsules = (
   node: ZentrumSchematicNode,
   chosen: readonly ZentrumSchematicNodeArm[],
   trackWidth: number,
 ): readonly ZentrumSchematicStroke[] => {
-  const bands: ZentrumSchematicNodeArm[][] = [];
-  for (const arm of chosen) {
-    const straight = bands.find((band) => isOppositeArm(band[0], arm));
-    if (straight) straight.push(arm);
-    else bands.push([arm]);
-  }
   const laneCount = (band: readonly ZentrumSchematicNodeArm[]) =>
     Math.max(...band.map(({ edge }) => edge.trackLineIds.length));
-  return bands
+  return getStopBands(chosen)
     .sort((left, right) => laneCount(right) - laneCount(left))
     .map((band) => getBandCapsule(node, band, 0, trackWidth));
 };
 
 /**
- * The arms of a place, split into the groups one capsule each can cross. Most places are one group:
- * some straight or arm carries every lane calling there. Where none does (Tivoli: lines 3 and 6
- * from the west, line E from the north), the place is crossed band by band, the busiest first,
- * and its capsules are laid and linked as a stop's places are.
+ * A place's arms split into groups one capsule can cross. Usually one; where no straight carries
+ * every lane (Tivoli: 3 and 6 from the west, E from the north), the bands are crossed busiest first
+ * and linked like a stop's places.
  */
 const getCapsuleGroups = (
   chosen: readonly ZentrumSchematicNodeArm[],
 ): (readonly ZentrumSchematicNodeArm[])[] => {
   const lanesOf = (band: readonly ZentrumSchematicNodeArm[]) =>
     new Set(band.flatMap(({ edge }) => edge.trackLineIds));
-  const bands = [
-    ...chosen.flatMap((arm, index) =>
-      chosen.slice(index + 1).flatMap((other) => (isOppositeArm(arm, other) ? [[arm, other]] : [])),
-    ),
-    ...chosen.map((arm) => [arm]),
-  ];
+  const bands = [...getStraights(chosen), ...chosen.map((arm) => [arm])];
   const remaining = lanesOf(chosen);
   const coversAll = (band: readonly ZentrumSchematicNodeArm[]) =>
     [...remaining].every((trackId) => lanesOf([band[0]]).has(trackId)) ||
@@ -462,9 +467,8 @@ const isCorner = (chosen: readonly ZentrumSchematicNodeArm[]): boolean => {
 };
 
 /**
- * A stop's capsules and links. Each place stands across its own lanes where they run straight, as
- * near the stop as it can; where a stop has two places, the second is chosen for the first, so
- * the two stand near each other and their link runs through empty ground rather than along a band.
+ * A stop's capsules and links: each place across its straight lanes near the stop; a second place
+ * is chosen for the first so their link crosses empty ground.
  */
 const getNodeMark = (
   node: ZentrumSchematicNode,
@@ -486,11 +490,9 @@ const getNodeMark = (
       : undefined;
   if (corner) return { nodeId: node.id, main: corner, capsules: [corner], links: [] };
 
-  // Each group leads in turn: it is tried at each spot it can stand, every other group is laid for
-  // it with an octilinear link, and the layout standing nearest the stop wins -- with the tightest
-  // clearance from the curves only where nothing roomier fits.
-  const clearance =
-    trackWidth * (ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH / 2 + ZENTRUM_SCHEMATIC_STOP_CLEARANCE);
+  // Each group leads in turn, the others laid around it with octilinear links; the layout nearest
+  // the stop wins, with tighter curve clearance only where nothing roomier fits.
+  const clearance = getCapsuleKeepOut(trackWidth);
   const slack = groups.length > 1 ? trackWidth * ZENTRUM_SCHEMATIC_STOP_SLACK : 0;
   const leads = groups.map((lead, index) => ({
     lead,
@@ -499,7 +501,7 @@ const getNodeMark = (
   }));
   const layOut = (linkClearance: number) => {
     const linkObstacles = [
-      ...arms.map((arm) => getBandOutline(arm.edge, trackWidth)),
+      ...arms.map(({ band }) => band),
       ...bends.flatMap((bend) => getBendOutlines(bend, trackWidth, linkClearance)),
     ];
     const layouts = leads.flatMap(({ others, options }) =>
@@ -526,10 +528,7 @@ const getNodeMark = (
         return [{ capsules, links, cost }];
       }),
     );
-    return layouts.reduce<(typeof layouts)[number] | undefined>(
-      (chosen, layout) => (!chosen || layout.cost < chosen.cost ? layout : chosen),
-      undefined,
-    );
+    return getCheapest(layouts);
   };
   const best = ZENTRUM_SCHEMATIC_LINK_CLEARANCES.reduce<ReturnType<typeof layOut>>(
     (found, linkClearance) => found ?? layOut(linkClearance),
@@ -554,13 +553,11 @@ export const getZentrumSchematicStopMarks = (
 ): readonly ZentrumSchematicStopMark[] => {
   const edgesByNodeId = new Map<string, ZentrumSchematicEdge[]>();
   for (const edge of edges) {
-    for (const node of [edge.from, edge.to]) {
-      edgesByNodeId.set(node.id, [...(edgesByNodeId.get(node.id) ?? []), edge]);
-    }
+    for (const { id } of [edge.from, edge.to]) addTo(edgesByNodeId, id, edge);
   }
   const bendsByNodeId = new Map<string, ZentrumSchematicLaneBend[]>();
   for (const bend of getZentrumSchematicLaneBends(linePaths, edges, trackWidth)) {
-    bendsByNodeId.set(bend.nodeId, [...(bendsByNodeId.get(bend.nodeId) ?? []), bend]);
+    addTo(bendsByNodeId, bend.nodeId, bend);
   }
   return [...edgesByNodeId].flatMap(([nodeId, nodeEdges]): ZentrumSchematicStopMark[] => {
     const node = zentrumSchematicNodeById.get(nodeId);
@@ -568,11 +565,17 @@ export const getZentrumSchematicStopMarks = (
     return [
       getNodeMark(
         node,
-        getNodeArms(node, nodeEdges),
+        getNodeArms(node, nodeEdges, trackWidth),
         boardingPlacesByNodeId.get(nodeId) ?? [],
         bendsByNodeId.get(nodeId) ?? [],
         trackWidth,
       ),
     ];
   });
+};
+
+const addTo = <Value>(map: Map<string, Value[]>, key: string, value: Value) => {
+  const values = map.get(key);
+  if (values) values.push(value);
+  else map.set(key, [value]);
 };

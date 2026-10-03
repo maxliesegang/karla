@@ -26,10 +26,8 @@ const createDeparture = (overrides: Partial<Departure> = {}): Departure =>
   });
 
 /**
- * The feed's clock carries seconds and its own board does not count them: EFA publishes `17:34`
- * less `17:27` as seven, not the six a reading to the second would floor to. A rider at the stop
- * is holding this board up against the KVV display over the platform, so counting the seconds put
- * every row of it one minute below the sign beside it, all day.
+ * EFA counts `17:34` minus `17:27` as seven; counting seconds would read a minute below the
+ * platform display.
  */
 test("a countdown is counted against the feed's clock at the minute, as the operator's own board is", () => {
   const departure = createDeparture({ delayMinutes: 2 });
@@ -47,10 +45,8 @@ test("a departure still passes on its own once the minute it was due has gone by
 });
 
 /**
- * The feed truncates the delay it states and does not truncate the prediction beside it, so about
- * one monitored row in twenty carries `delay: 0` against a `realDateTime` a minute later. Read from
- * the delay alone such a row publishes the schedule and calls the trip punctual — a measurement the
- * feed never made.
+ * The delay is truncated, the prediction is not: about one row in twenty has `delay: 0` against a
+ * `realDateTime` a minute later, which must not read as punctual.
  */
 test("the published time is the feed's own prediction, not the schedule plus its truncated delay", () => {
   const departure = createDeparture({
@@ -87,7 +83,7 @@ test("a cancelled trip is moved by neither the prediction nor the delay", () => 
   assert.equal(reading?.punctuality, "unmonitored");
 });
 
-/** The order a board is read in has to be the order of the times printed on it, to the minute. */
+/** Board order matches the printed times, to the minute. */
 test("the board is ordered by the prediction the rows publish, not by the delay stated beside it", () => {
   const predicted = createDeparture({
     id: "predicted",
@@ -106,10 +102,7 @@ test("the board is ordered by the prediction the rows publish, not by the delay 
 });
 
 /**
- * A stop sequence carries scheduled times and deviations alone, so the call the *row* completes —
- * the trip's call at the board's own stop — is the only one with a prediction behind it. Left on
- * the stated delay it publishes a minute before the row it was read from, which is the board and
- * the diagram beside it disagreeing about one departure.
+ * The row's own call in the sequence carries the row's published time, so board and diagram agree.
  */
 test("the call a row completes carries the same published time as the row itself", () => {
   const board = parseDepartureBoardResponse(

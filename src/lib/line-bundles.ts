@@ -9,46 +9,25 @@ import {
 } from "./trip-calls";
 
 /**
- * Reading two lines as one along the stretch they share.
- *
- * From Hochstetten a rider heading for Busenbach is served by S1 and S11 alike, and reading them
- * on separate boards makes each one look half as frequent as the corridor really is. That is not a
- * reason to merge the lines: S1 and S11 keep their signs, their notices, their addresses and their
- * own ends — see `line-families.ts`, which stays the statement of line identity and is deliberately
- * untouched by any of this.
- *
- * So a bundle is not a property of a line. It is a property of **a corridor at one stop**, it is
- * chosen by the rider rather than asserted, and it is a view: the lines are drawn together only as
- * far as they have been *observed* running together, and the diagram says where they part rather
- * than drawing one line's branch under both their names.
+ * Reading two lines as one along the stretch they share (S1 and S11 from Hochstetten). A bundle is
+ * a rider-chosen view of a corridor at one stop, drawn only as far as the lines were observed
+ * together; line identity stays per line (`line-families.ts`).
  */
 export type LineSelection = {
-  /** The line the address names: the one the diagram is drawn from and the sign colour taken from. */
+  /** The line the address names, which draws the diagram and gives the colour. */
   lineId: string;
-  /** Sibling lines the rider added to the view. Empty for the ordinary single-line reading. */
+  /** Siblings the rider added; empty for a single line. */
   bundledLineIds: readonly string[];
 };
 
-/**
- * `#/stop/hochstetten/line/S1+S11`. A line id is alphanumeric and a `+` in a fragment path is the
- * literal character rather than a space, so the bundle needs no escaping to survive a shared link.
- */
+/** `+` is literal in a fragment path and line ids are alphanumeric, so no escaping is needed. */
 const LINE_BUNDLE_SEPARATOR = "+";
 
-/**
- * How many siblings one line may be read with.
- *
- * Two, because the offer has to stay a decision a rider makes at a glance: past that the board is
- * no longer a corridor but a stop board with extra steps, and that view already exists.
- */
+/** Siblings one line may be read with, kept small so the offer is a glance-sized decision. */
 export const MAX_BUNDLED_LINES = 2;
 
 /**
- * How far two lines must have been seen running together before either is offered beside the other.
- *
- * One shared link is evidence that trips leave together, never that they stay together — the same
- * distinction `StopServiceCorridor.hasObservedSharedRoute` draws — and a bundle is a promise about
- * a stretch. Three calls is the shortest stretch a rider would call a common way.
+ * Shared calls needed before a sibling is offered: one shared link says nothing about a stretch.
  */
 const MIN_LINE_BUNDLE_SHARED_CALLS = 3;
 
@@ -57,24 +36,18 @@ export const createLineSelection = (
   bundledLineIds: readonly string[] = [],
 ): LineSelection => ({ lineId, bundledLineIds });
 
-/** The primary first, which is the order the address states them in and the diagram is drawn in. */
+/** Primary first, as the address and diagram order them. */
 export function getLineSelectionIds({ lineId, bundledLineIds }: LineSelection): readonly string[] {
   return lineId ? [lineId, ...bundledLineIds] : [];
 }
 
-/** Whether a departure belongs to the lines currently being read together. */
 export const isSelectedLine = (selection: LineSelection, lineId: string): boolean =>
   getLineSelectionIds(selection).some((selected) => isSameLineFamily(selected, lineId));
 
 /**
- * The addressed siblings that this stop has actually answered for.
- *
- * An unread or failed board cannot disprove the rider's choice, so the address stands until a live
- * whole-stop reading arrives. Once it does, `servingLines` is the complete answer to which lines
- * call here; the few departure rows are only a fallback for older/provider readings that carry no
- * such metadata. This only resolves whether the line serves this stop; its live-network presence
- * separately decides whether it is running. The distinction matters at busy stops, where a line
- * can serve the stop without winning one of the board's limited rows.
+ * The addressed siblings this stop answers for. The address stands until a live whole-stop board
+ * arrives; then its `servingLines` decide (rows only as a fallback), since a line can serve a busy
+ * stop without winning a row.
  */
 export function getResolvedBundledLineIds(
   bundledLineIds: readonly string[],
@@ -91,12 +64,7 @@ export function getResolvedBundledLineIds(
   );
 }
 
-/**
- * Reads a line path segment, which is one line id or a bundle of them.
- *
- * A duplicate or empty id is dropped rather than rejected: the segment is hand-editable, and a
- * malformed bundle should read as the line it names rather than as a dead end.
- */
+/** A line path segment. Duplicate or empty ids are dropped, since the segment is hand-editable. */
 export function parseLineSelection(segment: string): LineSelection {
   const [lineId = "", ...rest] = segment
     .split(LINE_BUNDLE_SEPARATOR)
@@ -111,45 +79,25 @@ export function parseLineSelection(segment: string): LineSelection {
 export const formatLineSelection = (selection: LineSelection): string =>
   getLineSelectionIds(selection).join(LINE_BUNDLE_SEPARATOR);
 
-/** A sibling line worth offering beside this one, and the stretches the offer could reach over. */
+/** A sibling worth offering, and the stretches the offer could cover. */
 export type LineBundleOffer = {
   lineId: string;
   /**
-   * Every stretch the two lines have been observed running together past this stop, in travel
-   * order, longest first.
-   *
-   * The offer's whole evidence, kept as calls rather than as a count of them, because it is also
-   * what says whether the trip the diagram happens to be drawing runs along this stretch at all —
-   * ahead of the rider's stop or behind it — and nothing but the stretch itself can answer that.
-   * Nothing of the sibling's own *trips* is in hand at this point — the board is
-   * asked for the lines the address names, so a line is only fetched once it has been added — and
-   * an offer that waited for them would never be made.
-   *
-   * Several of them, and not the longest alone, because a stop is served in more than one
-   * direction and two lines may share a stretch out of each end of it. At Ettlingen Neuwiesenreben
-   * S1 and S11 run together for thirty-nine calls north to Hochstetten and for six south to
-   * Busenbach; kept as one stretch the northbound corridor wins, and a rider reading a southbound
-   * trip is offered nothing at all — on the very stretch the two lines part at, which is the whole
-   * reason to read them together.
+   * Every stretch both lines were observed running together past this stop, longest first. Several,
+   * because two lines may share a stretch out of each end (S1/S11 at Ettlingen Neuwiesenreben: 39
+   * calls north, six south), and the drawn trip picks which applies.
    */
   sharedRoutes: readonly (readonly TripCall[])[];
 };
 
-/**
- * One offer read against the trip on screen: the stretch it promises, and the stop that ends it.
- *
- * The corridor is direction-blind and the diagram is not, so which of an offer's stretches the
- * offer is *about* is only decided once there is a drawn trip to decide it against — see
- * `getDrawableLineBundleOffers`, which is the only thing that makes one of these.
- */
+/** An offer read against the drawn trip: the stretch it promises and the stop that ends it. */
 export type DrawableLineBundleOffer = {
   lineId: string;
   sharedCalls: readonly TripCall[];
-  /** The last of those calls: the stop the offer promises to reach, and where the lines part. */
+  /** Where the lines part. */
   sharedUntilStopName: string;
 };
 
-/** The offer as it is stated once a drawn trip has picked which of its stretches it is about. */
 const toDrawableLineBundleOffer = (
   lineId: string,
   sharedCalls: readonly TripCall[],
@@ -162,15 +110,8 @@ const toDrawableLineBundleOffer = (
 const EMPTY_DRAWABLE_OFFERS: readonly DrawableLineBundleOffer[] = [];
 
 /**
- * The offers worth making beside one drawn trip.
- *
- * Corridor observations are direction-blind because a stop is served both ways. A diagram is not:
- * it draws one trip, whose chain runs out of the rider's stop both ways — the corridor it came
- * along behind the stop as much as the one it follows ahead of it — so an offer is useful only
- * when the drawn trip follows one of the observed shared stretches, and it is tried against both
- * sides of the rider's stop. The promised stretch is also capped at the calls the drawn trip
- * confirms, so a short working never claims to share a way beyond its own turn-off, whichever
- * direction it turns off in.
+ * The offers that apply to the drawn trip. Corridors are direction-blind, so each is tried against
+ * the drawn chain on both sides of the rider's stop, and capped at the calls the trip confirms.
  */
 export function getDrawableLineBundleOffers({
   offers,
@@ -186,9 +127,7 @@ export function getDrawableLineBundleOffers({
     (call) => call.localStopId && riderStopIds.includes(call.localStopId),
   );
   const drawnAhead = getCallsPastIndex(drawnCalls, riderStopIndex);
-  // The same reading the other way out of the stop: the calls before the rider's stop, reversed
-  // into the travel order a route out of the stop is stated in. A shared stretch behind the stop
-  // is drawn by the same diagram as one ahead of it — the trip ran it to get here.
+  // The calls behind the stop, reversed into travel order out of it.
   const drawnBehind = getCallsPastIndex(
     [...drawnCalls].reverse(),
     drawnCalls.length - 1 - riderStopIndex,
@@ -199,13 +138,7 @@ export function getDrawableLineBundleOffers({
   });
 }
 
-/**
- * The longest observed shared stretch that the drawn trip actually follows, either side of the
- * rider's stop.
- *
- * Tried ahead first, and ahead wins a tie: where a trip runs past the same stretch both ways out
- * of a stop — a loop — the corridor it is still to ride is the one the offer is about.
- */
+/** The longest shared stretch the drawn trip follows; ahead wins a tie. */
 function findDrawnSharedCalls(
   offer: LineBundleOffer,
   drawnAhead: readonly TripCall[],
@@ -221,19 +154,12 @@ function findDrawnSharedCalls(
   return best.length >= MIN_LINE_BUNDLE_SHARED_CALLS ? best : undefined;
 }
 
-/** The distinct routes one line has been observed taking out of this stop, in full. */
 type ObservedLineRoutes = {
   transportMode: TransportMode;
   routes: (readonly TripCall[])[];
 };
 
-/**
- * Reads the routes out of this stop that the visit has already learned, by line.
- *
- * Only complete routes count. A match that knows the outgoing link alone (`hasFullRoute: false`)
- * says which way a trip leaves and nothing about where it goes, and a bundle drawn from that would
- * promise a shared way nobody has seen.
- */
+/** The routes out of this stop observed so far, by line. Only full routes count. */
 function collectObservedLineRoutes(
   departures: readonly Departure[],
   patterns: StopCorridorPatterns,
@@ -261,17 +187,8 @@ function collectObservedLineRoutes(
 }
 
 /**
- * The lines that could be read together with this one at this stop.
- *
- * Derived from what the visit has already observed rather than from an authored list of bundles:
- * the network here is observed, and an authored `S1/S11` would go on claiming a shared corridor
- * through the diversion that ends it. Nothing is fetched for this — the routes are the ones
- * `StopCorridorPatterns` accumulated for the board the rider is already reading — so an offer
- * appears exactly when the evidence for it is in hand, and no offer costs a request.
- *
- * Same mode only. A tram sharing a stretch with an S-Bahn is a genuine corridor, but not one this
- * view can draw honestly yet: the two run to different platforms and the diagram would have to say
- * so before it merged their vehicles onto one line.
+ * The lines this one could be read with here, from routes already observed for this board (no
+ * fetches, no authored bundles). Same mode only, since tram and S-Bahn use different platforms.
  */
 export function findLineBundleOffers({
   lineId,
@@ -292,9 +209,8 @@ export function findLineBundleOffers({
     if (isSameLineFamily(candidateId, lineId)) continue;
     if (candidate.transportMode !== primary.transportMode) continue;
 
-    // Every stretch a pair of their observed routes runs in common: a line's short workings, its
-    // through service and each direction it is read in are separate routes here, and each pairing
-    // of them is a corridor the two lines might be read over.
+    // Each pairing of the two lines' routes (short workings, through services, directions) is a
+    // candidate corridor.
     const shared: (readonly TripCall[])[] = [];
     for (const primaryRoute of primary.routes) {
       for (const candidateRoute of candidate.routes) {
@@ -308,9 +224,7 @@ export function findLineBundleOffers({
     offers.push({ lineId: candidateId, sharedRoutes });
   }
 
-  // Every sibling the corridor supports, longest shared stretch first. Not capped here: which of
-  // them can actually be drawn beside the trip on screen is not known yet, and a cap taken before
-  // that question is asked spends the two places on siblings that may not survive it.
+  // Not capped here: which siblings can be drawn beside the trip is not known yet.
   return offers.sort(
     (first, second) =>
       second.sharedRoutes[0].length - first.sharedRoutes[0].length ||
@@ -319,12 +233,8 @@ export function findLineBundleOffers({
 }
 
 /**
- * The corridors worth keeping out of every pairing of two lines' routes, longest first.
- *
- * A short working's route is a prefix of the through service's, so pairing them off yields the
- * same corridor at several lengths. Only the longest of each says anything the shorter ones do not:
- * a drawn trip is matched against these by how far it runs along one, so a prefix of a kept stretch
- * can never be the answer, and carrying it would only offer the same corridor twice.
+ * The longest corridor of each pairing, longest first; a short working yields prefixes of the
+ * through service's corridor, which add nothing.
  */
 function keepLongestSharedRoutes(
   routes: readonly (readonly TripCall[])[],
@@ -344,50 +254,33 @@ function keepLongestSharedRoutes(
   return kept;
 }
 
-/** One bundled line's drawn trip: the chain the diagram would follow if that line stood alone. */
 export type LineBundleChain = {
   lineId: string;
-  /** The trip's calls in travel order, exactly as the diagram would take them. */
   calls: readonly TripCall[];
-  /** The headsign that trip carries, which is the word the split is stated in. */
+  /** The headsign, which the split is worded in. */
   destination: string;
 };
 
-/** Where one bundled line goes on to past the stretch they are drawn together over. */
+/** Where one bundled line goes past the shared stretch. */
 export type LineBundleBranch = {
   lineId: string;
   /** `ahead` is past the last shared call in travel order; `behind` is before the first. */
   direction: "ahead" | "behind";
   /** The end this line runs to that way. */
   destination: string;
-  /** False where this line's own run ends at the shared stretch — the short working of the pair. */
+  /** False where this line ends at the shared stretch: the pair's short working. */
   continues: boolean;
   /**
-   * The branch as a chain of its own, in travel order, with the call the lines part at kept at its
-   * trunk end.
-   *
-   * That shared call is what makes the branch drawable: a vehicle is placed on the link between two
-   * calls, and the first link of a branch has one end on the trunk. It is drawn as the junction the
-   * legs meet at rather than as a stop of its own — the trunk already names it once, and naming it
-   * again on every leg would make one stop look like three.
-   *
-   * Empty where this line does not run past the stretch at all. That branch has nothing to draw and
-   * is stated in words instead.
+   * The branch in travel order, keeping the parting call at its trunk end so its first link can
+   * carry a vehicle. Empty where the line does not run past the stretch; that is stated in words.
    */
   calls: readonly TripCall[];
 };
 
 /**
- * The stretch the bundled lines are drawn over, and what happens at each of its ends.
- *
- * Measured outwards from the rider's own stop rather than from the start of the chains, because
- * that is the only point every bundled line is known to have in common: two lines may share a
- * middle stretch and part at both ends, and a prefix taken from the terminus would find nothing
- * shared at all there.
- *
- * Returns nothing where the trunk would not be a diagram — a chain that does not call at the
- * rider's stop, or a shared stretch of one stop. The line then draws itself alone, which is the
- * honest answer: the evidence for reading them together is not in hand.
+ * The stretch the bundled lines share, measured outwards from the rider's stop (the one point all
+ * share), and what happens at each end. Nothing where the trunk would be one stop or misses the
+ * stop.
  */
 export function getLineBundleTrunk(
   chains: readonly LineBundleChain[],
@@ -400,9 +293,8 @@ export function getLineBundleTrunk(
   );
   if (riderIndexes.some((index) => index < 0)) return undefined;
 
-  // A line may state two consecutive platforms of one stop where another states one. Align those
-  // repeated calls as a run: both remain visible on the trunk, but they do not shift every later
-  // stop out of comparison and create a false fork beyond them.
+  // Align consecutive platforms of one stop as a run, so they do not shift later stops into a false
+  // fork.
   const ahead = getCommonCallPrefixAlignment(
     chains.map(({ calls }, index) => calls.slice(riderIndexes[index] + 1)),
   );
@@ -412,8 +304,7 @@ export function getLineBundleTrunk(
   const calls = [...[...behind.calls].reverse(), chains[0].calls[riderIndexes[0]], ...ahead.calls];
   if (calls.length < 2) return undefined;
 
-  // Two passes rather than one: whether a line is the pair's short working is only knowable once
-  // every chain has been measured, and it is the statement a rider most needs at this end.
+  // Whether a line is the short working is known only after every chain is measured.
   const continuesAhead = chains.map(
     (chain, index) =>
       chain.calls.length - riderIndexes[index] - 1 > ahead.consumedCallCounts[index],
@@ -461,11 +352,7 @@ export function getLineBundleTrunk(
 }
 
 /**
- * Which of a sibling line's trips is drawn beside the primary one.
- *
- * The trip that runs with it farthest, not the one that leaves first: a bundled diagram is a
- * statement about a corridor, and the sibling's opposite direction shares none of it. A trip
- * heading the other way therefore scores nothing and is never chosen over one heading this way.
+ * The sibling's trip that runs with the primary farthest; the opposite direction scores nothing.
  */
 export function chooseLineBundleChain(
   primary: LineBundleChain,
@@ -492,12 +379,8 @@ export function chooseLineBundleChain(
 }
 
 /**
- * The lines that part here without a leg to draw — said in words, because there is nothing to draw.
- *
- * The legs themselves are the statement of where the lines go; this is the other half of it, and
- * the half a rider must not miss: a train of the pair that terminates at the junction is the short
- * working the whole bundled reading exists to make visible, and boarding it believing it runs the
- * corridor is exactly the mistake this view is meant to prevent.
+ * The lines that end at the junction, in words: boarding the short working believing it runs the
+ * corridor is the mistake the bundle exists to prevent.
  */
 export function getLineBundleTerminatingLabel(
   branches: readonly LineBundleBranch[],
@@ -514,14 +397,11 @@ export function getLineBundleTerminatingLabel(
     : `${lineIds} beginnt in ${junctionStopName}`;
 }
 
-/** One leg's identity: a line runs at most one way out of each end of the shared stretch. */
+/** A line runs at most one way out of each end of the shared stretch. */
 export const getLineBundleBranchKey = ({ direction, lineId }: LineBundleBranch): string =>
   `${direction}-${lineId}`;
 
-/**
- * A leg is drawn only where it has a chain to draw. A line that terminates at the junction has
- * none — there is nothing past it — and `getLineBundleTerminatingLabel` states it in words instead.
- */
+/** Legs with a chain to draw; a line ending at the junction has none. */
 export const getDrawableLineBundleBranches = (
   branches: readonly LineBundleBranch[],
   direction: "ahead" | "behind",
@@ -529,11 +409,8 @@ export const getDrawableLineBundleBranches = (
   branches.filter((branch) => branch.direction === direction && branch.calls.length > 1);
 
 /**
- * The distinct ends named by the lines leaving one end of a bundled corridor.
- *
- * A shared destination is said once. Where the lines part, each different destination is kept in
- * line order so the heading can show the fork without pretending the bundle has one terminus.
- * The fallback is the end of the drawn trunk, used on the side where the corridor does not fork.
+ * The distinct destinations leaving one end of the corridor, in line order; the trunk's end where
+ * it does not fork.
  */
 export function getLineBundleTermini(
   branches: readonly LineBundleBranch[],
@@ -548,33 +425,20 @@ export function getLineBundleTermini(
   return distinctNames.length > 0 ? distinctNames : fallback ? [fallback] : [];
 }
 
-/** Adding or dropping one sibling: the reading it leads to, and what the control says it does. */
 export type LineBundleControl = {
   lineId: string;
-  /** Whether this line is currently being read along, which is what the control would undo. */
+  /** Whether this line is already read along. */
   isActive: boolean;
   /** The bundle the control navigates to. */
   next: readonly string[];
   label: string;
-  /**
-   * How far the offer reaches: the stop the two lines have been observed running together until.
-   * Carried on the offer and not on the reading it leads to, because it is the evidence that makes
-   * the offer worth taking — once taken, the diagram itself names that stop, at the junction where
-   * the legs part, and a control repeating it there would be saying twice what is already drawn.
-   */
+  /** The stop the offer reaches; not repeated once taken, since the diagram then names it. */
   sharedUntilStopName?: string;
 };
 
 /**
- * What the diagram offers: the siblings already being read, and the ones this stop's corridor could
- * still be read with.
- *
- * An offer for a line already in the bundle would be the same control twice under two words, so
- * the active reading wins and the offer is dropped.
- *
- * This is also where the reading's size is held to `MAX_BUNDLED_LINES`: a full bundle is offered
- * nothing further, and what is offered is only ever what there is still room to take. A control
- * leading to a bundle the address would silently trim on the way back in is not an offer.
+ * The bundle controls: active siblings, then offers with room left under `MAX_BUNDLED_LINES`. An
+ * offer for an active line is dropped.
  */
 export function getLineBundleControls(
   bundledLineIds: readonly string[],

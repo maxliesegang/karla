@@ -39,7 +39,7 @@ const calls = (...stopNames: string[]): TripCall[] =>
     isCurrentStop: index === 0,
   }));
 
-/** Both lines read out of Hochstetten: together as far as Busenbach, and apart past it. */
+/** Both lines out of Hochstetten: together to Busenbach, apart after. */
 const TRUNK = ["hochstetten", "linkenheim", "eggenstein", "neureut", "busenbach"];
 const s1 = departure({
   id: "s1-trip",
@@ -74,11 +74,8 @@ test("offers a sibling line observed running the same corridor out of this stop"
 });
 
 /**
- * A stop in the middle of a corridor is served both ways, and the lines share a stretch out of each
- * of its ends. Ettlingen Neuwiesenreben is the case in the network: S1 and S11 run together for
- * thirty-nine calls north to Hochstetten and for six south to Busenbach. Kept as the longest
- * stretch alone the offer describes the northbound corridor, and the southbound trip — the one
- * heading for the stop the lines actually part at — can never be read with its sibling at all.
+ * Keeps a stretch out of each end of the stop: at Ettlingen Neuwiesenreben S1 and S11 share 39
+ * calls north and six south, and the southbound trip must still get its offer.
  */
 test("keeps the stretch out of each end of a stop, not the longer of the two", () => {
   const between = (id: string, lineId: string, ...stopNames: string[]): Departure =>
@@ -114,7 +111,7 @@ test("keeps the stretch out of each end of a stop, not the longer of the two", (
 });
 
 test("does not offer a line that only leaves the stop the same way", () => {
-  // One shared link and then apart: trips that leave together are not trips that stay together.
+  // One shared link, then apart.
   const s2 = departure({
     id: "s2-trip",
     lineId: "S2",
@@ -152,7 +149,7 @@ test("does not offer a line of another mode over the same corridor", () => {
 });
 
 test("offers nothing until a whole route has been observed, not only an outgoing link", () => {
-  // Rows off a plain board: no sequences, so nothing is known about where either line runs.
+  // Plain board rows: nothing known about routes.
   const plain = [
     { ...s1, tripCalls: undefined },
     { ...s11, tripCalls: undefined },
@@ -189,7 +186,7 @@ test("draws the bundle over the shared stretch and names where the lines part", 
       { lineId: "S11", direction: "ahead", destination: "Ittersbach", continues: true },
     ],
   );
-  // Each leg is drawn from the call the lines part at, so a vehicle on its first link has both ends.
+  // Each leg starts at the parting call, so a vehicle on its first link has both ends.
   assert.deepEqual(
     trunk?.branches.map(({ calls: branchCalls }) => branchCalls.map(({ stopName }) => stopName)),
     [
@@ -197,7 +194,7 @@ test("draws the bundle over the shared stretch and names where the lines part", 
       ["busenbach", "langensteinbach", "ittersbach"],
     ],
   );
-  // Every line has a leg, so there is nothing left for the words to say.
+  // Every line has a leg, so nothing is said in words.
   assert.equal(
     getLineBundleTerminatingLabel(trunk?.branches ?? [], "ahead", "Busenbach"),
     undefined,
@@ -265,7 +262,7 @@ test("states the short working of the pair rather than leaving it blank", () => 
     getLineBundleTerminatingLabel(trunk?.branches ?? [], "ahead", "Busenbach"),
     "S11 endet in Busenbach",
   );
-  // The short working has no leg to draw; the line that runs on still has one.
+  // The short working has no leg; the line running on does.
   assert.deepEqual(
     trunk?.branches.map(({ lineId, calls: branchCalls }) => [lineId, branchCalls.length]),
     [
@@ -276,7 +273,7 @@ test("states the short working of the pair rather than leaving it blank", () => 
 });
 
 test("measures the shared stretch outwards from the rider's own stop", () => {
-  // Read from the middle: the two lines part ahead of this stop and behind it alike.
+  // Read from the middle: the lines part ahead and behind.
   const northern = departure({
     id: "north",
     lineId: "S1",
@@ -313,7 +310,7 @@ test("measures the shared stretch outwards from the rider's own stop", () => {
       ["S11", "behind", "spöck"],
     ],
   );
-  // A leg behind the rider ends at the junction, in travel order, for the same reason.
+  // A leg behind the rider ends at the junction, in travel order.
   assert.deepEqual(
     trunk?.branches
       .filter(({ direction }) => direction === "behind")
@@ -507,8 +504,7 @@ test("offers every sibling once: the ones being read as a way out, the rest as a
 });
 
 test("offers nothing further once the reading is as wide as a reading gets", () => {
-  // Two siblings is the whole of `MAX_BUNDLED_LINES`, and a control leading past it would navigate
-  // to an address that quietly drops a line on the way back in.
+  // `MAX_BUNDLED_LINES` reached: no control may lead to an address that would drop a line.
   const controls = getLineBundleControls(
     ["S11", "S12"],
     [{ lineId: "S2", sharedCalls: [], sharedUntilStopName: "Ettlingen Stadt" }],

@@ -69,8 +69,14 @@ These describe outcomes, not implementations. If a simpler design meets them, pr
 
 - Identifiers use US spelling. Fields the provider names keep its spelling (`trainNum`,
   `stopSeqCoords`). The Zentrum is `zentrum` in code, even though its URL segment is `/center`.
-- Comments say *why*, briefly. Leave out history ("used to…"), which belongs in git, and anything
-  the code already says.
+- Comments are rare and short. Most functions need none; a good name is the documentation. Add one
+  only for what the code cannot say: a feed quirk, a measured constant, a non-obvious constraint.
+  One line is the norm, three the most for a function, and a module header says its role in a
+  sentence or two.
+- Write rules, not stories. No account of the bug a line prevents, how a value was found, or what
+  went wrong before ("drawn as…, the mark leapt…"): that belongs in the commit message. Don't match
+  the length of existing comments; shorten them when you touch them.
+- Markdown docs follow the same budget: state facts and rules, skip the reasoning that led to them.
 - A bug fix gets a test, not a new rule in this file.
 
 ## Agent workflow

@@ -23,7 +23,7 @@ import { createDeparture, createLine } from "./support/fixtures.ts";
 /** The line as the network states it, before any board has been read for it. */
 const line3 = createLine({ id: "3", zentrumCalls: ["kronenplatz", "europaplatz"] });
 
-/** Linie 3 as the observation sees it: ten stops along the line, three of them observation posts. */
+/** Line 3 as observed: ten stops, three of them posts. */
 const lineStopIds = [
   "europaplatz",
   "marktplatz",
@@ -65,7 +65,7 @@ test("reads every known stop of a line, so no trip can hide between observations
 });
 
 test("the rider's own board is not requested twice", () => {
-  // Their own board is already in hand, so it is removed from the crawl.
+  // The rider's board is in hand, so it is left out.
   assert.deepEqual(getLineObservationStopIds(lineStopIds, "marktplatz"), [
     "europaplatz",
     "kronenplatz",
@@ -80,10 +80,7 @@ test("the rider's own board is not requested twice", () => {
 });
 
 test("reads an observation post like any other stop on the line", () => {
-  // Posts were skipped while the shell's unfiltered boards were the diagram's source of marks.
-  // These reads are filtered to one line and answer a different question, so a post sitting on the
-  // line is worth reading — and on a line whose stops are mostly posts, skipping them left the
-  // diagram with almost nothing.
+  // Posts are read too: these boards are filtered to the line.
   assert.deepEqual(
     getLineObservationStopIds(["europaplatz", "kronenplatz", "hauptbahnhof", "tivoli"], "tivoli"),
     ["europaplatz", "kronenplatz", "hauptbahnhof"],
@@ -96,8 +93,7 @@ test("does not cap discovery at a fixed board count", () => {
 });
 
 test("falls back to a terminus only where the line has no stop behind it", () => {
-  // A terminus board is departures from it, so it lists the return workings alone — the far end's
-  // far board already sees those. On a two-stop line it is nonetheless all there is.
+  // A terminus board lists only return workings; on a two-stop line it is all there is.
   assert.deepEqual(getLineObservationStopIds(["a", "b"], "a"), ["b"]);
 });
 
@@ -126,8 +122,7 @@ test("the stop just read leads the list, once, and the oldest falls off it", () 
 });
 
 test("names both directions of a line, and nothing from the lines beside it", () => {
-  // A board filtered to one direction answers with one direction, so a diagram that named only what
-  // the rider's own stop sees would lose every vehicle running the other way.
+  // A one-direction filter would lose every vehicle running the other way.
   const departures = [
     lineDeparture("3", "kvv:21003:E:H:s26"),
     lineDeparture("3", "kvv:21003:E:R:s26"),
@@ -146,8 +141,7 @@ test("reads no line filter from departures that state no direction", () => {
 });
 
 test("reads the whole run a loaded trip describes, not just its core stretch", () => {
-  // Sampling the core stops only ever reached into the Zentrum, which every observation post
-  // already sees. The outer thirds are exactly where marks were missing.
+  // Core stops are already seen by the posts; the outer thirds are where marks were missing.
   const trip = tripWithCalls([
     "durlach",
     "gottesauer-platz",
@@ -196,8 +190,7 @@ test("falls back to the line's core stops until a trip carries its calls", () =>
 });
 
 test("a line read before starts from what that reading learned, not from this hour's trips", () => {
-  // Off-peak every trip through a stop may turn back short of the line's outer stretch. Discovered
-  // once, that stretch is still read at the hour when nothing running describes it.
+  // An outer stretch discovered once is read even when no running trip describes it.
   const remembered = { stopIds: ["knielingen", "europaplatz"], directionIds: [] };
 
   assert.deepEqual(
@@ -207,8 +200,7 @@ test("a line read before starts from what that reading learned, not from this ho
 });
 
 test("names the direction a terminus lists no departure for, because the stop states it", () => {
-  // At the end of a line the rider's board shows the outbound trips alone, so the inbound id is on
-  // no row anywhere. The stop still knows the direction, and names the line it belongs to.
+  // At a terminus the inbound id is on no row, but the stop names it with its line.
   const observation = extendLineObservation(EMPTY_LINE_OBSERVATION, "3", [
     {
       departures: [lineDeparture("3", "kvv:21003:E:H:s26")],
@@ -227,15 +219,14 @@ test("the opposite of a direction is the same route the other way, and nothing e
   assert.equal(getOppositeDirectionId("kvv:21003:E:H:s26"), "kvv:21003:E:R:s26");
   assert.equal(getOppositeDirectionId("kvv:21003:E:R:s26"), "kvv:21003:E:H:s26");
   assert.equal(getOppositeDirectionId("kvv:flix:N1912:H:s26"), "kvv:flix:N1912:R:s26");
-  // Nothing is derived from an id whose direction field is not one the provider states.
+  // No opposite for a direction field the provider does not use.
   assert.equal(getOppositeDirectionId("kvv:21003:E:X:s26"), undefined);
   assert.equal(getOppositeDirectionId("21003"), undefined);
 });
 
 test("a direction nobody has confirmed is never sent as a filter", () => {
-  // A filter is a whitelist applied exactly, so half a filter is a reading with a hole in it — and
-  // one that holds itself open, because the rows that would name the missing direction are the
-  // rows it drops. Unfiltered is shorter and whole, and it corrects itself on the next round.
+  // Half a filter hides the missing direction from itself; unfiltered is shorter but whole, and
+  // corrects itself next round.
   const selection = createLineSelection("3");
   const oneWay = extendLineObservations(new Map() as LineObservations, selection, [
     { departures: [lineDeparture("3", "kvv:21003:E:H:s26")] },
@@ -253,7 +244,7 @@ test("a direction nobody has confirmed is never sent as a filter", () => {
 });
 
 test("a filtered board never teaches a stop what else calls there", () => {
-  // It saw only what it was asked for; its silence about the other direction is not evidence.
+  // A filtered board's silence about the other direction is not evidence.
   const observation = extendLineObservation(EMPTY_LINE_OBSERVATION, "3", [
     { departures: [lineDeparture("3", "kvv:21003:E:H:s26")] },
   ]);
@@ -273,8 +264,8 @@ test("a bundle is filtered only where both of its lines are known both ways", ()
     },
   ]);
 
-  // Linie 3 is named both ways and Linie 4 is not, so neither is filtered: one request carries the
-  // whole corridor, and a filter naming three of its four directions would drop the fourth.
+  // Line 4 is not named both ways, so nothing is filtered: a filter of three of four directions
+  // would drop the fourth.
   assert.deepEqual(getLineFilterDirectionIds(observations, selection), []);
 });
 
@@ -298,13 +289,11 @@ test("line observation is a stable fixed-point transition", () => {
 });
 
 test("a round that cannot name its filter samples the line instead of reading all of it", () => {
-  // Its boards are whole stops — every line calling there, with the trip behind every row — so a
-  // line's worth of them is a different order of cost from the filtered reading it stands in for.
+  // Unfiltered boards are whole stops, so a round reads only a sample.
   const sampled = sampleLineObservationStopIds(lineStopIds, MAX_UNFILTERED_LINE_OBSERVATION_STOPS);
 
   assert.equal(sampled.length, MAX_UNFILTERED_LINE_OBSERVATION_STOPS);
-  // Spread from end to end: the stops arrive in discovery order, and the first six of them are six
-  // stops of one corner. Both ends are in, so both directions of the line are in.
+  // Spread end to end, so both directions are in.
   assert.equal(sampled[0], "europaplatz");
   assert.equal(sampled[sampled.length - 1], "hauptbahnhof");
   assert.deepEqual(sampled, [
@@ -319,15 +308,13 @@ test("a round that cannot name its filter samples the line instead of reading al
 
 test("a route already within the bound is read whole, and read as the same list", () => {
   const short = ["a", "b", "c"];
-  // Identity, so a reading that did not change is not requested again.
+  // The same array when unchanged, so nothing is re-requested.
   assert.equal(sampleLineObservationStopIds(short, MAX_UNFILTERED_LINE_OBSERVATION_STOPS), short);
 });
 
 test("a line with no row among a busy stop's few is still named by the stop", () => {
-  // The Hauptbahnhof answers with a dozen lines between twenty rows, and a line whose next
-  // departure falls outside them is on none of them. Nothing about it could then be learned from
-  // the rows — not its directions, not its route — so the reading of it never began, and a shared
-  // link to one of its trips resolved at every other stop of the line but not at that one.
+  // At the Hauptbahnhof a line can be on none of twenty rows; the stop's serving lines still name
+  // its directions.
   const observation = extendLineObservation(EMPTY_LINE_OBSERVATION, "S4", [
     {
       departures: [lineDeparture("S1", "kvv:22301:E:H:s26")],
@@ -341,8 +328,7 @@ test("a line with no row among a busy stop's few is still named by the stop", ()
   ]);
 
   assert.deepEqual(observation.directionIds, ["kvv:22304:E:H:s26", "kvv:22304:E:R:s26"]);
-  // Which is a whole filter, so this stop's board can be read for the line and reach the hour a
-  // shared board never does.
+  // A whole filter, so this stop is read for the line.
   const selection = createLineSelection("S4");
   assert.deepEqual(getLineFilterDirectionIds(new Map([["S4", observation]]), selection), [
     "kvv:22304:E:H:s26",
@@ -351,8 +337,7 @@ test("a line with no row among a busy stop's few is still named by the stop", ()
 });
 
 test("an id a stop states without naming its line is not attributed to one", () => {
-  // The pairing is the whole value of this metadata. An id with no line beside it belongs to
-  // nothing that can be read from it, and guessing would put another line's rows on this diagram.
+  // An id without its line is unusable; guessing would draw another line's rows.
   const observation = extendLineObservation(EMPTY_LINE_OBSERVATION, "S4", [
     { departures: [], servingLines: [{ directionId: "kvv:22304:E:H:s26" }] },
   ]);

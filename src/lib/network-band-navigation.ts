@@ -1,34 +1,22 @@
 /**
- * Where in the network page's bands the scroll stands, which is what the band navigation marks.
- *
- * The bands are read against one line — the height a band's top edge reaches before the page counts
- * as reading at that band, the same line its heading takes over at and a walked-to band comes to
- * rest at — so the marked button, the stuck heading and the landed jump are one reading, not three
- * that can disagree. It is the same reading the place bar makes of a departure board
- * (lib/boarding-place-sections.ts) with one difference a page has that a board does not: the scroll
- * can stand above the first heading with nothing pinned yet, and the page is still being read in
- * that band — its rows are what fills the screen. So the topmost band is the answer where a board
- * would say none.
+ * Which band of the network page the scroll is in, read against one line (the band's scroll-margin)
+ * so the marked button, stuck heading and landed jump agree. As in `boarding-place-sections.ts`,
+ * except above the first heading the topmost band counts.
  */
 
-/** One rendered band, as the scroll reading finds it: which mode, where it stands. */
+/** One rendered band: its mode and top edge. */
 export type NetworkBandReading = {
-  /** The band's own mode, the one its section is registered under. */
   id: string;
-  /** The band's top edge, in the same coordinates the reading line is given in. */
+  /** In the reading line's coordinates. */
   top: number;
 };
 
-/** Sub-pixel rounding of the band rectangles: arrived means arrived, not arrived minus a hair. */
+/** Sub-pixel slack, so arriving counts as arrived. */
 const ARRIVAL_SLACK_PX = 1;
 
 /**
- * The band the page is being read in, or `undefined` while no band has been rendered at all.
- *
- * A band is in view once its section has reached the reading line; of those, the one whose section
- * stands lowest is the one being read — the section that arrived last, whose heading is the one
- * stuck at the top. Where no section has reached the line yet, the scroll stands above the first
- * band, and the topmost band is the one being read.
+ * The band being read: the lowest one whose section has reached the line, else the topmost.
+ * `undefined` while no band is rendered.
  */
 export function findNetworkBandIdInView(
   readings: readonly NetworkBandReading[],

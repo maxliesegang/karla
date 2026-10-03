@@ -1,19 +1,10 @@
 /**
- * Measures how fast the KVV feed actually produces new information, so a refresh cadence can be
- * chosen from evidence instead of from a guess.
- *
- * Two questions, and neither is answerable by reading the app:
- *
- * 1. **Does the feed have a production cycle?** If `parameters.serverTime` is simply the instant
- *    the request arrived, there is no phase to align a poll to and any scheme that re-times the
- *    polls is dead on arrival. If instead it lands on a repeating boundary, sampling just after
- *    production buys freshness for the same number of requests.
- * 2. **When does a deviation actually change?** A mark's error is bounded below by how often the
- *    number behind it moves. If a trip's delay changes every four minutes, a thirty-second cadence
- *    is already sampling four times more often than the data changes and no re-timing can help; if
- *    it changes every forty seconds, the cadence is the binding constraint. And *where the vehicle
- *    was* when it changed decides whether the useful moments are stop events or anywhere at all —
- *    the difference between refreshing at a departure and refreshing mid-link.
+ * Measures how often the KVV feed produces new information, to choose refresh cadences from
+ * evidence:
+ * 1. Is `parameters.serverTime` a production cycle or the request instant? Only a cycle has a
+ *    phase worth aligning polls to.
+ * 2. How often does a trip's deviation change, and where along its link was the vehicle when it
+ *    did?
  *
  *     npm run probe:cadence -- [options]
  *
@@ -22,10 +13,7 @@
  *       --minutes 30              how long to run (default 30)
  *       --out probe.jsonl         also write every reading, for analysis afterwards
  *
- * This polls faster than the app ever does, on purpose — the point is to see the changes a
- * thirty-second cadence would blur together. It is a diagnostic run by hand, not something the app
- * does: the operator's own map polls its vehicle endpoint every five seconds, but that is their
- * budget to spend, and this should be run for the length of one measurement and then stopped.
+ * Polls faster than the app on purpose. Run by hand for one measurement, then stop.
  */
 
 import { appendFile } from "node:fs/promises";
@@ -62,14 +50,11 @@ function parseOptions(argv: readonly string[]): Options {
 
 /** One reading of one trip: the deviations it stated, and where it said the vehicle was. */
 type TripReading = {
-  /** The deviation the row states at the stop it was read from — what the countdown is built on. */
+  /** The row's deviation at its own stop, which countdowns use. */
   rowDelayMinutes?: number;
-  /** Every call's deviation, keyed the way the app keys calls, so a re-cut sequence still matches. */
+  /** Every call's deviation, keyed as the app keys calls. */
   delayByCall: Map<string, number>;
-  /**
-   * How far along its current link the vehicle was, 0 at the stop behind and 1 at the stop ahead.
-   * Read from the call times alone, so a change can be attributed to a place on the route.
-   */
+  /** Position along the current link (0 behind, 1 ahead), from call times alone. */
   linkPhase?: number;
 };
 
@@ -78,17 +63,13 @@ const toInstant = (value: string | undefined): number | undefined => {
   return Number.isFinite(parsed) ? parsed : undefined;
 };
 
-/** The expected time at a call: its schedule shifted by whatever deviation is stated for it. */
+/** A call's schedule shifted by its deviation. */
 function getCallInstant(call: KvvTripCall): number | undefined {
   const scheduled = toInstant(call.scheduledDepartureTime ?? call.scheduledArrivalTime);
   return scheduled === undefined ? undefined : scheduled + (call.delayMinutes ?? 0) * 60_000;
 }
 
-/**
- * Where along its route the vehicle was when this reading was taken, as a fraction of the link it
- * is on. Deliberately the plain reading of the published times rather than the app's smoothed one:
- * the question is what the *feed* said, not what a diagram drew.
- */
+/** Where along its link the vehicle was, from the published times (not the app's smoothing). */
 function getLinkPhase(calls: readonly KvvTripCall[], feedNow: number): number | undefined {
   for (let index = 0; index < calls.length - 1; index += 1) {
     const here = getCallInstant(calls[index]);
@@ -116,13 +97,8 @@ function readTrip(departure: KvvDeparture, feedNow: number): TripReading {
 }
 
 /**
- * What names one run across readings — and, deliberately, one run *as seen from one board*.
- *
- * Two boards return the same trip with different windows of its calling sequence, so a reading
- * taken at Europaplatz and one taken at Hauptbahnhof disagree about which calls carry a deviation
- * without anything having changed. Compared as consecutive readings they manufacture a change on
- * every poll; keyed per board they are two independent series of one vehicle, which is what they
- * are.
+ * One run as seen from one board: boards return different windows of the sequence, so comparing
+ * across boards would invent changes.
  */
 const getTripKey = (departure: KvvDeparture, stopPointId: string): string =>
   `${stopPointId}:${
@@ -132,13 +108,13 @@ const getTripKey = (departure: KvvDeparture, stopPointId: string): string =>
   }`;
 
 type ChangeEvent = {
-  /** Whether the board row's own number moved, or only a deviation further along the route. */
+  /** Whether the row's own number moved, or only a deviation further along. */
   kind: "row" | "call";
-  /** Where the vehicle was when the change was first seen, if the times placed it at all. */
+  /** Where the vehicle was when the change was first seen. */
   linkPhase?: number;
   /** How long since this trip's previous change, where there was one. */
   sinceLastChangeMs?: number;
-  /** Milliseconds past the wall-clock minute, to show whether changes cluster on a boundary. */
+  /** Milliseconds past the minute, to show clustering on a boundary. */
   minutePhaseMs: number;
 };
 
@@ -151,13 +127,8 @@ let pollsWithAnyChange = 0;
 let tripReadingCount = 0;
 
 /**
- * What moved between two readings of one trip, or nothing.
- *
- * The two kinds are worth telling apart. The row's own number is what a countdown is built on, and
- * what positioning now carries into the mark at its boarding call; a deviation moving only further
- * along the route is information no row states, and the only thing a faster *trip* read would buy.
- * A call that gains a deviation where it had none counts — the feed beginning to monitor a call is
- * as much news as it revising one.
+ * What moved between two readings of a trip: the row's own deviation, or only a call further along
+ * (which only a trip read reveals). A call gaining a deviation counts.
  */
 function findChange(previous: TripReading, current: TripReading): "row" | "call" | undefined {
   if (previous.rowDelayMinutes !== current.rowDelayMinutes) return "row";
@@ -235,19 +206,10 @@ const seconds = (ms: number | undefined): string =>
   ms === undefined ? "—" : `${(ms / 1_000).toFixed(1)} s`;
 
 /**
- * Whether `serverTime` is a production timestamp or an echo of the request.
- *
- * The discriminator is the *spread* of `serverTime - receivedAt`, and only that. If the feed
- * produced its answer on a cycle, polls landing at arbitrary points of that cycle would read
- * timestamps anywhere from fresh to a full period old, so the offset would range over the period.
- * An offset that is the same fraction of a second on every poll is a timestamp taken while the
- * request was being served, and there is no phase to align anything to.
- *
- * Two tempting readings are not evidence and are reported as raw counts rather than conclusions.
- * Repeated values mean nothing when several boards are fetched in one poll — they share the poll's
- * instant. And the seconds-past-the-minute the values land on mean nothing when the poll interval
- * divides sixty: that pattern is the probe's own cadence reflected back. Run with `--interval 7`
- * to read that line at all.
+ * Whether `serverTime` is a production timestamp: a cycle shows as a spread of `serverTime -
+ * receivedAt` across its period; a constant offset means an echo. Repeated values and
+ * seconds-past-the-minute are not evidence (several boards share a poll; intervals dividing 60
+ * reflect the probe's cadence), so they are reported raw. Use `--interval 7` to read them.
  */
 function reportServerTime(intervalMs: number): void {
   if (serverTimeReadings.length < 2) {
@@ -272,8 +234,7 @@ function reportServerTime(intervalMs: number): void {
     `seconds-past-minute      ${secondsPast.join(",")}` +
       (60_000 % intervalMs === 0 ? "  (probe interval divides 60 s; ignore this line)" : ""),
   );
-  // A cycle worth aligning to would have to be at least a couple of seconds long to be worth the
-  // complexity, and would show an offset spread of about its own period.
+  // A cycle worth aligning to would last seconds and show an offset spread of about its period.
   console.log(
     spread < 2_000
       ? "→ ECHO. serverTime is stamped while the request is served, so it says nothing about when\n" +

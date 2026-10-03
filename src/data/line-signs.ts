@@ -1,6 +1,6 @@
 import type { TransitLine, TransportMode } from "./transit-types";
 
-/** What a mode is called in text. Nothing about a departure is left to colour alone. */
+/** A mode's name in text; nothing is conveyed by colour alone. */
 export const labelByTransportMode: Record<TransportMode, string> = {
   lightRail: "Stadtbahn",
   tram: "Straßenbahn",
@@ -9,9 +9,8 @@ export const labelByTransportMode: Record<TransportMode, string> = {
 };
 
 /**
- * Neutral signs for a line absent from the current GTFS snapshot. The live EFA board can expose a
- * new or temporary line before this reference data is refreshed, and its identity must remain
- * readable without inventing a line colour.
+ * Neutral colours for lines missing from the GTFS snapshot, so new lines stay readable without
+ * inventing a colour.
  */
 const neutralColorByTransportMode: Record<TransportMode, string> = {
   lightRail: "#2f4f56",
@@ -21,13 +20,9 @@ const neutralColorByTransportMode: Record<TransportMode, string> = {
 };
 
 /**
- * Official `route_color` values from KVV's CC0 GTFS feed, version 20260825.
- * Source: https://projekte.kvv-efa.de/GTFS/google_transit.zip (`routes.txt`)
- *
- * Routes are grouped by colour to keep the complete 248-name snapshot reviewable. `E` is the one
- * ambiguous short name in the feed and is handled separately below: VBK tram E is red while AVG
- * rail E is green. `SEV 15` has one uncoloured taxi row and coloured VBK rows, so the stated VBK
- * colour is retained here.
+ * Official `route_color` values from KVV's CC0 GTFS feed, version 20260825
+ * (https://projekte.kvv-efa.de/GTFS/google_transit.zip, `routes.txt`), grouped by colour. `E` is
+ * ambiguous (VBK tram red, AVG rail green) and handled below. `SEV 15` keeps the VBK colour.
  */
 const lineIdsByColor: Record<string, readonly string[]> = {
   "#0073df": ["2", "NL2"],
@@ -276,13 +271,7 @@ const verifiedColorByLineId = new Map(
   ),
 );
 
-/**
- * The colour KVV's own feed prints a line in, where the feed states one.
- *
- * `E` is deliberately absent: it is the one short name the feed gives two different services, so it
- * has no colour until a mode is read with it -- which `getVerifiedColor` below does, and this
- * mode-free reading cannot. Callers use this to ask whether the operator signs two lines alike.
- */
+/** The colour KVV's feed gives a line; never for `E`, which needs a mode (`getVerifiedColor`). */
 export const getVerifiedLineColor = (lineId: string): string | undefined =>
   lineId === "E" ? undefined : verifiedColorByLineId.get(lineId);
 
@@ -309,7 +298,7 @@ const contrastRatio = (first: string, second: string): number => {
   return (lighter + 0.05) / (darker + 0.05);
 };
 
-/** KVV currently publishes white route text throughout, including on yellow and other light signs. */
+/** KVV publishes white route text throughout, even on light colours. */
 function getAccessibleTextColor(color: string): string {
   if (contrastRatio(color, "#ffffff") >= 4.5) return "#fff";
   if (contrastRatio(color, "#102c2c") >= 4.5) return "#102c2c";
@@ -317,8 +306,8 @@ function getAccessibleTextColor(color: string): string {
 }
 
 /**
- * The sign a line carries on its own: the GTFS sign where one is known, a neutral one keyed to the
- * mode otherwise. Which lines are actually running continues to come only from the live EFA feed.
+ * A line's sign: from GTFS where known, else neutral by mode. Which lines run comes only from the
+ * live feed.
  */
 export function createLineSign(lineId: string, mode: TransportMode): TransitLine {
   const verifiedColor = getVerifiedColor(lineId, mode);
@@ -334,10 +323,7 @@ export function createLineSign(lineId: string, mode: TransportMode): TransitLine
   };
 }
 
-/**
- * The sign for a departure, preferring the record the caller already holds for that line — it
- * carries the line's observed ends as well as its sign — and falling back to the sign alone.
- */
+/** A departure's sign, preferring the caller's line record (which has the observed ends). */
 export function getLineSign(
   lines: readonly TransitLine[],
   lineId: string,

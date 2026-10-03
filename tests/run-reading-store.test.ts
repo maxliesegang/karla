@@ -5,7 +5,7 @@ import type { Departure, RunSequence, TripCall } from "../src/data/transit-types
 import { RunReadingStore } from "../src/data/run-reading-store.ts";
 import { createDeparture } from "./support/fixtures.ts";
 
-/** The provider's address for one run: `line` and `tripCode` are what the store keys it by. */
+/** A run's provider address; the store keys by `line` and `tripCode`. */
 const locator: KvvTripLocator = {
   tripCode: "42",
   line: "kvv:line:2:H",
@@ -14,7 +14,7 @@ const locator: KvvTripLocator = {
   time: "1200",
 };
 
-/** The same board row read at another stop of the same run: only the asking point moves. */
+/** The same run's row at another stop: only the asking point moves. */
 const atStop = (stopPointId: string, time: string): KvvTripLocator => ({
   ...locator,
   stopPointId,
@@ -36,14 +36,14 @@ const calls = (delayMinutes: number): TripCall[] => [
   },
 ];
 
-/** Every row the source publishes is dated; a fixture that ranks readings has to date them too. */
+/** Rows the source publishes are dated, so fixtures that rank readings are too. */
 const stamp = (departure: Departure, readAt: number): Departure =>
   createDeparture({
     ...departure,
     readAt: { rowReadAt: readAt, sequenceReadAt: readAt },
   });
 
-/** What the source hands the store for a run read on its own: the calls, and when they were read. */
+/** A run read on its own: its calls and when. */
 const sequence = (tripCalls: readonly TripCall[], readAt: number): RunSequence => ({
   tripCalls,
   status: "realtime",
@@ -88,7 +88,7 @@ test("keeps row evidence separate while the freshest complete trip wins", () => 
   store.rememberRow(stamp(departure("row", "a", { tripCalls: calls(2) }), 250), locator, 250);
   assert.equal(store.findSequence("row")?.sequence.tripCalls[0]?.delayMinutes, 4);
 
-  // The run's calls are the record's, held once — never a copy per stop row that carried them.
+  // The run's calls are held once by the record, not per row.
   assert.equal(store.findRow("row")?.departure.tripCalls, undefined);
   assert.equal(store.findRun("row")?.tripCalls?.[0]?.delayMinutes, 4);
 });
@@ -98,9 +98,8 @@ test("an answer whose record is gone is reported as one, not swallowed", () => {
   store.rememberRow(stamp(departure("row", "a"), 100), locator, 100);
   const requestKey = store.findRunRecordKey("row");
 
-  // What the sweep does to a run that ended while the provider was still answering about it. The
-  // caller has to hear that its reading landed nowhere, or it counts a failure as a success and
-  // stops asking on the tolerance that would have re-read the run.
+  // A reading landing after the sweep removed its run must report failure, so the caller keeps
+  // asking.
   const wellAfter = 100 + 5 * 60 * 60_000;
   store.rememberRow(
     stamp(departure("other", "b"), wellAfter),
@@ -126,9 +125,7 @@ test("shares one complete reading between stop rows of the same run", () => {
 
 test("one run is one record from its first row, with no sequence needed to say so", () => {
   const store = new RunReadingStore();
-  // What a line-filtered board publishes: no calls, so no dated identity — `getTripInstanceId`
-  // hands back the bare timetable trip id, which is reused every operating day. The locator is the
-  // only thing on these rows that names the run, and it is on every one of them.
+  // Line-filtered rows carry no calls, so no dated id; only the locator names the run.
   const plain = (id: string, stopId: string, at: string) =>
     departure(id, stopId, { tripInstanceId: "provider-trip", scheduledDepartureTime: at });
   store.rememberRow(stamp(plain("row-a", "a", "2026-09-06T10:00:00.000Z"), 100), locator, 100);
@@ -143,9 +140,8 @@ test("one run is one record from its first row, with no sequence needed to say s
 
 test("a run crossing midnight is one record at the stops on either side of it", () => {
   const store = new RunReadingStore();
-  // The day a row states is its own and never the run's: a run out at 23:50 states one day at the
-  // stops before midnight and another at the stops after. Nothing here reads a day at all, so the
-  // two stops are the same run for the same reason every other pair of stops is.
+  // A run out at 23:50 states different days before and after midnight; the store reads no day, so
+  // both stops are the same run.
   const before = departure("before", "o", {
     scheduledDepartureTime: "2026-09-06T23:50:00.000Z",
     tripCalls: [
@@ -158,9 +154,7 @@ test("a run crossing midnight is one record at the stops on either side of it", 
   store.rememberRow(stamp(after, 110), atStop("7000003", "0030"), 110);
 
   assert.equal(store.findRunRecordKey("after"), store.findRunRecordKey("before"));
-  // The stop after midnight reads the sequence the stop before it carried. What it gets is the
-  // *sequence* and nothing else: the reading names no stop, no platform and no countdown, so there
-  // is no way for one side of midnight to state the other side's facts about itself.
+  // The stop after midnight gets only the sequence, never the other stop's facts.
   assert.deepEqual(store.findSequence("after")?.sequence.tripCalls, before.tripCalls);
   assert.equal(store.findRun("after")?.id, "after");
   assert.equal(store.findRun("after")?.boardingLocalStopId, "c");
@@ -172,8 +166,8 @@ test("a run is retired before its trip code is issued again the next day", () =>
   store.rememberRow(stamp(departure("today", "a", { tripCalls: calls(0) }), today), locator, today);
   assert.ok(store.findSequence("today"));
 
-  // The next operating day's run of the same timetable trip, under the same `line|tripCode`. What
-  // keeps the two apart is that the first one's record is long gone, not anything either row says.
+  // Tomorrow's run of the same trip shares `line|tripCode`; only the first record's retirement
+  // keeps them apart.
   const tomorrow = Date.parse("2026-09-07T09:55:00.000Z");
   const next = departure("tomorrow", "a", {
     scheduledDepartureTime: "2026-09-07T10:00:00.000Z",
@@ -188,8 +182,7 @@ test("a run is retired before its trip code is issued again the next day", () =>
 test("a run still being read is never retired, however far behind its last call is", () => {
   const store = new RunReadingStore();
   const wellAfterTheRun = RUN_ENDS_AT + 6 * 60 * 60_000;
-  // A monitored vehicle standing at its final stop states a last call already behind it and is a
-  // row on a board all the same. The boards have the last word on what is still worth holding.
+  // A vehicle standing at its final stop is still on boards, so its record is kept.
   store.rememberRow(
     stamp(departure("row", "a", { tripCalls: calls(0) }), wellAfterTheRun),
     locator,
@@ -220,8 +213,7 @@ test("spends the cap on runs that are over before the vehicles still out", () =>
     );
   };
 
-  // The finished run sits between two that are still out, so neither age nor insertion order can
-  // be what picks it.
+  // The finished run sits between running ones, so neither age nor order picks it.
   endingAt("running", "2026-09-06T11:00:00.000Z", "1");
   endingAt("finished", "2026-09-06T10:00:00.000Z", "2");
   endingAt("new", "2026-09-06T11:00:00.000Z", "3");
@@ -235,7 +227,7 @@ test("keeps the fuller sequence when two readings of one instant disagree in len
   const store = new RunReadingStore();
   const full = [...calls(1), { stopName: "C", localStopId: "c", delayMinutes: 1 }];
   store.rememberRow(stamp(departure("row", "a", { tripCalls: full }), 100), locator, 100);
-  // A single-trip reading of the same instant outranks a board row only where it says as much.
+  // A trip reading of the same instant outranks a board row only where it says more.
   store.rememberSequence(store.findRunRecordKey("row"), sequence(calls(1), 100), 100);
 
   assert.equal(store.findSequence("row")?.sequence.tripCalls.length, 3);
@@ -246,9 +238,7 @@ test("a sequence lands on the run it was asked for, whatever the boards did mean
   store.rememberRow(stamp(departure("row-a", "a"), 100), locator, 100);
   const requestKey = store.findRunRecordKey("row-a");
 
-  // Boards keep arriving while the provider is answering — another stop of the run, and the asking
-  // row read again. No record ever moves, so the key the request was shared under is still the key
-  // its answer belongs on.
+  // Boards keep arriving during a request; records never move, so the answer lands on its key.
   store.rememberRow(stamp(departure("row-b", "b"), 110), atStop("7000002", "1005"), 110);
   store.rememberRow(stamp(departure("row-a", "a", { destination: "C" }), 120), locator, 120);
 
@@ -261,7 +251,7 @@ test("a sequence lands on the run it was asked for, whatever the boards did mean
 test("a row that learns its locator moves onto the run it names", () => {
   const store = new RunReadingStore();
   store.rememberRow(stamp(departure("known", "a", { tripCalls: calls(1) }), 100), locator, 100);
-  // Read once from a board that stated no locator, so nothing but its own id could address it.
+  // From a board without a locator, so only its id addresses it.
   store.rememberRow(stamp(departure("late", "b"), 110), undefined, 110);
   assert.notEqual(store.findRunRecordKey("late"), store.findRunRecordKey("known"));
 
@@ -269,7 +259,7 @@ test("a row that learns its locator moves onto the run it names", () => {
 
   assert.equal(store.findRunRecordKey("late"), store.findRunRecordKey("known"));
   assert.deepEqual(store.findSequence("late")?.sequence.tripCalls, calls(1));
-  // And it is on one record only: the one it left has nothing of it.
+  // It is on one record only.
   assert.equal(store.findRow("late")?.departure.readAt?.rowReadAt, 120);
 });
 
@@ -278,7 +268,7 @@ test("answers every view with one reading, and the same object until something i
   const row = departure("row", "a");
   store.rememberRow(stamp(row, 100), locator, 100);
 
-  // A row nothing has been read for is answered by the row: a view may ask on every paint.
+  // A row with nothing read for it answers as itself.
   const bare = store.findRun("row");
   assert.equal(bare?.tripCalls, undefined);
   assert.equal(store.findRun("row"), bare, "an unchanged reading is not a new object");
@@ -293,8 +283,7 @@ test("answers every view with one reading, and the same object until something i
 
 test("one record holds a bounded number of rows, oldest read first out", () => {
   const store = new RunReadingStore();
-  // One run, read at more stops than any run calls at. The store's only cap counts records, so
-  // without a second one here a single long-lived run is unbounded inside the bound.
+  // One run read at more stops than any run has: the per-record row cap bounds it.
   for (let index = 0; index < 80; index += 1) {
     const at = 100 + index;
     store.rememberRow(stamp(departure(`row-${index}`, "a"), at), atStop(`700${index}`, "1200"), at);
@@ -362,7 +351,7 @@ test("learns a farther run end from a reading that does not replace the current 
   const laterEnd = "2026-09-06T11:00:00.000Z";
   store.rememberRow(stamp(departure("row", "a"), 100), locator, 100);
   store.rememberSequence(store.findRunRecordKey("row"), sequence(calls(2), 200), 200);
-  // This older reading loses the display contest, but it still extends the known lifetime.
+  // An older reading loses the display contest but still extends the known lifetime.
   store.rememberSequence(
     store.findRunRecordKey("row"),
     sequence(

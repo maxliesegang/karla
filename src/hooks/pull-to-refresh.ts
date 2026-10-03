@@ -6,38 +6,29 @@ import {
   PULL_TO_REFRESH_TRIGGER_PX,
 } from "../lib/pull-to-refresh";
 
-/** The height the strip holds while a refresh is under way — where the trigger leaves it. */
+/** The strip's height while a refresh runs. */
 const PULL_TO_REFRESH_REST_PX = PULL_TO_REFRESH_TRIGGER_PX;
 
 type PullGestureState = {
-  /** Where the finger started, which every drag of this gesture is measured from. */
+  /** Where the finger started. */
   startY: number;
-  /** Whether the scrollport left its top during this gesture: a pull from mid-board is a scroll. */
+  /** Whether the scrollport left its top during the gesture, making it a scroll. */
   hasScrolled: boolean;
-  /** Whether the gesture has been taken over from the browser's own scrolling. */
+  /** Whether the gesture was taken from the browser's scrolling. */
   isEngaged: boolean;
-  /** How far the board followed when the finger last moved, which is what a release is judged by. */
+  /** How far the board followed at the last move; a release is judged by it. */
   distance: number;
   isRefreshing: boolean;
-  /** The reading count the board stood at when the refresh was asked for. */
+  /** The reading count when the refresh was asked for. */
   refreshedFrom: number | undefined;
   settleTimer: number;
 };
 
 /**
- * Pulling a departure board down past its first row asks for the feed again.
- *
- * The gesture is read on the board's list, but it belongs to whichever scrollport holds it: a board
- * that scrolls itself is pulled from its own top, and a board stacked into the document is pulled
- * from the document's. Only from the top — anywhere else the same finger movement is a scroll and
- * stays one. Once engaged the movement is answered by the app rather than the browser, which is
- * what keeps Android's page reload and iOS's rubber band out of a gesture this page means itself.
- *
- * The strip is drawn through the DOM rather than through state, for the same reason the scrollbar
- * is (`useTransientScrollbar`): a finger moving down a board re-renders nothing. State would only
- * say what the classes already do, once per gesture at most. The refresh is asked for on release,
- * and the strip settles when the board has been read again — the reading count moving is the
- * answer, however the reading answered — or when a request has gone unanswered too long.
+ * Pulling a board down from its top asks the feed again. Read on the list, pulled from whichever
+ * scrollport holds it; once engaged the app handles it, keeping out Android's reload and iOS's
+ * rubber band. Drawn through the DOM, not state, so a drag re-renders nothing. Settles when the
+ * reading count moves, or after a timeout.
  */
 export function usePullToRefresh({
   listRef,
@@ -47,16 +38,16 @@ export function usePullToRefresh({
   readingCount,
   isEnabled,
 }: {
-  /** The board's list, where the gesture is read and whose top a wide layout pulls from. */
+  /** The board's list, where the gesture is read. */
   listRef: React.RefObject<HTMLElement | null>;
-  /** The strip that carries the gesture, which this draws through the DOM. */
+  /** The strip, drawn through the DOM. */
   indicatorRef: React.RefObject<HTMLDivElement | null>;
-  /** Whether the document is the scrollport (the stacked layout) rather than the list itself. */
+  /** Whether the document is the scrollport (stacked layout). */
   isPageScrollport?: boolean;
   onRefresh: () => void;
-  /** How many readings of the board have answered, however each of them answered. */
+  /** Readings answered, failures included. */
   readingCount: number | undefined;
-  /** A pull means nothing while no board has been read and nothing is there to ask again. */
+  /** Off until a board has been read. */
   isEnabled: boolean;
 }): void {
   const gesture = useRef<PullGestureState>({
@@ -68,7 +59,7 @@ export function usePullToRefresh({
     refreshedFrom: undefined,
     settleTimer: 0,
   });
-  // The handlers are attached once per mount, so what they read of the props is read through refs.
+  // Handlers attach once per mount, so they read props through refs.
   const onRefreshRef = useRef(onRefresh);
   const readingCountRef = useRef(readingCount);
   useEffect(() => {
@@ -107,8 +98,7 @@ export function usePullToRefresh({
     if (!isEnabled) return;
     const element = listRef.current;
     if (!element) return;
-    // Copied here rather than read in the cleanup: the refs outlive the effect, and what the
-    // cleanup takes down is the state this run of it set up.
+    // Copied for the cleanup, which tears down this run's state.
     const gestureState = gesture.current;
     const indicator = indicatorRef.current;
 
@@ -131,13 +121,11 @@ export function usePullToRefresh({
       if (offset > 0) state.hasScrolled = true;
       if (!state.isEngaged) {
         if (state.hasScrolled || offset > 0 || touch.clientY <= state.startY) return;
-        // At the top with a finger moving down: the gesture is ours now, and the browser's own
-        // reading of it — a page reload, a rubber band — never starts.
+        // The gesture is ours; the browser's reload or rubber band never starts.
         state.isEngaged = true;
       }
       event.preventDefault();
-      // A pull while one is already under way keeps the page still and answers nothing; the strip
-      // holds its rest until the reading answers.
+      // A pull during a refresh does nothing.
       if (state.isRefreshing) return;
       const distance = getPullDistance(touch.clientY - state.startY);
       state.distance = distance;
@@ -160,7 +148,7 @@ export function usePullToRefresh({
       else if (indicator) indicator.style.height = "0px";
     };
 
-    // A cancelled gesture is a released one that never gets to mean anything.
+    // A cancelled gesture means nothing.
     const onTouchCancel = () => {
       const state = gesture.current;
       state.isEngaged = false;
@@ -180,8 +168,7 @@ export function usePullToRefresh({
       element.removeEventListener("touchmove", onTouchMove);
       element.removeEventListener("touchend", onTouchEnd);
       element.removeEventListener("touchcancel", onTouchCancel);
-      // The gesture dies with the reading it belongs to; a strip left holding a rest height that no
-      // finger is holding would hang until the next refresh answered.
+      // The gesture dies with its reading, or the strip would hang.
       window.clearTimeout(gestureState.settleTimer);
       gestureState.isRefreshing = false;
       gestureState.refreshedFrom = undefined;
@@ -192,9 +179,7 @@ export function usePullToRefresh({
     };
   }, [isEnabled, isPageScrollport, indicatorRef, listRef, startRefresh]);
 
-  // A refresh is answered by the board being read again, not by a particular answer coming back:
-  // whatever the reading was — a fresh board or a stated failure — the strip has nothing left to
-  // wait for.
+  // Any answer settles the strip.
   useEffect(() => {
     const state = gesture.current;
     if (!state.isRefreshing || readingCount === state.refreshedFrom) return;

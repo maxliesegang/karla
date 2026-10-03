@@ -1,9 +1,4 @@
-/**
- * Decoding of the KVV EFA wire format, and the wire types it answers with.
- *
- * Everything here is a pure function from the provider's JSON to typed values (or an error naming
- * what could not be read). The HTTP transport lives beside it in `kvv-efa-client.ts`.
- */
+/** Pure decoding of the KVV EFA wire format; the HTTP transport is `kvv-efa-client.ts`. */
 import { EXCEPTIONAL_OPERATION_WORDS } from "./operational-exceptions";
 import type {
   DepartureStatus,
@@ -19,7 +14,9 @@ const networkOffsetFormat = new Intl.DateTimeFormat("en-US", {
   timeZone: NETWORK_TIME_ZONE,
   timeZoneName: "longOffset",
 });
-/** `filterDateValid` wants the network's own calendar day, in the operator's `DD.MM.YYYY` spelling. */
+/**
+ * `filterDateValid` wants the network's own calendar day, in the operator's `DD.MM.YYYY` spelling.
+ */
 const networkDateFormat = new Intl.DateTimeFormat("de-DE", {
   timeZone: NETWORK_TIME_ZONE,
   day: "2-digit",
@@ -27,7 +24,9 @@ const networkDateFormat = new Intl.DateTimeFormat("de-DE", {
   year: "numeric",
 });
 
-/** EFA reports "no realtime prediction available" as this sentinel instead of omitting the field. */
+/**
+ * EFA reports "no realtime prediction available" as this sentinel instead of omitting the field.
+ */
 const NO_PREDICTION_DELAY_MINUTES = -9999;
 
 export class KvvEfaError extends Error {
@@ -63,7 +62,7 @@ export type KvvDeparture = {
   stopPointName: string;
   /** EFA's timetable-trip identity, with the operational AVMS identity as fallback. */
   tripId?: string;
-  /** Dated identity retained for matching older shared links and deduplicating operating instances. */
+  /** Dated identity, for matching older shared links and deduplicating operating instances. */
   tripInstanceId?: string;
   /** `servingLine.trainNum`, including where two separately addressed portions share one train. */
   trainNumber?: string;
@@ -98,12 +97,8 @@ export type KvvDepartureBoard = {
 };
 
 /**
- * One line-direction a stop monitor knows, and the line a rider knows it as.
- *
- * The pairing is the point. A provider direction id is opaque — `kvv:22304:E:H:s26` says nothing
- * about being S4 — so an id read off a departure can only be attributed to the line that departure
- * is on, and a line with no departure due within the board's few rows can then not be named at all.
- * The stop states the pairing itself, for every line calling there and whether or not one is due.
+ * A line-direction a stop serves, paired with the line's name. Direction ids are opaque, so this
+ * pairing is the only way to name a line with no departure on the board.
  */
 export type KvvServingLine = { lineId?: string; directionId: string };
 
@@ -117,10 +112,7 @@ export type KvvStopSearchResult = {
   longitude?: number;
 };
 
-/**
- * One published notice, still in the operator's own terms: the lines it names as the operator
- * spells them, and the provider stop ids it names, for the source to resolve into our own.
- */
+/** A published notice in the operator's terms: its line spellings and provider stop ids. */
 export type KvvServiceNotice = {
   id: string;
   title: string;
@@ -138,13 +130,8 @@ export type KvvServiceNotice = {
 export const formatNetworkCalendarDay = (now: Date): string => networkDateFormat.format(now);
 
 /**
- * The points a stop search answered with.
- *
- * A finder that matched several stops answers with a list of them; one that matched exactly one
- * answers with that point wrapped in an object instead — `{ points: { point: {…} } }`. Reading the
- * list shape alone therefore lost every search that succeeded outright, which is exactly what a
- * deep link performs: a stop whose name matches nothing else could not be resolved by the one
- * query that names it precisely.
+ * The points a stop search answered with. One exact match comes back as `{ points: { point } }`
+ * rather than a list.
  */
 function readStopFinderPoints(points: unknown): Record<string, unknown>[] {
   if (Array.isArray(points)) return points.filter(isRecord);
@@ -202,24 +189,15 @@ export function parseDepartureBoardResponse(
 }
 
 /**
- * Boarding, as the feed states it — and only as it states it.
- *
- * The hint vocabulary carries both directions: `Stufenloses Fahrzeug` and `Niederflurwagen` state a
- * step-free vehicle, and `Nicht barrierefreies Fahrzeug` states the opposite of one. The negation
- * is read first, because it contains the very word the positive is matched by. A trip whose hints
- * mention boarding at all is therefore answered; one whose hints do not is left unanswered, which
- * is a third state and never the same as `notStepFree`.
+ * Boarding as the hints state it. The negation is matched first because it contains the positive
+ * word; a trip whose hints say nothing about boarding stays unanswered, not `notStepFree`.
  */
 const NOT_STEP_FREE_PATTERN = /nicht\s+(barrierefrei|stufenlos|rollstuhl)/i;
 const STEP_FREE_PATTERN = /stufenlos|niederflur|barrierefrei|behindertengerecht|einstiegshilfe/i;
 
 /**
- * Hints that say how the trip is *running*, as opposed to what the vehicle carries.
- *
- * The feed uses one field for both: `Verspätung eines vorausfahrenden Zuges` is the reason a rider
- * is standing on a platform, and `Bordrestaurant` is not. Only the first kind is a note this app
- * has anywhere to put; the equipment vocabulary is recognised in order to be left out, because a
- * board that repeats `WLAN` on every row has spent its most scannable column on nothing.
+ * Hints about how the trip is running (`Verspätung eines vorausfahrenden Zuges`), as opposed to
+ * equipment (`WLAN`, `Bordrestaurant`), which shares the field and is dropped.
  */
 const OPERATING_HINT_PATTERN = new RegExp(
   `verspätung|störung|${EXCEPTIONAL_OPERATION_WORDS}|entfällt|ausfall|behinderung|gleiswechsel`,
@@ -238,7 +216,7 @@ export function findVehicleAccess(hints: unknown): VehicleAccess | undefined {
   return contents.some((content) => STEP_FREE_PATTERN.test(content)) ? "stepFree" : undefined;
 }
 
-/** The operating remarks among the hints, as one note. Equipment hints are deliberately dropped. */
+/** The operating remarks among the hints, as one note. */
 export function findOperatingHint(hints: unknown): string | undefined {
   const operating = readHintContents(hints).filter((content) =>
     OPERATING_HINT_PATTERN.test(content),
@@ -253,11 +231,8 @@ function joinServiceNotes(...notes: (string | undefined)[]): string | undefined 
 }
 
 /**
- * The deviation a row publishes, measured against the prediction where the feed made one.
- *
- * `delay` is truncated to the minute below and `realDateTime` is not, so the two disagree on about
- * one monitored row in twenty (see `docs/kvv-efa-api.md`). Only the call this row completes can be
- * corrected this way; every other call in a sequence has the stated deviation and nothing else.
+ * The row's deviation, measured against the prediction where there is one: `delay` is truncated to
+ * the minute and disagrees with `realDateTime` on about one row in twenty (docs/kvv-efa-api.md).
  */
 function findPublishedDelayMinutes(
   scheduledDepartureTime: string,
@@ -271,14 +246,8 @@ function findPublishedDelayMinutes(
 }
 
 /**
- * The line-directions a stop states for itself, each under the name its departures carry.
- *
- * Named the same way a row is (`symbol` before `number`), because the whole use of this is to
- * recognise a line by the id a departure of it would have stated — read from a different corner of
- * the same answer, and available when no departure of that line is due.
- *
- * Only the local network's line-directions are kept, read by the same rule a row is — every one of
- * these is a board the coverage pass would otherwise go and query.
+ * The local network's line-directions a stop states, named as a row would name them (`symbol`
+ * before `number`), so a line is recognised before any of its departures is due.
  */
 function parseServingLines(lines: readonly Record<string, unknown>[]): KvvServingLine[] {
   const byDirectionId = new Map<string, KvvServingLine>();
@@ -321,11 +290,8 @@ function parseDeparture(entry: Record<string, unknown>): KvvDeparture | null {
     findAttributeValue(entry.attrs, "AVMSTripID");
   const scheduledDepartureTime = parseDateTime(entry.dateTime) ?? "";
   const predictedDepartureTime = parseDateTime(entry.realDateTime);
-  // The row is also the one statement of the call at its own stop, which the sequence itself omits —
-  // and the only one of this trip's calls with a prediction behind it, because a stop sequence
-  // carries scheduled times and deviations alone. Completed from the stated delay it would publish
-  // a minute earlier than the row it was read from, which is the same departure drawn twice on one
-  // screen: the board row beside the diagram, disagreeing with the diagram's row for this stop.
+  // The row is the only statement of the call at its own stop, and the only one with a prediction;
+  // completed from the stated delay instead, it would disagree with the board row by a minute.
   const tripCalls = parseTripCalls(entry, {
     scheduledDepartureTime,
     delayMinutes: findPublishedDelayMinutes(
@@ -350,16 +316,13 @@ function parseDeparture(entry: Record<string, unknown>): KvvDeparture | null {
       Number.parseInt(readOptionalString(entry.countdown) ?? "", 10) || 0,
     ),
     delayMinutes,
-    // `platform` is the bare code the platform is signed with; `pointType` is the word the feed
-    // puts in front of it. They are carried apart so the code stays the identity a board groups
-    // and a URL matches on, and the word stays the operator's rather than the app's.
+    // `platform` is the signed code (the identity boards group and URLs match on); `pointType` is
+    // the operator's word for it.
     platformCode: readOptionalString(entry.platform) ?? "",
     platformKind: parsePlatformKind(readOptionalString(entry.pointType)),
     status: parseDepartureStatus(tripStatus, stopStatus, delayMinutes),
     scheduledDepartureTime,
     predictedDepartureTime,
-    // The destination's own remark and the feed's operating hint are both about this trip, so they
-    // are stated as one note rather than as two fields every surface would have to render twice.
     serviceNote: joinServiceNotes(serviceNote, findOperatingHint(servingLine.hints)),
     vehicleAccess: findVehicleAccess(servingLine.hints),
     tripLocator: parseTripLocator(entry, servingLine),
@@ -396,17 +359,9 @@ function parseTripLocator(
 }
 
 /**
- * One line-direction's whole route, from the run a locator names.
- *
- * The same shape a trip sequence has, and read by the same call parser — but it is a different
- * fact. A trip's sequence is what one vehicle is doing; this is where the line goes, stated from
- * end to end whatever part of it the run was asked about. It is the only reading that says so:
- * everywhere else the route is inferred from the trips that happen to be out, which is always less
- * than the line.
- *
- * Validated against the echoed `diva.stateless` rather than the trip tuple, because that is what
- * the answer restates — a wrong `tripCode` comes back as HTTP 200 with an empty sequence, exactly
- * as it does on the trip endpoint.
+ * A line-direction's whole route, end to end, from the run a locator names: the only reading of
+ * where a line goes rather than where its current trips go. Validated against the echoed
+ * `diva.stateless`; a wrong `tripCode` comes back as HTTP 200 with an empty sequence.
  */
 export function parseLineRouteResponse(payload: unknown, locator: KvvTripLocator): KvvTripCall[] {
   if (!isRecord(payload)) throw new KvvEfaError(`Linie ${locator.line}: unerwartete Antwort`);
@@ -426,8 +381,7 @@ export function parseLineRouteResponse(payload: unknown, locator: KvvTripLocator
 }
 
 /**
- * A successful HTTP response can still be an empty or mismatched provider lookup. Validate the
- * echoed tuple before accepting its sequence, because EFA otherwise supplies no useful error.
+ * Validates the echoed tuple: a failed lookup is an HTTP 200 with an empty or mismatched answer.
  */
 export function parseTripResponse(payload: unknown, locator: KvvTripLocator): KvvTrip {
   if (!isRecord(payload)) throw new KvvEfaError(`Fahrt ${locator.tripCode}: unerwartete Antwort`);
@@ -463,21 +417,9 @@ export function parseTripResponse(payload: unknown, locator: KvvTripLocator): Kv
 }
 
 /**
- * The one call the row the trip was asked for is about, as its index in the answer's sequence.
- *
- * The echo states which stop the row was read at, and the locator states the minute the row was
- * published for — read off the same components the row's own departure was read from
- * (`parseTripLocator`), so the call departing in that minute is the row's. The stop alone cannot
- * say it: a terminus loop is reported at the track the vehicle enters by, at the platform the
- * public uses, and at the one it parks on, all under one stop id, and everything that reads the
- * trip — the collapse of its turnaround pair, the route past the rider's stop, where its mark
- * stands — takes the marked call first. Marking all of them made those readings disagree about
- * where the row was: a `über …` that named the stop itself, a mark re-timed from the loop's
- * entry point, and a terminus drawn as three stops.
- *
- * The wire's own `YYYYMMDD HH:MM` spelling is what is compared, so a sequence timed to the second
- * matches the minute the row truncated it to. Where nothing does — a revision between the two
- * readings — the first call at the echoed stop is the floor the reading falls back to.
+ * The index of the call the requested row is about: the call at the echoed stop departing in the
+ * locator's minute (compared in the wire's `YYYYMMDD HH:MM` form). A terminus loop reports several
+ * calls under one stop id, so the stop alone is ambiguous; the first call there is the fallback.
  */
 function findRowCallIndex(
   entries: readonly Record<string, unknown>[],
@@ -498,13 +440,8 @@ function findRowCallIndex(
 }
 
 /**
- * `RealtimeTripId` describes a timetable trip and is reused on later operating dates. Pairing it
- * with the first scheduled call identifies the dated run while remaining identical on every board
- * that returns the trip's complete stop sequence.
- *
- * Exported because a single-trip reading states the same run's first call too, and one vehicle must
- * not end up with two dated identities: the diagram follows a mark by this id, and two ids for one
- * trip are two marks for one vehicle.
+ * A dated run id: `RealtimeTripId` is reused on later dates, so it is paired with the first
+ * scheduled call. Exported so a single-trip reading yields the same id as a board's.
  */
 export function getTripInstanceId(
   tripId: string | undefined,
@@ -515,10 +452,7 @@ export function getTripInstanceId(
   if (!tripId) return undefined;
   const firstCall = tripCalls?.[0];
   const tripStartTime = firstCall?.scheduledDepartureTime ?? firstCall?.scheduledArrivalTime;
-  // To the minute, because the same call is published to the minute on a row and to the second in a
-  // sequence: a board read at the trip's own origin states that first call as its row, and the id
-  // has to be the one every other board's reading of the vehicle produces, not a second identity
-  // for it. Which minute a run starts in separates today's from tomorrow's just as well.
+  // To the minute: rows publish the first call to the minute, sequences to the second.
   return tripStartTime ? `${tripId}@${tripStartTime.slice(0, 16)}` : tripId;
 }
 
@@ -535,22 +469,13 @@ function readRecordList(value: unknown): Record<string, unknown>[] {
 }
 
 /**
- * The trip as this row states it — including the call at the board's own stop, which the sequence
- * itself leaves out.
- *
- * `prevStopSeq` stops one call short of the stop the board was read at and `onwardStopSeq` starts
- * one call past it: the call between them exists only as the row above, which states both of its
- * facts — the published time and the deviation — and is therefore what completes it.
- *
- * Left uncompleted that call is a hole rather than a neutral omission, because a call with no time
- * cannot carry a vehicle: placement drops it, so the mark ran the two links either side of the
- * stop as one and never stood at it. Worse, every board reads the same trip with the hole in a
- * *different* place, so two readings of one vehicle disagree about which stops it calls at, and a
- * mark re-anchored from one onto the other steps back down the line.
+ * The trip's calls, completed with the board's own stop: `prevStopSeq` ends one call before it and
+ * `onwardStopSeq` starts one after, so only the row states that call. Without it a mark would skip
+ * the stop, and each board would leave the gap in a different place.
  */
 function parseTripCalls(
   entry: Record<string, unknown>,
-  /** What the row publishes about its own call: the two facts the sequence does not state here. */
+  /** The row's facts about its own call, which the sequence omits. */
   rowCall: { scheduledDepartureTime: string; delayMinutes: number | undefined },
 ): KvvTripCall[] | undefined {
   const previous = readRecordList(entry.prevStopSeq);
@@ -561,8 +486,8 @@ function parseTripCalls(
     nameWO: entry.nameWO,
     name: entry.stopName,
     platformName: entry.platformName ?? entry.platform,
-    // The row states the bare code where the sequence words it, and both are carried: the word is
-    // what a diagram prints, the code is what a departure row can be matched against.
+    // The row states the bare code, the sequence the worded label; diagrams print the label, rows
+    // match on the code.
     platform: entry.platform,
     stopID: entry.stopID,
   };
@@ -576,46 +501,35 @@ function parseTripCalls(
 function parseTripCall(
   entry: Record<string, unknown>,
   isCurrentStop: boolean,
-  /** Stated by the row rather than by the sequence, and only for the call the row is about. */
   rowCall?: { scheduledDepartureTime: string; delayMinutes: number | undefined },
 ): KvvTripCall | null {
   const ref = isRecord(entry.ref) ? entry.ref : undefined;
-  // `nameWO` is the feed's own name without the locality, so it needs no prefix removed — and the
-  // regex would cut a name that carries a comma of its own (`Bahnhof, Vorplatz`). Only the full
-  // `name` is prefixed, and only in the comma form the departure board's own point uses.
+  // `nameWO` already lacks the locality, and may contain a comma of its own (`Bahnhof, Vorplatz`).
   const nameWithoutPlace = readOptionalString(entry.nameWO);
   const fullName = readOptionalString(entry.name);
   const name = nameWithoutPlace ?? (fullName && removeMunicipalityPrefix(fullName));
   if (!name) return null;
   const coordinates = parseCoordinates(ref?.coords);
-  // A terminus still carries a placeholder `depDelay: 0`, but marks that departure invalid and
-  // states the vehicle's real deviation on its arrival. Reading the placeholder first makes a
-  // delayed trip appear to finish before it reaches the preceding stops, so its marker disappears.
+  // A terminus carries a placeholder `depDelay: 0` with `depValid: 0`; its real deviation is on the
+  // arrival.
   const hasArrival = readOptionalString(ref?.arrValid) !== "0";
   const hasDeparture = readOptionalString(ref?.depValid) !== "0";
-  // The sequence states planned times; the deviation is carried beside them, not folded in. Both
-  // ends of the call are read, because they are separate facts: the feed reports a vehicle pulling
-  // into a terminus four minutes down and leaving it on time, and the recovery happens between the
-  // two numbers. The departure side remains the headline the rows print.
+  // Planned times with the deviation beside them. Arrival and departure delays are separate facts:
+  // a vehicle can arrive four minutes late at a terminus and leave on time.
   const arrivalDelayMinutes = hasArrival ? parseDelayMinutes(ref?.arrDelay) : undefined;
   const departureDelayMinutes = hasDeparture ? parseDelayMinutes(ref?.depDelay) : undefined;
   const scheduledDepartureTime = hasDeparture
     ? parseSequenceTime(ref?.depDateTimeSec ?? ref?.depDateTime)
     : undefined;
-  // The sequence says nothing at all about the board's own call, so there the row is not a second
-  // account to be reconciled with this one — it is the only account there is.
+  // The sequence omits the board's own call, so the row is the only account of it.
   const delayMinutes =
     departureDelayMinutes ?? arrivalDelayMinutes ?? (ref ? undefined : rowCall?.delayMinutes);
   const platformCode = readOptionalString(ref?.platform) ?? readOptionalString(entry.platform);
   return {
     stopName: name,
-    // The locality is stated beside the name rather than folded into it: which municipality a
-    // `Bahnhof` belongs to is what the views outside it have to add back.
     placeName: readOptionalString(entry.place),
-    // The operator names a platform where it names one and states only the code where it does not
-    // (`Waidweg` signs its third platform `3` and calls the others `Gleis 1`/`Gleis 2`). Two rows of
-    // one stop are parted by this label alone, so a call the operator numbered but never worded
-    // keeps its number — exactly as the board's own row is completed in `parseTripCalls`.
+    // The operator words some platforms and only numbers others (`Waidweg`: `Gleis 1`, `Gleis 2`,
+    // `3`), so the code stands in where no label is given.
     platformLabel: readOptionalString(entry.platformName) ?? platformCode,
     platformCode,
     providerId: readOptionalString(ref?.id) ?? readOptionalString(entry.stopID),
@@ -627,8 +541,7 @@ function parseTripCall(
       : undefined,
     scheduledDepartureTime: ref ? scheduledDepartureTime : rowCall?.scheduledDepartureTime,
     delayMinutes,
-    // Stated only where it says something the headline does not, so a reading of it never has to
-    // ask whether the two numbers came from one field or two.
+    // Stated only where it differs from the departure delay.
     arrivalDelayMinutes: arrivalDelayMinutes === delayMinutes ? undefined : arrivalDelayMinutes,
   };
 }
@@ -637,12 +550,12 @@ function parseTripCall(
 function parseCoordinates(value: unknown): { latitude: number; longitude: number } | undefined {
   const [longitude, latitude] = (readOptionalString(value) ?? "").split(",").map(Number);
   if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return undefined;
-  // The projected grid the feed falls back to reads as huge numbers, never as a Karlsruhe degree.
+  // The projected grid the feed can fall back to has values no degree can take.
   if (Math.abs(latitude) > 90 || Math.abs(longitude) > 180) return undefined;
   return { latitude, longitude };
 }
 
-/** Stop sequences state times as `YYYYMMDD HH:MM[:SS]`, not as the component object a departure uses. */
+/** Stop sequences state times as `YYYYMMDD HH:MM[:SS]`. */
 function parseSequenceTime(value: unknown): string | undefined {
   const match = /^(\d{4})(\d{2})(\d{2}) (\d{2}):(\d{2})(?::(\d{2}))?$/.exec(
     readOptionalString(value) ?? "",
@@ -653,13 +566,8 @@ function parseSequenceTime(value: unknown): string | undefined {
 }
 
 /**
- * The published notices, as the operator states them.
- *
- * A notice is kept only where the operator is still standing behind it: `publish`, `valid` and
- * `deactivated` are three separate flags, and a notice that has been withdrawn keeps its entry in
- * the answer with the flags turned off rather than disappearing from it. Nothing here summarises,
- * ranks or rewrites the text — the title is the operator's own, and the full wording stays a link
- * to the operator's page.
+ * The published notices, verbatim. Only notices that are published, valid and not deactivated are
+ * kept; a withdrawn notice stays in the answer with its flags off.
  */
 export function parseServiceNoticeResponse(payload: unknown): KvvServiceNotice[] {
   if (!isRecord(payload) || !isRecord(payload.additionalInformation)) return [];
@@ -693,8 +601,7 @@ function parseServiceNotice(entry: Record<string, unknown>): KvvServiceNotice | 
 
   const { validFrom, validUntil } = parseValidityPeriod(entry.validityPeriod);
   return {
-    // The same notice is republished under a new sequence number when its text is revised, so both
-    // parts identify the reading in hand.
+    // A revised notice is republished under a new sequence number.
     id: `${infoId}@${readOptionalString(entry.seqID) ?? "0"}`,
     title,
     lineNumbers: [
@@ -717,10 +624,8 @@ function parseServiceNotice(entry: Record<string, unknown>): KvvServiceNotice | 
 }
 
 /**
- * A notice spells a line number the way its own system stores it — `007` for the bus a departure
- * board calls `7` — so the padding comes off before anything compares them. A suffix is part of the
- * number and stays as published: `104s` and `104` are different lines, and which case the operator
- * writes the suffix in is not, which is why the comparison itself is what ignores case.
+ * Strips a notice's zero padding (`007` is line `7`). Suffixes stay (`104s` is not `104`); the
+ * comparison ignores their case.
  */
 export function normalizeNoticeLineNumber(number: string | undefined): string | undefined {
   const trimmed = number?.trim();
@@ -728,7 +633,7 @@ export function normalizeNoticeLineNumber(number: string | undefined): string | 
   return trimmed.replace(/^0+(?=[A-Za-z]*\d)/, "");
 }
 
-/** The whole span the operator states, from the earliest period it names to the latest. */
+/** From the earliest period the notice names to the latest. */
 function parseValidityPeriod(value: unknown): { validFrom?: string; validUntil?: string } {
   const periods = readRecordList(value);
   const from = periods
@@ -740,7 +645,6 @@ function parseValidityPeriod(value: unknown): { validFrom?: string; validUntil?:
   return { validFrom: from[0], validUntil: until[until.length - 1] };
 }
 
-/** Notices state a time as a nested date and time record rather than as the departure's flat one. */
 function parseNoticeDateTime(value: unknown): string | undefined {
   if (!isRecord(value) || !isRecord(value.itdDate)) return undefined;
   const date = value.itdDate;
@@ -753,14 +657,7 @@ function parseNoticeDateTime(value: unknown): string | undefined {
   return resolveNetworkWallTime(Date.UTC(year, month - 1, day, hour, minute));
 }
 
-/**
- * The operator's own wording, split into the paragraphs it wrote it in.
- *
- * The notice feed carries the full text beside the headline, so the whole of what was published is
- * already in hand. It arrives as the rich text of the operator's editor — emphasis, colours, a
- * bullet drawn as a character — and none of that is markup this app renders: the words are the
- * fact, so the tags come off and the breaks between them become the paragraphs a reader sees.
- */
+/** The notice's rich text as plain paragraphs: tags stripped, breaks become paragraphs. */
 function parseNoticeDetails(html: string | undefined): string[] {
   if (!html) return [];
   return html
@@ -771,7 +668,7 @@ function parseNoticeDetails(html: string | undefined): string[] {
     .filter((line) => line.length > 0);
 }
 
-/** The named entities the operator's German text actually uses, plus the numeric form. */
+/** The named entities the operator's text uses, plus the numeric form. */
 const HTML_ENTITIES: Record<string, string> = {
   amp: "&",
   lt: "<",
@@ -827,47 +724,32 @@ function parseDepartureStatus(
 }
 
 /**
- * The modes this app reads: Stadtbahn and S-Bahn, tram, and every kind of local bus, including the
- * replacement services the operator runs as `Ersatzverkehr`.
- *
- * A board is already asked for these modes (`kvv-efa-client.ts`), but the feed's mode groups are
- * coarser than its `motType`: the bus group carries long-distance coaches — Flixbus at
- * Hauptbahnhof — which no rider opens a Karlsruhe board for, and they arrive both as rows and as
- * serving directions the coverage pass would then go and query. This is where a `motType` is
- * visible, so this is where they are left out.
+ * The modes read: Stadtbahn, S-Bahn, tram and local buses (including `Ersatzverkehr`). The bus
+ * group a board is asked for also carries long-distance coaches (Flixbus at Hauptbahnhof), and only
+ * `motType` tells them apart.
  */
 const LOCAL_NETWORK_MOT_TYPES = new Set(["1", "4", "5", "6", "11"]);
 
-/** An unstated mode is unknown, not foreign: only a mode the feed states and names is left out. */
+/** An unstated mode is unknown, not foreign. */
 function isLocalNetworkMode(motType: string | undefined): boolean {
   return motType === undefined || LOCAL_NETWORK_MOT_TYPES.has(motType);
 }
 
 /**
- * The data pool the operator publishes a line under, stated as the leading segment of the line's
- * own id (`kvv:22304:E:H:s26` is KVV's own; `ddb:92V06: :H:j26` is the DB's). This server answers
- * for more than KVV's own network, and the pool is the only place it says whose line one is: at the
- * Hauptbahnhof the DB-pooled S-Bahn Rhein-Neckar — S3, S6 and S9, running through to Karlsruhe
- * since the December 2025 timetable change — shares the Stadtbahn's motType `1`, and the express
- * trains' rail replacement (`rab:…`, SEV RE7) shares the bus group's motType `6`. Measured there on
- * 5 September 2026: every line KVV publishes itself answers from the `kvv` pool, at this and every
- * other stop read.
+ * The data pool of KVV's own lines, the first segment of a line id (`kvv:22304:E:H:s26`). The
+ * server also answers for other pools that share KVV's modes: DB's S-Bahn Rhein-Neckar (S3, S6, S9,
+ * since December 2025) and `rab:` rail replacement. Measured 5 September 2026.
  */
 const LOCAL_NETWORK_POOL = "kvv";
 
-/** An unstated pool is unknown, not foreign, like an unstated mode. */
+/** An unstated pool is unknown, not foreign. */
 function isLocalNetworkPool(lineStatelessId: string | undefined): boolean {
   if (lineStatelessId === undefined) return true;
   const pool = lineStatelessId.slice(0, lineStatelessId.indexOf(":"));
   return !lineStatelessId.includes(":") || pool === LOCAL_NETWORK_POOL;
 }
 
-/**
- * A line is of the network KARLA reads where the feed states it so twice: its mode is one the local
- * network runs, and its id names the operator's own pool. Either statement alone is too coarse, and
- * a line pooled elsewhere is left out at the one place both its rows and the serving directions the
- * coverage pass would query are read.
- */
+/** A line of the local network: a local mode and the operator's own pool. */
 function isLocalNetworkLine(
   motType: string | undefined,
   lineStatelessId: string | undefined,
@@ -883,9 +765,7 @@ function parseTransportMode(motType: string | undefined): TransportMode {
 }
 
 /**
- * The feed's word for the boarding place: `Gleis` where the departure is rail-bound, `Bstg.` where
- * it is a bus stand. Anything else — including the entries that state no `pointType` at all — is
- * left unstated rather than guessed, because the mode of the line does not decide it.
+ * `Gleis` (rail) or `Bstg.` (bus stand); anything else is left unstated, not guessed from the mode.
  */
 function parsePlatformKind(pointType: string | undefined): PlatformKind | undefined {
   const stated = pointType?.trim().toLowerCase();
@@ -895,11 +775,9 @@ function parsePlatformKind(pointType: string | undefined): PlatformKind | undefi
 }
 
 /**
- * KVV appends operational remarks to the destination, for example
- * `Waldstadt > SEV ab Hirtenweg` or `Heide (Umleitung)`. Keeping them out of the destination keeps
- * the board scannable while preserving the information next to it. A parenthesis is only a remark
- * when it uses operational vocabulary: `Söllingen (b. Karlsruhe)` disambiguates a place and belongs
- * to the destination itself.
+ * Operational remarks KVV appends to destinations (`Waldstadt > SEV ab Hirtenweg`,
+ * `Heide (Umleitung)`). A parenthesis counts only with operational vocabulary: `Söllingen (b.
+ * Karlsruhe)` is part of the place name.
  */
 const OPERATIONAL_REMARK_PATTERN = new RegExp(
   `${EXCEPTIONAL_OPERATION_WORDS}|entfällt|sonderfahrt|verstärker|nur bis|ab \\S`,
@@ -930,10 +808,8 @@ function parseDelayMinutes(value: unknown): number | undefined {
 }
 
 /**
- * EFA states departure times as bare local components with no offset. Left that way they would be
- * read as the *viewer's* local time, which puts every prediction hours off the clock outside
- * Germany and silently drops every vehicle marker, so the Karlsruhe wall time is resolved to a real
- * instant here — once, at the provider boundary — and travels the app as an absolute timestamp.
+ * EFA times are Karlsruhe wall time with no offset; they are resolved to an instant here, at the
+ * boundary, so they are not read as the viewer's local time.
  */
 function parseDateTime(value: unknown): string | undefined {
   if (!isRecord(value)) return undefined;
@@ -945,16 +821,12 @@ function parseDateTime(value: unknown): string | undefined {
   return resolveNetworkWallTime(Date.UTC(year, month - 1, day, hour, minute));
 }
 
-/**
- * The offset itself depends on the instant, which is what is being solved for. Reading it a
- * second time at the first answer settles every hour except the ambiguous one a DST change makes.
- */
+/** Reads the offset twice, which settles every hour but the ambiguous one at a DST change. */
 function resolveNetworkWallTime(wallTime: number): string {
   const firstGuess = wallTime - getNetworkOffsetMs(wallTime);
   return new Date(wallTime - getNetworkOffsetMs(firstGuess)).toISOString();
 }
 
-/** How far ahead of UTC the network's own timezone runs at a given instant. */
 function getNetworkOffsetMs(instant: number): number {
   const offset = networkOffsetFormat
     .formatToParts(instant)
@@ -965,13 +837,8 @@ function getNetworkOffsetMs(instant: number): number {
 }
 
 /**
- * The feed's own clock, resolved to a real instant.
- *
- * Stated as `YYYY-MM-DDTHH:MM:SS` with no offset, which `Date.parse` reads as the *viewer's* local
- * time — the same hazard `parseDateTime` exists to avoid, and the one that matters most, because
- * every countdown in the app is counted from this clock rather than the device's. Left unresolved
- * it is right in Karlsruhe and hours out everywhere else, which reads as a board where nothing is
- * ever due. The seconds are kept: they are what the board's stated age is measured against.
+ * The feed's clock as an instant. It has no offset, like `parseDateTime`'s input, and every
+ * countdown is counted from it. Seconds are kept for the board's age.
  */
 function parseServerTime(parameters: unknown): string | undefined {
   if (!Array.isArray(parameters)) return undefined;
@@ -986,7 +853,7 @@ function parseServerTime(parameters: unknown): string | undefined {
   return resolveNetworkWallTime(Date.UTC(year, month - 1, day, hour, minute, second || 0));
 }
 
-/** EFA prefixes names with the municipality, which the views already provide as context. */
+/** EFA prefixes names with the municipality, which the views already show. */
 function removeMunicipalityPrefix(name: string): string {
   return name.replace(/^[^,]+,\s*/, "");
 }

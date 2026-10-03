@@ -11,21 +11,23 @@ import { DEPARTURE_BOARD_REFRESH_MS } from "./departure-board";
 import { useKeyedLoad, type KeyedLoadOptions } from "./keyed-load";
 import { useRuns } from "./run-reading-store";
 
-/** How stale a run's calls may be before the marks placed from them are re-read. */
+/**
+ * How stale a run's calls may be before the marks placed from them are re-read: a little over one
+ * feed revision, which comes about every thirty-five seconds for a vehicle under way.
+ */
 export const LINE_RUN_READING_MAX_AGE_MS = 60_000;
 
 export type RunReadingOptions = {
-  /** The one run a rider chose, which is worth re-reading on every board refresh. */
+  /** The chosen run, re-read on every board refresh. */
   selectedRowId?: string;
   refreshMs?: number;
 };
 
 /**
- * Complete calls for the named runs, one provider request per run. This asks; the answers land in
- * the source's store and are read back from it by id (`useRuns`).
+ * Requests complete calls for the named runs, one request per run; answers are read via `useRuns`.
  */
 export function useRunReadingsByRowId(
-  /** Memoize this: it decides the load key and the identity of everything read from the result. */
+  /** Memoize: it decides the load key. */
   rowIds: readonly string[],
   { selectedRowId, refreshMs = DEPARTURE_BOARD_REFRESH_MS }: RunReadingOptions = {},
 ): readonly Departure[] {
@@ -55,11 +57,11 @@ export function useRunReadingsByRowId(
   );
   // Read back in the order asked for, not the key's sorted order.
   const runs = useRuns(rowIds);
-  // Only runs whose calls have been read; a row still waiting stands on its board meanwhile.
+  // Only runs with calls; others stand on their board row meanwhile.
   return useMemo(() => runs.filter((run) => run.tripCalls?.length), [runs]);
 }
 
-/** The departure rows' ids are only an adapter: the run-reading path is the same one everywhere. */
+/** Row-based adapter over `useRunReadingsByRowId`. */
 export function useRunReadings(
   departures: readonly Departure[],
   options: RunReadingOptions = {},

@@ -6,12 +6,8 @@ const transliterationByGermanLetter: Record<string, string> = {
 };
 
 /**
- * Turns a stop name from the local data into our stable URL id. German spelling is transliterated
- * before accents are stripped, so `Mühlburger Tor` becomes `muehlburger-tor` — the form KVV and
- * riders read — rather than `muhlburger-tor`.
- *
- * Lives apart from `routing` so the data layer can share it without importing a module that reads
- * `window` at load time.
+ * A stop name as a URL id, transliterating German first (`Mühlburger Tor` → `muehlburger-tor`).
+ * Kept out of `routing`, which reads `window` at load.
  */
 export function createStopSlug(name: string): string {
   return name

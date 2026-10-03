@@ -4,19 +4,8 @@ import { classNames } from "../../lib/class-names";
 import type { LineBundleControl } from "../../lib/line-bundles";
 
 /**
- * The offer to read a sibling line along, and the way back out of it.
- *
- * It sits in the line header because it changes the reading that header names. The header remains
- * available while the stops scroll, so the way into and out of a bundle does too.
- *
- * Each control is a line: it carries that line's own sign colours, because what it adds to the
- * reading is that line and not a setting. An offer names the stop it reaches, so the rider can see
- * what taking it is worth before taking it; once taken, the diagram names that stop itself at the
- * junction, and the pressed control falls back to the bare sign and the way out.
- *
- * Bundling is a reading most riders never ask for, so the whole choice is folded into one quiet
- * control. It opens as an overlay below the header, where the primary line, active siblings and all
- * available siblings can be compared without making the sticky header taller or covering its name.
+ * The bundle control in the line header: one folded control opening an overlay to add or drop
+ * siblings. Each option wears its line's colours; an offer names the stop it reaches.
  */
 export function LineDiagramBundleControls({
   controls,
@@ -26,7 +15,7 @@ export function LineDiagramBundleControls({
 }: {
   controls: readonly LineBundleControl[];
   lineById: ReadonlyMap<string, TransitLine>;
-  /** The line being read, whose colours stand in for a sibling the network has not named yet. */
+  /** The line read, whose colours stand in for an unnamed sibling. */
   fallbackLine: TransitLine;
   onChangeBundle: (bundledLineIds: readonly string[]) => void;
 }) {
@@ -53,7 +42,7 @@ export function LineDiagramBundleControls({
   if (controls.length === 0) return null;
   const bundled = controls.filter(({ isActive }) => isActive);
   const offers = controls.filter(({ isActive }) => !isActive);
-  /** One line's colours, as the sign plate and the pill around it are both drawn in them. */
+  /** One line's colours, for the sign plate and its pill. */
   const lineStyle = (lineId: string) => {
     const controlLine = lineById.get(lineId) ?? fallbackLine;
     return {

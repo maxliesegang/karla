@@ -12,54 +12,27 @@ import { getFarthestLineRunTermini } from "./stop-services";
 import { addOnce, getDistinctByFrequency } from "./collections";
 
 /**
- * The network as the live feed actually shows it, rather than as a list kept by hand.
- *
- * Every departure the feed answers carries its whole trip: the calling points behind and ahead of
- * it. Read across a handful of boards those trips spell out the network — which stops the Zentrum
- * actually has service at today, and which lines call there. Nothing here is authored, so a line
- * that stops running disappears on its own, and one that starts running appears without an edit.
- *
- * Only the list in `zentrum-stops.ts` is a decision: it says which stops count as the Zentrum.
- * Everything about them — that they have service today, and which lines call — is observed.
+ * The network as the live feed shows it: trips read at a few boards spell out which stops have
+ * service today and which lines call there, so lines appear and disappear on their own. Only the
+ * Zentrum's membership (`zentrum-stops.ts`) is authored.
  */
 
 /**
- * The boards the network is read from.
+ * The observation posts, in two tiers on two cadences: Zentrum posts feed the list a rider sees;
+ * reach posts describe the rest of the network, which changes slowly.
  *
- * A board answers with the whole trip behind each departure, so these few reach far past
- * themselves: between them the trips spell out which stops have service today and which lines call
- * there. They are observation posts, not a list of what any view contains — what a view contains is
- * whatever the trips turn out to run through.
- *
- * They are split because they answer two different questions on two different clocks. The Zentrum
- * posts feed the list a rider is looking at; the reach posts describe the rest of the network — the
- * lines that are running and where the stops are — and neither of those changes in ninety seconds.
- *
- * Both tiers were chosen by measurement rather than by prominence. Every stop of the municipality
- * that could plausibly serve as a post — the Zentrum's own stops and the eighteen largest
- * interchanges outside it by line count and by calls — was read at six service patterns (Mon 08:00,
- * 12:00, 17:00, Sat 18:00, Sun 11:00, and Sun 03:00 night service), and every combination scored on
- * the share of the *whole network's* stop-and-line pairs it saw at its worst reading. Scored on the
- * Zentrum alone, an outside post can only ever look worthless — it rides one corridor in and
- * re-reports a stretch already covered — which is how a set that reads five stops inside the ring
- * came to look sufficient. Against the whole network the five saw half of it:
+ * Chosen by measurement: candidate posts read at six service patterns (Mon 08:00, 12:00, 17:00,
+ * Sat 18:00, Sun 11:00, Sun 03:00), scored on the worst-case share of the whole network's
+ * stop-and-line pairs seen:
  *
  *     worst-case share of the network seen   stop*line   stops   lines
  *     the five Zentrum posts                     51%      57%     48%
  *     these nine                                 81%      82%     78%
  *
- * The nine are better on the Zentrum too — 85% of its stop-and-line pairs at the worst reading
- * against 65% — so this is not a trade of one view against another.
+ * The nine also see 85% of the Zentrum's own pairs against 65%.
  */
 
-/**
- * The posts the Zentrum list rests on.
- *
- * Four, because past that the additions were redundant with each other: adding Kronenplatz or
- * Ettlinger Tor as a fifth adds nothing at the worst reading, both of them sitting
- * mid-corridor on axes that Europaplatz and the Hauptbahnhof already run end to end through.
- * Each of these four costs something to drop.
- */
+/** Zentrum posts. A fifth (Kronenplatz, Ettlinger Tor) added nothing at the worst reading. */
 export const ZENTRUM_OBSERVATION_POST_STOP_IDS = [
   "europaplatz",
   "karlstor",
@@ -68,18 +41,8 @@ export const ZENTRUM_OBSERVATION_POST_STOP_IDS = [
 ] as const;
 
 /**
- * The posts the rest of the network is read from.
- *
- * Three of them are where the tram-trains change system, which is why they see what nothing in the
- * Zentrum does: a vehicle that leaves the tram network for the railway is listed at the transition
- * and then runs out of reach of every city post. Albtalbahnhof is the southern one and sits in the
- * Zentrum tier already; Durlach and Rheinbergstraße are the eastern and western ones.
- *
- * The other two are bus hubs, and buses are what the Zentrum posts are worst at: a bus that never
- * enters the ring is on no board inside it. Entenfang is the western hub, Zündhütle the way to the
- * Bergdörfer.
- *
- * What each one is the *only* source of, across the six readings, is the argument for it:
+ * Reach posts: where tram-trains change system (Durlach, Rheinbergstraße; Albtalbahnhof is a
+ * Zentrum post) and bus hubs. What each alone sees, across the six readings:
  *
  *     durlach-bahnhof    RE1 RE45 RE73, S3 S31 S32, 21 31, MX17a, NL12 NL13
  *     rheinbergstrasse   S51, 74, 75
@@ -87,9 +50,7 @@ export const ZENTRUM_OBSERVATION_POST_STOP_IDS = [
  *     zuendhuetle        1 24 44 47
  *     turmberg           23 26
  *
- * Turmberg is the marginal one — it is here for the stops rather than the lines, taking the share
- * of the network's stops seen from 82% to 86%. It is the first post to drop if these ever cost too
- * much.
+ * Turmberg is marginal (stops seen 82% → 86%) and the first to drop.
  */
 export const REACH_OBSERVATION_POST_STOP_IDS = [
   "durlach-bahnhof",
@@ -102,9 +63,9 @@ export const REACH_OBSERVATION_POST_STOP_IDS = [
 export type ObservedStop = {
   id: string;
   name: string;
-  /** Line ids seen calling here, in the order they were first observed. */
+  /** Line ids seen calling here, in order of first sighting. */
   lineIds: string[];
-  /** How many trips called here, which is how the view decides what to list first. */
+  /** Trips that called here, for ordering the list. */
   callCount: number;
 };
 
@@ -114,9 +75,7 @@ export type ObservedLine = {
   /** Destinations seen on this line, most frequent first — what a rider reads on the front. */
   destinations: string[];
   /**
-   * The ends of the farthest run observed for the line, where one was — see
-   * `getFarthestLineRunTermini`. The line list reads its extent off this rather than off the
-   * destinations, which the short workings among them keep from naming it.
+   * The farthest observed run's ends (`getFarthestLineRunTermini`), which name the line's extent.
    */
   farthestRunTermini?: readonly string[];
 };
@@ -124,31 +83,17 @@ export type ObservedLine = {
 export type ObservedNetwork = {
   stops: ObservedStop[];
   lines: ObservedLine[];
-  /** How many trips the view was built from, so it can say how well observed it is. */
+  /** Trips the view was built from. */
   tripCount: number;
 };
 
-/**
- * The timeless part of one timetable trip that can teach the session about the network.
- *
- * Deliberately narrower than `Departure`: the observed-network store may retain route topology,
- * but never a run's countdown, prediction, status or reading clocks.
- */
+/** The timeless part of a trip: route topology without countdown, prediction, status or clocks. */
 export type ObservedTripTopology = Pick<
   Departure,
   "id" | "tripId" | "lineId" | "transportMode" | "destination" | "tripCalls"
 >;
 
-/**
- * Where the stops the feed has named actually are.
- *
- * Every calling point of every trip states its position, and the trips read at a handful of posts
- * in the Zentrum run far past it — so a few boards know where several hundred stops are, most of
- * them well outside the core. That is what lets a rider standing in Durlach be placed against the
- * stop they are at rather than against the nearest stop somebody wrote down.
- *
- * Positions only. Whether a stop has service is still read from its own board.
- */
+/** Where named stops are, from every trip's calls: a few posts locate hundreds of stops. */
 export type ObservedStopPosition = {
   id: string;
   name: string;
@@ -183,7 +128,6 @@ export function getObservedStopPositions(
   return [...positionById.values()];
 }
 
-/** A call is only usable once it resolves to a stop we can address. */
 type IdentifiedCall = TripCall & { localStopId: string };
 
 function isIdentifiedCall(call: TripCall): call is IdentifiedCall {
@@ -236,12 +180,8 @@ export function buildObservedNetworkFromTrips(
 }
 
 /**
- * The observed lines as the rest of the app's views expect them — official sign where there is one,
- * neutral otherwise, and the ends the line was seen running between, at the farthest run where the
- * observation has seen one.
- *
- * This replaces a kept list of lines. A line that is not running is not observed, so it is not
- * offered to a rider; one that starts running appears without an edit.
+ * Observed lines as views expect them: official sign or neutral, and the ends seen, at the farthest
+ * run where known. A line not running is not offered.
  */
 type ObservedLineFamily = {
   sign: TransitLine;
@@ -266,12 +206,11 @@ export function getObservedTransitLines(network: ObservedNetwork): TransitLine[]
   for (const observed of network.lines) {
     const family = getFamily(observed.id, observed.transportMode);
     for (const destination of observed.destinations) addOnce(family.destinations, destination);
-    // The first observation of the family stands; merging two raw lines into one family is not
-    // a statement that their runs are one extent.
+    // The family's first observation stands; merged raw lines are not one extent.
     if (!family.farthestRunTermini) family.farthestRunTermini = observed.farthestRunTermini;
   }
 
-  // Walked once rather than re-scanned per line: a stop states the lines calling there already.
+  // One pass over stops, which already list their lines.
   for (const stop of network.stops) {
     for (const lineId of stop.lineIds) {
       const family = familyById.get(getLineFamilyId(lineId));

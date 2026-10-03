@@ -12,13 +12,13 @@ import {
 } from "../src/lib/zentrum-schematic-labels.ts";
 import {
   ZENTRUM_SCHEMATIC_VIEWBOX,
+  type ZentrumSchematicStroke,
   getEdgeKey,
   zentrumSchematicNodeById,
 } from "../src/lib/zentrum-schematic-plan.ts";
 import { getZentrumSchematicLaneBends } from "../src/lib/zentrum-schematic-paths.ts";
 import {
   ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH,
-  type ZentrumSchematicStroke,
   getBandOutline,
   getStrokeOutline,
   isOverlapping,
@@ -74,10 +74,7 @@ const getPlaceArms = (reading: ZentrumSchematicReading, nodeId: string) =>
     .get(nodeId)
     ?.map((place) => [...place.armTripCounts.keys()].sort());
 
-/**
- * A stop on a band is marked across the whole of it, not on the lane that happens to run through
- * the middle: the capsule is what says the lines beside that one call here too.
- */
+/** A stop on a band gets one capsule across every lane. */
 test("marks a through stop with one capsule across every lane", () => {
   const along = [
     call("muehlburger-tor", "7000039"),
@@ -96,7 +93,7 @@ test("marks a through stop with one capsule across every lane", () => {
   assert.deepEqual(getCentre(mark.main), { x: 374, y: 154 });
 });
 
-/** A stop on a bend is one pill across the bend, as TfL draws a station on a curve. */
+/** A stop on a bend gets one pill across it, as TfL draws a station on a curve. */
 test("marks a corner stop with one diagonal pill", () => {
   const turning = [
     call("werderstrasse", "7000083"),
@@ -115,10 +112,7 @@ test("marks a corner stop with one diagonal pill", () => {
   assert.ok(Math.hypot(run.x, run.y) > 2 * reading.trackWidth);
 });
 
-/*
- * Two streets through one place, no capsule able to cross both: one capsule each, on straight track
- * clear of the other street, joined like a stop's two places.
- */
+/* Two streets through one place, no capsule crossing both: one capsule each, linked. */
 test("marks each street of a crossing with its own capsule, linked", () => {
   const through = (lineId: string, stopIds: readonly string[]) =>
     departure(
@@ -140,15 +134,14 @@ test("marks each street of a crossing with its own capsule, linked", () => {
   }
 });
 
-/** A link runs one of the plan's eight ways, as every corridor does. */
+/** Links run one of the eight directions. */
 const assertOctilinear = ({ from, to }: ZentrumSchematicStroke) => {
   const angle = (Math.atan2(to.y - from.y, to.x - from.x) * 4) / Math.PI;
   assert.ok(Math.abs(angle - Math.round(angle)) < 1e-6, `a link at ${angle * 45} degrees`);
 };
 
 /**
- * Karlstor is two places a street apart: line 3 boards on the street running north–south, lines 4
- * and 5 round the corner towards Ettlinger Tor. Neither serves only corridors the other does.
+ * Karlstor is two places a street apart: line 3 north–south, lines 4 and 5 towards Ettlinger Tor.
  */
 test("draws a stop the platforms say is two places as two capsules, linked", () => {
   const eastward = [
@@ -173,8 +166,7 @@ test("draws a stop the platforms say is two places as two capsules, linked", () 
   const mark = markAt(reading, "karlstor");
   assert.equal(mark.capsules.length, 2);
   assert.equal(mark.links.length, 1);
-  // Each place stands across its own lanes below and beside the turn of lines 4 and 5: line 3
-  // south of the stop, lines 4 and 5 east of it, joined through the empty corner between them.
+  // Line 3's capsule south, lines 4/5's east, linked through the empty corner.
   const [south, east] = [...mark.capsules].sort((left, right) => left.from.x - right.from.x);
   assert.equal(south.from.y, south.to.y);
   assert.ok(south.from.y > 286 + reading.trackWidth);
@@ -184,9 +176,8 @@ test("draws a stop the platforms say is two places as two capsules, linked", () 
 });
 
 /**
- * Europaplatz's Kaiserstraße platforms are one place across both levels: the street pair serves
- * the corridor west, which the tunnel serves too. The Karlstraße pair serves the branch south,
- * which no other platform does, and the same tram calls at both in turn.
+ * Europaplatz's Kaiserstraße platforms join the tunnel's place; the Karlstraße pair, serving the
+ * south branch alone, is another.
  */
 test("gathers platforms serving only another's corridors into its place", () => {
   const tunnel = [
@@ -212,7 +203,7 @@ test("gathers platforms serving only another's corridors into its place", () => 
   assert.equal(markAt(reading, "europaplatz").capsules.length, 2);
 });
 
-/** The Hauptbahnhof's two islands each serve both the S-Bahn and the trams: one place. */
+/** The Hauptbahnhof's two islands each serve S-Bahn and trams: one place. */
 test("gathers platforms standing together into one place, whatever runs through them", () => {
   const near = { latitude: 48.99437, longitude: 8.39967 };
   const beside = { latitude: 48.99441, longitude: 8.39966 };
@@ -232,14 +223,11 @@ test("gathers platforms standing together into one place, whatever runs through 
     ]);
 
   assert.equal(read(beside).boardingPlacesByNodeId.has("hauptbahnhof"), false);
-  // Ninety metres apart, the same platforms are two places.
+  // Ninety metres apart, they are two places.
   assert.equal(read(apart).boardingPlacesByNodeId.get("hauptbahnhof")?.length, 2);
 });
 
-/**
- * A platform a board window saw a handful of times is a diversion or a layover, not a place a
- * rider waits, and drawing a capsule for it would put a stop where there is none.
- */
+/** A platform seen a handful of times is a diversion or layover, not a place. */
 test("leaves a barely used platform out of a stop's places", () => {
   const along = [
     call("europaplatz", "7000037", "4"),
@@ -260,10 +248,7 @@ test("leaves a barely used platform out of a stop's places", () => {
   assert.equal(markAt(reading, "karlstor").links.length, 0);
 });
 
-/*
- * Today's trams, as the Zentrum's boards stated them on 3 October 2026: one entry per calling
- * pattern, with how many trips ran it.
- */
+/* The Zentrum boards' calling patterns on 3 October 2026, with trip counts. */
 type LiveCall = [string, string, string, number | null, number | null];
 const liveTrips = (
   JSON.parse(
@@ -299,7 +284,7 @@ test("reads the places a rider walks between off a day's trips", () => {
   ]);
   for (const places of reading.boardingPlacesByNodeId.values()) assert.equal(places.length, 2);
   for (const mark of reading.stopMarks) for (const link of mark.links) assertOctilinear(link);
-  // A second capsule stands clear of every band it does not mark.
+  // A second capsule stays clear of bands it does not mark.
   for (const mark of reading.stopMarks) {
     for (const capsule of mark.capsules.slice(1)) {
       const outline = getStrokeOutline(
@@ -314,7 +299,7 @@ test("reads the places a rider walks between off a day's trips", () => {
   }
 });
 
-/** A capsule crosses lanes where they run straight, and no stop's capsule touches another's. */
+/** Capsules cross straight lanes and never touch another stop's. */
 test("keeps every capsule off the curves, and clear of every other stop", () => {
   const reading = buildZentrumSchematicReading(liveTrips);
   const halfWidth = (reading.trackWidth * ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH) / 2;
@@ -346,9 +331,8 @@ test("keeps every capsule off the curves, and clear of every other stop", () => 
 });
 
 /**
- * A mark halts on the capsule it calls at, wherever the capsule stands: at Europaplatz the tunnel's
- * capsule stands west of the junction, so a tram from Marktplatz rides on past it, and one from
- * Karlstor halts on the Karlstraße before turning round the corner.
+ * Marks halt on their stop's capsule wherever it stands: Europaplatz's tunnel capsule is west of
+ * the junction, so a tram from Karlstor halts on the Karlstraße before the corner.
  */
 test("halts every mark on its stop's capsule", () => {
   const reading = buildZentrumSchematicReading(liveTrips);
@@ -415,7 +399,7 @@ test("sets every name that fits inside the plan, clear of bands, capsules and ot
     ];
     const placed: { nodeId: string; outline: ReturnType<typeof getBandOutline> }[] = [];
     const unfit = [...labels].filter(([, label]) => !label.fits).map(([nodeId]) => nodeId);
-    // A name that cannot be set clear is printed on demand: none on a roomy plan, few on any.
+    // Unfitted names show on demand: none on a roomy plan.
     if (planWidth === 1450 && !hasTimes) assert.deepEqual(unfit, []);
     assert.ok(unfit.length <= 1, `${unfit.join(", ")} do not fit at ${planWidth}px`);
     for (const [nodeId, label] of labels) {

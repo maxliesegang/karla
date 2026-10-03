@@ -1,10 +1,7 @@
 /**
- * The readings the plan can light over its quiet route traces, all in one shape: corridors lit
- * whole, and stretches lit from a moving mark onwards.
- *
- * - Progress: where the trams on the plan are still going.
- * - A stop's departures: the way the next trams take to the stop a rider stands at.
- * - Travel times: how soon a rider at a stop reaches every other one, without changing.
+ * Readings lit over the plan's route traces: corridors lit whole, and stretches lit from a moving
+ * mark onwards. Progress (where trams are still going), a stop's departures (the way the next trams
+ * take to it), and travel times (how soon each stop is reached without changing).
  */
 import type { Departure, TripCall } from "../data/transit-types";
 import { getCountdownMinutes } from "./feed-clock";
@@ -14,10 +11,10 @@ import { isSameRun } from "./trips";
 import type { ZentrumSchematicVehicle } from "./zentrum-schematic";
 import { findZentrumSchematicNodeId, getEdgeKey, isRailDeparture } from "./zentrum-schematic-plan";
 
-/** A stretch of a mark's own path, lit from the mark to `end`, which goes out as the mark moves. */
+/** A stretch of a mark's path, lit from the mark to `end`. */
 export type ZentrumSchematicLitStretch = {
   vehicle: ZentrumSchematicVehicle;
-  /** Where along the mark's path the stretch ends; 1 is the end of its link. */
+  /** Where along the path it ends; 1 is the end of the link. */
   end: number;
 };
 
@@ -38,8 +35,7 @@ const lightEdges = (
 };
 
 /**
- * Where the trams on the plan are still going. A corridor is lit while any tram of its line has it
- * ahead; the corridor a tram is on is lit from the tram onwards, so it goes out behind the last one.
+ * Corridors lit while any tram of the line has them ahead; a tram's own corridor from the tram on.
  */
 export function getZentrumProgressOverlay(
   vehicles: readonly ZentrumSchematicVehicle[],
@@ -58,19 +54,18 @@ export function getZentrumProgressOverlay(
   return { edgeIdsByLineId, stretches };
 }
 
-/** One tram on the plan that will leave a stop, and when. */
+/** A tram on the plan that will leave a stop, and when. */
 export type ZentrumStopDeparture = {
   vehicle: ZentrumSchematicVehicle;
   /** The call the tram leaves the stop by. */
   call: TripCall;
   departsAt: number;
-  /** The tram is standing at the stop rather than on its way to it. */
+  /** Standing at the stop, not on its way. */
   isAtStop: boolean;
 };
 
 /**
- * The trams on the plan a rider at a stop can take next, and the way each still has to come.
- * Only the next tram per line and destination: a second one behind it would light the same lane.
+ * The next tram per line and destination a rider at a stop can take, and the way it has to come.
  */
 export function getZentrumStopDepartures(
   vehicles: readonly ZentrumSchematicVehicle[],
@@ -98,11 +93,10 @@ export function getZentrumStopDepartures(
   };
 }
 
-/** A tram on the plan on its way to a stop, with the way it still has to come. */
 type ZentrumStopApproach = ZentrumStopDeparture & {
-  /** The corridors past the end of the tram's own path, lit whole. */
+  /** Corridors past the end of the tram's path, lit whole. */
   edgeIds: readonly string[];
-  /** Where the lit stretch on the tram's own path ends, if it has one ahead of it. */
+  /** Where the lit stretch on the tram's path ends, if ahead of it. */
   end?: number;
 };
 
@@ -116,7 +110,7 @@ const lightApproaches = (approaches: Iterable<ZentrumStopApproach>): ZentrumSche
   return { edgeIdsByLineId, stretches };
 };
 
-/** Every tram on the plan that will still leave a stop, and the way each has to come. */
+/** Every tram on the plan that will still leave a stop. */
 function getZentrumStopApproaches(
   vehicles: readonly ZentrumSchematicVehicle[],
   nodeId: string,
@@ -124,7 +118,7 @@ function getZentrumStopApproaches(
   const candidates: ZentrumStopApproach[] = [];
   for (const vehicle of vehicles) {
     const { aheadStops } = vehicle;
-    // A tram that has started moving has left the stop its link starts at.
+    // A moving tram has left the stop its link starts at.
     const firstIndex = vehicle.progress === 0 ? 0 : 1;
     const index = aheadStops.findIndex(
       (stop, at) => at >= firstIndex && stop.nodeId === nodeId && stop.departsAt !== undefined,
@@ -141,8 +135,8 @@ function getZentrumStopApproaches(
       });
       continue;
     }
-    // On the mark's own path the stretch ends at the stop; past it, the path is lit to its end
-    // and the corridors on to the stop are lit whole.
+    // On the mark's path the stretch ends at the stop; past it, corridors to the stop are lit
+    // whole.
     const edgeIds: string[] = [];
     let end: number | undefined = stop.pathProgress;
     if (end === undefined) {
@@ -168,19 +162,16 @@ function getZentrumStopApproaches(
   return candidates;
 }
 
-/** One departure of a stop's board, read against the plan. */
+/** One row of a stop's board, read against the plan. */
 export type ZentrumStopBoardRow = {
   departure: Departure;
-  /** The tram on the plan this departure is, if it is drawn already. */
+  /** The tram on the plan this row is, if drawn. */
   vehicleId?: string;
 };
 
 /**
- * A stop's whole board, and what of it the plan can show.
- *
- * The board says *when*, for every departure; the plan says *from where*, for the ones it draws:
- * their marks carry the countdown and light the way still to come. A tram not on the plan yet is
- * on the board only, since marking it anywhere would read as a tram standing there.
+ * A stop's whole board and what the plan shows of it: drawn trams carry the countdown and light
+ * their way; trams not yet on the plan stay on the board only.
  */
 export function getZentrumStopBoard(
   boardDepartures: readonly Departure[],
@@ -190,7 +181,7 @@ export function getZentrumStopBoard(
 ): {
   rows: readonly ZentrumStopBoardRow[];
   overlay: ZentrumSchematicOverlay;
-  /** The minutes each drawn tram leaves the stop in, as its board row counts them. */
+  /** Each drawn tram's minutes until it leaves, as its row counts them. */
   vehicleMinutesById: ReadonlyMap<string, number>;
 } {
   const approaches = getZentrumStopApproaches(vehicles, nodeId);
@@ -201,7 +192,7 @@ export function getZentrumStopBoard(
     const approach = approaches.find(({ vehicle }) => isSameRun(departure, vehicle.departure));
     rows.push(approach ? { departure, vehicleId: approach.vehicle.id } : { departure });
     if (!approach || departure.status === "cancelled") continue;
-    // A stop of several places lists one tram once per place; the first row is when it leaves.
+    // A multi-place stop lists a tram once per place; the first row counts.
     if (vehicleMinutesById.has(approach.vehicle.id)) continue;
     shown.push(approach);
     vehicleMinutesById.set(approach.vehicle.id, getCountdownMinutes(departure, feedNow));
@@ -209,7 +200,7 @@ export function getZentrumStopBoard(
   return { rows, overlay: lightApproaches(shown), vehicleMinutesById };
 }
 
-/** The soonest a rider leaving one stop now is at another, and the tram that gets them there. */
+/** The soonest a rider leaving one stop now reaches another, and the tram. */
 export type ZentrumTravelTime = {
   arrivesAt: number;
   lineId: string;
@@ -218,11 +209,9 @@ export type ZentrumTravelTime = {
 };
 
 /**
- * How soon a rider at a stop reaches every other stop on the plan, riding one tram.
- *
- * Read from every run the posts named, not only those on the plan: the wait for a tram still
- * outside the Zentrum is part of the answer. Direct rides only, because the feed says nothing
- * reliable about changing. Each stop lights the corridors its ride took, in that line's lane.
+ * How soon a rider at a stop reaches every other stop on one tram, from every run the posts named
+ * (waits for trams outside the Zentrum count). Direct rides only; the feed says nothing reliable
+ * about changes.
  */
 export function getZentrumTravelTimes(
   departures: readonly Departure[],
@@ -238,7 +227,7 @@ export function getZentrumTravelTimes(
     if (!isRailDeparture(departure)) continue;
     const calls = collapseTurnaroundCalls(departure.tripCalls ?? []);
     const nodeIds = calls.map((call) => findZentrumSchematicNodeId(call));
-    // The rider boards at the last call of a complex, which is when the tram leaves it.
+    // Boarding at a complex's last call.
     let boardIndex = -1;
     for (const [index, call] of calls.entries()) {
       if (nodeIds[index] !== nodeId || nodeIds[index + 1] === nodeId) continue;
@@ -292,10 +281,10 @@ export function getZentrumTravelTimes(
   };
 }
 
-/** Whole minutes until a tram leaves, counted the way a departure board counts them. */
+/** Whole minutes until departure, as a board counts them. */
 export const getMinutesUntilDeparture = (departsAt: number, feedNow: number): number =>
   Math.max(0, Math.floor((departsAt - Math.floor(feedNow / 60_000) * 60_000) / 60_000));
 
-/** Whole minutes until a rider arrives, rounded up: a minute early is no promise. */
+/** Whole minutes until arrival, rounded up. */
 export const getMinutesUntilArrival = (arrivesAt: number, feedNow: number): number =>
   Math.max(0, Math.ceil((arrivesAt - feedNow) / 60_000));

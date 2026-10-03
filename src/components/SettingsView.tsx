@@ -3,13 +3,7 @@ import { appSettings, type AppSettings } from "../lib/app-settings";
 import { type AppLanding } from "../lib/app-settings";
 import { SegmentedControl, type SegmentedControlItem } from "./SegmentedControl";
 
-/**
- * One choice, named for what it changes and said in one line.
- *
- * The description carries what the label cannot — *Beim Öffnen* names a setting only to someone who
- * has already read what it decides — and the control stands on the right, where a row of the board
- * puts the answer to the question the row asks.
- */
+/** One setting: label, a line of description, the control on the right. */
 function SettingsRow({
   title,
   description,
@@ -53,14 +47,7 @@ const otherRunsItems: readonly SegmentedControlItem<"on" | "off">[] = [
   },
 ];
 
-/**
- * The rider's own choices about the app, each applied the moment it is made.
- *
- * Three settings, because three are true of the app as it stands: where it opens, whether it keeps
- * the stops a rider reads, and whether the line diagram draws the line's other vehicles at all.
- * Each is a device-local preference that the views already read — nothing here is
- * a new behaviour, only the place where the behaviour the app guessed at becomes a choice.
- */
+/** The rider's app settings, applied immediately. */
 export function SettingsView() {
   const settings = useStoredPreference(appSettings);
   const write = (partial: Partial<AppSettings>) => appSettings.write({ ...settings, ...partial });

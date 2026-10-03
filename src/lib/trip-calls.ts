@@ -7,13 +7,8 @@ import type {
 } from "../data/transit-types";
 
 /**
- * A trip's remaining calling points, read from the stop it was read at.
- *
- * Every question this app asks of a calling sequence — are these two trips taking the same route,
- * how far do they run together, which way does this one leave — is asked from one stop looking
- * outwards, so a sequence here always begins at the call after that stop. Comparing two of them is
- * comparing what the feed calls their stops, which is a resolved local id where we have one and the
- * feed's own place and name where we do not.
+ * Calling sequences, read outwards from one stop. Calls compare by resolved local stop id, or by
+ * the feed's place and name where none resolved.
  */
 
 /** How a calling point is identified, including where the feed resolved no local stop of ours. */
@@ -21,13 +16,8 @@ export const getCallKey = (call: TripCall): string =>
   call.localStopId ?? `${call.placeName ?? ""}:${call.stopName}`;
 
 /**
- * How many calls of one stop each call belongs to — one nearly everywhere, more where a route
- * reaches a stop twice in a row.
- *
- * The number is what says whether the platform on a call means anything to a comparison. At a stop
- * a route passes once, the platform is a fact about the trip that happened to be read: two trips
- * of one line may use two platforms there, and neither is more the line's than the other. At a
- * stop a route calls at twice, it is the only thing that says which of the two calls this is.
+ * How many consecutive calls of the same stop each call belongs to. Platforms only distinguish
+ * calls where a route reaches a stop twice in a row.
  */
 function getRepeatedCallCounts(calls: readonly TripCall[]): number[] {
   const lengths = Array<number>(calls.length).fill(1);
@@ -41,44 +31,22 @@ function getRepeatedCallCounts(calls: readonly TripCall[]): number[] {
 }
 
 /**
- * Whether a call of one reading and a call of another are the same call of the route.
- *
- * The stop is the whole of the question until a route reaches one stop twice, and then it is not
- * enough: Europaplatz publishes its two street platforms under one stop point and one name, so
- * nothing on the calls tells `Gleis 3` from `Gleis 5` a minute later. Matched on the stop alone, a
- * reading holding one of them anchors to whichever came first and the other is read in beside it —
- * the stop drawn twice, both times as the same platform.
- *
- * So the platform is consulted, and only where one of the two readings really does repeat the stop.
- * Everywhere else it would be the wrong question asked of a true answer: a diverted working leaves
- * from another platform than the timetabled one, and a stop both readings agree on would stop
- * matching itself.
+ * Whether two readings' calls are the same call of the route. Platform is compared only where a
+ * stop repeats (Europaplatz's two platforms share a stop point and name); elsewhere a diverted
+ * working's different platform must still match.
  */
-function isSameRouteCall(
-  left: TripCall,
-  right: TripCall,
-  /** Whether either reading reaches this stop more than once, which is the only time it matters. */
-  hasRepeatedCalls: boolean,
-): boolean {
+function isSameRouteCall(left: TripCall, right: TripCall, hasRepeatedCalls: boolean): boolean {
   if (getCallKey(left) !== getCallKey(right)) return false;
   if (!hasRepeatedCalls) return true;
   const leftPlatform = left.platformCode ?? left.platformLabel;
   const rightPlatform = right.platformCode ?? right.platformLabel;
-  // Where either reading states no platform there is nothing to tell them apart by, and the stop
-  // is the best answer there is.
+  // Without a platform on both sides, the stop is the best answer.
   return !leftPlatform || !rightPlatform || leftPlatform === rightPlatform;
 }
 
 /**
- * Which calls of two readings of one route are the same call, in order.
- *
- * A longest common subsequence rather than a lookup keyed to the physical stop, because such a key
- * holds only one call per stop: where a route reaches one stop twice — Marktplatz's Kaiserstraße
- * and Pyramide, a loop passing the same stop on the way back — the earlier call answers for both,
- * and the two readings anchor to each other in the wrong place. Aligning the sequences instead
- * gives every call of a repeated stop its own anchor, or none.
- *
- * The sequences are one route's calls, so both are tens of entries long and the matrix is small.
+ * Which calls of two readings of one route correspond, as a longest common subsequence, so each
+ * call of a repeated stop gets its own anchor. Routes are tens of calls, so the matrix is small.
  */
 export function alignSameRouteCalls(
   left: readonly TripCall[],
@@ -121,23 +89,16 @@ export function alignSameRouteCalls(
   return anchors;
 }
 
-/** One string standing for a whole route, so two routes are compared in a single operation. */
+/** One string for a whole route. */
 export const getCallSequenceKey = (calls: readonly TripCall[]): string =>
   calls.map(getCallKey).join(">");
 
-/** The calls a trip makes after the given stop, or none where this reading does not reach it. */
 export const getCallsAfterStop = (departure: Departure, stopId: string): readonly TripCall[] =>
   getCallsPastIndex(departure.tripCalls ?? [], findStopCallIndex(departure, stopId));
 
 /**
- * Which of a departure's calls is its call at the given stop, or -1 where it reaches none.
- *
- * The board that produced a departure marks its own call, and a departure read elsewhere is located
- * by the local id instead — the same trip seen from two boards must yield the same route onwards.
- *
- * A run is read once and merged into every stop's row of it, so a row may carry the marker another
- * stop's board set. The marker is only this row's where it stands at this stop, or where it is the
- * only statement there is — the call it marks resolved to no local stop.
+ * The index of a departure's call at a stop, or -1. A run is merged into every stop's row, so the
+ * current-stop marker counts only at this stop, or where its call resolved to no local stop.
  */
 export function findStopCallIndex(departure: Departure, stopId: string): number {
   const calls = departure.tripCalls ?? [];
@@ -150,10 +111,7 @@ export function findStopCallIndex(departure: Departure, stopId: string): number 
 }
 
 /**
- * The published calls past one call of a sequence, without rewriting the provider's sequence.
- *
- * Split out from the departure-shaped reading above because a sequence is not always held by a
- * departure: corridor comparison and a drawn diagram both ask what a trip does past a stop.
+ * The calls past one call of a sequence, for callers holding a sequence rather than a departure.
  */
 export function getCallsPastIndex(
   calls: readonly TripCall[],
@@ -163,16 +121,12 @@ export function getCallsPastIndex(
   return calls.slice(currentIndex + 1);
 }
 
-/** The first call that leaves a stop complex, without removing any calls from the sequence. */
 export const findFirstCallBeyondStop = (
   calls: readonly TripCall[],
   stopId: string,
 ): TripCall | undefined => calls.find((call) => call.localStopId !== stopId);
 
-/**
- * The stops a route visits, in order, with a stop stated over several consecutive calls counted
- * once — the shape of the route rather than its published calls, which is what topology compares.
- */
+/** The stops a route visits in order, consecutive calls of one stop counted once. */
 export function getVisitedStopKeys(calls: readonly TripCall[]): string[] {
   const keys: string[] = [];
   for (const call of calls) {
@@ -183,30 +137,14 @@ export function getVisitedStopKeys(calls: readonly TripCall[]): string[] {
 }
 
 /**
- * The same calls with a turnaround's two halves read as the one call they are.
+ * The calls with each turnaround pair (a run's start or end, reported at the turning track and the
+ * public platform) folded into the public call. Other repeats are real travel (Europaplatz's two
+ * platforms, Marktplatz's tunnels) and stay.
  *
- * A vehicle that begins or ends a run is reported at the track it stands on and again at the
- * platform the public uses, which is one call of the route stated twice and no link a rider
- * travels. Every other repeat of a stop is a real one — Europaplatz's two street platforms are a
- * minute of driving apart, and the S1 crosses between Marktplatz's two tunnels — so only the pair
- * the feed itself marks as a run boundary is folded.
- *
- * The call on the route-facing side is the one kept: at a start that is the second call, where the
- * public departure happens; at an end it is the first, where passengers arrive. The outer call is
- * the turning track. This is visible at Hirtenweg: line 4 is timed out of non-boarding Gleis 3,
- * then departs for passengers from Gleis 1. Keeping the boundary-bearing half printed Gleis 3 and
- * 08:46 for a board row that says Gleis 1 and 08:47.
- *
- * What the kept call states is read from its own ends. At a run's start the feed states no arrival
- * for the turning track and the public platform's arrival is the pull forward to it — a move
- * nobody boards — so the arrival is dropped and the run reads as beginning with the public
- * departure, which is what lets a not-yet-started trip stand at its terminus for the whole of the
- * lead before it. At a run's end the departure the feed timed on the public platform is the
- * published end the row beside the diagram counts down to, and the instant the mark's stand is
- * measured past — dropping it printed the arrival beside a board that publishes the departure, and
- * re-read the stand from the arrival once the row's own prediction had expired. The run-end
- * statement itself stays on the raw call: every reader of a run boundary (`statesRunEnd`) reads
- * `tripCalls`, never this collapsed chain.
+ * At a start the public call's arrival (the pull forward) is dropped, so a waiting trip stands for
+ * its whole lead; at an end its published departure is kept, as the row counts down to it.
+ * Hirtenweg: line 4 is timed out of Gleis 3 and boards at Gleis 1. Run-end readers use the raw
+ * `tripCalls`, not this chain.
  */
 export function collapseTurnaroundCalls(calls: readonly TripCall[]): readonly TripCall[] {
   const kept: TripCall[] = [];
@@ -218,18 +156,15 @@ export function collapseTurnaroundCalls(calls: readonly TripCall[]): readonly Tr
       continue;
     }
 
-    // Diagrams read a trip in the opposite direction from its published sequence, so neither the
-    // boundary nor the public half is assumed to be on one particular side of the pair.
+    // Diagrams may read the trip reversed, so the boundary may be on either side of the pair.
     const boundary = statesRunBoundary(call) ? call : next;
     const publicCall = boundary === call ? next : call;
     let merged: TripCall;
     if (statesRunStart(boundary)) {
       merged = { ...publicCall, scheduledArrivalTime: undefined };
-      // The deviation stated for the arrival has no arrival to describe once it is dropped.
       delete merged.arrivalDelayMinutes;
     } else {
-      // Where the feed timed no departure the arrival is the headline, and its own deviation
-      // states it. Where it timed one, the public call is kept whole.
+      // Without a departure the arrival is the headline; with one the public call is kept whole.
       merged =
         publicCall.scheduledDepartureTime === undefined
           ? {
@@ -247,46 +182,24 @@ export function collapseTurnaroundCalls(calls: readonly TripCall[]): readonly Tr
 }
 
 /**
- * Whether two consecutive calls of one stop are a vehicle turning round rather than travelling.
- *
- * The pair the feed itself marks, and only that pair. A run that begins somewhere is timed out of
- * its origin and into nothing (`statesRunStart`); one that ends is timed in and out of nothing. Any
- * pair straddling such a mark is one call of the route reported at the track the vehicle stands on
- * and at the platform the public uses.
- *
- * Two calls both fully timed are the opposite statement: the vehicle arrived at the first, left it,
- * and arrived at the second, which is a minute of driving and two places to stand. Europaplatz's
- * `Gleis 3` at 08:57/08:58 and `Gleis 5` at 08:58/08:59 are that, and so — 147 m apart — are
- * Entenfang's `Gleis 5` and `Gleis 3`.
- *
- * The board's own call is never read as a boundary. The sequence omits it entirely and the row
- * completes only its departure, so it arrives at every reading looking exactly like the origin of a
- * run whether or not it is one. Read as one it would part a stop in two from one side and not from
- * the other, so the same pair would separate or not by which of its two rows was read. An unknown
- * is not a mark, and the marks are what this is about.
+ * Whether two consecutive calls of one stop are a vehicle turning: only a pair straddling a run
+ * boundary the feed marks. Two fully timed calls are travel (Europaplatz `Gleis 3` 08:57/08:58,
+ * `Gleis 5` 08:58/08:59). The board's own call looks like a run origin on every reading, so it is
+ * never a boundary.
  */
 export function isTurnaroundPair(previous: TripCall, call: TripCall): boolean {
   if (getCallKey(previous) !== getCallKey(call)) return false;
   return statesRunBoundary(previous) || statesRunBoundary(call);
 }
 
-/** A mark of a run boundary the feed made, on a call whose own reading did not swallow it. */
+/** A run boundary marked by the feed on a call that is not the board's own. */
 const statesRunBoundary = (call: TripCall): boolean =>
   !call.isCurrentStop && (statesRunStart(call) || statesRunEnd(call));
 
 /**
- * Whether the feed itself says a run begins or ends at this call, rather than our reading of it.
- *
- * A vehicle that terminates somewhere is timed into the stop and out of nothing: EFA marks that
- * call `depValid=0` and publishes no departure time for it, and the origin of a run is the same
- * statement the other way round (`arrValid=0`, no arrival time — see `docs/kvv-efa-api.md`). The
- * parser drops the time it invalidates, so a missing end here *is* the feed's statement.
- *
- * The distinction matters wherever a view is about to call something an end of a line. The end of
- * the calls in hand is not one: a sequence read without `depType=stopEvents`, one cut short, one
- * whose remaining calls carry no usable time — each of those stops mid-route while the vehicle
- * keeps going, and treated as a terminus it puts a standing mark, or an inferred turnaround, at a
- * stop no service ends at. Only the two calls the feed marks are ends of a run.
+ * Whether the feed says a run begins (`arrValid=0`) or ends (`depValid=0`) here; the parser drops
+ * the invalidated time. The end of the calls in hand is not a run end: a cut-short reading stops
+ * mid-route.
  */
 export const statesRunStart = (call: TripCall | undefined): boolean =>
   call?.scheduledDepartureTime !== undefined && call.scheduledArrivalTime === undefined;
@@ -295,24 +208,16 @@ export const statesRunEnd = (call: TripCall | undefined): boolean =>
   call?.scheduledArrivalTime !== undefined && call.scheduledDepartureTime === undefined;
 
 /**
- * When the run these calls describe is expected to be over, or nothing where they carry no time.
- *
- * The last call's published time shifted by the deviation reported there — the feed states no
- * separate end of service, so the end of the sequence is the end of the run. Stated without a
- * grace period on purpose: how long a finished run is still worth holding is a judgement each
- * caller makes for itself, and they do not agree. A vehicle marker lets go two minutes after the
- * final call; the ride a passenger is reading is theirs for an hour more; a cached sequence is
- * worth keeping only while some view might still ask for it.
+ * When the run is expected to be over: the last call's time plus its deviation. No grace period;
+ * each caller decides how long a finished run is worth holding.
  */
 export function findFinalCallInstant(calls: readonly TripCall[] | undefined): number | undefined {
   return getTripCallInstant(calls?.[calls.length - 1]);
 }
 
 /**
- * The instant one call is expected at: its published time with the deviation reported for it added
- * in. One definition, because a call the diagram calls past and one the ride counts down to must be
- * the same call — an arrival end is only read apart from a departure end where the feed itself
- * separates the two.
+ * The instant a call is expected at: its published time plus its deviation. Arrival and departure
+ * ends differ only where the feed states them apart.
  */
 export function getTripCallInstant(
   call: TripCall | undefined,
@@ -334,25 +239,18 @@ export function getTripCallInstant(
 export const getCallsAfterCurrentStop = (departure: Departure): readonly TripCall[] =>
   getCallsAfterStop(departure, departure.boardingLocalStopId);
 
-/**
- * The stretch every one of these routes runs in common, which is how far trips grouped together are
- * known to stay together. A route that stops short of the others ends the common stretch there.
- */
+/** The stretch all these routes share; a route that stops short ends it. */
 export type CommonCallPrefixAlignment = {
-  /** The shared calls, keeping the most calls any sequence published where one stop repeats. */
+  /** The shared calls, keeping the most calls any sequence published at a repeated stop. */
   calls: readonly TripCall[];
   /** How many calls of each input sequence the shared prefix consumed. */
   consumedCallCounts: readonly number[];
 };
 
 /**
- * The shared prefix of several routes, aligned by stop rather than by array position.
- *
- * Consecutive calls resolving to the same stop remain distinct published calls. They are compared
- * as one visit, however, so a line stating two platforms at Marktplatz and another stating one can
- * still share every stop after it. Whichever sequence published the most calls at that stop is the
- * one kept, preserving both calls in a combined diagram instead of erasing one to make the
- * comparison work.
+ * The shared prefix of several routes, aligned by stop rather than position. Consecutive calls of
+ * one stop compare as one visit (two platforms at Marktplatz on one line, one on another), and the
+ * sequence with the most calls there is kept.
  */
 export function getCommonCallPrefixAlignment(
   sequences: readonly (readonly TripCall[])[],
@@ -384,23 +282,14 @@ export function getCommonCallPrefix(
   return getCommonCallPrefixAlignment(sequences).calls;
 }
 
-/** Only a whole-trip exception may overrule what the stop's own row says about this departure. */
+/** Only a whole-trip exception overrules the stop's own row. */
 const isExceptionalStatus = (status: DepartureStatus): boolean =>
   status === "cancelled" || status === "diverted";
 
 /**
- * One stop's row completed by another reading of the same run, whatever shape that reading is in.
- *
- * The row-shaped door onto `mergeRunSequence`, for the callers holding a whole `Departure` rather
- * than a sequence: a run addressed on its own is found as some *other* stop's row before it is ever
- * read as calls, and a Zentrum mark is a row of one post completed by a reading taken at another.
- * What such a reading contributes beyond a sequence it may not have yet is the run's dated identity
- * and an exception stated about the run as a whole — a cancellation the addressed stop's own row
- * has not caught up with is still a cancellation.
- *
- * Its stop-specific half contributes nothing and is dropped by `toRunSequence` on the way through,
- * which is the whole reason that conversion exists: what one stop says about *its* platform is not
- * evidence about another's.
+ * One stop's row completed by another reading of the same run, as a `Departure`. That reading adds
+ * its sequence, dated identity and any whole-run exception; its stop facts are dropped
+ * (`toRunSequence`).
  */
 export function mergeRunReading(row: Departure, reading: Departure | undefined): Departure {
   if (!reading) return row;
@@ -413,13 +302,7 @@ export function mergeRunReading(row: Departure, reading: Departure | undefined):
 }
 
 /**
- * The sequence a departure states, where it states one.
- *
- * The one way a `Departure` becomes a `RunSequence`, so a reading that arrived on a row is kept and
- * ranked as exactly what it is — a calling sequence and the instant it was read — and the stop
- * facts it happened to arrive beside are dropped here rather than carried into evidence about every
- * other stop of the run. Nothing where the departure carries no calls: there is no sequence in a
- * row that states none, and a merge offered one would be a merge of a row with itself.
+ * The sequence a departure carries, without its stop facts; nothing where it has no calls.
  */
 export function toRunSequence(departure: Departure): RunSequence | undefined {
   if (!departure.tripCalls?.length) return undefined;
@@ -434,19 +317,9 @@ export function toRunSequence(departure: Departure): RunSequence | undefined {
 }
 
 /**
- * One published departure fact, completed by the run read separately from it.
- *
- * The stop row stays the departure: its countdown, platform and delay are the freshest statement of
- * when this vehicle leaves *here*, and a sequence reading is not allowed to replace them with its
- * own older copy. What the sequence contributes is what a board row cannot state — the whole
- * calling sequence behind it, the dated identity that sequence's first call refines, and a
- * cancellation or diversion of the run as a whole.
- *
- * The merge is the one place that knows the result is a hybrid of two readings, so it is the one
- * place their two clocks are written (`Departure.readAt`). Each half is dated by the half it came
- * from and by nothing else: the row's stamp stays the row's however fresh the sequence beside it
- * is, and a sequence read minutes after the row it completes says so rather than inheriting the
- * row's age. Nothing downstream is asked to know which is which — it can read both off the result.
+ * A stop row completed by a separately read run. The row keeps its countdown, platform and delay;
+ * the sequence adds calls, dated identity and whole-run cancellation or diversion. Each half keeps
+ * its own read time (`Departure.readAt`).
  */
 export function mergeRunSequence(row: Departure, sequence: RunSequence | undefined): Departure {
   if (!sequence) return row;
@@ -461,17 +334,8 @@ export function mergeRunSequence(row: Departure, sequence: RunSequence | undefin
 }
 
 /**
- * The row's own clock, and the sequence's, each staying the clock of the reading it came from.
- *
- * Merging a fresh sequence into an older row must not restate that row as freshly read, and a
- * sequence read minutes after the row it completes must say so rather than inherit the row's age:
- * which of the two halves is the later reading is what decides whether the row may correct the
- * sequence at all (`lib/vehicle-positioning.ts`). The types now keep the two apart on their own —
- * a `RunSequence` carries one instant and it is the calls' — so this only puts them side by side.
- *
- * Nothing where neither half was ever stamped, which is a fixture rather than anything the source
- * published. A row that states no clock takes the sequence's, which is the only instant known about
- * a departure assembled entirely out of one.
+ * Each half's read time. A row without one takes the sequence's; nothing where neither was stamped
+ * (fixtures).
  */
 function resolveMergedReadingTimes(
   row: Departure,

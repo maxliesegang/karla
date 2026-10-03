@@ -5,37 +5,21 @@ import type { RecentStop } from "../lib/recent-stops";
 import { navigateTo, routePaths } from "../routing";
 
 /**
- * Jumping straight to a stop by name.
- *
- * The app could already resolve any stop in the KVV network by name — the provider search has been
- * behind `TransitSource` the whole time — but there was no way for a reader to ask. On a wide
- * screen that is the missing pointer affordance and the missing keyboard one at once: `/` puts the
- * caret here, typing narrows, Enter opens the board.
- *
- * Authored stops answer instantly and locally; the provider is asked only after the typing settles,
- * so a name typed at speed costs one request rather than one per keystroke.
- *
- * An empty field is not an empty list. A rider uses the same two or three stops every day, and the
- * moment they open the search is exactly the moment those are the answer — so the stops they have
- * been reading stand in the list until they type something that narrows it. It costs no chrome
- * anywhere else in the app: the shortcut lives inside the affordance that already exists for
- * finding a stop, on the phone sheet and behind `/` alike.
+ * Stop search by name (`/` focuses it). Authored stops match locally at once; the provider is asked
+ * after typing settles. An empty field lists the rider's recent stops.
  */
 const SEARCH_DEBOUNCE_MS = 220;
 
-/** A row of the list, whether it was found by typing or remembered from a previous reading. */
+/** A list row, found or remembered. */
 type SearchOption = { stopId: string; name: string; detail?: string; isRecent?: boolean };
 
 /**
- * What the last settled search produced, kept with the query it settled for.
- *
- * One state rather than three: the results, whether the read failed, and the query they belong to
- * always change together, so typing on can never show a stale answer as the current one.
+ * The last settled search with its query, as one state so a stale answer never shows as current.
  */
 type SettledSearch = {
   query: string;
   results: readonly TransitStop[];
-  /** The provider could not be read at all — distinct from a search that answered with nothing. */
+  /** The provider could not be read, as opposed to answering with nothing. */
   failed: boolean;
 };
 
@@ -48,7 +32,7 @@ export function StopSearch({
   onRequestClose,
 }: {
   inputRef?: React.Ref<HTMLInputElement>;
-  /** The stops the rider has been reading, offered while there is nothing typed to narrow by. */
+  /** Recent stops, offered while nothing is typed. */
   recentStops?: readonly RecentStop[];
   focusOnMount?: boolean;
   onRequestClose?: () => void;
@@ -66,8 +50,7 @@ export function StopSearch({
     if (focusOnMount) searchElementRef.current?.focus();
   }, [focusOnMount]);
 
-  // Too short a query is not a state to store, it is simply nothing to show — clearing the results
-  // in the effect would be a render caused by a value already known while rendering.
+  // A short query just shows nothing; no state to store.
   const isQueryLongEnough = query.trim().length >= 2;
 
   useEffect(() => {
@@ -93,7 +76,7 @@ export function StopSearch({
     };
   }, [query, isQueryLongEnough]);
 
-  // A results list that outlives the click that dismissed it is the classic combobox annoyance.
+  // Close the list on outside clicks.
   useEffect(() => {
     const closeOnOutsideClick = (event: MouseEvent) => {
       if (!containerRef.current?.contains(event.target as Node)) setIsOpen(false);
@@ -102,8 +85,7 @@ export function StopSearch({
     return () => document.removeEventListener("pointerdown", closeOnOutsideClick);
   }, []);
 
-  // One list either way, so a keyboard reaches the remembered stops exactly as it reaches found
-  // ones — same arrows, same Enter, same option row.
+  // One list, so the keyboard reaches recent and found stops alike.
   const settledResults = settledSearch?.results ?? NO_RESULTS;
   const visibleResults: readonly SearchOption[] = isQueryLongEnough
     ? settledResults.map((stop) => ({ stopId: stop.id, name: stop.name, detail: stop.alias }))
@@ -112,9 +94,7 @@ export function StopSearch({
         name: visit.stopName ?? visit.stopId,
         isRecent: true,
       }));
-  // What the list says when it is not results: that the search is still working on the query, that
-  // it answered with nothing, or that it could not read the provider at all. A failed read and an
-  // empty answer both leave the list without rows; the wording below tells the two apart.
+  // When there are no rows: still searching, no results, or the provider failed.
   const hasSettledForQuery = settledSearch?.query === query;
   const isSearching = isQueryLongEnough && !hasSettledForQuery;
   const isSearchFeedbackVisible =

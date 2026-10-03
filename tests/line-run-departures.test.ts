@@ -10,7 +10,7 @@ import { createCall } from "./support/calls.ts";
 import { createDeparture } from "./support/fixtures.ts";
 
 const start = Date.parse("2026-08-23T12:00:00Z");
-/** The source's part: a followed run is named here and its reading is fetched by id when drawn. */
+/** The source's side: followed runs are fetched by id when drawn. */
 const known = new Map<string, Departure>();
 const findRun = (rowId: string) => known.get(rowId);
 const call = createCall(start);
@@ -19,7 +19,7 @@ function departure(
   id: string,
   calls: readonly TripCall[],
   status: Departure["status"] = "realtime",
-  /** Every row the source publishes is dated; retention reads its age off the row. */
+  /** Rows are dated; retention reads their age. */
   readAt: number = start,
 ): Departure {
   const built: Departure = createDeparture({
@@ -71,12 +71,12 @@ test("a current cancellation removes the retained vehicle", () => {
 test("a followed run is drawn from the reading the source has now, not the one that named it", () => {
   const original = departure("updated", [call("a", 0), call("b", 10)]);
   const followed = updateFollowedRuns([], [original], start + 60_000, findRun);
-  // Nothing names it again — no board lists it any more — but something has re-read it since.
+  // No board lists it, but it has been re-read since.
   known.set("updated", { ...original, tripCalls: [call("a", 0), call("b", 10, 4)] });
 
   const [drawn] = getLineRunDepartures(followed, [], start + 90_000, findRun);
   assert.equal(drawn?.tripCalls?.[1]?.delayMinutes, 4);
-  // And a board that lists it again is this refresh's statement, so its own row is what is drawn.
+  // A board listing it again is this refresh's statement.
   const listed = departure("updated", [call("a", 0), call("b", 10, 6)]);
   assert.deepEqual(getLineRunDepartures(followed, [listed], start + 90_000, findRun), [listed]);
 });
@@ -84,9 +84,8 @@ test("a followed run is drawn from the reading the source has now, not the one t
 test("a followed run is recognised under the identity its reading states now", () => {
   const original = departure("drift", [call("a", 0), call("b", 10)]);
   const followed = updateFollowedRuns([], [original], start + 60_000, findRun);
-  // Re-read with the dated identity its sequence refines, and listed again under another stop's
-  // row. Suppressed by the name the reading carries at draw time, not by the one it was followed
-  // under — or this run would be drawn twice.
+  // Re-read with a refined dated id and listed under another row: matched by its draw-time key, so
+  // it is not drawn twice.
   const refined = { ...original, tripInstanceId: "drift@refined" };
   known.set("drift", refined);
   const listed = { ...refined, id: "drift-next" };
@@ -136,9 +135,8 @@ test("bounds retained vehicle observations", () => {
 });
 
 test("stamps each run with the age of the board it came from, not the freshest one in hand", () => {
-  // The diagram reads the core observation and the line's own boards on different cadences, so the
-  // two arrive minutes apart. One instant across both would have a stale run dead-reckoned from a
-  // time it was never read at, which is exactly how a mark drifts away from the vehicle.
+  // The core observation and line boards arrive minutes apart; each run is placed from its own read
+  // time.
   const fresh = departure("fresh", [call("a", 0), call("b", 5), call("c", 10)], "realtime", start);
   const stale = departure(
     "stale",

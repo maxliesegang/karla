@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Departure, DepartureBoard } from "../../data/transit-types";
 import { useZentrumPlanCanvas } from "../../hooks/zentrum-plan-canvas";
+import { findTurnarounds } from "../../lib/line-turnarounds";
 import { createRunMotions } from "../../lib/vehicle-positioning";
 import {
   type ZentrumSchematicLayout,
@@ -34,14 +35,11 @@ import {
 } from "./ZentrumStopPanel";
 import { ZentrumVehicleDetail } from "./ZentrumVehicleDetail";
 
-/** A count read as rider-facing German text, in the singular where there is one. */
+/** A German count, singular where it applies. */
 const formatCount = (count: number, one: string, many: string): string =>
   `${count} ${count === 1 ? one : many}`;
 
-/**
- * The caption under the drawing: only what cannot be read off it, i.e. what the colour means
- * and, while nothing is chosen, that a stop can be tapped.
- */
+/** The caption: what the colour means and, while nothing is chosen, that stops can be tapped. */
 const getZentrumSchematicCaption = (
   selectedLineId: string | undefined,
   vehicleCount: number,
@@ -60,15 +58,15 @@ const getZentrumSchematicCaption = (
     : `${running} im Plan · Haltestelle antippen`;
 };
 
-/** What one opened stop lights on the plan, and the readings that go with it. */
+/** What an opened stop lights, and its readings. */
 type ZentrumStopView = {
   overlay: ZentrumSchematicOverlay;
   /** The stop's board, or nothing while it has not answered. */
   rows?: readonly ZentrumStopBoardRow[];
   reachedStops: readonly ZentrumReachedStop[];
-  /** The countdown each tram the stop is waiting for carries on the plan. */
+  /** The countdown on each tram the stop waits for. */
   vehicleMinutesById?: ReadonlyMap<string, number>;
-  /** The minutes and line each reached stop is printed with on the plan. */
+  /** Minutes and line printed at each reached stop. */
   stopMinutesByNodeId?: ReadonlyMap<string, ZentrumStopTravelTag>;
 };
 
@@ -111,9 +109,8 @@ const getZentrumStopView = (
 };
 
 /**
- * The plan with its controls, the band under it, and the panel for whatever is opened. The plan's
- * own reading is chosen in the band; an opened stop lights the plan from there and brings its own
- * readings to the panel. A vehicle opens over the stop it was found from.
+ * The plan, its controls, the reading band and the panel for whatever is opened. A vehicle opens
+ * over the stop it was found from.
  */
 export function ZentrumSchematic({
   layout,
@@ -128,7 +125,7 @@ export function ZentrumSchematic({
   onSelectStop,
   onChangeFullscreen,
 }: {
-  /** The lanes laid out for what runs over the plan, drawn here at the width the plan is shown. */
+  /** The lane layout, drawn here at the shown width. */
   layout: ZentrumSchematicLayout;
   getSign: ZentrumLineSignReader;
   /** The followed line, as the address names it. */
@@ -150,17 +147,21 @@ export function ZentrumSchematic({
   const [planReading, setPlanReading] = useState<ZentrumPlanReading>("lines");
   const [stopReading, setStopReading] = useState<ZentrumStopReading>("travelTimes");
   const plan = useZentrumPlanCanvas();
-  // The lane width follows the plan's size on screen, so the geometry is drawn where it is measured.
+  // The lane width follows the plan's on-screen size.
   const [drawSchematic] = useState(createZentrumSchematicDrawer);
   const schematic = useMemo(
     () => drawSchematic(layout, plan.planWidth),
     [drawSchematic, layout, plan.planWidth],
   );
-  // How the marks have been moving, kept while the plan is mounted.
+  // Mark motion, kept while mounted. Placed once per tick, so other renders re-place nothing.
   const [motions] = useState(createRunMotions);
-  const vehicles = getZentrumSchematicVehicles(schematic, runDepartures, feedNow, motions);
+  const turnarounds = useMemo(() => findTurnarounds(runDepartures), [runDepartures]);
+  const vehicles = useMemo(
+    () => getZentrumSchematicVehicles(schematic, runDepartures, feedNow, motions, turnarounds),
+    [schematic, runDepartures, feedNow, motions, turnarounds],
+  );
 
-  // Escape leaves full screen; back already does, since the size is part of the address.
+  // Escape leaves full screen; back does too, since size is in the address.
   useEffect(() => {
     if (!isFullscreen) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -189,7 +190,7 @@ export function ZentrumSchematic({
     setSelectedVehicleId(undefined);
     onSelectLine(lineId);
   };
-  // Stable, so the memoized stops do not re-render every second.
+  // Stable, so memoized stops do not re-render every second.
   const selectStop = useCallback(
     (stopId: string | undefined) => {
       setSelectedVehicleId(undefined);

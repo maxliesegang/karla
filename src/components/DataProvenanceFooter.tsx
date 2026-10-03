@@ -7,12 +7,8 @@ import { formatClockTime } from "../lib/departure-presentation";
 import { navigateTo, routePaths } from "../routing";
 
 /**
- * Provenance is stated in every state: the source on the left, its condition on the right.
- *
- * The full notice list is reached from here. It is a reference work, not a step in anyone's journey
- * — most riders should meet a notice filtered to the stop they are standing at, under the board it
- * concerns — so it keeps its address and sits with the other statements about where the data
- * came from, rather than costing a control in the bar on every screen.
+ * Provenance in every state: the source left, its condition right. Also links the full notice
+ * list, a reference rather than a step in a journey.
  */
 export function DataProvenanceFooter({
   departureBoard,
@@ -22,12 +18,12 @@ export function DataProvenanceFooter({
   showsNoticesLink = false,
 }: {
   departureBoard?: DepartureBoard | null;
-  /** Several observation posts describe the Zentrum; the oldest live timestamp is the honest stand. */
+  /** Several posts describe the Zentrum; the oldest live timestamp is stated. */
   departureBoards?: readonly DepartureBoard[];
   coverage?: DepartureBoardCoverage;
-  /** Present only on the dedicated notice view; null means that feed is still loading. */
+  /** Only on the notices view; null while loading. */
   serviceNoticeBoard?: ServiceNoticeBoard | null;
-  /** Left off the notice view itself, which is already there. */
+  /** Omitted on the notices view itself. */
   showsNoticesLink?: boolean;
 }) {
   if (serviceNoticeBoard !== undefined) {
@@ -44,9 +40,7 @@ export function DataProvenanceFooter({
     );
   }
 
-  // The home reads no board at all, and a footer that says "wird geladen …" for a reading that was
-  // never asked for is the one thing provenance may not do: it states a condition that is not true.
-  // The source is still named — that promise is kept in every state — and nothing more is claimed.
+  // Home reads no board, so the footer names the source without claiming a load.
   const hasReadingInView = departureBoard !== undefined || departureBoards !== undefined;
   const relevantDepartureBoards = departureBoards ?? (departureBoard ? [departureBoard] : []);
   const isLoading =
@@ -67,8 +61,7 @@ export function DataProvenanceFooter({
         : coverage?.status === "unavailable"
           ? "nicht erreichbar"
           : coverage?.status === "partial" && oldestLiveBoard
-            ? // How much of the Zentrum this reading rests on: a fact about the source, so it is
-              // stated here rather than in the plan's caption.
+            ? // Coverage is a fact about the source.
               `teilweise erreichbar · aus ${coverage.liveBoardCount} von ${coverage.expectedBoardCount} Haltestellen · ältester Stand ${formatClockTime(oldestLiveBoard.feedUpdatedAt)}`
             : isLoading
               ? "wird geladen …"

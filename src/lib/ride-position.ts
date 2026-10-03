@@ -2,48 +2,33 @@ import type { TripCall } from "../data/transit-types";
 import { toLocalMeters, type LocalPoint } from "./geo";
 
 /**
- * Where the rider is, read off the device rather than off the timetable.
- *
- * On board, the estimate the feed states and the vehicle the rider is sitting in are two different
- * facts, and the device knows which one is true: a trip may be timed to have left Marktplatz while
- * the tram is still standing in it. So when the rider has granted location, the ride reads its own
- * position instead — the calls carry coordinates, so the fix is projected onto the link it falls on
- * and the next stop is that link's far end.
- *
- * What this must never do is place a rider it cannot place. A fix is only used when the browser's
- * own accuracy radius is small enough to distinguish one link from the next, when the calls it is
- * measured against actually carry coordinates, and when it lands near the line at all — a rider who
- * is nowhere near this trip is not somewhere along it. In every one of those cases the answer is
- * `null` and the ride goes back to reading the feed, which is a worse estimate but still a true
- * statement about the trip.
- *
- * A line that doubles back on itself passes the same ground twice, and a fix alone cannot say which
- * pass it is. Where two links are equally good the one nearest the timetable's own reading wins:
- * the feed is a poor clock but a reliable account of the order stops come in.
+ * Where the rider is, from the device: a fix projected onto the trip's links, the next stop being
+ * that link's far end. `null` unless the fix is accurate enough, the calls have coordinates, and it
+ * lands near the line. Where a line doubles back, the link nearest the timetable's reading wins.
  */
 
 export type RidePositionFix = {
   latitude: number;
   longitude: number;
-  /** The browser's stated accuracy radius in metres. Without one a fix cannot be judged at all. */
+  /** The browser's accuracy radius in metres. */
   accuracyMeters: number;
 };
 
-/** Wider than this and the fix cannot tell one link of an urban line from the next. */
+/** Wider than this, a fix cannot tell one urban link from the next. */
 export const MAX_RIDE_POSITION_FIX_ACCURACY_METERS = 250;
-/** How far off the line a fix may land before it stops being evidence about this trip. */
+/** How far off the line a fix may land and still be about this trip. */
 const MAX_RIDE_POSITION_OFF_ROUTE_METERS = 400;
-/** Two links this close to equally good are not distinguished by distance; the timetable decides. */
+/** Links this close in distance are tied; the timetable decides. */
 const AMBIGUOUS_LINK_MARGIN_METERS = 120;
 
 export type RidePosition = {
-  /** Index into the trip's calls of the stop the vehicle is running towards. */
+  /** Index of the call the vehicle is running towards. */
   nextCallIndex: number;
-  /** 0 at the call behind, 1 at the call ahead: how far along that link the fix sits. */
+  /** 0 at the call behind, 1 at the call ahead. */
   linkProgress: number;
   /** Metres still to run along the link to that call. */
   metersToNextCall: number;
-  /** How far the fix sits from the line itself, which is what its trustworthiness is judged on. */
+  /** Distance from the line, which the fix is trusted by. */
   offRouteMeters: number;
 };
 
@@ -52,8 +37,7 @@ function projectOntoLink(from: LocalPoint, to: LocalPoint) {
   const deltaX = to.x - from.x;
   const deltaY = to.y - from.y;
   const lengthSquared = deltaX ** 2 + deltaY ** 2;
-  // Two calls at one coordinate — a stop complex naming both of its halves — have no direction to
-  // project onto; the fix is simply at that point.
+  // Two calls at one coordinate (a complex's halves) have no direction; the fix is at that point.
   const progress =
     lengthSquared === 0
       ? 1
@@ -67,12 +51,7 @@ function projectOntoLink(from: LocalPoint, to: LocalPoint) {
   };
 }
 
-/**
- * The fix placed on the trip, or nothing when it cannot honestly be placed.
- *
- * `preferredCallIndex` is the timetable's own reading of which call is next; it settles a tie
- * between two passes over the same ground and is ignored where the fix is unambiguous.
- */
+/** The fix placed on the trip, or `null`. `preferredCallIndex` (the timetable's) breaks ties. */
 export function getRidePosition(
   calls: readonly TripCall[],
   fix: RidePositionFix,
@@ -91,8 +70,7 @@ export function getRidePosition(
       : toLocalMeters(call.latitude, call.longitude, fix),
   );
 
-  // A link needs both of its ends. Where the feed omits a call's coordinates the ground on either
-  // side of it is simply not covered, rather than being spanned by a link that skips a stop.
+  // Links need both ends; calls without coordinates leave their ground uncovered.
   const candidates: RidePosition[] = [];
   for (let index = 0; index < calls.length - 1; index += 1) {
     const from = points[index];
@@ -113,7 +91,7 @@ export function getRidePosition(
     candidate.offRouteMeters < best.offRouteMeters ? candidate : best,
   );
   if (preferredCallIndex === undefined) return nearest;
-  // Among the links the fix cannot tell apart, the timetable's own place in the sequence decides.
+  // Among tied links, the one nearest the timetable's reading wins.
   const distanceFromPreferred = (candidate: RidePosition) =>
     Math.abs(candidate.nextCallIndex - preferredCallIndex);
   return candidates

@@ -44,7 +44,7 @@ test("keeps S1 and S11 as separate line addresses", () => {
   assert.equal(parseRoute("#/stop/europaplatz/line/S1").lineId, "S1");
   assert.equal(parseRoute("#/stop/europaplatz/line/S11").lineId, "S11");
   assert.deepEqual(parseRoute("#/stop/europaplatz/line/S1").bundledLineIds, []);
-  // The old combined link is read as the two lines being read together, which is what it meant.
+  // The legacy combined link reads as the bundle.
   const legacy = parseRoute("#/stop/europaplatz/line/S1-S11");
   assert.equal(legacy.lineId, "S1");
   assert.deepEqual(legacy.bundledLineIds, ["S11"]);
@@ -59,7 +59,7 @@ test("two lines read over the stretch they share are one address, and stay two l
     getSelectionPath({ stopId: "hochstetten", lineId: "S1", bundledLineIds: ["S11"] }),
     "/stop/hochstetten/line/S1+S11",
   );
-  // A trip pinned inside the bundle keeps it, and unpinning comes back to the same reading.
+  // A trip pinned in the bundle keeps it; unpinning returns to it.
   assert.equal(
     getSelectionPath({
       stopId: "hochstetten",
@@ -86,17 +86,17 @@ test("a row tapped inside a bundle stays inside it, and any other row leaves it"
     ({ id: "row", tripId: TRIP, lineId }) as Parameters<typeof getDepartureOpenPath>[0];
   const selection = { lineId: "S1", bundledLineIds: ["S11"] };
 
-  // The sibling's own row: the same two lines in the same order, and only the trip changes.
+  // The sibling's row keeps the lines; only the trip changes.
   assert.equal(
     getDepartureOpenPath(row("S11"), "hochstetten", false, selection),
     `/stop/hochstetten/line/S1+S11/trip/${TRIP}`,
   );
-  // Unpinning it comes back to the corridor the rider chose, not to one of its lines.
+  // Unpinning returns to the bundle.
   assert.equal(
     getDepartureOpenPath(row("S11"), "hochstetten", true, selection),
     "/stop/hochstetten/line/S1+S11",
   );
-  // A line that is not in the bundle is a different choice, and leads to that line alone.
+  // A line outside the bundle leads to that line alone.
   assert.equal(
     getDepartureOpenPath(row("S2"), "hochstetten", true, selection),
     "/stop/hochstetten/line/S2",
@@ -141,7 +141,7 @@ test("a trip opened from a plain stop board steps back to that board", () => {
 });
 
 test("the stop's own address is the only one its lines need", () => {
-  // The former `/lines` narrowing is gone; an old link lands on the plain stop and is rewritten.
+  // The legacy `/lines` qualifier lands on the stop.
   const linesRoute = parseRoute("#/stop/europaplatz/lines");
   assert.equal(linesRoute.view, "stop");
   assert.equal(linesRoute.stopId, "europaplatz");
@@ -164,10 +164,9 @@ test("a line diagram places itself, so no address it is read at starts at the to
   const tripRoute = parseRoute(
     "#/stop/augartenstrasse/line/S11/trip/de:kvv:00S11_:.kvv-22-311-E.5.T0.161.s26",
   );
-  // Selecting the trip must not read as a move: the diagram has already aimed at its vehicle.
+  // Selecting a trip is not a move; the diagram aims at its vehicle.
   assert.equal(getViewStartKey(tripRoute), null);
-  // Nor must moving along the line from one of its stops to the next: the diagram is still the
-  // diagram, and it travels to the new stop rather than being opened again at the top.
+  // Nor is stepping along the line.
   assert.equal(getViewStartKey(parseRoute("#/stop/augartenstrasse/line/S11")), null);
   assert.equal(getViewStartKey(parseRoute("#/stop/marktplatz/line/S11")), null);
 });
@@ -187,7 +186,7 @@ test("a board refresh rewriting the address is not a move", () => {
     getViewStartKey(parseRoute("#/stop/marktplatz")),
     getViewStartKey(parseRoute("#/stop/marktplatz")),
   );
-  // Two stops read on their own are two views; read with a line, both place themselves instead.
+  // Stops alone are two views; with a line, they place themselves.
   assert.notEqual(
     getViewStartKey(parseRoute("#/stop/marktplatz")),
     getViewStartKey(parseRoute("#/stop/europaplatz")),
@@ -201,7 +200,7 @@ test("a ride carries the stop it was begun at, beside the one it is heading for"
     routePaths.ride(TRIP, "europaplatz", "durlach-bahnhof"),
     `/trip/${TRIP}/from/europaplatz/to/durlach-bahnhof`,
   );
-  // Either stop may be absent, and an Ausstieg alone must not be read as naming an origin.
+  // Either stop may be absent; an Ausstieg alone is not an origin.
   const marked = parseRoute(`#/trip/${TRIP}/to/durlach-bahnhof`);
   assert.equal(marked.originStopId, undefined);
   assert.equal(marked.alightingStopId, "durlach-bahnhof");
@@ -210,7 +209,7 @@ test("a ride carries the stop it was begun at, beside the one it is heading for"
   assert.equal(both.alightingStopId, "durlach-bahnhof");
   assert.equal(both.isRide, true);
   assert.equal(both.lineId, "S11");
-  // Every level the address resolved to is written back, the origin included.
+  // Every resolved level is written back, origin included.
   assert.equal(
     getSelectionPath({
       stopId: "europaplatz",
@@ -225,7 +224,7 @@ test("a ride carries the stop it was begun at, beside the one it is heading for"
 });
 
 test("step up drops exactly one level of the address, and never reads live data for one", () => {
-  // The chain, one rung at a time.
+  // One level at a time.
   assert.equal(
     getParentSelectionPath({ view: "stop", stopId: "europaplatz", lineId: "S11", addressId: TRIP }),
     "/stop/europaplatz/line/S11",
@@ -235,7 +234,7 @@ test("step up drops exactly one level of the address, and never reads live data 
     "/stop/europaplatz",
   );
   assert.equal(getParentSelectionPath({ view: "stop", stopId: "europaplatz" }), "/");
-  // The home page is the top; every page above the chain steps back up to it.
+  // Home is the top.
   assert.equal(getParentSelectionPath({ view: "zentrum", stopId: "europaplatz" }), "/");
   assert.equal(getParentSelectionPath({ view: "network", stopId: "europaplatz" }), "/");
   assert.equal(getParentSelectionPath({ view: "notices", stopId: "europaplatz" }), "/");
@@ -255,13 +254,12 @@ test("a ride steps back to where it was begun, not to a stop the vehicle is runn
     }),
     `/stop/europaplatz/line/S11/trip/${TRIP}`,
   );
-  // Pressed twice, it always reaches that trip's own stop — whatever the trip has since done.
+  // Pressed twice, it reaches the trip's stop.
   assert.equal(
     getParentSelectionPath({ view: "stop", stopId: "europaplatz", lineId: "S11", addressId: TRIP }),
     "/stop/europaplatz/line/S11",
   );
-  // A ride opened from a shared link came from nowhere, and step up says so rather than inventing
-  // a stop the rider has never seen.
+  // A ride from a shared link steps up to home.
   assert.equal(
     getParentSelectionPath({
       view: "stop",
@@ -278,8 +276,7 @@ test("the network page is one page, and a former scope address still opens it", 
   assert.equal(routePaths.network(), "/network");
   assert.equal(parseRoute("#/network").view, "network");
   assert.equal(parseRoute("#/network/").view, "network");
-  // The two scopes the page was once read in are gone with the control that named them; an old
-  // link lands on the page the address always meant.
+  // Legacy scoped links land on the network page.
   assert.equal(parseRoute("#/network/city").view, "network");
   assert.equal(parseRoute("#/network/region").view, "network");
 });

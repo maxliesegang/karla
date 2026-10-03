@@ -29,11 +29,8 @@ const LINE_SEPARATION_WEIGHT = 3;
 const LINE_ORDER_PASS_LIMIT = 24;
 
 /**
- * One lane's passage through a stop, named by the corridors it uses there (`lineId` is the lane's
- * name, since a trunk and its branches are one lane).
- *
- * Two corridors: running through. One: the pattern ends here, drawn into the middle of the dot,
- * so a line swinging round the dot still crosses it.
+ * One lane's passage through a stop, by the corridors it uses (a trunk and its branches are one
+ * lane). One corridor means the pattern ends here, drawn into the dot.
  */
 type NodeLinePassage = { lineId: string; edgeIds: readonly string[] };
 
@@ -75,18 +72,15 @@ const getCorridorTurn = (corridor: NodeCorridor, exit: NodeCorridor | undefined)
 };
 
 /**
- * One pair of lines at one stop, read once into the test their lanes must pass not to cross.
- *
- * Sharing both corridors, they run side by side and cross unless their lane numbers reverse
- * (numbers count outwards from the dot). Sharing one, they part here and cross when the one on
- * the left leaves to the right. Sharing none, no order matters. Geometry and routes fix which
- * case applies, so scoring an order is two lane numbers and a sign.
+ * A pair of lines at a stop, reduced to the test their lanes must pass not to cross. Sharing both
+ * corridors, lane numbers must reverse (they count outwards from the dot); sharing one, they cross
+ * when the left one leaves right; sharing none, any order works.
  */
 type NodeLineCrossing = {
   lineIds: readonly [string, string];
   /** The corridors the pair's lanes are read on, and which way each numbers them. */
   reads: readonly { edgeId: string; laneDirection: number }[];
-  /** Where the pair parts, which way the second line turns away from the first. */
+  /** Where the pair parts, which way the second turns away from the first. */
   turnSign: number;
 };
 
@@ -190,11 +184,8 @@ const getEdgeSeparationCost = (
 };
 
 /**
- * Every order reachable by moving a run of neighbouring lines elsewhere, plus the reversal.
- *
- * Runs, not single lines: a group leaving a corridor together (the S-Bahnen turning north out of
- * the Poststraße) can only cross the others as a block, since moving any one of them alone costs a
- * crossing with each of the rest.
+ * Moves of a run of neighbouring lines elsewhere, plus the reversal. Runs, because a group leaving
+ * together (S-Bahnen turning north out of the Poststraße) can only cross others as a block.
  */
 const getLineOrderMoves = (order: readonly string[]): (readonly string[])[] => {
   const moves: string[][] = [];
@@ -251,22 +242,16 @@ const getLineOrderHandovers = (
 };
 
 /**
- * Whether lines running between two corridors keep their lane numbers there. Measured the same
- * way round from the stop, the numbers must reverse; measured opposite ways (a straight), they
- * read alike.
+ * Whether lines running between two corridors keep their lane numbers: measured the same way from
+ * the stop they reverse; measured opposite ways (a straight) they match.
  */
 const keepsLaneOrder = (arriving: NodeCorridor, leaving: NodeCorridor): boolean =>
   arriving.laneDirection !== leaving.laneDirection;
 
 /**
- * Carries orders outwards across stops so no line crosses another where it merely runs through.
- *
- * Local refinement moves one corridor at a time, and a group turning off together cannot be fixed
- * that way: repairing the turn breaks the next corridor by as much. Carrying settles that at once.
- *
- * The busiest open handover goes first, so where corridors conflict the one with the fewest
- * through lines gives way. Lines joining at a stop keep their places. A seed corridor is how a move
- * made on it is carried across the rest.
+ * Carries orders outwards across stops so no line crosses another where it runs through;
+ * per-corridor moves cannot fix a group turning off together. The busiest handover goes first;
+ * lines joining at a stop keep their places.
  */
 const propagateLineOrders = (
   busiestFirst: readonly ZentrumSchematicObservedEdge[],
@@ -324,13 +309,9 @@ const propagateLineOrders = (
 };
 
 /**
- * The lane order on every corridor, solved for the drawing as a whole (LOOM's line ordering).
- *
- * A drawing costs the crossings its orders force at stops plus the lanes left between lines that
- * travel together. Scoring at stops, not per corridor, is what sees the cost at the far end of a
- * turn. Each move is offered alone and carried across the corridors it reaches, and taken only if
- * it lowers the cost; ties go to the lower-reading order, so the search cannot cycle and the same
- * boards always draw the same plan.
+ * The lane order on every corridor (LOOM's line ordering): crossings at stops plus lanes left
+ * between companions, scored at stops so a turn's far end counts. A move is taken only if it lowers
+ * the cost; ties go to the lower-reading order, so the search cannot cycle and is deterministic.
  */
 export const getTrackLineIdsByEdgeId = (
   edges: readonly ZentrumSchematicObservedEdge[],
@@ -339,8 +320,7 @@ export const getTrackLineIdsByEdgeId = (
   const trackIdByLineId = new Map(linePaths.map(({ lineId, trackId }) => [lineId, trackId]));
   let orderByEdgeId = new Map<string, readonly string[]>(
     edges.map((edge) => [
-      // Only drawn lanes are ordered: a line whose drawn pattern runs elsewhere reserves none, and
-      // a trunk with its branches takes one.
+      // Only drawn lanes are ordered; a trunk with its branches takes one.
       edge.id,
       [...new Set(edge.lineIds.flatMap((lineId) => trackIdByLineId.get(lineId) ?? []))],
     ]),
@@ -519,17 +499,10 @@ const isStraightPair = (
 };
 
 /**
- * How far each corridor's band of lanes sits off the corridor's middle, in lanes.
- *
- * Centred bands would re-centre the lanes at every stop, so a line along a straight (the
- * Kaiserstraße) would step aside wherever the number of lines changes. Instead a lane running
- * straight through a stop keeps its distance from the middle. Each pair of corridors forming a
- * straight votes for the offset between their bands, one vote per through lane, the majority
- * winning (ties to no shift). The busiest corridor of a straight stays centred and the rest hang
- * off it; corridors on no straight stay centred. Lanes that lose a vote step sideways in a bend.
- *
- * Counted in lanes rather than plan units, so the lane width can follow the screen without the
- * lanes being laid out again.
+ * Each corridor's band offset from its middle, in lanes, so a lane running straight through a stop
+ * keeps its distance from the middle (no stepping aside along the Kaiserstraße). Each straight pair
+ * of corridors votes per through lane; the majority wins, ties shift nothing. The busiest corridor
+ * of a straight stays centred. In lanes, so the lane width can change without a re-layout.
  */
 export const getTrackBandOffsetByEdgeId = (
   edges: readonly ZentrumSchematicLanedEdge[],

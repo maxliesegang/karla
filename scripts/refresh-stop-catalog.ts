@@ -1,29 +1,14 @@
 /**
- * Regenerates `src/data/generated/kvv-stop-catalog.ts`.
- *
- * Two sources, one fact each, so a wrong value has one place to have come from:
- *
- * - **EFA `XML_STOPLIST_REQUEST`** states which stops the municipality has, and for each its
- *   provider id, its global id, its name, its position, and the locality it belongs to. The
- *   locality is the part no other source carries: GTFS knows a stop's parent station but nothing
- *   about the place around it, and the place is what tells two stops sharing a name apart.
- * - **KVV's CC0 GTFS feed** states how much service each stop sees — the lines that call there and
- *   how many calls the period holds. EFA will only answer that one stop at a time, at ~30 KB a
- *   request; the feed answers it for the whole municipality in one download.
- *
- * The two are joined on the global id, which both state, rather than on the shape of the provider
- * id. `7000089` and `de:08212:89` do relate by dropping a leading digit, but that is a coincidence
- * of the numbering rather than a rule either publisher states, and a join has no business resting
- * on it.
- *
- * This is deliberately not something the app runs. What it writes is the timetable's own account
- * of where stops are and how much calls at them, which changes when the timetable period does —
- * not which lines are running today, which stays observed from live trips.
+ * Regenerates `src/data/generated/kvv-stop-catalog.ts` from two sources, one fact each:
+ * - EFA `XML_STOPLIST_REQUEST`: the municipality's stops with provider id, global id, name,
+ *   position and locality (which GTFS lacks).
+ * - KVV's CC0 GTFS feed: lines and calls per stop, for the whole municipality in one download.
+ * Joined on the global id, not on the provider id's shape.
  *
  *     npm run refresh:stops
  *
- * Requires `unzip` on the PATH. The archive holds 227 MB unpacked, of which `stop_times.txt` is
- * 207 MB, so it is read through a pipe rather than unpacked to disk.
+ * Run by hand when the timetable period changes. Requires `unzip`; the archive is 227 MB unpacked
+ * (`stop_times.txt` 207 MB), so it is streamed.
  */
 
 import { spawn } from "node:child_process";
@@ -36,12 +21,12 @@ const STOP_LIST_ENDPOINT = "https://projekte.kvv-efa.de/sl3-alone/XML_STOPLIST_R
 const GTFS_ARCHIVE_URL = "https://projekte.kvv-efa.de/GTFS/google_transit.zip";
 const OUTPUT_PATH = new URL("../src/data/generated/kvv-stop-catalog.ts", import.meta.url);
 
-/** The municipality this app serves, as the official municipality key (Gemeindekennziffer). */
+/** The official municipality key (Gemeindekennziffer). */
 const MUNICIPALITY_OMC = "8212000";
-/** Global ids of stops in that municipality all carry this prefix; GTFS prefixes stations with `P`. */
+/** The municipality's global id prefix; GTFS prefixes stations with `P`. */
 const GLOBAL_ID_PREFIX = "de:08212:";
 
-/** What the catalog states about one stop. Mirrors `KvvCatalogStop` in the generated module. */
+/** One stop's catalog entry; mirrors `KvvCatalogStop`. */
 type CatalogStop = {
   providerStopId: string;
   globalId: string;
@@ -79,8 +64,7 @@ async function main(): Promise<void> {
           callCount: service?.calls ?? 0,
         };
       })
-      // Ordered by the number the operator gave the stop, so a refresh diffs as the stops whose
-      // service changed rather than as a file that reflowed around a renamed one.
+      // By stop number, so refreshes diff by changed stops.
       .sort((first, second) => catalogSortKey(first) - catalogSortKey(second));
 
     await writeFile(OUTPUT_PATH, renderModule(catalog, feedVersion), "utf8");
@@ -93,16 +77,13 @@ async function main(): Promise<void> {
   }
 }
 
-/** The numeric part of a global id, which is the operator's own stop number. */
+/** The operator's stop number from a global id. */
 const catalogSortKey = ({ globalId }: { globalId: string }): number =>
   Number.parseInt(globalId.slice(GLOBAL_ID_PREFIX.length), 10) || 0;
 
 /**
- * Every stop of the municipality, with the locality it sits in.
- *
- * `XML_STOPLIST_REQUEST` is the one EFA request that answers in `rapidJSON` only: asked for the
- * `json` the rest of this app speaks it returns HTTP 200 and an empty body, which is why the app's
- * own client never learned to call it.
+ * The municipality's stops with their locality. `XML_STOPLIST_REQUEST` only answers in `rapidJSON`;
+ * `json` gives HTTP 200 with an empty body.
  */
 async function fetchMunicipalityStops(): Promise<Omit<CatalogStop, "lineCount" | "callCount">[]> {
   const url = new URL(STOP_LIST_ENDPOINT);
@@ -148,7 +129,7 @@ async function fetchMunicipalityStops(): Promise<Omit<CatalogStop, "lineCount" |
   return stops;
 }
 
-/** Downloads the archive and returns the `feed_version` it states, which dates everything below. */
+/** Downloads the archive; returns its `feed_version`. */
 async function downloadGtfsArchive(archivePath: string): Promise<string> {
   const response = await fetch(GTFS_ARCHIVE_URL);
   if (!response.ok) throw new Error(`GTFS archive: HTTP ${response.status}`);
@@ -164,7 +145,7 @@ async function downloadGtfsArchive(archivePath: string): Promise<string> {
   return version;
 }
 
-/** The passenger-facing name of the line each trip runs, which is what a rider counts as a line. */
+/** The passenger-facing line name for each trip. */
 async function readLineNamesByTrip(archivePath: string): Promise<Map<string, string>> {
   const nameByRouteId = new Map<string, string>();
   for await (const [routeId, , shortName] of columnsOf(archivePath, "routes.txt", 3)) {
@@ -180,12 +161,8 @@ async function readLineNamesByTrip(archivePath: string): Promise<Map<string, str
 }
 
 /**
- * How much service each station sees: the distinct lines calling there, and how many calls.
- *
- * Counted against the parent station rather than the platform, because a rider changing lines at
- * Marktplatz does not care which of its platforms each line uses. The count is calls in the feed
- * period, not calls per day — a trip that runs on two days of the week is one trip here, so the
- * number ranks stops against each other and is not a frequency.
+ * Distinct lines and calls per parent station. Calls count over the feed period (a ranking, not a
+ * frequency).
  */
 async function readServiceByStation(
   archivePath: string,
@@ -193,7 +170,7 @@ async function readServiceByStation(
 ): Promise<Map<string, { lines: Set<string>; calls: number }>> {
   const stationByPlatformId = new Map<string, string>();
   for await (const [stopId, , , , , , , parentStation] of columnsOf(archivePath, "stops.txt", 8)) {
-    // GTFS names the station `Pde:08212:1011` where EFA names the same stop `de:08212:1011`.
+    // GTFS's station `Pde:08212:1011` is EFA's `de:08212:1011`.
     if (stopId?.startsWith(GLOBAL_ID_PREFIX) && parentStation?.startsWith(`P${GLOBAL_ID_PREFIX}`)) {
       stationByPlatformId.set(stopId, parentStation.slice(1));
     }
@@ -212,7 +189,7 @@ async function readServiceByStation(
   return serviceByGlobalId;
 }
 
-/** The rows of one archive member, header skipped, cut to the columns a caller reads. */
+/** One archive member's rows, header skipped, cut to the needed columns. */
 async function* columnsOf(
   archivePath: string,
   member: string,
@@ -224,10 +201,8 @@ async function* columnsOf(
 }
 
 /**
- * One member of the archive, streamed through `unzip -p` and parsed as GTFS's quoted CSV.
- *
- * Only the first `fieldCount` fields of each row are parsed: `stop_times.txt` holds 2.2 million
- * rows of which every one is read, and the fields worth reading are the leading ones.
+ * One archive member streamed via `unzip -p` as quoted CSV; only the leading `fieldCount` fields
+ * parsed.
  */
 async function* readArchiveMember(
   archivePath: string,
@@ -246,7 +221,7 @@ async function* readArchiveMember(
 
   try {
     for await (const line of createInterface({ input: unzip.stdout, crlfDelay: Infinity })) {
-      // The publisher writes a BOM at the head of every member.
+      // Every member starts with a BOM.
       if (line) yield readFields(line.charCodeAt(0) === 0xfeff ? line.slice(1) : line, fieldCount);
     }
     await Promise.race([failure, Promise.resolve()]);
@@ -255,7 +230,7 @@ async function* readArchiveMember(
   }
 }
 
-/** The leading fields of one CSV row. GTFS quotes with `"` and escapes a quote by doubling it. */
+/** The leading fields of a CSV row; quotes escape by doubling. */
 function readFields(line: string, fieldCount: number): (string | undefined)[] {
   const fields: (string | undefined)[] = [];
   let index = 0;
@@ -287,12 +262,7 @@ function readFields(line: string, fieldCount: number): (string | undefined)[] {
   return fields;
 }
 
-/**
- * The generated module.
- *
- * One row per stop, so a refresh diffs as the stops that changed rather than as a reflowed file,
- * and the columns are named once here rather than repeated 389 times.
- */
+/** The generated module, one row per stop for clean diffs. */
 function renderModule(catalog: readonly CatalogStop[], feedVersion: string): string {
   const rows = catalog
     .map(

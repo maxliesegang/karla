@@ -26,14 +26,9 @@ import {
 } from "../../lib/line-diagram";
 
 /**
- * Turning a bundled reading into a drawn diagram.
- *
- * `lib/line-bundles.ts` says what a bundle *is* — which lines share a stretch, where it ends, what
- * each of them does past it. These hooks are the rendering half of that: which calls the trunk is
- * drawn over, which legs there are to draw, and where each leg's vehicles stand. They are hooks
- * rather than plain functions because every one of those answers has to survive a clock tick that
- * only moved a mark, and because a mark handing over from the trunk to a leg is a two-frame
- * observation the panel cannot make without remembering the frame before.
+ * Rendering a bundle (`lib/line-bundles.ts`): the trunk's calls, the legs, and each leg's vehicles.
+ * Hooks, so answers survive ticks and a mark handing over from trunk to leg can be seen across two
+ * frames.
  */
 
 export const EMPTY_LINE_BUNDLE_BRANCH_VEHICLES: readonly LineDiagramVehicle[] = [];
@@ -43,15 +38,14 @@ const EMPTY_TRANSFER_KEYS: ReadonlyMap<string, ReadonlySet<string>> = new Map();
 /** The drawn shape of a reading: one trunk, and what stands at either end of it. */
 export type LineDiagramFork = {
   /**
-   * The stretch actually drawn as one line. With no sibling in the reading it is the drawn trip
-   * itself; with one it stops at the last call every bundled line has been observed making, because
-   * past that the rows would belong to one line while carrying both their marks.
+   * The stretch drawn as one line: the drawn trip, or with a sibling, up to the last call every
+   * bundled line was observed making.
    */
   calls: readonly TripCall[];
-  /** Legs at the end the line runs towards, and at the end it came from. Drawable ones only. */
+  /** Drawable legs at the end the line runs towards, and at the end it came from. */
   branchesAhead: readonly LineBundleBranch[];
   branchesBehind: readonly LineBundleBranch[];
-  /** The stops the lines part at, which the legs point back to and the words are said in. */
+  /** The stop the lines part at. */
   junctionAhead: string;
   junctionBehind: string;
   /** The lines that part here with no leg to draw, said in words. */
@@ -60,13 +54,7 @@ export type LineDiagramFork = {
   hasFork: boolean;
 };
 
-/**
- * The stretch a bundled reading is drawn over, and the legs at its ends.
- *
- * The line is still drawn from its own trip; what the bundle changes is where that drawing stops.
- * Where nothing supports a shared stretch the line draws itself alone, which is the honest answer
- * rather than a diagram that quietly speaks for a line it has not seen.
- */
+/** The bundle's trunk and legs; where nothing supports a shared stretch, the line alone. */
 export function useLineDiagramFork({
   lineId,
   bundledLines,
@@ -79,10 +67,10 @@ export function useLineDiagramFork({
   bundledLines: readonly TransitLine[];
   /** The drawn trip's calls in travel order: the diagram the bundle narrows. */
   drawnCalls: readonly TripCall[];
-  /** The headsign the drawn trip carries, which is the word its own split is stated in. */
+  /** The drawn trip's headsign, which its split is worded in. */
   destination: string | undefined;
   riderStopIds: readonly string[];
-  /** Whole-trip readings from which each sibling's drawn chain is chosen. */
+  /** Whole-trip readings each sibling's chain is chosen from. */
   candidateDepartures: readonly Departure[];
 }): LineDiagramFork {
   return useMemo(() => {
@@ -114,7 +102,7 @@ export function useLineDiagramFork({
   }, [bundledLines, candidateDepartures, destination, drawnCalls, lineId, riderStopIds]);
 }
 
-/** Each sibling's drawn trip beside the primary one, and the stretch they all have in common. */
+/** Each sibling's drawn trip and the stretch they all share. */
 function getObservedLineBundleTrunk({
   primary,
   bundledLineIds,
@@ -145,26 +133,10 @@ function getObservedLineBundleTrunk({
 }
 
 /**
- * The offers worth making: the siblings the trip on screen could actually be read with.
- *
- * `findLineBundleOffers` reads the corridor from what the stop has been observed doing, which is
- * the right evidence for *whether* two lines share a way — but it is direction-blind. The diagram
- * draws one trip, and the stop the rider is at sits in its chain: the trip ran one way out of it
- * and goes on the other, so a shared stretch on either side of the stop is drawn, and one on
- * neither side is on no part of this diagram at all. Taking such an offer would leave the drawing
- * exactly as it was, with a pressed control claiming a bundle nobody can see. So every offer is
- * tried against the drawn trip — both sides of the rider's stop — before it is made.
- *
- * Tried against the *corridor*, and not against the sibling's own next trip. The stop's board is
- * asked for the lines the address names, so a sibling's trips are not in hand until it has been
- * added to the reading — testing an offer against them would fail every offer ever made, and the
- * control would never appear at all. Where the corridor holds and the sibling's trips then turn
- * out not to draw beside this one, `getLineBundleTrunk` says so by drawing the line alone, which
- * is the honest answer and the one the rider can see the reason for.
- *
- * This is also where an offer stops being about a stop and starts being about a trip: a stop is
- * served both ways and an offer carries every stretch its two lines share out of it, so the one
- * the drawn trip actually runs along is picked here, and it is that stretch the control names.
+ * The offers that apply to the drawn trip: corridors are direction-blind, so each is tried against
+ * the drawn chain on both sides of the rider's stop, and the matching stretch is named. Tested
+ * against the corridor, not the sibling's trips, which are not loaded until it is added; if they do
+ * not draw beside this trip, `getLineBundleTrunk` draws the line alone.
  */
 export function useDrawableLineBundleOffers(options: {
   offers: readonly LineBundleOffer[];
@@ -179,13 +151,8 @@ export function useDrawableLineBundleOffers(options: {
 }
 
 /**
- * Where the legs' vehicles stand, and which of them have just come off the trunk.
- *
- * A fork has its own coordinate system for every leg, so the trunk's vehicle list cannot see
- * vehicles that have already continued past a junction: each leg places its own. A vehicle that
- * leaves the shared stretch is then rendered by a different layer, so its old trunk marker
- * disappears just as its branch marker appears — remembering the trunk's previous frame is what
- * lets the branch layer carry that marker across its connector instead of blinking it into place.
+ * Each leg places its own vehicles in its own coordinates. Remembering the trunk's previous frame
+ * lets a leg carry a mark across its connector instead of blinking it in.
  */
 export function useLineBundleBranchVehicles({
   branches,
@@ -208,12 +175,12 @@ export function useLineBundleBranchVehicles({
   joinedPortionPairs: readonly JoinedRunPortionPair[];
   selectedDeparture: Departure | undefined;
   feedNow: number;
-  /** The diagram's own motion record: the legs place the same runs its trunk does. */
+  /** The diagram's motion record; legs place the same runs as the trunk. */
   motions: RunMotions;
   turnaroundIndex: TurnaroundIndex;
-  /** See `getLineDiagramVehicles`: whether a trip still waiting to set out carries a mark. */
+  /** See `getLineDiagramVehicles`. */
   showWaitingVehicles?: boolean;
-  /** See `getShownLineDiagramVehicles`: whether the legs draw the line's other vehicles too. */
+  /** See `getShownLineDiagramVehicles`. */
   areOtherRunsShown?: boolean;
   trunkVehicles: readonly LineDiagramVehicle[];
 }): {
@@ -226,7 +193,7 @@ export function useLineBundleBranchVehicles({
       const branchLine = lineById.get(branch.lineId);
       if (!branchLine) continue;
       const branchStops = buildLineDiagramStops(network, [...branch.calls].reverse());
-      // Past the junction only this line runs, so the leg carries its vehicles alone.
+      // Past the junction only this line runs.
       const branchDepartures = getLineDiagramRunDepartures(
         createLineSelection(branch.lineId),
         runDepartures,
@@ -280,8 +247,7 @@ export function useLineBundleBranchVehicles({
       );
       if (transferKeys.size > 0) transfers.set(branchKey, transferKeys);
     }
-    // Only a hand-over is worth a render. Without this the diagram would re-render itself on every
-    // frame it drew no fork at all, since a fresh empty map is never the state it replaces.
+    // Only a hand-over is worth a render; a fresh empty map would re-render every frame.
     const update = window.setTimeout(
       () =>
         setTransferKeysByBranchKey((current) =>

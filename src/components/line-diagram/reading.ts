@@ -45,7 +45,7 @@ const EMPTY_DEPARTURES: readonly Departure[] = [];
 const NO_ROW_IDS: readonly string[] = [];
 const EMPTY_LINES: readonly TransitLine[] = [];
 const EMPTY_OFFERS: readonly LineBundleOffer[] = [];
-/** Fine enough that a call turns over within a few seconds of the minute it belongs to. */
+/** Fine enough that a call turns over within seconds of its minute. */
 const ROW_CLOCK_STEP_MS = 5_000;
 
 export type LineDiagramReadingInput = {
@@ -64,12 +64,8 @@ export type LineDiagramReadingInput = {
 };
 
 /**
- * What the diagram draws, derived once from the boards in hand.
- *
- * Every answer here is a fact about the line and the trip on it — which trip is drawn, which way
- * up, which stops it runs through, where the vehicles are, what the ends are called. None of it is
- * about the element it is drawn into: scrolling, measurement and placement are `layout.ts`'s, and
- * the panel is left holding a reading and a shape rather than deriving both at once.
+ * What the diagram draws, derived from the boards: which trip, which way up, which stops, which
+ * vehicles, the ends' names. Scrolling and measurement belong to `layout.ts`.
  */
 export function useLineDiagramReading({
   line,
@@ -85,14 +81,12 @@ export function useLineDiagramReading({
   isRide,
   rideNextCall,
 }: LineDiagramReadingInput) {
-  // The rider's own choice about the line's other vehicles, read where the drawing is derived.
   const { isShowingOtherLineRuns } = useStoredPreference(appSettings);
   const vehicleObservationBoards = useMemo(
     () => [...observationBoards, ...lineDepartureBoards],
     [observationBoards, lineDepartureBoards],
   );
-  // Every line being read, as one value: the marks, the drawn trip and the rows all answer to it,
-  // and with no sibling it is exactly the line — the ordinary reading is the bundle of one.
+  // With no sibling, the selection is the line itself.
   const lineSelection = useMemo(
     () =>
       createLineSelection(
@@ -101,10 +95,7 @@ export function useLineDiagramReading({
       ),
     [bundledLines, line.id],
   );
-  // Which board a copy of a run was read from decides how old its mark is, and these boards are not
-  // read together: the Zentrum observation runs slower than the line's own boards. Every departure
-  // states when it was read (`Departure.readAt`), so the contest between two boards' copies of one
-  // run is settled without the boards having to be carried alongside their rows to settle it.
+  // Copies of a run from different boards are ranked by their own read times.
   const observedRunDepartures = useMemo(
     () =>
       getLineDiagramRunDepartures(
@@ -119,9 +110,7 @@ export function useLineDiagramReading({
     departureBoard,
     isRide,
   );
-  // A retained ride may no longer occur on any departure board after a reload. It is still an
-  // observed trip with a dated call sequence, so keep it eligible for its own marker; placement
-  // itself drops it once that sequence says the run has ended.
+  // A retained ride may be on no board after a reload; placement drops it once its run ends.
   const visibleRunDepartures = useMemo(
     () =>
       getLineDiagramRunDepartures(
@@ -130,25 +119,20 @@ export function useLineDiagramReading({
       ),
     [departure, lineSelection, runDepartures],
   );
-  // Without a selected trip the diagram is still drawn from one, and which one it is decides which
-  // way up the line is drawn. Held rather than chosen again at every stop — see
-  // `chooseLineDiagramRun`, where the whole of that reasoning lives.
-  //
-  // The rider's stop is the addressed stop, plus the stop point the row actually leaves from where a
-  // stop-complex page lists a departure from one of its other points.
+  // Without a selected trip the diagram is still drawn from one, held across stops
+  // (`chooseLineDiagramRun`). The rider's stop includes the stop point a complex's row leaves from.
   const boardingLocalStopId = departure?.boardingLocalStopId;
   const riderStopIds = useMemo(
     () => (boardingLocalStopId ? [stop.id, boardingLocalStopId] : [stop.id]),
     [boardingLocalStopId, stop.id],
   );
-  // This stop's own whole-trip readings: the candidates for the drawn trip, and — where a sibling
-  // is being read alongside — for the trip that sibling is drawn from.
+  // The stop's whole-trip readings: candidates for the drawn trip and a sibling's trip.
   const stopRunDepartures = useMemo(
     () =>
       lineDepartureBoards.find((board) => board.stopId === stop.id)?.departures ?? EMPTY_DEPARTURES,
     [lineDepartureBoards, stop.id],
   );
-  // Held by id and read back from the store, like every run a view follows.
+  // Held by id and read from the store, like every followed run.
   const [retainedLineRunId, setRetainedLineRunId] = useState<string>();
   const retainedLineRunIds = useMemo(
     () => (retainedLineRunId ? [retainedLineRunId] : NO_ROW_IDS),
@@ -176,17 +160,13 @@ export function useLineDiagramReading({
       stopRunDepartures,
     ],
   );
-  // Recorded while rendering, for the same reason the direction itself is: the next reading of this
-  // diagram has to find it already there, or it would draw one frame of the line facing another way.
-  // A moment with no board to draw from is not a reason to forget the last trip — it is exactly the
-  // moment the hold exists for — so nothing is ever held back to `undefined`.
+  // Set during render, so the next reading finds it; never cleared, since an empty moment is what
+  // the hold is for.
   if (diagramDeparture && diagramDeparture.id !== retainedLineRunId)
     setRetainedLineRunId(diagramDeparture.id);
   const drawnCalls = diagramDeparture?.tripCalls ?? EMPTY_TRIP_CALLS;
-  // A line selection with no pinned trip describes the whole observed line, whether it is being
-  // read alone or beside a sibling. Extend the primary chain before finding the shared trunk: if
-  // the next trip at this stop is a short working, using it as the bundle's outer bound would hide
-  // both the rest of this line and the sibling leg that only becomes visible beyond it.
+  // A whole-line reading extends the primary chain before finding the bundle trunk, so a short
+  // working cannot hide the rest of the line or a sibling's leg.
   const isWholeLine = !departure;
   const drawnDiagramCalls = useMemo(() => [...drawnCalls].reverse(), [drawnCalls]);
   const farthestRun = useMemo(
@@ -207,16 +187,14 @@ export function useLineDiagramReading({
   const forkDestination = isWholeLine
     ? (forkDrawnCalls[forkDrawnCalls.length - 1]?.stopName ?? diagramDeparture?.destination)
     : diagramDeparture?.destination;
-  // The stretch a bundled reading is actually drawn over, and the legs at its ends. With no
-  // sibling in the reading it is simply the drawn trip, which is the ordinary single-line diagram.
+  // The bundle's shared stretch and legs; without a sibling, the drawn trip.
   const fork = useLineDiagramFork({
     lineId: line.id,
     bundledLines,
     drawnCalls: forkDrawnCalls,
     destination: forkDestination,
     riderStopIds,
-    // At the line level, every board discovered along the selected lines gets to state their
-    // dimensions. A pinned trip remains exact and is paired only with trips read at this stop.
+    // Whole line: every board along the lines. A pinned trip pairs only with trips at this stop.
     candidateDepartures: isWholeLine ? observedRunDepartures : stopRunDepartures,
   });
   const { branchesAhead, branchesBehind } = fork;
@@ -225,9 +203,7 @@ export function useLineDiagramReading({
     () => [...branchesAhead, ...branchesBehind],
     [branchesAhead, branchesBehind],
   );
-  // Which line each leg belongs to, for its sign and its colour. The primary is one of them: past
-  // the junction it is a branch like any other, and drawing it as the continuation of the trunk
-  // would say the corridor is really its line and the sibling merely joins it.
+  // Each leg's line, the primary included: past the junction it is a branch like any other.
   const lineById = useMemo(() => {
     const byId = new Map<string, TransitLine>(
       network.lines.map((networkLine) => [networkLine.id, networkLine]),
@@ -236,11 +212,10 @@ export function useLineDiagramReading({
     for (const bundled of bundledLines) byId.set(bundled.id, bundled);
     return byId;
   }, [bundledLines, line, network.lines]);
-  // Trips arrive in travel order. Read the line diagram toward the destination by placing its last
-  // call at the top; vehicle placement derives its arrows from this visible order as well.
+  // Drawn toward the destination: the last call at the top. Arrows follow this order.
   const diagramTripCalls = useMemo(() => [...tripCalls].reverse(), [tripCalls]);
-  // A single whole-line selection names the farthest run any of its observation boards has reached.
-  // A bundle names its shared trunk here; its branches carry their own observed outer ends.
+  // A whole line names its farthest observed run; a bundle names its trunk, branches their own
+  // ends.
   const [seenFirstTerminus, seenLastTerminus] = getLineTermini(line);
   const diagramCalls = diagramTripCalls;
   const drawnTermini = {
@@ -255,24 +230,21 @@ export function useLineDiagramReading({
     () => buildLineDiagramStops(network, diagramCalls, stop.id),
     [network, diagramCalls, stop.id],
   );
-  // Row names for the vehicle marks' debug reading; a list keeps the layer memoized across ticks.
+  // A list, so the layer stays memoized across ticks.
   const diagramStopNames = useMemo(
     () => diagramStops.map(({ stopName }) => stopName),
     [diagramStops],
   );
-  // Joining is route inference over complete sequences. Vehicle positions tick every second, but
-  // those sequences change only with the observations that supplied them.
+  // Sequences change only with observations, not every tick.
   const joinedPortionPairs = useMemo(
     () => getJoinedRunPortionPairs(visibleRunDepartures),
     [visibleRunDepartures],
   );
-  // Turnaround inference depends on observations, not the clock or the diagram shape. A bundled
-  // reading places the same trips on its trunk and every leg, so build the index once and share it.
+  // Built once and shared by the trunk and every leg.
   const turnaroundIndex = useMemo(
     () => findTurnarounds(visibleRunDepartures),
     [visibleRunDepartures],
   );
-  // The diagram's own memory of how its marks are moving, kept for as long as it is mounted.
   const [motions] = useState(createRunMotions);
   const vehicles = useMemo(
     () =>
@@ -313,9 +285,7 @@ export function useLineDiagramReading({
     trunkVehicles: vehicles,
   });
   const bundledLineIds = useMemo(() => bundledLines.map(({ id }) => id), [bundledLines]);
-  // Only the offers that would change the diagram: a sibling is offered where the corridor it
-  // shares with this line lies along the trip actually on screen, and not merely where the stop has
-  // seen the two run together at some other hour, in some other direction.
+  // Only siblings whose shared corridor lies along the trip on screen.
   const drawableOffers = useDrawableLineBundleOffers({
     offers: bundleOffers,
     drawnCalls,
@@ -326,11 +296,10 @@ export function useLineDiagramReading({
     [bundledLineIds, drawableOffers],
   );
 
-  // Rows are told the time in coarse steps: their readings are minutes, and holding the value still
-  // between them is what lets a memoized row sit out the ticks that only moved a mark.
+  // Rows get a coarse clock, so memoized rows skip ticks that only moved a mark.
   const rowFeedNow = Math.floor(feedNow / ROW_CLOCK_STEP_MS) * ROW_CLOCK_STEP_MS;
   return {
-    /** The trip the diagram is pinned on, held across the boards being re-keyed beneath it. */
+    /** The pinned trip, held while the boards are re-keyed. */
     departure,
     fork,
     branches,
@@ -338,49 +307,35 @@ export function useLineDiagramReading({
     bundleControls,
     diagramStops,
     diagramStopNames,
-    // A ride is nobody's stop — the rider is on board, not waiting at one.
+    // On a ride the rider is on board, at no stop.
     currentStopIndex: isRide ? -1 : getCurrentStopIndex(diagramStops, stop.id, boardingLocalStopId),
-    // The stop chain *is* the coordinate system, and a different one — another line, the other
-    // direction, a variant calling elsewhere — has nothing to do with where a mark stood in the
-    // last. Remounting only the marker layer places every vehicle directly in the new system, so no
-    // mark slides across a diagram it was never travelling. Live ticks within one system keep the
-    // same layer, and therefore keep their motion. The trip the diagram happens to be drawn from is
-    // not part of this: it changes whenever a board refresh finds a nearer one, and remounting for
-    // that took every mark off the screen and put it straight back.
+    // The stop chain is the coordinate system: a new chain remounts the marker layer so nothing
+    // slides across. The drawn trip is not part of the key; it changes on refreshes.
     vehicleCoordinateKey: getLineDiagramCoordinateKey(line.id, diagramStops),
     vehicles,
     vehicleLabelByRowIndex,
     vehiclesByBranchKey,
     transferKeysByBranchKey,
-    // A joined mark still contributes once for each line it represents, matching the number shown
-    // on the mark itself.
+    // A joined mark counts once per line, as the mark shows.
     totalVehicleCount: countLineDiagramVehicles([vehicles, ...vehiclesByBranchKey.values()]),
-    // Where the pinned trip is on the line, as a real row rather than as the absolutely positioned
-    // mark: the ride's position control scrolls to it, and so does the placement that answers
-    // picking the trip off the board in the first place. The nearest row is stable under
-    // remeasurement; before a mark can be placed, the next call is the best available statement of
-    // where this trip is heading. Without a pinned trip no vehicle is the rider's, and the row is
-    // simply absent.
+    // The pinned trip's position as a row, for the position control and initial placement: the
+    // nearest row to its mark, else its next call.
     runPositionStopIndex: getRunPositionAnchorIndex(diagramStops, vehicles, rideNextCall),
     rowFeedNow,
     statusLabel: getLineDiagramStatusLabel(departure, departureBoard),
-    // A pinned trip the diagram carries no mark for: the run has not begun, it is over, or the calls
-    // in hand do not place it. Read against the rows' coarse clock, because it states a call time
-    // and never a countdown, and there is nothing in it for a tick that only moved a mark to
-    // recompute.
+    // The pinned trip has no mark (not begun, over, or unplaceable). Uses the rows' coarse clock:
+    // it states a call time, not a countdown.
     runPositionHint:
       diagramStops.length > 0
         ? getRunPositionHint(
             departure,
-            // A mark standing at either end of the run is not the diagram placing the trip: the
-            // sentence that says the run has not begun, or is over, is still the one to read.
+            // A mark standing at either end is not a placement; the hint still applies.
             vehicles.some((vehicle) => vehicle.isSelected && vehicle.phase === "running"),
             rowFeedNow,
           )
         : undefined,
     termini,
-    // A line outside the core network knows no termini until a trip loads, and half a heading around
-    // a bare arrow says less than the line's own name.
+    // Without both termini, the line's name says more than half a heading.
     hasTermini: Boolean(termini.firstTerminus && termini.lastTerminus),
   };
 }

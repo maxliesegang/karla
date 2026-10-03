@@ -1,13 +1,8 @@
 import { createStoredPreference } from "./stored-preference";
 
 /**
- * The choices a rider makes about the app itself, rather than about one board or one visit.
- *
- * Everything here is a device-local preference, kept the way the remembered stops and the board
- * order are kept: honoured for the session even where storage is blocked, and never read in a way
- * that could stop the app rendering. Each one answers a question the app otherwise decides on the
- * rider's behalf — where it opens, what it remembers about them, and whether the line diagram draws
- * the line's other vehicles beside the one the rider follows.
+ * Device-local app preferences (landing, remembering stops, other vehicles in the diagram, stacked
+ * board length), honoured for the session even when storage is blocked.
  */
 
 export type AppLanding = "recent-stop" | "home";
@@ -15,11 +10,11 @@ export type AppLanding = "recent-stop" | "home";
 export type AppSettings = {
   /** Where the app opens when it was given no address. */
   landing: AppLanding;
-  /** Whether the stops the rider reads are kept on this device for the next visit. */
+  /** Whether read stops are kept on this device. */
   isRememberingStops: boolean;
-  /** Whether the line diagram draws the line's other vehicles beside the one the rider follows. */
+  /** Whether the line diagram draws other vehicles besides the followed one. */
   isShowingOtherLineRuns: boolean;
-  /** How many departures the stacked board shows before "mehr anzeigen" gathers the rest. */
+  /** Departures the stacked board shows before "mehr anzeigen". */
   stackedDepartureLimit: number;
 };
 
@@ -30,7 +25,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   stackedDepartureLimit: 8,
 };
 
-/** The row counts a board can be asked to hold. A cap the feed never answers for is not among them. */
+/** Row counts a stacked board may show. */
 const STACKED_DEPARTURE_LIMIT_OPTIONS: readonly number[] = [5, 8, 12];
 
 const APP_SETTINGS_STORAGE_KEY = "karla:settings";
@@ -38,7 +33,7 @@ const APP_SETTINGS_STORAGE_KEY = "karla:settings";
 const isRowLimit = (value: unknown): value is number =>
   STACKED_DEPARTURE_LIMIT_OPTIONS.includes(value as number);
 
-/** The settings a stored value stands for, field by field: anything unreadable is the default. */
+/** Settings from a stored value; unreadable fields take the default. */
 export function getAppSettingsFromStored(stored: unknown): AppSettings {
   if (typeof stored !== "object" || stored === null) return DEFAULT_APP_SETTINGS;
   const candidate = stored as Partial<AppSettings> & { isShowingOtherLineTrips?: boolean };
@@ -54,7 +49,7 @@ export function getAppSettingsFromStored(stored: unknown): AppSettings {
   };
 }
 
-/** The rider's choices about the app; anything unreadable in storage is the default. */
+/** The app settings; unreadable storage gives the defaults. */
 export const appSettings = createStoredPreference<AppSettings>({
   key: APP_SETTINGS_STORAGE_KEY,
   parse: (stored) => getAppSettingsFromStored(JSON.parse(stored ?? "null")),

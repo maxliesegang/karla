@@ -20,28 +20,27 @@ function LineDiagramStopRowView({
   index: number;
   /** This row is one occurrence of the stop the rider has open. */
   isCurrent: boolean;
-  /** What the marks standing on this row are, spoken. Empty where none is. */
+  /** The marks standing on this row, spoken; empty if none. */
   vehicleLabel: string;
   isFirst: boolean;
   isLast: boolean;
   isSelectedDeparture: boolean;
   /** This row is the Ausstieg the rider marked. */
   isAlighting: boolean;
-  /** The stable stop row nearest the selected vehicle, or its next call before a mark is available. */
+  /** The row nearest the selected vehicle, or its next call before a mark exists. */
   isRunPositionAnchor: boolean;
-  /** What the row does: open the stop, or mark it as the Ausstieg while the rider is on board. */
+  /** Open the stop, or on a ride mark it as the Ausstieg. */
   onActivate: { kind: "open" | "mark"; run: (stopId: string) => void };
-  /** The feed's clock, which is what the call times are read against. */
+  /** The feed's clock, for call times. */
   feedNow: number;
 }) {
   const { stopName, placeName, platformLabel, stopId } = diagramStop;
-  // Only a chosen trip has times to state. Without one the diagram describes the whole line, and
-  // the times of whichever trip happens to be drawn would read as the line's own.
+  // Only a chosen trip states times; otherwise they would read as the line's own.
   const callTime = isSelectedDeparture
     ? getTripCallTimeReading(diagramStop.tripCall, feedNow)
     : undefined;
   const label = [
-    // Spoken as one address, so a stop out of town is never read as the one of the same name here.
+    // Spoken with its place, so an out-of-town stop is not mistaken for a local namesake.
     placeName ? `${stopName}, ${placeName}` : stopName,
     ...(platformLabel ? [platformLabel] : []),
     ...(callTime ? [callTime.accessibilityLabel] : []),
@@ -82,14 +81,13 @@ function LineDiagramStopRowView({
         <span className="line-diagram-stop-name">
           {placeName && <small className="line-diagram-stop-place">{placeName}</small>}
           <strong>{stopName}</strong>
-          {/* Two rows of one stop: which of them this is. Spoken in the row's label above. */}
+          {/* Two rows of one stop: which one this is. */}
           {platformLabel && (
             <small className="line-diagram-stop-platform" aria-hidden="true">
               {platformLabel}
             </small>
           )}
-          {/* The one thing that moves when the rider walks along the line, which is why it is
-              named: it travels from the row they were on to the row they tapped. */}
+          {/* The rider's stop note; it moves from the previous row to the tapped one. */}
           {isCurrent && (
             <small className="line-diagram-current-note">
               {isSelectedDeparture ? "Ausgewählt" : "Aktueller Halt"}
@@ -98,9 +96,7 @@ function LineDiagramStopRowView({
           {isAlighting && <small className="line-diagram-alighting-note">Ausstieg</small>}
         </span>
         {callTime && (
-          /* When the trip is due here, with the schedule struck beneath it where a deviation moved
-             it — the same reading the departure board gives, so the two never disagree. A call
-             running to time needs no second line at all. */
+          /* The call time, with the struck schedule where moved, as on the board. */
           <span className="line-diagram-call-time" aria-hidden="true">
             <strong className={callTime.punctuality}>{callTime.expectedTime}</strong>
             {callTime.scheduledTime && <s>{callTime.scheduledTime}</s>}
@@ -111,9 +107,5 @@ function LineDiagramStopRowView({
   );
 }
 
-/**
- * Rows read a coarser clock than the marks do, so a vehicle's second-by-second travel re-renders
- * the layer it lives in and nothing else. A call time reads in whole minutes, and everything else
- * on a row changes only when the board does.
- */
+/** Rows use a coarse clock, so mark movement re-renders only the vehicle layer. */
 export const LineDiagramStopRow = memo(LineDiagramStopRowView);

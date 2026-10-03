@@ -9,23 +9,20 @@ export type StationBoardDetail = "via" | "note" | "off";
 
 export type StationBoardConfig = {
   mode: "stop" | "platform";
-  /** The platforms this board covers. Several are allowed: one screen often serves a whole island. */
+  /** The platforms covered; one screen often serves a whole island. */
   platformCodes: readonly string[];
   rowCount: number;
   grouping: StationBoardGrouping;
   detail: StationBoardDetail;
-  /** Departures closer than this are dropped: a rider cannot reach a train leaving in under a minute. */
+  /** Departures sooner than this are dropped: nobody reaches them. */
   minimumMinutes: number;
-  /** How long before the page reloads itself, which is how a station board picks up a deploy. */
+  /** Minutes until the page reloads, which picks up deploys. */
   reloadMinutes: number;
 };
 
 /**
- * A platform as a board can match it.
- *
- * The feed spells the same platform several ways — `2`, `Gleis 2`, `Steig 2`, `Bstg. 2` — and an
- * exact comparison against whatever the operator typed into the URL makes the screen silently
- * empty. Both sides are reduced to the part that identifies the platform before they are compared.
+ * A platform reduced to its identifying part, since the feed spells it several ways (`2`,
+ * `Gleis 2`, `Steig 2`, `Bstg. 2`) and an exact match would leave the screen empty.
  */
 export function normalizePlatformCode(platformCode: string): string {
   return platformCode
@@ -41,7 +38,7 @@ export const isPlatformMatch = (
   wantedPlatformCodes.length === 0 ||
   wantedPlatformCodes.includes(normalizePlatformCode(platformCode));
 
-/** Whole numbers within a range, falling back to a default rather than to a broken screen. */
+/** Whole numbers within a range, else the default. */
 function parseBoundedNumber(
   value: string | null,
   fallback: number,
@@ -52,10 +49,7 @@ function parseBoundedNumber(
   return Number.isFinite(parsed) ? Math.min(maximum, Math.max(minimum, parsed)) : fallback;
 }
 
-/**
- * Unattended station boards are configured by query string so the hash remains the canonical stop
- * address. `display=1` is retained as the former spelling of a whole-stop board.
- */
+/** Parses the query-string config; `display=1` is the legacy whole-stop spelling. */
 export function parseStationBoardConfig(search: string): StationBoardConfig | null {
   const parameters = new URLSearchParams(search);
   const displayMode = parameters.get("display");
@@ -81,6 +75,6 @@ export function parseStationBoardConfig(search: string): StationBoardConfig | nu
 export const stationBoardConfig = parseStationBoardConfig(window.location.search);
 export const isStationBoardMode = stationBoardConfig !== null;
 
-/** How a board names the platforms it covers, for its own heading. */
+/** The board's heading for its platforms. */
 export const getPlatformLabel = (config: StationBoardConfig): string =>
   config.platformCodes.length > 0 ? config.platformCodes.join(" + ").toUpperCase() : "?";

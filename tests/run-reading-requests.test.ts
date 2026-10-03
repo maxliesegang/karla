@@ -28,11 +28,8 @@ test("a line reads every run on the line's own tolerance where the rider chose n
 });
 
 /**
- * The tolerance the rider's own run earns is theirs alone.
- *
- * Collapsed to one number for the whole set — the tightest of them, which is what a set holding a
- * chosen run always resolves to — the line's other runs are re-read on the board's cadence instead
- * of their own, and a stop board with a departure selected spends twice the requests it needs to.
+ * The chosen run's tolerance is its own; collapsing to the tightest would re-read every run on the
+ * board cadence.
  */
 test("the run a rider chose is read faster without dragging the rest of the line with it", () => {
   const requests = getRunReadingRequests(linePlan("stop-a-3002"));

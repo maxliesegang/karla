@@ -90,9 +90,7 @@ test("names a whole line by the farthest observed run instead of the drawn short
     destinations: ["D", "C"],
   });
 
-  // The diagram is displayed destination-first as D, C, B. The full observation happens to have
-  // been made in the other direction, but D remains the heading at the top of the view — and its
-  // calls come back in that same order, which is the chain the view is drawn out to.
+  // Displayed destination-first (D, C, B), though the full run was observed the other way.
   assert.deepEqual(getFarthestLineRun(line, [short, full], [...short.tripCalls!].reverse()), {
     firstTerminus: "D",
     lastTerminus: "A",
@@ -112,8 +110,7 @@ test("a run observed heading the diagram's own way comes back in the diagram's o
   });
   const drawn = calls("D", "C", "B");
 
-  // The farthest run ends where the diagram's top row is, so its origin end is the one the view
-  // reads downward and its calls are read the other way round.
+  // The farthest run ends at the diagram's top row, so its calls come back reversed.
   assert.deepEqual(getFarthestLineRun(line, [towardDiagram], drawn), {
     firstTerminus: "D",
     lastTerminus: "A",
@@ -157,8 +154,7 @@ test("falls back to the line's observed destinations until a complete run is in 
 });
 
 test("reads a line's extent off the farthest run observed for it", () => {
-  // The board's rows sign their short workings, and the destinations follow the signs — so the
-  // two most frequent ones name less of the line than the one whole run the posts have seen.
+  // Destinations follow the signs' short workings, naming less than the one whole run seen.
   const short = departure({
     id: "short",
     destination: "Rheinhafen über Kühler Krug",
@@ -178,8 +174,7 @@ test("reads a line's extent off the farthest run observed for it", () => {
     "Knielingen Nord",
     "Rheinhafen",
   ]);
-  // The pair the observation states stands in for the whole view wherever the line's ends are
-  // asked for, before the signs' short workings are read.
+  // The observed ends stand in wherever the line's ends are asked for.
   const observedLine = createLine({
     id: "2",
     destinations: ["Knielingen Nord", "Rheinhafen über Kühler Krug"],
@@ -213,16 +208,13 @@ test("no run observed far enough leaves the extent to the destinations", () => {
 });
 
 /**
- * The fallback for a call whose provider id resolved to nothing, so the name is all there is.
- *
- * A local stop is the place; the feed names the platform the call was made at. Matching those two
- * strings against each other only works once the operator's qualifier is off the feed's.
+ * Fallback when a call's provider id resolves to nothing: the name minus the platform qualifier.
  */
 test("a call named for one platform of a place resolves to that place", () => {
   const marktplatz = findStopByName(transitNetwork, "Marktplatz (Kaiserstraße U)");
   assert.equal(marktplatz?.id, "marktplatz");
   assert.equal(findStopByName(transitNetwork, "Marktplatz")?.id, "marktplatz");
-  // A second name the operator does not publish still resolves, and an unmapped stop still does not.
+  // An authored second name resolves; an unmapped stop does not.
   assert.equal(findStopByName(transitNetwork, "Mendelssohnplatz")?.id, "rueppurrer-tor");
   assert.equal(findStopByName(transitNetwork, "Lameyplatz"), undefined);
 });

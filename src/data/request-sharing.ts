@@ -1,10 +1,5 @@
 /**
- * One in-flight request per key, shared by everyone who asks for it while it is out.
- *
- * Every read behind the boundary is a network round trip that several views ask for at once — the
- * same board from the shell and a panel, the same trip from a diagram and a ride. Sharing is not
- * caching: the promise is dropped the moment it settles, so what happens to the answer afterwards
- * stays the caller's decision.
+ * One in-flight request per key, shared by concurrent askers. Not a cache: dropped once settled.
  */
 export class SharedRequests<T> {
   private readonly inFlight = new Map<string, Promise<T>>();

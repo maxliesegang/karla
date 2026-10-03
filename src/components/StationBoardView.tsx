@@ -25,17 +25,13 @@ import { LineBadge } from "./LineBadge";
 import { classNames } from "../lib/class-names";
 
 /**
- * The unattended station board.
- *
- * Read from three to ten metres by someone who will not touch it, on a screen that has been on for
- * weeks. That makes it a different component from the board a rider scrolls: it never scrolls,
- * never offers a control, fills its screen exactly, and states its own age rather than implying
- * freshness. Everything it shows has to survive being glanced at from across a hall.
+ * The unattended station board: read from metres away, untouched, on for weeks. It never scrolls or
+ * offers controls, fills its screen exactly, and states its own age.
  */
 
 /** How long each page of a board with more departures than rows stays up. */
 const PAGE_DURATION_MS = 15_000;
-/** Past this the board says how old it is at full size, rather than in a footer nobody can read. */
+/** Past this the board states its age at full size. */
 const STALE_BOARD_MS = 3 * 60_000;
 
 type StationBoardViewProps = {
@@ -61,9 +57,7 @@ function StationBoardRow({
   const line = getLineSign(network.lines, departure.lineId, departure.transportMode);
   const reading = getCountdownReading(departure, feedNow);
   const timeReading = getDepartureTimeReading(departure);
-  // An operating note is about this trip and outranks the route it takes; the route is what a rider
-  // checks when nothing is wrong. Neither is ever truncated away — that is what hiding a diversion
-  // would be.
+  // An operating note outranks the route; neither is ever truncated away.
   const platformWord = getPlatformWord(departure.platformKind);
   const detail =
     stationBoardConfig.detail === "off"
@@ -86,24 +80,16 @@ function StationBoardRow({
         <strong>{departure.destination}</strong>
         {detail && <em>{detail}</em>}
       </span>
-      {/* Read from ten metres, a struck-through time reads as a broken screen, so the unattended
-          board publishes the one time that answers the question and lets the countdown agree with
-          it. The schedule it was moved off is a detail for the rider's own board. */}
+      {/* From afar a struck time looks broken, so only the expected time shows. */}
       <span className={classNames("station-board-time", timeReading?.punctuality)}>
         {timeReading?.expectedTime ?? "–"}
       </span>
-      {/* On a whole-stop board the code alone is ambiguous — `A` is a bus stand and `24` a track —
-          so the feed's word captions it in quieter type above, leaving the code the glyph that is
-          read from ten metres. A single-platform board states the word once in its heading instead. */}
+      {/* On a whole-stop board the word captions the ambiguous code. */}
       <span className="station-board-platform">
         {stationBoardConfig.mode === "stop" && platformWord && <small>{platformWord}</small>}
         {departure.platformCode || "–"}
       </span>
-      {/* The modifier carries the block's name: a bare `due` would collide with the interactive
-          board's own column class, which is a grid cell in a different layout entirely. Only the
-          readings that deviate from a plain minute count are styled — `entfällt` down to a size
-          that fits the word, `jetzt` in the accent — but the modifier is written for all three, so
-          the class always says which of the three the column is showing. */}
+      {/* Block-prefixed so it does not collide with the interactive board's column class. */}
       <span
         className={classNames("station-board-countdown", `station-board-countdown-${reading.kind}`)}
       >
@@ -140,7 +126,7 @@ export function StationBoardView({
   const matchingDepartures = useMemo(
     () =>
       platformDepartures.filter((departure) => {
-        // A departure a rider on the concourse can no longer reach is not information, it is clutter.
+        // A departure nobody can still reach is clutter.
         return (
           departure.status === "cancelled" ||
           getCountdownMinutes(departure, feedNow) >= minimumMinutes
@@ -157,8 +143,7 @@ export function StationBoardView({
     [matchingDepartures, grouping],
   );
 
-  // More departures than rows means paging, not hiding: every page is shown in turn, derived from
-  // the clock rather than from a timer of its own, so nothing has to be kept in state for weeks.
+  // Pages derived from the clock, not a timer, so nothing is kept in state for weeks.
   const pageCount = Math.max(1, Math.ceil(orderedDepartures.length / rowCount));
   const pageIndex = Math.floor(feedNow / PAGE_DURATION_MS) % pageCount;
   const visibleDepartures = orderedDepartures.slice(
@@ -168,19 +153,16 @@ export function StationBoardView({
 
   const ageMs = getBoardAgeMs(departureBoard, feedNow);
   const isStale = departureBoard?.dataStatus === "live" && ageMs > STALE_BOARD_MS;
-  // A platform that matches nothing is far more often a spelling in the URL than an empty platform,
-  // so the board says which platforms the feed is actually reporting rather than blaming the feed.
+  // A platform matching nothing is usually a URL typo, so list the platforms the feed reports.
   const reportedPlatformNames = useMemo(
     () =>
       groupDeparturesByPlatform(departures)
         .filter(({ platformCode }) => platformCode)
-        // Named the way the heading names them, so the reading is the one to copy into the URL.
+        // Named as the heading names them, ready to copy into the URL.
         .map(({ platformCode, platformKind }) => formatPlatformLabel(platformCode, platformKind)),
     [departures],
   );
-  // A heading stands above every row on the board, so it may only use the word they all support;
-  // where the configured platform is missing entirely, the board's own rows are what is left to
-  // read a word off.
+  // The heading's word must suit every row; without the configured platform, read it off the rows.
   const platformKind = findSharedPlatformKind(
     platformDepartures.length > 0 ? platformDepartures : departures,
   );

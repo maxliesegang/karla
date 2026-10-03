@@ -1,13 +1,7 @@
 /**
- * How the refresh cadence remembers failure.
- *
- * Two kinds of failure are kept apart, because they accuse different things. A resolved
- * "unavailable" answer is the feed speaking: the request arrived, the operator's data did not, and
- * asking again soon spends a phone's battery and the operator's patience on an answer it already
- * gave. A rejected request is the connection speaking: on a phone that is one tunnel, one lift,
- * one weak cell, and the cadence has to recover as soon as the radio does. So a transient streak
- * reaches its ceiling in a couple of steps and stays under a minute and a half, where an
- * unavailable feed earns the full five minutes.
+ * Failure streaks for the refresh cadence. A resolved "unavailable" answer (the feed spoke) backs
+ * off to five minutes; a rejected request (the connection) tops out under ninety seconds, so it
+ * recovers as soon as the radio does.
  */
 
 export type LoadFailureKind =
@@ -23,10 +17,7 @@ export const MAX_TRANSIENT_BACKOFF_MS = 90_000;
 
 export type FailureStreak = { kind: LoadFailureKind; count: number };
 
-/**
- * One more failure on the streak, or a new streak when the kind changes: the earlier evidence has
- * aged by the time a different kind of failure appears.
- */
+/** One more failure, or a new streak when the kind changes. */
 export function extendFailureStreak(
   streak: FailureStreak | undefined,
   kind: LoadFailureKind,
@@ -45,12 +36,8 @@ export function getBackoffDelayMs(refreshMs: number, streak: FailureStreak): num
 export type ResumeEventType = "visibilitychange" | "pageshow" | "focus" | "online";
 
 /**
- * Whether a resume event says the page can be read, even while WebKit still reports it hidden.
- *
- * `pageshow` and `focus` describe a page that is being presented. On iOS, especially for a
- * home-screen app restored from suspension, either may be the only event delivered and
- * `document.visibilityState` may lag behind it. A hidden `visibilitychange` or `online` event says
- * no such thing and must not wake polling in the background.
+ * Whether a resume event means the page is visible even if WebKit still reports it hidden:
+ * `pageshow` and `focus` do (a restored iOS home-screen app may deliver only those).
  */
 export function isVisibleResumeEvent(
   eventType: ResumeEventType,
@@ -60,16 +47,9 @@ export function isVisibleResumeEvent(
 }
 
 /**
- * Whether one resume event is evidence the page, or the connection, was actually away — which is
- * what makes a standing failure streak stale evidence worth forgiving.
- *
- * A visibility change is such evidence in both directions: going away is why the readings stopped,
- * and the same event announces coming back (a document that reads "hidden" while the returning
- * event is delivered is why the state is read a tick later, not here). A restored document and a
- * radio that just came back say the same thing. A bare window `focus` does not: it fires when a
- * desktop window is clicked back into, the page visible and polling the whole time, so forgiving on
- * it would hand every mounted board an immediate re-read on every alt-tab — exactly the cadence the
- * streak exists to hold back. Such a resume still reschedules; it does so on the cadence it earned.
+ * Whether a resume event shows the page or connection was really away, so the failure streak is
+ * forgiven: visibility changes, restores and `online` do; a bare `focus` (a desktop alt-tab) does
+ * not, and only reschedules on the earned cadence.
  */
 export function isAwayEvidence(eventType: ResumeEventType): boolean {
   return eventType !== "focus";

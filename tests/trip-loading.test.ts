@@ -102,9 +102,8 @@ test("a basic DM row carries the private locator for its one-trip request", () =
 });
 
 test("the stop a board was read at is a call of the trip, timed by the row itself", () => {
-  // `prevStopSeq` stops one call short of the board's own stop and `onwardStopSeq` starts one call
-  // past it. Left as the feed sends it the trip has a hole exactly where the reading is freshest —
-  // a call no vehicle can be placed at, in a different place in every board's copy of the trip.
+  // `prevStopSeq` ends one call before the board's stop and `onwardStopSeq` starts one after;
+  // without completion the trip has a gap at its freshest call.
   const board = parseDepartureBoardResponse(
     {
       parameters: [{ name: "serverTime", value: "2026-08-26T07:29:45" }],
@@ -150,7 +149,7 @@ test("the stop a board was read at is a call of the trip, timed by the row itsel
   const [, current] = board.departures[0].tripCalls ?? [];
   assert.equal(current.isCurrentStop, true);
   assert.equal(current.providerId, "7001002");
-  // The row's own two facts, which are the only account of this call there is.
+  // The row's own facts are the only account of this call.
   assert.equal(current.scheduledDepartureTime, board.departures[0].scheduledDepartureTime);
   assert.equal(current.delayMinutes, 3);
 });
@@ -181,9 +180,8 @@ test("both levels of one place answer as that place, whichever platform the row 
 
   const board = await source.getDepartureBoard("ettlinger-tor");
 
-  // The row leaves from the street platform (`7000071`) on a board requested for the tunnel id.
-  // The provider answers both from either, so both are the one stop the rider addressed — which is
-  // what lets `lib/trip-calls.ts` find the current call for a street departure on this board.
+  // The row leaves from the street point (`7000071`) on a board asked for the tunnel id; both are
+  // the addressed stop.
   assert.equal(board.stopId, "ettlinger-tor");
   assert.equal(board.departures[0].boardingLocalStopId, "ettlinger-tor");
 });
@@ -191,9 +189,7 @@ test("both levels of one place answer as that place, whichever platform the row 
 test("the single-trip response validates its locator and preserves call-level cancellation", () => {
   const trip = parseTripResponse(tripPayload, locator);
 
-  // Resolved to a real instant at the boundary, never handed on as the bare local components the
-  // feed states: read as the viewer's own local time it would be right in Karlsruhe and hours out
-  // everywhere else, and it is the clock every countdown in the app is counted from.
+  // Resolved to an instant, not left as local wall time.
   assert.equal(trip.serverTime, "2026-08-26T05:30:45.000Z");
   assert.equal(trip.status, "cancelled");
   assert.equal(trip.tripCalls.length, 2);
@@ -234,12 +230,9 @@ test("a terminus uses its valid arrival delay instead of its invalid departure p
 });
 
 test("the row's own call is marked once, where the trip calls at that stop three times", () => {
-  // Waidweg's terminus loop, as line 3 really reports it: the vehicle is timed into the loop's
-  // entry point (Gleis 1) at 23:42, stands at the public Gleis 3 — the row's own 23:44 — and
-  // parks on Gleis 2 at 23:45, where the feed says the run ends (timed into, out of nothing).
-  // All three are stop point `7000306`. Marking every call at the echoed stop left the row's
-  // identity ambiguous: the `über …` beside the row named the stop itself, the mark was re-timed
-  // from the loop's entry point, and the diagram drew the terminus as three stops.
+  // Waidweg's loop as line 3 reports it: into Gleis 1 at 23:42, the public Gleis 3 at 23:44 (the
+  // row's own call), parked on Gleis 2 at 23:45 where the run ends; all stop point `7000306`. Only
+  // the row's call may be marked.
   const waidwegLocator: KvvTripLocator = {
     tripCode: "1125",
     line: "kvv:21003:E:H:s26",
@@ -316,10 +309,9 @@ test("the row's own call is marked once, where the trip calls at that stop three
   assert.equal(marked.length, 1);
   assert.equal(marked[0].platformCode, "3");
   assert.equal(marked[0].scheduledDepartureTime, "2026-09-05T21:44:48.000Z");
-  // The operator signs the platform `3` and never words it; the label keeps the number, the way
-  // the board's own row is completed — the one thing that parts the stop's repeated rows.
+  // The operator never words platform `3`; the label keeps the number.
   assert.equal(marked[0].platformLabel, "3");
-  // The run-end call stays unmarked, so the pair the feed itself marks can still be folded.
+  // The run-end call stays unmarked, so the feed's turnaround pair can still fold.
   assert.equal(trip.tripCalls[3].isCurrentStop, undefined);
 });
 
@@ -462,21 +454,20 @@ test("TransitSource merges one trip into the latest stop row and caches its sequ
   assert.equal(first?.tripCalls?.length, 2);
   assert.equal(first?.tripCalls?.[1].localStopId, "kronenplatz");
   assert.deepEqual(first?.readAt, { rowReadAt, sequenceReadAt: Date.now() });
-  // The kept reading answers the second call as itself, dated when it was actually taken.
+  // The kept reading answers the second call, dated when it was taken.
   assert.deepEqual(second, first);
-  // An ordinary board served from cache resolves through the same store too. Otherwise another
-  // view can refresh this run while the board keeps publishing its old, incomplete row object.
+  // A board served from cache resolves through the store too, so it never publishes a stale row.
   const cachedBoard = await source.getDepartureBoard("durlacher-tor", { maxAgeMs: 5 * 60_000 });
   assert.equal(cachedBoard.departures[0], source.findRun(rowId));
   assert.equal(cachedBoard.departures[0], first);
-  // A board a view already holds catches up the same way, without being fetched again.
+  // A held board catches up without a refetch.
   assert.notEqual(board.departures[0], first);
   assert.equal(source.resolveBoard(board).departures[0], first);
   assert.equal(source.resolveBoard(cachedBoard), cachedBoard);
 });
 
 test("a detailed ordinary board publishes the canonical run object", async (t) => {
-  // Before the run's last call, or the network has already let the finished trip go.
+  // Before the run's last call, or the network would have dropped the trip.
   t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-08-26T05:29:45.000Z") });
   const source = createBoardSource({
     "7001001": [createRememberedDeparture(0, "2026-08-26T05:35:00.000Z")],
@@ -526,8 +517,7 @@ test("a trip nobody selected is re-read on its own terms, not on the board's", a
   const source = new KvvTransitSource(client);
   const rowId = (await source.getDepartureBoard("durlacher-tor")).departures[0].id;
 
-  // A sequence does not move and the times a rider reads come from the stop row, so a vehicle the
-  // rider did not choose sits out a board refresh; the trip they did choose does not.
+  // An unchosen run sits out a board refresh; the chosen one does not.
   await source.getRun(rowId, 90_000);
   t.mock.timers.tick(30_000);
   await source.getRun(rowId, 90_000);
@@ -539,8 +529,8 @@ test("a trip nobody selected is re-read on its own terms, not on the board's", a
 });
 
 /**
- * A board row that already carries its sequence, so `getRun` answers it without any request at
- * all — which makes the same call a probe for whether the source still remembers the row.
+ * A row carrying its sequence, so `getRun` answers without a request: a probe for whether the row
+ * is remembered.
  */
 function createRememberedDeparture(
   index: number,
@@ -581,13 +571,8 @@ function createBoardSource(boardsByProviderStopId: Record<string, KvvDeparture[]
 }
 
 /**
- * Freshness is a fact about the reading, not about the question.
- *
- * A retained ride asks for its trip on the board's cadence and dates its observation by what comes
- * back. Both of the paths that answer without reading anything — a sequence still inside the
- * caller's tolerance, and a row that arrived carrying its own calls and has no locator to re-read
- * with — would otherwise hand back an old reading stamped with the current instant, and the ride
- * would go on claiming it had just been read while the number on it stood still.
+ * Readings answered from memory (within tolerance, or a row with calls and no locator) keep their
+ * read time, so a retained ride never claims an old reading is fresh.
  */
 test("a reading answered from memory is dated when it was taken, not when it was asked for", async (t) => {
   t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-08-26T05:29:45.000Z") });
@@ -640,8 +625,7 @@ test("a row that carries its own calls is dated by the board it arrived on", asy
   const boardReadAt = Date.now();
   const rowId = (await source.getDepartureBoard("durlacher-tor")).departures[0].id;
 
-  // Nothing re-reads this row: its board is not refreshed and it has no locator to ask with. Ten
-  // minutes on, it is a ten-minute-old reading and says so.
+  // Never re-read: ten minutes on, it is ten minutes old.
   t.mock.timers.tick(600_000);
   const read = await source.getRun(rowId);
 
@@ -654,8 +638,8 @@ test("board churn spends the cap on finished runs before the vehicles still out"
   const stillRunning = "2026-08-26T06:30:00.000Z";
   const alreadyOver = "2026-08-26T05:00:00.000Z";
 
-  // Exactly the cap, oldest first: the run that has finished sits between two that have not, so
-  // neither age nor insertion order can be what picks it.
+  // Exactly the cap; the finished run sits between unfinished ones, so neither age nor order picks
+  // it.
   const filling = [
     createRememberedDeparture(0, stillRunning),
     createRememberedDeparture(1, alreadyOver),
@@ -674,7 +658,7 @@ test("board churn spends the cap on finished runs before the vehicles still out"
   assert.notEqual(oldestRunningId, finishedId);
   assert.ok(await source.getRun(finishedId));
 
-  // One row over the cap, so exactly one remembered run has to go.
+  // One over the cap: one run must go.
   await source.getDepartureBoard("kronenplatz");
 
   assert.equal(await source.getRun(finishedId), undefined);
@@ -701,12 +685,8 @@ test("the cap is a bound, not a preference: all-running churn still evicts the o
 });
 
 /**
- * A place with two levels is one local stop, and a trip must reach it from the level it runs on.
- *
- * The Europaplatz board is requested for the street stop point, while the S1 through the
- * Kaiserstraße tunnel calls at the tunnel one. Unless that call resolves to `europaplatz` too, the
- * trip leaves a stop the page has never heard of: nothing reads a corridor from it, and the row
- * falls back to its headsign.
+ * A two-level place is one stop: the Europaplatz board is asked for the street point, but the S1
+ * calls at the tunnel point, which must resolve to `europaplatz` too.
  */
 test("a trip calling at a place's other level resolves to that place", async () => {
   const tunnelLocator: KvvTripLocator = {
@@ -790,8 +770,8 @@ test("a trip calling at a place's other level resolves to that place", async () 
 });
 
 test("a single-trip reading dates the run exactly as the boards do, so it is one vehicle", async () => {
-  // The same run read twice: a board times the trip's first call to the half minute and publishes
-  // its own row to the minute, while the single-trip endpoint times that first call to the second.
+  // One run read twice: a board times the first call to the half minute and its row to the minute;
+  // the trip endpoint times it to the second.
   const boardPayload = {
     parameters: [{ name: "serverTime", value: "2026-08-26T07:29:45" }],
     departureList: [
@@ -836,15 +816,14 @@ test("a single-trip reading dates the run exactly as the boards do, so it is one
 
   const merged = await source.getRun(row.id);
 
-  // One dated identity, or the line diagram follows the row and the trip as two vehicles.
+  // One dated id, or the diagram draws two vehicles.
   assert.equal(merged?.tripInstanceId, row.tripInstanceId);
   assert.equal(row.tripInstanceId, "de:kvv:00S04_:.trip@2026-08-26T05:30");
 });
 
 test("a line's stops are read as rows, and each trip's calls are fetched once for all of them", async () => {
-  // The same run is listed at every stop it has yet to leave. Asked for per board, its calling
-  // sequence arrived once per stop; asked for per trip, once — and every board's copy of the row
-  // is completed from it.
+  // A run listed at every stop it will call at is read once, and every board's row completed from
+  // it.
   const runRequests: KvvTripLocator[] = [];
   const boardRequests: { stopId: string; lineIds?: readonly string[] }[] = [];
   const runningTrip = (stopPointId: string, minute: number): KvvDeparture => ({
@@ -859,7 +838,7 @@ test("a line's stops are read as rows, and each trip's calls are fetched once fo
     platformCode: "",
     status: "realtime",
     scheduledDepartureTime: "2026-08-26T07:30:00.000Z",
-    // Every row of a run carries a locator naming its own stop; any one of them reads the trip.
+    // Any row's locator reads the trip.
     tripLocator: locator,
   });
   const client = {
@@ -873,7 +852,7 @@ test("a line's stops are read as rows, and each trip's calls are fetched once fo
         stopName: stopPointId,
         serverTime: "2026-08-26T07:29:45",
         servingLines: [],
-        // The one run, seen from each of the three stops it has yet to call at.
+        // One run, seen from three stops.
         departures: [runningTrip(stopPointId, 2)],
       };
     },
@@ -889,16 +868,15 @@ test("a line's stops are read as rows, and each trip's calls are fetched once fo
     { routeDirectionIds: ["kvv:22304:E:H:s26"] },
   );
 
-  // Three stops read, one trip read.
+  // Three boards, one trip read.
   assert.equal(boardRequests.length, 3);
   assert.equal(runRequests.length, 1);
-  // Every board asked for the line alone: a filtered board cannot hold another, and needs none of
-  // the mode macros that would make it answer with every row's sequence again.
+  // Filtered boards skip the mode macros, which would return every row's sequence.
   assert.deepEqual(
     boardRequests.map((request) => request.lineIds?.length),
     [1, 1, 1],
   );
-  // And every board's row carries the calls that one reading returned.
+  // Every row carries the one reading's calls.
   assert.deepEqual(
     boards.map((board) => board.departures[0].tripCalls?.length),
     [2, 2, 2],
@@ -907,9 +885,7 @@ test("a line's stops are read as rows, and each trip's calls are fetched once fo
     boards.map((board) => board.departures[0].tripInstanceId),
     Array(3).fill(boards[0].departures[0].tripInstanceId),
   );
-  // And it is the *same object* a view reading the run by id gets, not a second merge beside it.
-  // Two equal copies of one reading are two identities, and identity is what every view downstream
-  // memoises on: the board that "changed" and the mark that redrew would both be saying nothing.
+  // The same object a view reading the run by id gets; views memoize on identity.
   for (const board of boards) {
     const row = board.departures[0];
     assert.equal(source.findRun(row.id), row);
@@ -917,10 +893,7 @@ test("a line's stops are read as rows, and each trip's calls are fetched once fo
 });
 
 test("a line's runs are re-read at their own tolerance, apart from the boards that name them", async (t) => {
-  // The boards state which runs exist; the calls a diagram places vehicles from are the runs' own
-  // readings, and the feed revises those about every thirty-five seconds. So a line names its runs
-  // a fresher tolerance than the boards, and the boards' slower cadence answers the cheaper half
-  // of the reading from memory while the marks move.
+  // Runs revise about every 35 s, so a line asks its runs for a fresher tolerance than its boards.
   t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-08-26T07:29:45.000Z") });
   const rawTrip = parseTripResponse(tripPayload, locator);
   let runRequests = 0;
@@ -967,7 +940,7 @@ test("a line's runs are re-read at their own tolerance, apart from the boards th
   assert.equal(boardRequests, 1);
   assert.equal(runRequests, 1);
 
-  // A minute on, the boards' reading is still inside its tolerance; the runs' is not.
+  // A minute on, the boards are within tolerance; the runs are not.
   t.mock.timers.tick(60_000);
   await source.getLineDepartureBoards(["europaplatz"], {
     routeDirectionIds,
@@ -977,8 +950,7 @@ test("a line's runs are re-read at their own tolerance, apart from the boards th
   assert.equal(boardRequests, 1);
   assert.equal(runRequests, 2);
 
-  // Unnamed, the runs' reading keeps the boards': the coupling is what stands unless a caller
-  // names it apart.
+  // Unnamed, the runs' tolerance follows the boards'.
   t.mock.timers.tick(60_000);
   await source.getLineDepartureBoards(["europaplatz"], { routeDirectionIds, maxAgeMs: 90_000 });
   assert.equal(boardRequests, 2);
@@ -986,8 +958,7 @@ test("a line's runs are re-read at their own tolerance, apart from the boards th
 });
 
 test("a trip whose sequence cannot be read still keeps the row it was found on", async () => {
-  // A reading that failed is not evidence that the run is not there: the row stands, and the next
-  // round asks again. Losing it would take a vehicle off the diagram for a lost packet.
+  // A failed read keeps the row; the next round asks again.
   const client = {
     fetchDepartureBoard: async (stopPointId: string): Promise<KvvDepartureBoard> => ({
       stopPointId,
@@ -1025,10 +996,7 @@ test("a trip whose sequence cannot be read still keeps the row it was found on",
 });
 
 test("a line's reading asks for the calls of the runs out on it, not of tomorrow's departures", async () => {
-  // Forty rows at each of seventy stops name a couple of hundred runs, of which a dozen are on the
-  // line. Every stop of the line is read, so a vehicle out there is minutes from somewhere: a run
-  // whose nearest call anywhere is hours away has not set out, and a sequence read for it buys a
-  // mark that would never be placed.
+  // A run whose nearest call is hours away has not set out; its sequence is not read.
   const runRequests: KvvTripLocator[] = [];
   const run = (tripId: string, minutesUntilDeparture: number): KvvDeparture =>
     ({
@@ -1066,15 +1034,13 @@ test("a line's reading asks for the calls of the runs out on it, not of tomorrow
   assert.equal(runRequests.length, 1);
   const [underWay, notYetOut] = board.departures;
   assert.ok(underWay.tripCalls?.length);
-  // The row itself stands either way: it is a departure a rider can read, and the address naming
-  // it reads its calls on its own (`selection.ts`).
+  // The row stays a readable departure; an address naming it reads its calls itself.
   assert.equal(notYetOut.tripCalls, undefined);
   assert.equal(notYetOut.destination, "Hochstetten");
 });
 
 test("a run is read once for all its stops, however far along it the rows are", async () => {
-  // The nearest row decides: the same run is minutes away at the stop it is approaching and an
-  // hour away at the end of its route, and it is one vehicle either way.
+  // The nearest row decides: one vehicle, minutes from one stop, an hour from another.
   const runRequests: KvvTripLocator[] = [];
   const row = (stopPointId: string, minutesUntilDeparture: number): KvvDeparture =>
     ({
@@ -1097,7 +1063,7 @@ test("a run is read once for all its stops, however far along it the rows are", 
       stopName: stopPointId,
       serverTime: "2026-08-26T07:29:45",
       servingLines: [],
-      // Near at the stop ahead of it, an hour off at the far end of the same run.
+      // Near at the next stop, an hour off at the far end.
       departures: [row(stopPointId, read++ === 0 ? 3 : 62)],
     }),
     fetchTrip: async (requested: KvvTripLocator): Promise<KvvTrip> => {
@@ -1179,11 +1145,8 @@ test("line boards keep reused timetable ids separated by their run records", asy
 });
 
 /**
- * The four lifetimes of one run, nested — the ordering `RUN_ENDED_GRACE_MS` states.
- *
- * They live in three files and nothing but this asserts that they still nest. Each pair matters on
- * its own: a board cache outliving the store hands out rows that are no longer addressable as runs,
- * and a mark outliving the store's grace is drawn from a record `findRun` can no longer answer.
+ * The four run lifetimes nest. A cache outliving the store serves rows that are no longer runs; a
+ * mark outliving the store's grace is drawn from a record `findRun` cannot answer.
  */
 test("a run's four lifetimes nest, innermost first", () => {
   assert.ok(DEFAULT_BOARD_MAX_AGE_MS < RUN_MARK_RETENTION_GRACE_MS);
@@ -1192,12 +1155,8 @@ test("a run's four lifetimes nest, innermost first", () => {
 });
 
 /**
- * The consequence of the innermost pair, at the boundary rather than in the constants.
- *
- * A cached board is not re-parsed, so its rows are only ever remembered when it was *fetched*. Were
- * the cache the longer-lived of the two, a board could be served whose rows the store had already
- * swept, `findRunRecordKey` would fall back to the bare row id for every one of them, and a line's
- * stops would go back to asking for the same run once each — with `getRun` answering none of them.
+ * A cached board is not re-parsed, so its rows are only remembered when fetched; if the cache
+ * outlived the store, every stop would ask for the same run again.
  */
 test("a board can never be served from cache after its rows have been forgotten", async (t) => {
   t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-08-26T05:29:45.000Z") });
@@ -1223,11 +1182,10 @@ test("a board can never be served from cache after its rows have been forgotten"
   assert.equal(boardFetches, 1);
   assert.ok(await source.getRun(row.id));
 
-  // Past the run's own end and the grace its evidence is held for: the next write sweeps the record.
+  // Past the run's end plus grace: the next write sweeps it.
   t.mock.timers.tick(Date.parse("2026-08-26T05:35:00.000Z") - Date.now() + RUN_ENDED_GRACE_MS + 1);
 
-  // The board is re-fetched rather than served, so the rows the sweep took are put back by the same
-  // read that took them, and the run stays addressable across the boundary.
+  // The board is refetched, so its rows are remembered again.
   const [reread] = (await source.getDepartureBoard("durlacher-tor")).departures;
   assert.equal(boardFetches, 2);
   assert.equal(reread.id, row.id);

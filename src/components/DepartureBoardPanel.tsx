@@ -66,46 +66,25 @@ type DepartureBoardPanelProps = {
   completedLineDepartures?: readonly Departure[];
   departureBoard: DepartureBoard | null;
   network: TransitNetwork;
-  /** The feed's clock, which is what every countdown on this board is counted from. */
+  /** The feed's clock, which every countdown counts from. */
   feedNow: number;
   /**
-   * The lines being read together, where the rider has bundled the corridor. Every trip of them
-   * reads as the selection, and a row tapped inside the bundle opens inside it.
+   * The bundled lines; their trips read as selected, and a row tapped in the bundle stays in it.
    */
   lineSelection?: LineSelection;
-  /**
-   * The trip the address pins, which is what reads as selected on this board — every row that is
-   * that vehicle, not only the row it was resolved from.
-   */
+  /** The pinned trip, selected on every row of that vehicle. */
   selectedDeparture?: Departure;
-  /**
-   * What this stop has been observed to do, which is how the line reading relates its trips to each
-   * other. Without it that reading still stands, gathering each line's trips under their headsigns
-   * rather than under the places they head into.
-   */
+  /** What this stop's trips were observed to do; without it the line order groups by headsign. */
   corridorPatterns: StopCorridorPatterns;
-  /**
-   * The places this stop is, where it is more than one. Learned over the visit rather than derived
-   * from the board in hand, so a place does not come and go with the rows that happen to prove it.
-   */
+  /** The stop's places, learned over the visit so they do not flicker with the rows. */
   boardingPlaces: StopBoardingPlaces;
-  /** A stacked layout caps the list; a panel of its own shows the whole board and scrolls it. */
+  /** A stacked layout caps the list; a panel of its own shows and scrolls the whole board. */
   isStacked?: boolean;
-  /**
-   * How many readings of the board have answered, however each of them answered. The pull to
-   * refresh settles by this, not by the board's age: a reading that failed is an answer too.
-   */
+  /** How many readings have answered, failures included; the pull to refresh settles on this. */
   boardReadingCount?: number;
-  /**
-   * Reads the board again, asked for by pulling it down past its first row. The board in hand stays
-   * on screen while the reading is under way; the strip that carries the gesture says so.
-   */
+  /** Reads the board again (pull down past the first row); the board stays while reading. */
   onRefresh?: () => void;
-  /**
-   * The stop's own menu, rendered at this board's foot rather than beside it: both of its halves —
-   * the Linien toggle and what KVV announced about this stop — answer questions about the board
-   * above them, so they stay beneath its scrollport and cannot be scrolled past.
-   */
+  /** The stop's menu, at the board's foot, since both its parts are about the board. */
   bottomMenu?: ReactNode;
 };
 
@@ -123,35 +102,28 @@ function DepartureRow({
   joinedPortionPair,
 }: {
   departure: Departure;
-  /** The next observed trip over the same route, stated only when this one is cancelled. */
+  /** The next trip on the same route, shown only when this one is cancelled. */
   nextCompatibleDeparture?: Departure;
   line: TransitLine;
   stopId: string;
-  /** The lines being read together, so a row tapped inside a bundle stays inside it. */
+  /** The lines read together, so a row tapped in a bundle stays in it. */
   lineSelection: LineSelection | undefined;
-  /** Its platform, printed on the row only where no heading above it already states one. */
+  /** Print the platform only where no heading above states it. */
   showsPlatform: boolean;
   /** A high-confidence shared consist inferred from two complete route readings. */
   joinedPortionPair?: JoinedRunPortionPair;
-  /**
-   * Where the row stands in what it is being read within, which is the only thing its entrance
-   * needs: a board settles from the top down, in reading order, rather than all at once.
-   */
+  /** The row's position, for the top-down entrance. */
   index: number;
-  /** This row is the selection: the pinned trip, or any trip of the line when none is pinned. */
+  /** The pinned trip, or any trip of the line when none is pinned. */
   isSelected: boolean;
   /**
-   * This row is the trip the address names — either of the rows that vehicle is published on at a
-   * stop of several places — so tapping it again steps back up to the line.
+   * This row is the addressed trip (either row of a vehicle at a multi-place stop), so tapping
+   * steps up.
    */
   isPinned: boolean;
   feedNow: number;
 }) {
-  // One gesture, one address, at every width: a row refines the chain to the trip it names and the
-  // board stays in view. Sending a narrow viewport straight to the ride instead meant the same tap
-  // produced a different URL by window width, so a link shared from a phone and one shared from a
-  // desktop were different places. Where the ride is what the rider wants, the diagram this opens
-  // carries the control that starts it.
+  // A row tap gives the same address at every width; the diagram it opens can start the ride.
   const timeReading = getDepartureTimeReading(departure);
   const vehicleAccessLabel = getVehicleAccessLabel(departure);
   const nextCompatibleReading = nextCompatibleDeparture
@@ -206,13 +178,9 @@ function DepartureRow({
           </strong>
         )}
         {timeReading && <DepartureTime reading={timeReading} />}
-        {/* The countdown column already says "entfällt" in the largest type in the row, and a
-            deviation is already the published time — only what neither states is worded here. */}
+        {/* Only what the countdown and time do not already say. */}
         {departure.status !== "cancelled" && getDepartureStatusLabel(departure)}
-        {/* Only where the operator says this vehicle is *not* step-free — the rare row a rider with
-            a wheelchair, a pram or a suitcase has to see, and the one thing on the row they cannot
-            tell from the platform. The step-free norm is spoken in the row's label rather than
-            printed nineteen times over the exception. A word, never a mark or a colour alone. */}
+        {/* Only for a vehicle that is not step-free, in words; the norm is spoken. */}
         {departure.status !== "cancelled" && vehicleAccessLabel && (
           <span className="departure-access">{vehicleAccessLabel}</span>
         )}
@@ -225,19 +193,8 @@ function DepartureRow({
 }
 
 /**
- * The three orders a departure board is read in, and nothing else.
- *
- * A rider glancing at a stop wants what leaves next, in the order it leaves — that is the board. A
- * rider standing at a stop with six platforms wants what leaves from the one they are on. A rider
- * who knows they want the 2 wants to see where the 2 goes from here and when the next two of them
- * are. All three are the same departures: nothing is hidden, nothing is re-sorted, the rows are
- * only gathered differently — which is why this is a switch between orders and not a filter, and
- * why the third of them is here rather than in a panel of its own listing the same trips again.
- *
- * The halves are named for what the board is ordered by: `Zeit`, `Steig` and `Linie` are a set a
- * rider reads as when-where-which. `Steig` is the root shared by Bahnsteig and Bussteig, so it is
- * true above a board holding Gleise and Bussteige at once without picking one of their words — and
- * it is what the rider reads on the sign they are walking towards, which is this order's whole job.
+ * The board's three orders, all of the same departures: `Zeit` (what leaves next), `Steig` (by
+ * platform; the root of Bahnsteig and Bussteig) and `Linie` (where each line goes and when).
  */
 const departureOrderItems: readonly SegmentedControlItem<DepartureBoardOrder>[] = [
   { value: "time", label: "Zeit", ariaLabel: "Abfahrten nach Abfahrtszeit ordnen" },
@@ -263,20 +220,14 @@ function DepartureOrderControl({
   );
 }
 
-/**
- * Where a rider walks to before they read a platform at all.
- *
- * Only at a stop that is more than one place — which in this network is the Zentrum's tunnels and
- * the stops whose street platforms a tram calls at in turn. Everywhere else the platforms stand on
- * their own, exactly as they always have, and this renders nothing around them.
- */
+/** A boarding place's section, only at stops with more than one place. */
 function BoardingPlaceGroup({
   group,
   getSectionRef,
   renderRow,
 }: {
   group: DepartureBoardingPlaceGroup;
-  /** Registers the section under its place's id, which is what the place bar jumps and reads by. */
+  /** Registers the section under its place id, for the place bar. */
   getSectionRef: (placeId: string) => (section: HTMLElement | null) => void;
   renderRow: (departure: Departure, index: number) => ReactNode;
 }) {
@@ -299,18 +250,9 @@ function BoardingPlaceGroup({
 }
 
 /**
- * The places of a stop as a way to move through the board, not a way to shrink it.
- *
- * A rider arriving at a stop that is two places walks to one of them. The buttons do not filter the
- * board, which would hide the rest of it behind a choice made before any row was read; the whole
- * board always stands, and the buttons say where it is being read: tapping one walks the board to that place's own section, and
- * as the board scrolls the place whose heading is stuck at the top is marked — the same signpost
- * the sticky headings show, echoed on the buttons.
- *
- * Offered only in the platform order, where the board actually has sections to walk to: the time
- * order interleaves the places in one list, and a button with nothing to arrive at would promise a
- * walk it cannot make. A place with nothing announced right now has no section either, so no
- * button — the bar maps the board that is, not the stop in general.
+ * The places as navigation, not a filter: a button scrolls to its place's section, and the place
+ * whose heading is stuck at the top is marked. Platform order only, and only places with
+ * departures.
  */
 function BoardingPlaceBar({
   places,
@@ -342,12 +284,7 @@ function BoardingPlaceBar({
   );
 }
 
-/**
- * The departures leaving from one platform, under the platform's own signpost.
- *
- * Nothing is hidden and nothing is re-sorted: this is the same board read a second way, so the
- * rows inside a group stay in the order they leave in.
- */
+/** One platform's departures under its signpost, in departure order. */
 function PlatformGroup({
   group,
   renderRow,
@@ -361,8 +298,7 @@ function PlatformGroup({
       className="departure-board-platform-group"
       aria-label={formatSpokenPlatformHeading(group.platformCode, group.platformKind)}
     >
-      {/* A signpost, not a title: the code is the glyph the rider matches against the sign they
-          are walking towards, and the operator's word is its caption. */}
+      {/* The code is the glyph on the sign; the operator's word is its caption. */}
       <h2>
         {word && <small>{word}</small>}
         <b>{code}</b>
@@ -389,18 +325,15 @@ export function DepartureBoardPanel({
   onRefresh,
   bottomMenu,
 }: DepartureBoardPanelProps) {
-  // The shell keys this panel by stop, so another board arrives as a fresh glance rather than a
-  // continuation of this one — the collapse does not have to watch for the stop itself.
+  // The panel is keyed by stop, so a new stop starts collapsed.
   const [isExpanded, setIsExpanded] = useState(false);
-  // Read from the shared preference rather than held here: the board request depends on it too, and
-  // a copy of it in this panel would leave the two disagreeing about what was asked for.
+  // The shared preference, since the board request depends on it too.
   const departureOrder = useStoredPreference(departureBoardOrder);
   const departureListRef = useRef<HTMLDivElement>(null);
   useTransientScrollbar(departureListRef);
   const pullIndicatorRef = useRef<HTMLDivElement>(null);
-  // The pull to refresh reads its gesture on the list and pulls from whichever scrollport holds the
-  // board — the document while stacked, the list itself on a wide screen. A pull means nothing
-  // until a board has been read: what is pulled down is the reading in hand, not an empty list.
+  // The pull reads its gesture on the list and scrolls whichever element holds the board; it does
+  // nothing before a board is read.
   usePullToRefresh({
     listRef: departureListRef,
     indicatorRef: pullIndicatorRef,
@@ -411,38 +344,31 @@ export function DepartureBoardPanel({
   });
   const isGroupedByPlatform = departureOrder === "platform";
   const isGroupedByLine = departureOrder === "line";
-  // The places as navigation, not a filter: the board always holds every place, the bar says where
-  // it is being read at, and a button walks it to another. Only alive in the platform order, where
-  // the sections the bar reads and jumps between exist at all.
+  // Live only in platform order, where the sections exist.
   const boardingPlaceSections = useBoardingPlaceSections(departureListRef, {
     isEnabled: isGroupedByPlatform,
     isPageScrollport: isStacked,
   });
-  // Where the stacked board ends before "mehr anzeigen" gathers the rest: the rider's own choice,
-  // read from the same preference the settings name, not a constant of this panel.
+  // The rider's setting for where a stacked board stops.
   const { stackedDepartureLimit } = useStoredPreference(appSettings);
   const visibleDepartures = useMemo(
     () => (!isStacked || isExpanded ? departures : departures.slice(0, stackedDepartureLimit)),
     [departures, isExpanded, isStacked, stackedDepartureLimit],
   );
   const collapsedCount = isStacked ? Math.max(0, departures.length - stackedDepartureLimit) : 0;
-  // Grouping the departures already on screen rather than the whole board: either way the board
-  // shows the next few departures, and a cap that changed with the order would be a second board.
+  // Groups only the departures shown, so the cap does not change with the order.
   const boardingPlaceGroups = useMemo(
     () =>
       isGroupedByPlatform ? groupDeparturesByBoardingPlace(visibleDepartures, boardingPlaces) : [],
     [boardingPlaces, isGroupedByPlatform, visibleDepartures],
   );
-  // A place that stops being published — a diversion, the last tram of the night — has no section
-  // on the board, and so no button: the bar maps the board that is.
+  // A place with no departures gets no button.
   const shownBoardingPlaces = useMemo(
     () =>
       boardingPlaceGroups.flatMap((group) => (group.boardingPlace ? [group.boardingPlace] : [])),
     [boardingPlaceGroups],
   );
-  // The same departures the other two orders show, related to one another by what this stop has been
-  // observed to do. It is the board's own rows throughout — no second request, and nothing on screen
-  // that the time order does not also hold.
+  // The board's own rows, related by observed corridors; no second request.
   const lineGroups = useMemo(
     () =>
       isGroupedByLine ? getStopServiceCorridorLineGroups(visibleDepartures, corridorPatterns) : [],
@@ -469,7 +395,6 @@ export function DepartureBoardPanel({
       isSelected={isDepartureSelected(departure, selectedDeparture, lineSelection)}
       isPinned={isDeparturePinned(departure, selectedDeparture)}
       feedNow={feedNow}
-      // In grouped order the heading above the row already names its platform.
       showsPlatform={!isGroupedByPlatform}
       joinedPortionPair={findJoinedRunPortionPair(departure, joinedPortionPairs)}
     />
@@ -493,16 +418,14 @@ export function DepartureBoardPanel({
         </div>
       </div>
 
-      {/* A board that cannot be refreshed still says something true — as long as it says how old it
-          is. Stated in full, never implied by a dimmed row. */}
+      {/* A stale board says how old it is, in words. */}
       {staleLabel && (
         <p className="departure-board-stale" role="status">
           {staleLabel}
         </p>
       )}
 
-      {/* Only where the board is read by platform and holds more than one place. A control offering
-          one place to walk to is not a choice, and every ordinary stop must read exactly as it did. */}
+      {/* Only in platform order with more than one place. */}
       {shownBoardingPlaces.length > 1 && (
         <BoardingPlaceBar
           places={shownBoardingPlaces}
@@ -511,9 +434,7 @@ export function DepartureBoardPanel({
         />
       )}
 
-      {/* The pull to refresh: a strip above the rows that grows with the finger and states what the
-          pull is about to do, in the same prose the board states everything else. It sits outside
-          the list so no scroll carries it away — it is there only while a finger holds it. */}
+      {/* The pull strip, outside the list so it does not scroll away. */}
       <div ref={pullIndicatorRef} className="departure-board-pull" role="status">
         <div className="departure-board-pull-inner">
           <span className="departure-board-pull-label" data-pull="hint">

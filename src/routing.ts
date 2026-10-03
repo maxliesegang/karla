@@ -1,12 +1,9 @@
 /**
- * Hash routing. Deep links have to survive static hosting, so every view is addressable through the
- * fragment alone (`#/center`, `#/stop/marktplatz`, `#/stop/europaplatz/line/2`).
+ * Hash routing, so deep links survive static hosting (`#/center`, `#/stop/europaplatz/line/2`).
  *
- * One home page that names the other pages, and one nested selection chain: a stop, optionally a
- * line calling at it, and one trip. A trip opened from the stop board keeps the stop as its parent;
- * a trip opened from a line keeps the line. Each level refines the one above it and is dropped back
- * to it on its own, so a trip that has departed or a line that has stopped running narrows the
- * address instead of invalidating it.
+ * A home page plus one selection chain: stop, optional line, trip. Each level refines the one above
+ * and drops back to it on its own, so a departed trip or a stopped line narrows the address
+ * instead of breaking it.
  */
 import { getLineFamilyId } from "./lib/line-families";
 import {
@@ -20,8 +17,8 @@ import type { Departure } from "./data/transit-types";
 export type RouteView = "home" | "zentrum" | "stop" | "network" | "nearby" | "notices" | "settings";
 
 /**
- * The panel the shell actually shows. A stop with a line selected refines the stop view into the
- * line diagram, which is a view of its own to render but never an address of its own.
+ * The panel shown. A stop with a line selected shows the line diagram, which has no address of its
+ * own.
  */
 export type ActiveView = RouteView | "line";
 export type TripParent = "stop" | "line";
@@ -30,11 +27,8 @@ export const DEFAULT_STOP_ID = "europaplatz";
 const DEFAULT_LINE_ID = "2";
 
 /**
- * The line segment of an address, which names one line or the lines being read together:
- * `line/2`, `line/S1+S11`. Identity is per line throughout — a bundle is a view of two lines over
- * the stretch they share, never a third line — so the segment is a list and never a name of its
- * own. The former combined `S1-S11` URL is read as exactly that bundle, which is what it always
- * meant and could not yet say.
+ * The line segment: one line or a bundle (`line/2`, `line/S1+S11`). A bundle is a view of several
+ * lines, never a line of its own. The legacy `S1-S11` form reads as that bundle.
  */
 const parseLineSegment = (segment: string) =>
   parseLineSelection(segment === "S1-S11" ? "S1+S11" : segment);
@@ -43,80 +37,42 @@ function getLinePathSegment(lineId: string, bundledLineIds: readonly string[] = 
   const primary = getLineFamilyId(lineId);
   return formatLineSelection({
     lineId: primary,
-    // A caller may hand over the whole selection alongside one of its own lines; a line does not
-    // appear twice in the address it names.
+    // A line does not appear twice in the address.
     bundledLineIds: bundledLineIds.filter((id) => getLineFamilyId(id) !== primary),
   });
 }
 
 /**
- * Kept flat rather than a per-view union: the shell needs a stop, board, and network scope in every
- * view, so each field is always resolved instead of narrowed at each use.
- *
- * `lineId` and `addressId` are what the address *asks* for. Whether they still resolve is the shell's
- * question, and an unanswerable one is dropped rather than turned into a dead end.
+ * Flat rather than a per-view union, so the shell can resolve every field in every view.
+ * `lineId` and `addressId` are what the address asks for; the shell drops what no longer resolves.
  */
 export type AppRoute = {
   view: RouteView;
   stopId: string;
   /** Line selected at the stop; empty when the stop alone is in view. */
   lineId: string;
-  /**
-   * Sibling lines read together with it over the stretch they share — `line/S1+S11`. Chosen by the
-   * rider and carried in the address like every other level, so a shared link opens the same
-   * reading and a sibling that stops running drops out of it on its own.
-   */
+  /** Sibling lines the rider chose to read with it (`line/S1+S11`). */
   bundledLineIds: readonly string[];
   /**
-   * The line the Zentrum's plan is following — `#/center/line/2`.
-   *
-   * A level of its own rather than a reuse of `lineId`, because it refines a different thing: the
-   * chain's line is a line *at a stop*, resolved against that stop's board, while this one is a
-   * line highlighted on a drawing of the whole Zentrum and is answerable by the drawing alone.
-   * It is in the address for the reason every other reading is — the reading a rider arrives at is
-   * the reading they can share, and it survives a reload and a step back.
+   * The line the Zentrum plan follows (`#/center/line/2`). Separate from `lineId`, which is a line
+   * at a stop resolved against its board.
    */
   zentrumLineId: string;
-  /**
-   * The stop opened on the Zentrum's plan — `#/center/stop/marktplatz` — which the plan is then read
-   * from: the way the next trams take to it, or how soon every other stop is reached from it.
-   *
-   * Addressed for the reason the followed line is: the back gesture closes it and a shared link
-   * opens it. The two exclude each other, because each is what the plan is lit by.
-   */
+  /** The stop opened on the Zentrum plan (`#/center/stop/marktplatz`). Excludes `zentrumLineId`. */
   zentrumStopId: string;
-  /**
-   * The plan read at the size of the screen — `#/center/full`.
-   *
-   * A schematic of twenty-five stops wants the viewport, and in the panel it shares with a header,
-   * a search field and the tabs it does not get it. Addressed rather than held in the view, because
-   * it is the largest state change the page has: the back gesture is what a reader expects to close
-   * it, and that only works if entering it was somewhere they went.
-   */
+  /** The plan at screen size (`#/center/full`), addressed so the back gesture closes it. */
   isZentrumFullscreen: boolean;
   /** Address of the selected run; undated and dated provider ids still resolve. */
   addressId?: string;
   /** The level a stop-scoped trip was opened from, retained for the step-up control. */
   tripParent?: TripParent;
-  /**
-   * The ride: the trip read on its own, addressed as `#/trip/:tripId` with no stop and no line
-   * beside it. A rider already on board is reading the trip, not choosing another one, so the
-   * board's half of the width goes to the diagram — which is where the changes at each stop become
-   * showable.
-   */
+  /** A ride: the trip read on its own (`#/trip/:tripId`), with no stop or line beside it. */
   isRide: boolean;
-  /**
-   * The stop the rider marked as their Ausstieg while reading a trip. It refines the trip the way
-   * the trip refines the line — chosen, addressable, and dropped on its own once the trip no longer
-   * calls there. Only a trip read on its own has one: it is the only view that is about the ride.
-   */
+  /** The rider's marked Ausstieg on a ride; dropped once the trip no longer calls there. */
   alightingStopId?: string;
   /**
-   * The stop the ride was begun at — `/from/:stopId` — which is the address the rider came from and
-   * therefore the one step up leads back to. Carried rather than inferred: reading the boarding stop
-   * off the trip would pin a level the rider never chose, and guessing from the trip's progress
-   * lands them at a stop they have never seen. A ride reached by a shared link names none, and step
-   * up says so by leading to the home rather than somewhere invented.
+   * The stop the ride was begun at (`/from/:stopId`), where step up leads back to. A ride from a
+   * shared link names none, and step up leads home.
    */
   originStopId?: string;
 };
@@ -133,12 +89,8 @@ const defaultRoute: AppRoute = {
 };
 
 /**
- * The line a trip belongs to, read out of EFA's own trip identity: `de:kvv:00S02_:.kvv-21-12-E…`
- * names the line in its third segment, zero-padded and underscore-terminated. That is what lets a
- * trip be addressed alone — `#/trip/:tripId` states the line without repeating it in the URL.
- *
- * An id in any other shape yields nothing, and the shell falls back to reading the line off the
- * trip once a board resolves it, exactly as a legacy `/departure/:tripId` link does.
+ * The line named in EFA's trip id: the third segment of `de:kvv:00S02_:.kvv-21-12-E…`, padded and
+ * underscore-terminated. Empty for any other shape; the shell then reads the line off the board.
  */
 export function getTripLineId(tripId: string): string {
   // `00S02_` is line S2: zeros pad both around the letter and in front of the number.
@@ -150,7 +102,7 @@ export function getTripLineId(tripId: string): string {
 const getRouteSegments = (hash: string): string[] =>
   hash.replace(/^#\/?/, "").split("/").filter(Boolean);
 
-/** A malformed percent escape in a hand-edited hash should produce a not-found view, not crash. */
+/** A malformed escape in a hand-edited hash gives a not-found view, not a crash. */
 function decodePathSegment(segment: string | undefined): string {
   if (!segment) return "";
   try {
@@ -160,11 +112,11 @@ function decodePathSegment(segment: string | undefined): string {
   }
 }
 
-/** Colons are valid in a path segment and make EFA's namespaced trip ids much easier to read. */
+/** Colons are valid in a path segment and keep EFA's namespaced ids readable. */
 const encodePathSegment = (segment: string): string =>
   encodeURIComponent(segment).replaceAll("%3A", ":");
 
-/** `/stop/:stopId` and everything that may refine it, including the shapes earlier versions used. */
+/** `/stop/:stopId` and its refinements, including legacy shapes. */
 function parseStopRoute(segments: readonly string[]): AppRoute {
   const [rawStopId, qualifier, ...rest] = segments;
   const stopId = rawStopId ?? DEFAULT_STOP_ID;
@@ -177,8 +129,7 @@ function parseStopRoute(segments: readonly string[]): AppRoute {
       tripParent: "stop",
     };
   }
-  // The former `/lines` narrowing is gone — the stop's own address holds board and connections
-  // alike — so an old link simply lands on the stop and is rewritten to it.
+  // The legacy `/lines` qualifier lands on the stop.
   if (qualifier !== "line") return { ...defaultRoute, view: "stop", stopId };
 
   return {
@@ -192,9 +143,7 @@ function parseStopRoute(segments: readonly string[]): AppRoute {
 }
 
 /**
- * The `from`/`to` stops that may follow a trip's own id, read as named pairs rather than by
- * position: they are independent of one another, either may be absent, and a link that carries only
- * an Ausstieg must not be read as naming an origin.
+ * The optional `from`/`to` stops after a trip id, read as named pairs since either may be absent.
  */
 function parseTripQualifiers(segments: readonly string[]): { from?: string; to?: string } {
   const qualifiers: { from?: string; to?: string } = {};
@@ -211,8 +160,7 @@ export function parseRoute(hash: string): AppRoute {
 
   switch (view) {
     case "line":
-      // A line chosen from the index carries no stop yet. The shell resolves the first stop the
-      // line is seen calling at and rewrites the address to the canonical nested form.
+      // A line from the index has no stop yet; the shell resolves one and rewrites the address.
       return {
         ...defaultRoute,
         view: "stop",
@@ -220,10 +168,7 @@ export function parseRoute(hash: string): AppRoute {
         ...parseLineSegment(rest[0] || DEFAULT_LINE_ID),
       };
     case "trip": {
-      // The trip read alone. It names no stop of its own, because a rider on board is not standing
-      // at one, and no line, because its own identity states which line it is. What may follow are
-      // the two stops the rider chose: `/from/:stopId` where they got on, `/to/:stopId` where they
-      // mean to get off.
+      // A ride: the trip alone, optionally with `/from/:stopId` and `/to/:stopId`.
       const addressId = decodePathSegment(rest[0]);
       const { from, to } = parseTripQualifiers(rest.slice(1));
       return {
@@ -238,12 +183,10 @@ export function parseRoute(hash: string): AppRoute {
       };
     }
     case "ride":
-    // The ride's earlier address, which named the line and stop the way `/departure` does rather
-    // than standing on the trip's own identity. Falls through.
+    // Legacy ride address; falls through.
     case "departure": {
-      // Shared links from when a trip was the address. `/departure/:trip/:stop` names no line at
-      // all, so the line is recovered from the board and the address rewritten once it resolves;
-      // `/departure/:trip/:line/:stop` was the older shape and still carries one.
+      // Legacy trip links: `/departure/:trip/:stop` (line recovered from the board) and
+      // `/departure/:trip/:line/:stop`.
       const namesLine = rest.length >= 3;
       return {
         ...defaultRoute,
@@ -255,8 +198,7 @@ export function parseRoute(hash: string): AppRoute {
       };
     }
     case "network":
-      // The line index is one page of the whole observed network; legacy scoped links
-      // (`/network/city`, `/network/region`) open it.
+      // Legacy `/network/city` and `/network/region` open the line index.
       return { ...defaultRoute, view: "network" };
     case "nearby":
       return { ...defaultRoute, view: "nearby" };
@@ -265,9 +207,7 @@ export function parseRoute(hash: string): AppRoute {
     case "settings":
       return { ...defaultRoute, view: "settings" };
     case "center": {
-      // The plan's two sizes. The followed line reads the same after either, because it refines
-      // the plan and not its size. The former `/center/stops` stop index is gone — the plan is
-      // the Zentrum's page — so an old link simply lands on the plan.
+      // The plan's two sizes; the legacy `/center/stops` lands on the plan.
       const [qualifier, ...tail] = rest;
       const isZentrumFullscreen = qualifier === "full";
       const lineSegments = isZentrumFullscreen ? tail : rest;
@@ -290,17 +230,11 @@ export function parseRoute(hash: string): AppRoute {
 export type ZentrumSelection = { lineId?: string; stopId?: string };
 
 /**
- * The only place route paths are spelled out, so a route change cannot be half-applied.
- *
- * `zentrum` addresses `/center`: the segment is published and shared, so it stays as it was spelled
- * while the code around it calls the place by the one name the rest of the app uses.
+ * The only place route paths are spelled out. `zentrum` maps to the published `/center` segment.
  */
 export const routePaths = {
   home: () => "/",
-  /**
-   * The Zentrum's plan: the line it is following or the stop it is read from, where the rider has
-   * chosen one, at the size they are reading it at.
-   */
+  /** The Zentrum plan with its followed line or opened stop, at either size. */
   zentrum: (selection: ZentrumSelection = {}, isFullscreen = false) =>
     `/center${isFullscreen ? "/full" : ""}${
       selection.stopId
@@ -316,7 +250,7 @@ export const routePaths = {
   stop: (stopId: string) => `/stop/${stopId}`,
   line: (lineId: string, stopId?: string, bundledLineIds: readonly string[] = []) => {
     const id = getLinePathSegment(lineId, bundledLineIds);
-    // Without a stop there is no board to read the line against; the shell supplies one.
+    // Without a stop the shell supplies one.
     return stopId ? `/stop/${stopId}/line/${id}` : `/line/${id}`;
   },
   trip: (
@@ -326,15 +260,10 @@ export const routePaths = {
     bundledLineIds: readonly string[] = [],
   ) =>
     `/stop/${stopId}/line/${getLinePathSegment(lineId, bundledLineIds)}/trip/${encodePathSegment(addressId)}`,
-  /** A trip selected from the plain stop board; its line is inferred from the departure. */
+  /** A trip from the plain stop board; its line is inferred from the departure. */
   tripAtStop: (addressId: string, stopId: string) =>
     `/stop/${stopId}/trip/${encodePathSegment(addressId)}`,
-  /**
-   * The ride: no stop of the chain beside the trip, and the line read out of the trip's own
-   * identity. The two stops it may carry are the rider's own — where they got on, where they mean
-   * to get off — and the first of them is what makes stepping up out of a ride an address rather
-   * than a guess.
-   */
+  /** A ride, with the rider's boarding and alighting stops where chosen. */
   ride: (addressId: string, originStopId?: string, alightingStopId?: string) => {
     const trip = `/trip/${encodePathSegment(addressId)}`;
     const from = originStopId ? `/from/${encodePathSegment(originStopId)}` : "";
@@ -344,44 +273,29 @@ export const routePaths = {
 };
 
 /**
- * Where the app opens.
- *
- * The stop the rider last read, and the home when there is none — the page that names the other
- * pages and asks nothing of the network. A rider opening KARLA is nearly
- * always standing at one of the two or three stops they use, and that stop is already known without
- * asking anyone anything: it needs no permission, answers offline, and was chosen by the rider
- * rather than inferred. Opening on the nearby view instead would greet every rider with a permission
- * prompt before the app says anything true.
- *
- * The recalled stop is a starting point, not a claim about where the rider is standing — it is the
- * stop they departed *from*, which is one they are not necessarily at. The list under the
- * search is what makes a wrong landing cost one tap.
+ * Where the app opens: the stop last read, else home. A recalled stop needs no location permission
+ * and is usually right; a wrong one costs a tap.
  */
 export function getLandingPath(recentStopId?: string): string {
   return recentStopId ? routePaths.stop(recentStopId) : routePaths.home();
 }
 
 /**
- * The levels of the chain an address may name, as the path builders read them.
- *
- * An object rather than a positional list: half the fields are optional strings that read alike —
- * a stop, an Ausstieg, an origin — and two of those swapped in a call would still compile. Each
- * caller states what it has in hand and the builders answer with the one path that says exactly
- * that; passing no line, or a line with no trip, is how a level that stopped resolving leaves the
- * address.
+ * The chain levels a path builder takes, as named fields so two optional stop ids cannot be
+ * swapped. Leaving out a level is how it leaves the address.
  */
 export type SelectionAddress = {
   stopId: string;
   lineId?: string;
-  /** The siblings read together with that line, which travel with it through every path builder. */
+  /** Siblings read with that line. */
   bundledLineIds?: readonly string[];
   addressId?: string;
-  /** Whether a trip was opened from the stop board or from an explicit line selection. */
+  /** Whether a trip was opened from the stop board or from a line. */
   tripParent?: TripParent;
   isRide?: boolean;
-  /** The marked Ausstieg, which only a trip read on its own can carry. */
+  /** The marked Ausstieg; only a ride carries one. */
   alightingStopId?: string;
-  /** The stop the ride was begun at, carried so stepping up out of it stays an address. */
+  /** The stop the ride was begun at. */
   originStopId?: string;
 };
 
@@ -396,12 +310,11 @@ export function getSelectionPath({
   alightingStopId,
   originStopId,
 }: SelectionAddress): string {
-  // Reading a trip alone is a mode of the trip, not of the chain: it lasts exactly as long as the
-  // trip does, and a trip that has departed leaves the line in view beside its board like any other.
+  // A ride lasts as long as its trip; then the line takes over like any other trip.
   if (addressId && isRide) return routePaths.ride(addressId, originStopId, alightingStopId);
   if (!lineId) return routePaths.stop(stopId);
-  // A stop-parent trip has no line segment to carry a bundle. Choosing one promotes the line to an
-  // explicit parent so the bundle remains part of the shareable address.
+  // A stop-parent trip has no line segment for a bundle, so choosing one promotes the line to
+  // parent.
   if (addressId && tripParent === "stop" && (bundledLineIds?.length ?? 0) === 0) {
     return routePaths.tripAtStop(addressId, stopId);
   }
@@ -411,18 +324,8 @@ export function getSelectionPath({
 }
 
 /**
- * One level up, and nothing else.
- *
- * Step up drops exactly one thing from the address the rider is at — the trip, then the line, then
- * the stop — so where it leads is readable off the URL before it is pressed, and pressing it twice
- * from a trip always reaches that trip's stop. It never computes a destination from live data: a
- * step up that lands somewhere new because a vehicle moved is not a step up, it is a step forward
- * wearing the same arrow. Leaving a ride behind at the stop it reached is a different act with a
- * different address, and the ride states it in its own words.
- *
- * The ride steps back to where it was begun: the same trip, pinned at the stop the rider boarded at,
- * which is the address they pressed *Fahrt begleiten* on. Without an origin — a ride opened from a
- * shared link — there is no such address, and the home is the honest answer.
+ * One level up: drops the trip, then the line, then the stop. Never computed from live data, so
+ * the target is readable off the URL. A ride steps back to its origin stop, or home without one.
  */
 export function getParentSelectionPath({
   view,
@@ -434,8 +337,7 @@ export function getParentSelectionPath({
   isRide = false,
   originStopId,
 }: SelectionAddress & { view: RouteView }): string | undefined {
-  // The home page is the top of everything: every page above the chain steps back up to it, and a
-  // step up out of one page into its sibling would be a step sideways drawn as an arrow back.
+  // Every page above the chain steps up to home.
   if (view === "home") return undefined;
   if (view !== "stop") return routePaths.home();
   if (isRide) {
@@ -444,15 +346,14 @@ export function getParentSelectionPath({
       ? routePaths.trip(addressId, lineId, originStopId, bundledLineIds)
       : routePaths.stop(originStopId);
   }
-  // The bundle is part of the line level, so unpinning a trip comes back to the same reading the
-  // rider chose rather than quietly dropping the sibling out from under them.
+  // The bundle belongs to the line level and survives unpinning a trip.
   if (addressId && tripParent === "stop") return routePaths.stop(stopId);
   if (addressId && lineId) return routePaths.line(lineId, stopId, bundledLineIds);
   if (lineId) return routePaths.stop(stopId);
   return routePaths.home();
 }
 
-/** Prefer EFA's own trip identity for concise URLs; retain local identity as a defensive fallback. */
+/** Prefers EFA's trip id for concise URLs, falling back to the local id. */
 export function getDepartureAddressId(
   departure: Pick<Departure, "id" | "tripId" | "tripInstanceId">,
 ): string {
@@ -460,23 +361,16 @@ export function getDepartureAddressId(
 }
 
 /**
- * Where tapping a departure goes: the pinned trip steps back up to its line. A row in a plain stop
- * board keeps the stop as the trip's parent, while a row in a selected line keeps that line.
- *
- * The rows of the time and platform orders and the chips of the line order address the same trip —
- * one gesture, one address, whatever the reading — so the target is spelled here once rather than
- * wherever a departure is rendered.
+ * Where tapping a departure goes. A row on a plain stop board keeps the stop as parent; a row in a
+ * selected line keeps the line. Every board order uses this one target.
  */
 export function getDepartureOpenPath(
   departure: Departure,
   stopId: string,
   isPinned: boolean,
   /**
-   * The reading the row was tapped in, where the board is being read as a bundle. A trip of one of
-   * its lines is pinned *within* that reading — the corridor is what the rider chose, and the row's
-   * own badge already says which line the trip belongs to — so the address keeps the same lines in
-   * the same order and only the trip changes. A row of any other line is a different choice, and
-   * leads to that line alone.
+   * The bundle the row was tapped in: a trip of one of its lines keeps the bundle; any other line
+   * goes alone.
    */
   selection?: LineSelection,
 ): string {
@@ -492,15 +386,9 @@ export function getDepartureOpenPath(
 }
 
 /**
- * Whether a trip the address names could still be found by a reading that has not answered yet.
- *
- * The rider's own board is not that reading. A trip that has already left this stop is on no board
- * here at all — a board lists what has yet to leave — and while it is still running it is on the
- * boards read along its line, which answer seconds after the stop's own. A chain that read the stop
- * board alone and rewrote the address without the trip took it out of a shared link before the
- * reading that had it could answer, and then stopped looking, because the address it would have
- * looked with was the one it had just rewritten. Opening the same link at a stop the trip has not
- * reached yet kept it, which is how the two readings of one trip came to disagree.
+ * Whether a trip the address names could still turn up in a reading that has not answered. A trip
+ * past this stop is on no stop board, only on the line's boards, which answer later; rewriting the
+ * address before they do would drop the trip from a shared link.
  */
 export function isAddressOutstanding({
   addressId,
@@ -509,10 +397,10 @@ export function isAddressOutstanding({
   isReadingLine,
 }: {
   addressId: string | undefined;
-  /** Whether something in hand has resolved the address. Resolved leaves nothing outstanding. */
+  /** Whether something in hand has resolved the address. */
   hasResolvedDeparture: boolean;
   isStopBoardRead: boolean;
-  /** Whether the boards along the line are still outstanding for the route as it is known. */
+  /** Whether the line's boards are still outstanding. */
   isReadingLine: boolean;
 }): boolean {
   if (!addressId || hasResolvedDeparture) return false;
@@ -534,24 +422,15 @@ export function findDepartureByAddressId(
 }
 
 /**
- * The address as a view to *start at the top of*, or `null` where the view places itself.
- *
- * Opening a hash route is opening a view, not following an in-page anchor, so it begins at its
- * heading. Two things are deliberately not new views. The address is rewritten in place as levels
- * resolve and drop — on every board refresh, in fact — so only what a rider actually moved to
- * counts. And a line's diagram aims itself: at the stop being read, and at the vehicle the rider
- * chose where a trip is pinned. A stop-board trip is also the diagram's reading, even though its
- * line is inferred. A scroll reset out here is the later writer of the two, and taking
- * the top would undo that aim however well it was taken — which is as true of moving along the line
- * from one of its stops to the next as it is of picking a trip. A ride is a view again, because
- * there the status card at the top *is* what was opened.
+ * The key of the view to scroll to the top on, or `null` where the view places itself. Rewrites as
+ * levels resolve do not count. A line diagram aims itself at the stop or pinned vehicle; a ride is
+ * a view, since its status card is what was opened.
  */
 export function getViewStartKey(route: AppRoute): string | null {
   if ((route.lineId || route.addressId) && !route.isRide) return null;
   return `${route.view}|${route.stopId}|${route.lineId}|${route.isRide}`;
 }
 
-/** Whether the address names a view at all, or the app was opened at its bare root. */
 export const hasRouteAddress = (): boolean => getRouteSegments(window.location.hash).length > 0;
 
 export const navigateTo = (path: string) => {
@@ -559,9 +438,8 @@ export const navigateTo = (path: string) => {
 };
 
 /**
- * Narrowing a selection, or resolving a legacy link, is not somewhere the rider chose to go: the
- * back button must still lead where they came from. Comparing first keeps this safe to call from an
- * effect on every render, and keeps routing the only module that reads the address.
+ * Replaces the history entry: narrowing a selection is not a navigation, and back must still lead
+ * where the rider came from. A no-op when unchanged, so it is safe in an effect.
  */
 export const replaceCurrentRoute = (path: string) => {
   if (window.location.hash.replace(/^#/, "") === path) return;

@@ -1,22 +1,12 @@
 /**
- * Measures which identifiers on a board row name a *run* rather than a *trip*.
- *
- * A trip is the timetable entry, reused every operating day; a run is one dated instance of it out
- * on the road. The store has to tell them apart from board rows alone, and only the feed can say
- * which of the identifiers it publishes is strong enough to do it. Three questions, none of them
- * answerable by reading the app:
- *
- * 1. **Is `servingLine.key` — the locator's `tripCode` — stable across stops?** A run is read at
- *    every stop it is about to call at, so an identity that changes between two boards names the
- *    reading rather than the vehicle. Ground truth is `tripInstanceId`, which the parser derives
- *    from a row's own calling sequence, so the boards are asked for their trips.
- * 2. **Does that code repeat on the next operating day?** This is the whole question. An identity
- *    that comes round again tomorrow is a *trip* identity however stable it is across stops, and
- *    keying a run by it needs a lifetime bound beside it.
- * 3. **Which rows carry a sequence at all?** An unfiltered board answers in the monitor's own form
- *    and returns every row's complete stop sequence whether or not one was asked for; a
- *    line-filtered board does not. That decides where `tripInstanceId` is a dated identity and
- *    where it silently degrades to the bare `tripId` (`getTripInstanceId`).
+ * Measures which board-row identifiers name a run (one dated instance) rather than a trip (reused
+ * daily):
+ * 1. Is `servingLine.key` (the locator's `tripCode`) stable across stops? Ground truth is
+ *    `tripInstanceId`, so boards are asked for their trips.
+ * 2. Does it repeat on the next operating day?
+ * 3. Which rows carry a sequence? Unfiltered boards return all; line-filtered ones do not, and
+ *    there
+ *    `tripInstanceId` degrades to the bare `tripId`.
  *
  *     npm run probe:run-identity -- [options]
  *
@@ -24,17 +14,16 @@
  *       --days 3                  how many operating days to compare (default 3)
  *       --time 1400               clock time to compare those days at (default 1400)
  *
- * A diagnostic run by hand. Measured 6 September 2026 against XSLT_DM_REQUEST: `tripCode` held
- * across every one of 57 runs seen at more than one stop point, and was 1:1 with the run within a
- * single reading (110 codes, 110 runs) — but half the codes came round again the next day on the
- * same line at the same minute. It is a trip identity, exactly as strong as `tripId`.
+ * Measured 6 September 2026 (XSLT_DM_REQUEST): `tripCode` held across all 57 runs seen at several
+ * stop points and was 1:1 with runs within a reading (110/110), but half the codes recurred the
+ * next day at the same line and minute. It is a trip identity, like `tripId`.
  */
 
 import { KvvEfaClient } from "../src/data/kvv-efa-client.ts";
 import { parseDepartureBoardResponse } from "../src/data/kvv-efa-parsers.ts";
 
 const DEPARTURE_ENDPOINT = "https://projekte.kvv-efa.de/sl3-alone/XSLT_DM_REQUEST";
-/** The Zentrum's own observation posts, which see most of the network between them. */
+/** The Zentrum's observation posts. */
 const DEFAULT_STOP_POINT_IDS = ["7000037", "7000061", "7000090", "7001201", "7001003", "7001012"];
 const BOARD_ROWS = 40;
 
@@ -62,14 +51,12 @@ type Row = {
   departsAt: string;
 };
 
-/** `line|tripCode` — the pair a locator names a run by, without the row's own stop and minute. */
+/** `line|tripCode`, the pair a locator names a run by. */
 const getLocatorKey = (row: Row): string | undefined => row.code;
 
 /**
- * The board as the app reads it, for a date the client cannot be asked for.
- *
- * `KvvEfaClient` only ever reads *now*, which is right for the app and useless for question 2, so
- * the request is spelled out here with `itdDate`/`itdTime` added and read by the app's own parser.
+ * A board for a given date, which `KvvEfaClient` (always *now*) cannot request; parsed by the app's
+ * parser.
  */
 async function fetchBoardOn(stopPointId: string, date: string, time: string) {
   const url = new URL(DEPARTURE_ENDPOINT);
@@ -108,7 +95,7 @@ function collect<T>(index: Map<string, Set<T>>, key: string, value: T): void {
   else index.set(key, new Set([value]));
 }
 
-/** Question 1 and 2 both ask whether one identity ever names two of something. */
+/** Whether one identity ever names two of something (questions 1 and 2). */
 function reportCollisions<T>(index: Map<string, Set<T>>, label: string): number {
   const collided = [...index].filter(([, values]) => values.size > 1);
   console.log(`  ${label}: ${index.size} distinct, ${collided.length} naming more than one`);

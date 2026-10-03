@@ -29,17 +29,8 @@ const EMPTY_STOP_IDS: readonly string[] = [];
 const NO_ROUTES: ReadonlyMap<string, readonly string[]> = new Map();
 
 /**
- * The routes the provider states for the selected lines, read once per line-direction.
- *
- * This is the one reading here that is not an observation. Everything else the crawl knows it
- * learned from trips that happened to be running, which is always less than the line — off-peak
- * every trip through a stop may turn back short, and the stretch past that turnback is then served
- * by nothing the crawl can see, so it is never read and nothing it would have disclosed is ever
- * learned. A route is published, so it states that stretch whether or not anything is on it now.
- *
- * It stays a *seed*: it decides where boards are read, never what is drawn. A stop of the route
- * that nothing calls at today contributes a board with no rows for the line and leaves the diagram
- * by itself, exactly as an observed stop that falls out of service does.
+ * The published routes of the selected lines, once per line-direction. A seed for where boards are
+ * read (off-peak trips may not cover the whole line), never for what is drawn.
  */
 export function useLineRoutes(
   selection: LineSelection,
@@ -51,7 +42,7 @@ export function useLineRoutes(
     [boards, isEnabled, selection],
   );
   const [routeStopIdsByLineId, setRouteStopIdsByLineId] = useState(NO_ROUTES);
-  // Asked once per direction: a route does not move, and the source keeps it for the session.
+  // Once per direction; the source keeps routes for the session.
   const askedDirectionIds = useRef(new Set<string>());
 
   useEffect(() => {
@@ -59,12 +50,12 @@ export function useLineRoutes(
       if (askedDirectionIds.current.has(directionId)) continue;
       askedDirectionIds.current.add(directionId);
       transitSource.getLineRoute(rowId).then((routeStopIds) => {
-        // A route that could not be read is asked for again with the next boards.
+        // Asked again with the next boards.
         if (routeStopIds === undefined) askedDirectionIds.current.delete(directionId);
         if (!routeStopIds?.length) return;
         setRouteStopIdsByLineId((current) => {
-          // A line's two directions are one route: the second adds only the stops the first lacks,
-          // which on a one-way loop is the half no outbound run describes.
+          // The second direction adds only stops the first lacks (the other half of a one-way
+          // loop).
           const known = current.get(lineId) ?? [];
           const merged = [...known];
           for (const stopId of routeStopIds) addOnce(merged, stopId);
@@ -79,18 +70,8 @@ export function useLineRoutes(
 }
 
 /**
- * The `line` filter boards may be asked for, from the boards in hand alone.
- *
- * For a reading that keeps no knowledge of its own — the rider's own stop, which is read whether or
- * not anything is known about the line yet. Where it answers with nothing the board is read
- * unfiltered, which at that one stop costs almost nothing: it is the request the rider's own board
- * already made, and the source answers both from one reading.
- *
- * The boards behind it are the unfiltered ones the shell holds — the rider's stop and the network
- * observation — so what it cannot see is a direction that is named nowhere but along the line
- * itself. That stop then keeps the shorter horizon of a shared board while the crawl below, which
- * does see them, reads the rest of the line whole. It is the narrow case: an outlying line, read
- * at its own end, whose stop does not state the direction that only arrives there.
+ * The `line` filter from the boards in hand alone, for the rider's own stop. Without one the board
+ * is read unfiltered, which the source answers from the rider's existing board.
  */
 export function useLineFilterDirectionIds(
   selection: LineSelection,
@@ -106,31 +87,20 @@ export function useLineFilterDirectionIds(
   );
 }
 
-/** The crawl's answer: the boards it read, and whether it has answered for this route at all. */
+/** The crawl's boards, and whether it has answered for this route. */
 export type LineObservationReading = {
   boards: readonly DepartureBoard[];
   /**
-   * Whether the boards for the route as it is currently known are still outstanding.
-   *
-   * What it answers is not "is anything loading" but "could a reading still name something this
-   * one has not": a trip that has left the rider's stop is on no board there and on one of these,
-   * so a chain that drops the trip it was addressed with must wait for this to be false first.
+   * Whether boards for the route as known are still outstanding: whether a reading could still name
+   * a trip that left the rider's stop.
    */
   isReading: boolean;
 };
 
 /**
- * The boards read for these lines alone, along the whole route discovery has reached.
- *
- * Where they are read and what they are asked for are both learned, and both only ever grow: every
- * answer may disclose another branch, another short working, or the direction a terminus lists no
- * row for. That makes this a fixed point — it settles on the pass where an answer adds no stop and
- * no direction — and it is stepped while rendering rather than in an effect, because the newly
- * discovered stops are read on the next pass and waiting a paint would show a diagram missing the
- * very branch its boards just disclosed.
- *
- * What the crawl knows is kept per line and remembered for the visit, so a line read again does not
- * start over from the trips that happen to be running this hour.
+ * The boards read for these lines along the route discovered so far. Stops and directions only
+ * grow, so it settles at a fixed point; stepped during render so newly found stops are read on the
+ * next pass. Knowledge is kept per line for the visit.
  */
 export function useLineObservation({
   selection,
@@ -140,14 +110,13 @@ export function useLineObservation({
   isEnabled = true,
 }: {
   selection: LineSelection;
-  /** The lines being read, for the core stops a line falls back to before any board is in hand. */
+  /** The lines read, for their core-stop fallback. */
   lines: readonly TransitLine[];
-  /** The rider's own stop, whose board is already in hand and is never requested twice. */
+  /** The rider's stop, whose board is in hand and never requested twice. */
   stopId: string;
   /**
-   * Everything read for these lines outside the crawl: the rider's board, the network observation,
-   * and this stop's own trips. The crawl is taught by them before it asks for anything of its own,
-   * so the first round already reads the route those trips describe.
+   * Boards read outside the crawl (rider's board, network observation, this stop's trips), learned
+   * first.
    */
   evidenceBoards: readonly LineObservationBoard[];
   isEnabled?: boolean;
@@ -161,11 +130,8 @@ export function useLineObservation({
     state.key === key
       ? state.observations
       : seedLineObservations(selection, lines, recallLineObservation);
-  // The published route of each selected line, which the crawl is taught before its own boards and
-  // before anything it could discover: it is the only statement of where the line goes that does
-  // not depend on something running there right now.
+  // The published route, learned before any of the crawl's own boards.
   const routeStopIdsByLineId = useLineRoutes(selection, evidenceBoards, isEnabled);
-  // What is known before this reading's own boards are asked for.
   const known = useMemo(
     () =>
       extendLineObservationRoutes(
@@ -183,9 +149,7 @@ export function useLineObservation({
   const observationStopIds = useMemo(() => {
     if (!isEnabled) return EMPTY_STOP_IDS;
     const readable = getLineObservationStopIds(stopIds, stopId);
-    // A round that could not name its filter reads a sample of the line rather than all of it: its
-    // boards are whole stops, and it is there to learn the name, not to survey the route with the
-    // heaviest reading there is. The filtered round that follows reads every stop.
+    // A round without a filter reads a sample: it reads whole stops, to learn the filter.
     return sampleLineObservationStopIds(
       readable,
       filterDirectionIds.length > 0
@@ -205,14 +169,12 @@ export function useLineObservation({
     [boards, known, selection],
   );
 
-  // Adjusted while rendering, which is the crawl's whole step: what these boards disclosed is what
-  // the next pass reads. A line change starts the reading over under its own key.
+  // Stepped during render; a line change starts over under its key.
   if (state.key !== key || observations !== state.observations) {
     setState({ key, observations });
   }
 
-  // Written back where a later reading of the line can start from it — in an effect, because it is
-  // for the next visit to this line and nothing in this one may depend on it having been written.
+  // Stored for the next visit, so in an effect.
   useEffect(() => {
     for (const [lineId, observation] of state.observations) {
       rememberLineObservation(lineId, observation);

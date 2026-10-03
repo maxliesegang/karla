@@ -11,20 +11,13 @@ import {
 import { getLandingPath, hasRouteAddress, replaceCurrentRoute } from "../routing";
 
 /**
- * The stop a returning rider is most likely to want, and recording the one they are reading now.
- *
- * The landing stop is read once, when the app starts: a decision made later would keep pulling a
- * rider back to their usual stop as they browse. The list beside it does keep up, because a stop
- * read in this session is exactly the one a rider is most likely to want back. Recording happens
- * only for a stop that actually resolved, so a board that never loaded is never remembered as
- * somewhere they were — and only while the rider has left the app remembering stops at all, which
- * is one of the settings; with it off the list reads as a first visit's does, and no visit adds to
- * what is kept.
+ * The landing stop, read once at start so browsing does not move it, and the recent list, which
+ * does keep up. Only resolved stops are recorded, and only while the setting allows it.
  */
 export function useStopRecall(visitedStop: TransitStop | undefined): {
-  /** Where the app opens when it was given no address. Decided once, so browsing cannot move it. */
+  /** Where the app opens without an address; decided once. */
   recentStopId: string | undefined;
-  /** The stops to offer as a shortcut, most recent first, the one in view left out. */
+  /** Shortcut stops, newest first, the one in view excluded. */
   recentStops: readonly RecentStop[];
 } {
   const settings = useStoredPreference(appSettings);
@@ -35,8 +28,7 @@ export function useStopRecall(visitedStop: TransitStop | undefined): {
   const visitedStopId = visitedStop?.id;
   const visitedStopName = visitedStop?.name;
 
-  // Adjusted while rendering rather than in an effect: the stop being read is already known here,
-  // and waiting a paint to move it to the front would show the rider a list they have just left.
+  // Set during render, so the list does not show a stale order for a frame.
   const [visited] = recentStops;
   if (
     settings.isRememberingStops &&
@@ -46,7 +38,7 @@ export function useStopRecall(visitedStop: TransitStop | undefined): {
     setRecentStops(withStopVisit(recentStops, visitedStopId, visitedStopName));
   }
 
-  // Storage is the external system this synchronises with, and writing it is all the effect does.
+  // The effect only writes storage.
   useEffect(() => {
     if (visitedStopId && settings.isRememberingStops)
       rememberStopVisit(visitedStopId, visitedStopName);
@@ -65,15 +57,8 @@ export function useStopRecall(visitedStop: TransitStop | undefined): {
 }
 
 /**
- * Where the app opens when it was given no address.
- *
- * Decided once, on the first render, and written with `replace`: the landing is a starting point
- * rather than somewhere the rider navigated to, so the back button must still leave the app, and a
- * rule that kept re-deciding would pull a browsing rider back to their usual stop. Reading the
- * address is routing's job and the shell's, never a component's.
- *
- * `recentStopId` is `useStopRecall`'s landing decision, which is likewise taken once. It is passed
- * in rather than read here so both halves of the landing stand on the same reading of storage.
+ * Navigates to the landing on first render with `replace`, so back still leaves the app.
+ * `recentStopId` comes from `useStopRecall`, so both use the same storage reading.
  */
 export function useInitialLanding(isEnabled: boolean, recentStopId?: string) {
   const hasLanded = useRef(false);

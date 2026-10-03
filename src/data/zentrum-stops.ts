@@ -1,22 +1,12 @@
 /**
- * Which stops count as the Zentrum.
- *
- * This replaced a rectangle on the ground. A rectangle was the smaller decision, but the Zentrum is
- * not a rectangle: sweeping a box wide enough to reach Karl-Wilhelm-Platz in the east also swept in
- * Schillerstraße and Sophienstraße in the west, which no rider counts as the middle of Karlsruhe.
- * Where the Zentrum ends is a judgement about the city, so it is written down as one.
- *
- * Membership is the *only* thing it decides. Which lines run and where they call is still read from
- * live trips — a line that stops running leaves the view by itself, and a stop listed here that
- * nothing calls at is simply not shown. Nothing here is a claim that any of it is running today.
- * The order below is written for whoever edits this file — the Zentrum is listed alphabetically.
- *
- * The edges are deliberate: the west ends at Mühlburger Tor, the south at the Albtalbahnhof, and
- * the east at Karl-Wilhelm-Platz, Gottesauer Platz and Ostendstraße.
+ * Which stops count as the Zentrum: a judgement about the city, written down (a rectangle swept in
+ * Schillerstraße and Sophienstraße). Membership only; lines and service are observed live, so a
+ * listed stop with no service is not shown. Edges: Mühlburger Tor (west), Albtalbahnhof (south),
+ * Karl-Wilhelm-Platz, Gottesauer Platz and Ostendstraße (east).
  */
 export const zentrumStopIds: readonly string[] = [
-  // The Kaiserstraße axis, west to east. One id a place: the provider answers the tunnel and the
-  // street platforms from either of their stop ids, so a place is one page and one entry here.
+  // The Kaiserstraße axis, west to east; one id per place (tunnel and street answer from either
+  // id).
   "muehlburger-tor",
   "europaplatz",
   "marktplatz",
@@ -29,10 +19,8 @@ export const zentrumStopIds: readonly string[] = [
   "ettlinger-tor",
   "rueppurrer-tor",
   "ostendstrasse",
-  // West and south-west.
-  // Both are out of service for construction: their ids are correct and their boards answer with
-  // nothing at every hour of the week. They stay listed because the view is observed — nothing
-  // calls there, so nothing is shown, and they return by themselves when the service does.
+  // West and south-west. Both are closed for construction and answer with nothing; they stay listed
+  // and return by themselves with service.
   "lessingstrasse",
   "otto-sachs-strasse",
   "arbeitsagentur",

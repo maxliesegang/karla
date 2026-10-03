@@ -9,7 +9,7 @@ import { RUN_ENDED_GRACE_MS, RUN_READING_MAX_AGE_MS } from "./run-reading-store"
 
 const EMPTY_OBSERVED_NETWORK: ObservedNetwork = { stops: [], lines: [], tripCount: 0 };
 
-/** The topology fields a call may teach, with every per-run timing fact removed. */
+/** The topology fields of a call, without per-run timing. */
 const toTopologyCall = (call: TripCall): TripCall => ({
   stopName: call.stopName,
   ...(call.placeName ? { placeName: call.placeName } : {}),
@@ -33,7 +33,7 @@ const toTopology = (departure: Departure): ObservedTripTopology | undefined =>
       }
     : undefined;
 
-/** One distinct published topology of a timetable trip; diversions are evidence of their own. */
+/** One distinct topology of a timetable trip; a diversion counts separately. */
 const getTopologyKey = (trip: ObservedTripTopology): string =>
   [
     trip.tripId ?? trip.id,
@@ -43,23 +43,13 @@ const getTopologyKey = (trip: ObservedTripTopology): string =>
     getCallSequenceKey(trip.tripCalls ?? []),
   ].join("\u0000");
 
-/**
- * When a trip stops teaching the network anything: the lifetime its run's evidence is kept for.
- *
- * Ended at its last call plus the grace, or aged out when its calls state no time, exactly as
- * `RunReadingStore` retires the run — so the network forgets a trip when the evidence about it is
- * gone, and not a session later.
- */
+/** When a trip stops teaching the network: when `RunReadingStore` would retire its run. */
 const getTopologyExpiry = (departure: Departure, now: number): number =>
   (findFinalCallInstant(departure.tripCalls) ?? now + RUN_READING_MAX_AGE_MS) + RUN_ENDED_GRACE_MS;
 
 /**
- * Knowledge learned from live boards, independent of whichever view fetched them.
- *
- * One topology-only record is retained per distinct timetable route, until that trip has run: a
- * line that stops running leaves the network by itself. Re-reading the same trip does not make it
- * count twice; a diverted route remains usable evidence alongside its ordinary one. No run reading
- * is retained here.
+ * Topology learned from live boards, whichever view fetched them: one record per distinct route,
+ * until the trip has run, so stopped lines leave by themselves. No run readings are kept.
  */
 export class ObservedNetworkStore {
   private readonly tripsByKey = new Map<

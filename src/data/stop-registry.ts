@@ -3,16 +3,12 @@ import { kvvStopMappingByLocalStopId } from "./kvv-stop-mappings";
 import type { TransitStop, TripCall } from "./transit-types";
 import { createStopSlug } from "../lib/stop-slug";
 
-/** A dynamic stop id is its name slug plus a short digest of the provider id: `hbf--1a2b3c`. */
+/** A dynamic stop id: name slug plus a short digest of the provider id (`hbf--1a2b3c`). */
 export const DYNAMIC_STOP_ID_PATTERN = /^(.*?)--([a-z0-9]+)$/;
 
 /**
- * Provider stop point -> local stop id, inverted once. A trip sequence resolves one entry per
- * calling point, which is far too often to be scanning the mapping table each time.
- *
- * Every stop point of a place is inverted, not only the one its board is requested for: a place is
- * one local stop however many platforms the operator numbers it across, and a trip must resolve to
- * it from whichever of them it calls at.
+ * Provider stop point to local stop id, inverted once; every stop point of a place maps to it, so a
+ * trip resolves from whichever it calls at.
  */
 const localStopIdByProviderId: ReadonlyMap<string, string> = new Map(
   Object.entries(kvvStopMappingByLocalStopId).flatMap(([localId, mapping]) =>
@@ -22,7 +18,7 @@ const localStopIdByProviderId: ReadonlyMap<string, string> = new Map(
   ),
 );
 
-/** The short digest a dynamic stop id carries, so a deep link names one stop point and not a name. */
+/** The digest a dynamic id carries, so a deep link names one stop point. */
 export function hashProviderStopId(providerId: string): string {
   let hash = 2166136261;
   for (const character of providerId) {
@@ -38,22 +34,18 @@ export type StopRegistration = {
   placeName?: string;
   latitude?: number;
   longitude?: number;
-  /** The id a deep link already used, so resolving that link does not mint a second one. */
+  /** The id a deep link already used, so resolving it does not mint a second. */
   preferredId?: string;
 };
 
 /**
- * Which stop a provider id is, and which provider id a stop is — in both directions, for the
- * session.
- *
- * The authored network is stable local data and answers first; every other stop is one the session
- * has met, through a name search or through a calling point of a trip, and is kept so the same
- * provider stop resolves to the same local id wherever it turns up again.
+ * Provider id to local stop and back, for the session. Authored stops first; others are met through
+ * searches or trip calls and keep the same local id thereafter.
  */
 export class StopRegistry {
   private readonly authoredStopsById: ReadonlyMap<string, TransitStop>;
   private readonly dynamicStops = new Map<string, TransitStop>();
-  /** Both directions of the dynamic id <-> provider id pairing, so neither lookup has to scan. */
+  /** Both directions of the dynamic-id pairing. */
   private readonly providerIdByDynamicStopId = new Map<string, string>();
   private readonly dynamicStopIdByProviderId = new Map<string, string>();
 
@@ -61,12 +53,12 @@ export class StopRegistry {
     this.authoredStopsById = new Map(authoredStops.map((stop) => [stop.id, stop]));
   }
 
-  /** A stop the session already holds, whether it is authored or dynamically resolved. */
+  /** A stop the session holds, authored or dynamic. */
   findStop(stopId: string): TransitStop | undefined {
     return this.authoredStopsById.get(stopId) ?? this.dynamicStops.get(stopId);
   }
 
-  /** The provider stop point behind a local stop, whether it is authored or dynamically resolved. */
+  /** The provider stop point behind a local stop. */
   findProviderStopId(stopId: string): string | undefined {
     return (
       kvvStopMappingByLocalStopId[stopId]?.providerStopId ??
@@ -74,17 +66,14 @@ export class StopRegistry {
     );
   }
 
-  /** A supported local page for this provider stop, preferring the fixed mapping over a dynamic one. */
+  /** The local page for a provider stop, preferring the fixed mapping. */
   findLocalStopId(providerId: string): string | undefined {
     return (
       localStopIdByProviderId.get(providerId) ?? this.dynamicStopIdByProviderId.get(providerId)
     );
   }
 
-  /**
-   * A stop the session has met but the authored network does not list. Registered once and kept for
-   * the session, so the same provider stop resolves to the same local id wherever it turns up.
-   */
+  /** Registers a stop the authored network lacks, once per session. */
   register({
     providerId,
     name,
@@ -93,17 +82,14 @@ export class StopRegistry {
     longitude,
     preferredId,
   }: StopRegistration): TransitStop {
-    // A provider stop has one local identity. Searches return authored stops too, and an old shared
-    // link may still carry the dynamic id that stop had before it was authored. In both cases the
-    // fixed local stop wins: letting `preferredId` mint an alias would make the page use one id
-    // while its parsed trip calls use another, so topology could no longer locate the current stop.
+    // The authored stop wins over a search hit or an old dynamic id, so page and trip calls use one
+    // id.
     const authoredId = localStopIdByProviderId.get(providerId);
     const authored = authoredId ? this.authoredStopsById.get(authoredId) : undefined;
     if (authored) return authored;
 
-    // The same invariant applies outside the authored network. A provider may spell a stop
-    // differently between search results and trip calls; once registered, that must enrich the
-    // existing stop rather than create a second route for the same physical place.
+    // Likewise a registered dynamic stop: a different spelling enriches it rather than duplicating
+    // it.
     const registeredId = this.dynamicStopIdByProviderId.get(providerId);
     const registered = registeredId ? this.dynamicStops.get(registeredId) : undefined;
     if (registered) {
@@ -116,8 +102,7 @@ export class StopRegistry {
     }
 
     const id = preferredId ?? `${createStopSlug(name)}--${hashProviderStopId(providerId)}`;
-    // A stop outside the core is shown with the municipality beside its name, which is the second
-    // name a rider knows it by — the same slot a local stop states a colloquial name in.
+    // The municipality goes in the alias slot.
     const stop: TransitStop = { id, name, alias: placeName, latitude, longitude };
     this.dynamicStops.set(id, stop);
     this.providerIdByDynamicStopId.set(id, providerId);
@@ -125,12 +110,11 @@ export class StopRegistry {
     return stop;
   }
 
-  /** Provider calling points as the app states them: every one resolved to a local stop of ours. */
+  /** Provider calls with every stop resolved to a local one. */
   toTripCalls(tripCalls: readonly KvvTripCall[]): TripCall[] {
     return tripCalls.map(({ providerId, ...tripStop }) => ({
       ...tripStop,
-      // Kept beside the local id rather than replaced by it: the local id is the page a rider is
-      // on, and the stop point is which part of that page they are being sent to.
+      // Kept alongside the local id: which part of the page the rider is sent to.
       providerStopPointId: providerId,
       localStopId: providerId
         ? this.resolveTripCallStopId(providerId, tripStop)
@@ -139,10 +123,8 @@ export class StopRegistry {
   }
 
   /**
-   * The local id for one calling point of a trip. The feed states where every calling point is, so
-   * a stop first met inside a trip is registered with its position — that is what lets a rider be
-   * placed against stops the authored network never listed. A stop already met through the name
-   * search carries no position, so the first call that states one fills it in.
+   * The local id for a trip call, registering it with its position; fills in a position missing
+   * from a search-registered stop.
    */
   private resolveTripCallStopId(
     providerId: string,

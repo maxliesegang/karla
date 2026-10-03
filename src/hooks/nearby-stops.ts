@@ -6,19 +6,14 @@ import { IS_GEOLOCATION_SUPPORTED, isPermissionDenied, useGrantedGeolocation } f
 export type NearbyStopsState =
   | { status: "idle" | "locating"; stops: readonly NearbyStop[] }
   | { status: "ready"; stops: readonly NearbyStop[] }
-  /** Told no. The button goes away rather than asking again, which the browser would refuse anyway. */
+  /** Denied: the button goes away; the browser would refuse again anyway. */
   | { status: "denied"; stops: readonly NearbyStop[]; message: string }
   | { status: "unavailable"; stops: readonly NearbyStop[]; message: string };
 export type NearbyStopsController = NearbyStopsState & { locate: () => void };
 
 /**
- * The stops a rider could be standing at.
- *
- * Location is requested only after the rider asks — or silently when they have already granted it,
- * because asking a second time for something already answered is the annoyance, not the request.
- * No position is retained or sent anywhere. Results are capped by distance as well as by count: a
- * nearest stop four kilometres away is not a nearest stop, and offering it as one is a wrong answer
- * rather than a thin one.
+ * Stops the rider could be standing at. Location only after the rider asks, or silently if already
+ * granted; never stored or sent. Capped by distance as well as count.
  */
 export function useNearbyStops(
   stops: readonly TransitStop[],
@@ -26,8 +21,7 @@ export function useNearbyStops(
 ): NearbyStopsController {
   const [state, setState] = useState<NearbyStopsState>({ status: "idle", stops: [] });
   const positionRef = useRef<{ latitude: number; longitude: number } | null>(null);
-  // The ranking is done against whatever stops are known when the fix arrives, so `locate` must not
-  // be rebuilt every time the observed list grows — it would re-run the granted-permission effect.
+  // Read through a ref, so `locate` is not rebuilt (and the grant effect re-run) as stops grow.
   const stopsRef = useRef(stops);
   useEffect(() => {
     stopsRef.current = stops;
@@ -69,8 +63,7 @@ export function useNearbyStops(
     );
   }, []);
 
-  // Observation posts can contribute more locatable stops after the position arrives. Re-rank
-  // against the same on-device fix so the nearby view fills in without requesting location again.
+  // Re-rank against the same fix as more stops become known.
   useEffect(() => {
     const position = positionRef.current;
     if (!position) return;
@@ -88,7 +81,6 @@ export function useNearbyStops(
     });
   }, [stops]);
 
-  // The underground platforms are why a granted position is still never the only way in.
   useGrantedGeolocation(isEnabled, locate);
 
   return { ...state, locate };

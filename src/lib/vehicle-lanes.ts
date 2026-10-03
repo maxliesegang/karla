@@ -1,4 +1,4 @@
-/** A lane remembered for one marker while it remains on the same directed diagram link. */
+/** A marker's lane, kept while it stays on the same directed link. */
 export type VehicleLaneAssignment = {
   linkKey: string;
   laneIndex: number;
@@ -16,11 +16,8 @@ const getLinkKey = ({ fromIndex, toIndex, directionArrow }: LaneAssignableVehicl
   `${fromIndex}:${toIndex}:${directionArrow}`;
 
 /**
- * Keeps the sideways lane of every vehicle that is still on the same link.
- *
- * The domain list is ordered by soonest passage, so assigning lanes from scratch makes all the
- * other marks jump sideways whenever one vehicle enters or leaves a link. A lane is presentation
- * state instead: keep it while it is still available, then give newcomers the first free lane.
+ * Keeps each vehicle's sideways lane while it stays on its link, so others do not jump when one
+ * enters or leaves; newcomers get the first free lane.
  */
 export function assignStableVehicleLanes<T extends LaneAssignableVehicle>(
   vehicles: readonly T[],
@@ -36,7 +33,7 @@ export function assignStableVehicleLanes<T extends LaneAssignableVehicle>(
     laneByMarker.set(markerKey, { linkKey, laneIndex });
   };
 
-  // Every mark that can keep the lane it already had keeps it, before anything new is handed one.
+  // Existing lanes first.
   for (const vehicle of vehicles) {
     const linkKey = getLinkKey(vehicle);
     const remembered = previous.get(vehicle.markerKey);
@@ -44,7 +41,7 @@ export function assignStableVehicleLanes<T extends LaneAssignableVehicle>(
     claim(vehicle.markerKey, linkKey, remembered.laneIndex);
   }
 
-  // Then the newcomers, each into the first lane of its link still free.
+  // Then newcomers, into the first free lane.
   for (const vehicle of vehicles) {
     if (laneByMarker.has(vehicle.markerKey)) continue;
     const linkKey = getLinkKey(vehicle);

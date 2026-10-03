@@ -4,16 +4,9 @@ import { getNoticePeriodLabel } from "../lib/service-notices";
 import { compareLineIds, isSameLineFamily } from "../lib/line-families";
 import { LineBadge } from "./LineBadge";
 
-/**
- * The notices themselves, as rows.
- *
- * Split from `ServiceNoticePanel` because the list is the part two views share: the panel decides
- * whether there is anything to say, and this decides how a notice reads once there is. Nothing here
- * is written by this app — the title is the operator's own, the period is the one it published, and
- * the full wording is its text unshortened, opened in place.
- */
+/** Notice rows, shared by two views: verbatim title, period and full text, opened in place. */
 
-/** More badges than this and the row stops being scannable; the rest are counted. */
+/** Badges per row before the rest are counted. */
 const VISIBLE_NOTICE_LINE_BADGE_LIMIT = 6;
 
 export function ServiceNoticeList({
@@ -21,7 +14,7 @@ export function ServiceNoticeList({
   lines,
   feedNow,
 }: {
-  /** Already ordered for the view that owns the list. */
+  /** Already ordered by the owning view. */
   notices: readonly ServiceNotice[];
   lines: readonly TransitLine[];
   feedNow: number;
@@ -44,9 +37,7 @@ function ServiceNoticeRow({
   lines: readonly TransitLine[];
   feedNow: number;
 }) {
-  // Only the lines that are actually running are drawn: a notice names every line its author
-  // selected, including ones that never come near Karlsruhe, and a badge for a line the reader
-  // cannot board here is noise in the row that matters.
+  // Only running lines get badges; notices name lines that never come near Karlsruhe.
   const runningLines = useMemo(
     () =>
       notice.lineIds
@@ -96,9 +87,7 @@ function ServiceNoticeRow({
     </>
   );
 
-  // The wording the operator published is already in hand, so the row opens it rather than sending
-  // the reader anywhere. A notice published as a headline alone is simply not expandable, and reads
-  // as what it is: the text is the whole of it, so it needs no control of its own.
+  // Rows with full text expand in place; headline-only notices do not.
   const className = `notice notice-${notice.priority === "high" ? "alert" : "info"}`;
   if (notice.details.length === 0) {
     return <p className={className}>{content}</p>;
@@ -119,7 +108,7 @@ function ServiceNoticeRow({
       </summary>
       <div className="service-notice-detail-text">
         {notice.details.map((paragraph, index) => (
-          // The operator's paragraphs have no ids of their own, and the text is what identifies them.
+          // Paragraphs have no ids; the text identifies them.
           <p key={`${index}-${paragraph}`}>{paragraph}</p>
         ))}
       </div>

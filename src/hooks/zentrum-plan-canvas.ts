@@ -8,26 +8,23 @@ import {
 } from "../lib/zentrum-plan-canvas";
 import { useElementBox } from "./element-box";
 
-/** The plan as it is being read: how big it is drawn, and in which scrollport. */
+/** The plan's drawn size and scrollport. */
 export type ZentrumPlanCanvas = {
-  /** The scrollport the plan is read in, which is also the box it is fitted to. */
+  /** The scrollport, which is also the box the plan fits. */
   scrollRef: RefObject<HTMLDivElement | null>;
   zoom: number;
-  /** The width the plan is drawn at; `undefined` until the box has been measured. */
+  /** The drawn width; `undefined` until measured. */
   planWidth: number | undefined;
   canZoomIn: boolean;
   canZoomOut: boolean;
   changeZoom: (direction: 1 | -1) => void;
 };
 
-/**
- * The size the plan is drawn at. A zoom keeps the middle of the view where it was: unanchored, the
- * plan grows away from its top left corner and the reader loses their place.
- */
+/** The plan's drawn size. Zooming keeps the middle of the view in place. */
 export function useZentrumPlanCanvas(): ZentrumPlanCanvas {
   const [zoom, setZoom] = useState<number>(ZENTRUM_ZOOM_STEPS[0]);
   const scrollRef = useRef<HTMLDivElement>(null);
-  /** The middle of the view when the zoom was pressed, as a share of the plan. */
+  /** The view's middle when zoom was pressed, as a share of the plan. */
   const zoomAnchor = useRef<{ x: number; y: number }>(null);
   /** Whether the plan has already been centred once. */
   const hasOpened = useRef(false);
@@ -44,8 +41,7 @@ export function useZentrumPlanCanvas(): ZentrumPlanCanvas {
       element.scrollTop = anchor.y * element.scrollHeight - element.clientHeight / 2;
       return;
     }
-    // A plan larger than its box opens centred, not on its edge. Once only: after that the place
-    // being read is the reader's, and a re-measure must not move it.
+    // A plan larger than its box opens centred, once; later re-measures do not move it.
     if (hasOpened.current || planWidth === undefined) return;
     hasOpened.current = true;
     element.scrollLeft = (element.scrollWidth - element.clientWidth) / 2;
