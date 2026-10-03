@@ -1,4 +1,4 @@
-import { useEffect, useRef, type CSSProperties, type MouseEvent } from "react";
+import { useEffect, useRef, type CSSProperties, type MouseEvent, type SyntheticEvent } from "react";
 import type { TransitLine } from "../../data/transit-types";
 import { classNames } from "../../lib/class-names";
 import type { LineBundleControl } from "../../lib/line-bundles";
@@ -45,6 +45,15 @@ export function LineDiagramBundleControls({
   }, []);
 
   if (controls.length === 0) return null;
+  // The overlay hangs from the actions row's right edge; its arrow is moved over to the summary.
+  const placeArrow = (event: SyntheticEvent<HTMLDetailsElement>) => {
+    const details = event.currentTarget;
+    const actions = details.closest(".line-diagram-header-actions");
+    const summary = details.querySelector("summary");
+    if (!details.open || !actions || !summary) return;
+    const offset = actions.getBoundingClientRect().right - summary.getBoundingClientRect().right;
+    details.style.setProperty("--line-diagram-bundle-arrow-offset", `${Math.max(0, offset)}px`);
+  };
   const bundled = controls.filter(({ isActive }) => isActive);
   const offers = controls.filter(({ isActive }) => !isActive);
   /** One line's colours, for the sign plate and its pill. */
@@ -94,7 +103,7 @@ export function LineDiagramBundleControls({
   );
   return (
     <div className="line-diagram-bundle" role="group" aria-label="Linien bündeln">
-      <details ref={detailsRef} className="line-diagram-bundle-offers">
+      <details ref={detailsRef} className="line-diagram-bundle-offers" onToggle={placeArrow}>
         <summary
           aria-label={`Linien im Korridor bündeln${bundled.length > 0 ? `, ${bundled.length + 1} Linien ausgewählt` : ""}`}
         >

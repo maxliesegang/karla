@@ -635,9 +635,16 @@ button.brand:active .brand-mark,
   z-index: 0;
   top: var(--segment-pad);
   bottom: var(--segment-pad);
-  left: var(--segment-pad);
+  /* The inline insets follow a control whose padding-inline differs from its track padding. */
+  left: var(--segment-inset-start, var(--segment-pad));
   width: calc(
-    (100% - 2 * var(--segment-pad) - (var(--segment-count) - 1) * var(--segment-gap)) /
+    (
+      100% -
+      var(--segment-inset-start, var(--segment-pad)) -
+      var(--segment-inset-end, var(--segment-pad)) -
+      (var(--segment-count) - 1) *
+      var(--segment-gap)
+    ) /
     var(--segment-count)
   );
   border-radius: var(--segment-radius);
@@ -3181,7 +3188,6 @@ button.line-diagram-signs {
  * line in the corridor stays visible together, while the sticky header keeps its height and the
  * diagram beneath it does not jump when the rider opens the choice. */
 .line-diagram-bundle {
-  position: relative;
   min-width: 0;
 }
 /* The sign itself, in the line's own colours: what the control adds to the reading is that line,
@@ -3198,10 +3204,6 @@ button.line-diagram-signs {
   font-size: 11px;
   font-weight: 820;
   letter-spacing: -0.02em;
-}
-/* How far the offer reaches. The evidence that makes it worth taking, said before it is taken. */
-.line-diagram-bundle-offers {
-  position: relative;
 }
 .line-diagram-bundle-offers summary {
   width: 34px;
@@ -3261,7 +3263,8 @@ button.line-diagram-signs {
 .line-diagram-bundle-overlay::before {
   position: absolute;
   top: -5px;
-  right: 23px;
+  /* Under the summary's centre, measured from the actions row's right edge on open. */
+  right: calc(var(--line-diagram-bundle-arrow-offset, 0px) + 12.5px);
   width: 9px;
   height: 9px;
   border-top: 1px solid var(--line);
@@ -5164,6 +5167,39 @@ button.line-diagram-bundle-option:focus-visible {
   font-size: 0.6em;
   font-weight: 650;
 }
+/* A narrow portrait board puts time and platform under the destination, which keeps the width. */
+@media (orientation: portrait) and (max-width: 700px) {
+  .station-board-row {
+    grid-template-columns: auto auto auto minmax(0, 1fr) auto;
+    grid-template-areas:
+      "badge destination destination destination countdown"
+      "badge time platform . countdown";
+    align-content: center;
+    row-gap: 0.15em;
+  }
+  .station-board-row .line-badge {
+    grid-area: badge;
+  }
+  .station-board-destination {
+    grid-area: destination;
+  }
+  .station-board-time {
+    grid-area: time;
+  }
+  .station-board-platform {
+    grid-area: platform;
+    font-size: min(calc(var(--row-unit) * 0.26), 4.2vw);
+    text-align: left;
+  }
+  .station-board-platform small {
+    display: inline;
+    margin-right: 0.3em;
+    font-size: 0.75em;
+  }
+  .station-board-countdown {
+    grid-area: countdown;
+  }
+}
 
 /* ---------- Responsive ---------- */
 @media (max-width: 1180px) {
@@ -5414,8 +5450,10 @@ button.line-diagram-bundle-option:focus-visible {
     z-index: 7;
     height: var(--network-band-navigation-height);
     width: auto;
+    --segment-inset-start: calc(16px + env(safe-area-inset-left));
+    --segment-inset-end: calc(16px + env(safe-area-inset-right));
     margin-inline: calc(-16px - env(safe-area-inset-left)) calc(-16px - env(safe-area-inset-right));
-    padding-inline: calc(16px + env(safe-area-inset-left)) calc(16px + env(safe-area-inset-right));
+    padding-inline: var(--segment-inset-start) var(--segment-inset-end);
     background: var(--surface-2);
     box-shadow: 0 1px 0 var(--line);
   }
@@ -5589,6 +5627,14 @@ button.line-diagram-bundle-option:focus-visible {
   .settings-row .segmented-control button {
     min-height: 44px;
   }
+  /* A line's two ends stand one above the other, so neither is cut to a few letters. */
+  .network-termini {
+    display: grid;
+    gap: 2px;
+  }
+  .network-termini i {
+    display: none;
+  }
   /* The locate action takes the line under the field rather than a corner of it. */
   .home-entry-find .stop-search {
     flex: 1 1 100%;
@@ -5704,6 +5750,30 @@ button.line-diagram-bundle-option:focus-visible {
   }
   .stop-service-notices .service-notice-detail > summary > .disclosure-chevron {
     grid-area: 1 / 2;
+  }
+}
+
+/* A phone held sideways has height for little more than the bar: the bar slims, a board's order
+   control joins the stop's name, and the plan's legend and reading share one row. */
+@media (max-width: 860px) and (max-height: 500px) and (orientation: landscape) {
+  .app-shell:not(.station-board-mode) {
+    --bar-height: calc(48px + env(safe-area-inset-top));
+  }
+  .app-shell:not(.station-board-mode) .departure-board-heading-actions {
+    flex: 0 1 auto;
+  }
+  .app-shell:not(.station-board-mode) .departure-board-order-control button {
+    padding-inline: 16px;
+  }
+  .app-shell:not(.station-board-mode) .primary-panel,
+  .app-shell:not(.station-board-mode) .departure-board-panel {
+    padding-top: 12px;
+  }
+  .zentrum-schematic-lines {
+    flex-basis: 240px;
+  }
+  .zentrum-schematic-caption {
+    display: none;
   }
 }
 
