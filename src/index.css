@@ -1853,6 +1853,46 @@ button.brand:active .brand-mark,
 .zentrum-schematic-lines::-webkit-scrollbar {
   display: none;
 }
+/* The row fades at whichever edge has more to scroll to; a row that fits has no timeline, so no fade. */
+@property --zentrum-lines-fade-start {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --zentrum-lines-fade-end {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@supports (animation-timeline: scroll()) {
+  .zentrum-schematic-lines {
+    mask-image: linear-gradient(
+      to right,
+      transparent,
+      #000 var(--zentrum-lines-fade-start),
+      #000 calc(100% - var(--zentrum-lines-fade-end)),
+      transparent
+    );
+    animation: zentrum-lines-fade linear both;
+    animation-timeline: scroll(self inline);
+  }
+}
+@keyframes zentrum-lines-fade {
+  0% {
+    --zentrum-lines-fade-start: 0px;
+    --zentrum-lines-fade-end: 28px;
+  }
+  6% {
+    --zentrum-lines-fade-start: 28px;
+  }
+  94% {
+    --zentrum-lines-fade-end: 28px;
+  }
+  100% {
+    --zentrum-lines-fade-start: 28px;
+    --zentrum-lines-fade-end: 0px;
+  }
+}
 .zentrum-schematic-lines > * {
   flex: 0 0 auto;
 }
@@ -2997,6 +3037,10 @@ button.line-diagram-signs {
   justify-content: flex-end;
   gap: 6px;
 }
+/* Anchored to the actions row's right edge rather than the count, so it opens inside the header. */
+.line-diagram-header-actions .line-diagram-legend-compact {
+  position: static;
+}
 .line-diagram-header-actions .line-diagram-legend-tooltip {
   right: 0;
   left: auto;
@@ -3232,6 +3276,16 @@ button.line-diagram-signs {
     transform: translateY(-5px) scale(0.985);
   }
 }
+@keyframes line-diagram-bundle-sheet {
+  from {
+    transform: translateY(100%);
+  }
+}
+@keyframes line-diagram-bundle-scrim {
+  from {
+    opacity: 0;
+  }
+}
 .line-diagram-bundle-overlay-heading {
   display: grid;
   gap: 3px;
@@ -3246,8 +3300,10 @@ button.line-diagram-signs {
   font-size: 11px;
   line-height: 1.35;
 }
+/* One sign column for every option, so a longer sign does not shift its row's name. */
 .line-diagram-bundle-options {
   display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 3px;
 }
 .line-diagram-bundle-option {
@@ -3255,7 +3311,8 @@ button.line-diagram-signs {
   min-width: 0;
   min-height: 54px;
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
   align-items: center;
   gap: 11px;
   padding: 7px 9px;
@@ -3549,6 +3606,14 @@ button.line-diagram-bundle-option:focus-visible {
   .line-diagram-branch.connected.behind .line-diagram-branch-junction .line-diagram-track::before {
     top: -6px;
   }
+  /* Stacked, only one leg touches the trunk, so each stub names the stop its leg parts at, and the
+     legs stand apart. */
+  .line-diagram-fork {
+    gap: 18px;
+  }
+  .line-diagram-branch-junction .line-diagram-branch-junction-name {
+    display: block;
+  }
 }
 
 /* A leg is a line, and a line is named on its own rail rather than out in the column its stops are
@@ -3570,6 +3635,17 @@ button.line-diagram-bundle-option:focus-visible {
   font-size: 12px;
   font-weight: 800;
   line-height: 1;
+}
+.line-diagram-branch-junction-name {
+  display: none;
+  grid-column: 2;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 /* The half of the parting that has no leg to draw: a line of the pair that terminates at the
@@ -3991,6 +4067,15 @@ button.line-diagram-bundle-option:focus-visible {
     grid-column: 2;
     grid-row: 2;
     min-height: 34px;
+  }
+  /* Without a pinned trip the controls stand beside the signs and the termini take the full second
+     row, so both ends of a bundle keep their names. Still two rows. */
+  .line-diagram:not(.ride):not(.has-selected-run) .line-diagram-header-actions {
+    grid-row: 1;
+  }
+  .line-diagram:not(.ride):not(.has-selected-run) .line-diagram-header h1 {
+    grid-column: 1 / -1;
+    grid-row: 2;
   }
 }
 
@@ -5094,10 +5179,12 @@ button.line-diagram-bundle-option:focus-visible {
   /* Stacked on a phone, the two halves are one column, and two scroll areas above each other are
      a trap: a thumb on the diagram would move the departures. The document scrolls again here, and
      only the unattended display stays pinned to one screen. */
+  /* A column whose dashboard takes the slack, so a short view keeps the footer at the screen's foot. */
   .app-shell:not(.station-board-mode) {
     height: auto;
     min-height: 100dvh;
-    display: block;
+    display: flex;
+    flex-direction: column;
     overflow: visible;
     padding-bottom: env(safe-area-inset-bottom);
   }
@@ -5261,6 +5348,53 @@ button.line-diagram-bundle-option:focus-visible {
       0 1px 0 #10201f14,
       0 10px 20px -18px #10201f80;
   }
+  /* Stacked, the bundle choice is a sheet from the screen's foot over a scrim, out of reach of the
+     header's edges; tapping the scrim closes it. The header lifts over the bar while it is open. */
+  .app-shell:not(.ride-mode) .line-diagram-header:has(.line-diagram-bundle-offers[open]) {
+    z-index: 40;
+  }
+  html:has(.line-diagram-bundle-offers[open]) {
+    overflow: hidden;
+  }
+  .line-diagram-bundle-offers[open]::before {
+    content: "";
+    position: fixed;
+    z-index: 44;
+    inset: 0;
+    background: #10201f59;
+    animation: line-diagram-bundle-scrim 0.16s ease-out;
+  }
+  .line-diagram-bundle-overlay {
+    position: fixed;
+    top: auto;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    width: auto;
+    max-width: 560px;
+    max-height: min(70dvh, 560px);
+    margin-inline: auto;
+    padding: 10px calc(10px + env(safe-area-inset-right)) calc(14px + env(safe-area-inset-bottom))
+      calc(10px + env(safe-area-inset-left));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    border-bottom: 0;
+    border-radius: var(--radius-l) var(--radius-l) 0 0;
+    animation-name: line-diagram-bundle-sheet;
+    animation-duration: 0.2s;
+  }
+  .line-diagram-bundle-overlay::before {
+    display: none;
+  }
+  .line-diagram-bundle-overlay-heading strong {
+    font-size: 16px;
+  }
+  .line-diagram-bundle-overlay-heading small {
+    font-size: 12px;
+  }
+  .line-diagram-bundle-option {
+    min-height: 58px;
+  }
   /* A grouped reading's heading — a place, a platform in one order, a line in the other — pins
       inside its own scrollport on a wide screen; stacked, its scrollport is the document, so it
       stops under the bar rather than sliding behind it. */
@@ -5333,6 +5467,7 @@ button.line-diagram-bundle-option:focus-visible {
   }
   /* Stacked, a stop is one column: its board, read in whichever of the three orders the rider chose. */
   .dashboard {
+    flex: 1 0 auto;
     min-height: 0;
     display: flex;
     flex-direction: column;
@@ -5361,6 +5496,9 @@ button.line-diagram-bundle-option:focus-visible {
   .dashboard .primary-panel {
     order: 0;
   }
+  .dashboard > .primary-panel:only-child {
+    flex-grow: 1;
+  }
   /* A phone held sideways puts the notch beside the rows, not above them. */
   .primary-panel,
   .departure-board-panel {
@@ -5386,6 +5524,14 @@ button.line-diagram-bundle-option:focus-visible {
   .app-shell:not(.station-board-mode) .ride-status,
   .dashboard.stop-view .departure-board-panel {
     width: auto;
+  }
+  /* Their centring margins would shrink them to their content inside the stacked flex column. */
+  .app-shell:not(.station-board-mode) .nearby-stops-view,
+  .app-shell:not(.station-board-mode) .service-notices-view,
+  .app-shell:not(.station-board-mode) .settings-view,
+  .app-shell:not(.station-board-mode) .network-view,
+  .dashboard.stop-view .departure-board-panel {
+    margin-inline: 0;
   }
   .app-shell:not(.station-board-mode) .line-diagram {
     --line-diagram-measure: 100%;
@@ -5433,6 +5579,15 @@ button.line-diagram-bundle-option:focus-visible {
   .step-up {
     width: 44px;
     height: 44px;
+  }
+  /* A setting's control takes the full line under its text, like the board's order control. */
+  .settings-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+  .settings-row .segmented-control button {
+    min-height: 44px;
   }
   /* The locate action takes the line under the field rather than a corner of it. */
   .home-entry-find .stop-search {

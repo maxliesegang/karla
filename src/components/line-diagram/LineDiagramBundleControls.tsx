@@ -22,7 +22,12 @@ export function LineDiagramBundleControls({
   const detailsRef = useRef<HTMLDetailsElement>(null);
   useEffect(() => {
     const closeOutside = (event: PointerEvent) => {
-      if (event.target instanceof Node && !detailsRef.current?.contains(event.target)) {
+      // A tap on the stacked layout's scrim (the details' own ::before) targets the details itself.
+      const isScrim = event.target === detailsRef.current;
+      if (
+        event.target instanceof Node &&
+        (isScrim || !detailsRef.current?.contains(event.target))
+      ) {
         detailsRef.current?.removeAttribute("open");
       }
     };

@@ -106,6 +106,10 @@ export function LineDiagramBranch({
               <span className="line-diagram-branch-sign" aria-hidden="true">
                 {line.id}
               </span>
+              {/* Shown only while the legs are stacked. */}
+              <span className="line-diagram-branch-junction-name" aria-hidden="true">
+                ab {junctionStopName}
+              </span>
             </div>
           ) : (
             <LineDiagramStopRow
