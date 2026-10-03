@@ -13,6 +13,7 @@ import {
   type RunPlacementPhase,
   type RunSegmentTrajectory,
 } from "./vehicle-positioning";
+import { getDistanceMeters } from "./geo";
 import { compareLineIds } from "./line-families";
 import { findTurnarounds } from "./line-turnarounds";
 import {
@@ -168,20 +169,119 @@ const getDepartureSchematicPaths = (departure: Departure): ZentrumSchematicNode[
  */
 const ZENTRUM_SCHEMATIC_BOARDING_PLACE_MINIMUM_SHARE = 0.05;
 
-/** The most places one stop is drawn with: Europaplatz's tunnel and two surface platforms. */
-const ZENTRUM_SCHEMATIC_MAXIMUM_BOARDING_PLACES = 3;
+/**
+ * How near two platforms stand to be one place whatever runs through them: the two islands of the
+ * Hauptbahnhof's forecourt each serve the S-Bahn and the trams, and are one stop to a rider. Places
+ * a rider walks between stand fifty metres and more apart.
+ */
+const ZENTRUM_SCHEMATIC_BOARDING_PLACE_RADIUS_METERS = 20;
+
+/** One platform at a stop, as the drawn trips state it. */
+type ZentrumSchematicPlatform = {
+  /** The stops trips boarding here arrive from and leave for, and how many do each. */
+  arms: Map<string, number>;
+  callCount: number;
+  latitudes: number[];
+  longitudes: number[];
+};
+
+const getMedian = (values: readonly number[]): number | undefined =>
+  values.length === 0
+    ? undefined
+    : [...values].sort((left, right) => left - right)[Math.floor(values.length / 2)];
+
+/** How far apart two platforms stand, or undefined where the feed placed either nowhere. */
+const getPlatformDistance = (
+  left: ZentrumSchematicPlatform,
+  right: ZentrumSchematicPlatform,
+): number | undefined => {
+  const [leftLatitude, leftLongitude, rightLatitude, rightLongitude] = [
+    left.latitudes,
+    left.longitudes,
+    right.latitudes,
+    right.longitudes,
+  ].map(getMedian);
+  if (
+    leftLatitude === undefined ||
+    leftLongitude === undefined ||
+    rightLatitude === undefined ||
+    rightLongitude === undefined
+  ) {
+    return undefined;
+  }
+  return getDistanceMeters(leftLatitude, leftLongitude, {
+    latitude: rightLatitude,
+    longitude: rightLongitude,
+  });
+};
+
+const isArmSubset = (left: ZentrumSchematicPlatform, right: ZentrumSchematicPlatform): boolean =>
+  [...left.arms.keys()].every((nodeId) => right.arms.has(nodeId));
 
 /**
- * The places to stand at stops that have more than one. Platforms whose trips run the same
- * corridors are one place, so an ordinary through stop comes back with nothing.
+ * A stop's platforms gathered into the places a rider walks between.
+ *
+ * Two platforms are one place where they stand together on the ground, or where one serves only
+ * corridors the other serves too: Europaplatz's street platforms on the Kaiserstraße serve the
+ * corridor its tunnel does, and are one stop with it, while those on the Karlstraße serve the
+ * branch south that no tunnel platform runs, and are another. A platform two places could claim
+ * goes to the nearer.
+ */
+const groupPlatformsIntoPlaces = (
+  platforms: readonly ZentrumSchematicPlatform[],
+): readonly ZentrumSchematicBoardingPlace[] => {
+  const parents = platforms.map((_, index) => index);
+  const find = (index: number): number =>
+    parents[index] === index ? index : (parents[index] = find(parents[index]));
+  const join = (left: number, right: number) => {
+    parents[find(left)] = find(right);
+  };
+  for (const [left, platform] of platforms.entries()) {
+    for (let right = left + 1; right < platforms.length; right += 1) {
+      const distance = getPlatformDistance(platform, platforms[right]);
+      if (distance !== undefined && distance <= ZENTRUM_SCHEMATIC_BOARDING_PLACE_RADIUS_METERS) {
+        join(left, right);
+      }
+    }
+  }
+  // Platforms serving the same corridors are one place; one serving fewer joins the nearest that
+  // serves them all.
+  for (const [index, platform] of platforms.entries()) {
+    const holders = platforms.flatMap((other, otherIndex) =>
+      otherIndex !== index && isArmSubset(platform, other) ? [otherIndex] : [],
+    );
+    const supersets = holders.filter((holder) => !isArmSubset(platforms[holder], platform));
+    for (const holder of holders) if (!supersets.includes(holder)) join(index, holder);
+    if (supersets.length === 0) continue;
+    const nearest = [...supersets].sort(
+      (left, right) =>
+        (getPlatformDistance(platform, platforms[left]) ?? Number.POSITIVE_INFINITY) -
+          (getPlatformDistance(platform, platforms[right]) ?? Number.POSITIVE_INFINITY) ||
+        platforms[right].callCount - platforms[left].callCount,
+    )[0];
+    join(index, nearest);
+  }
+
+  const placeByRoot = new Map<number, { armTripCounts: Map<string, number>; tripCount: number }>();
+  for (const [index, platform] of platforms.entries()) {
+    const place = placeByRoot.get(find(index)) ?? { armTripCounts: new Map(), tripCount: 0 };
+    placeByRoot.set(find(index), place);
+    place.tripCount += platform.callCount;
+    for (const [nodeId, count] of platform.arms) {
+      place.armTripCounts.set(nodeId, (place.armTripCounts.get(nodeId) ?? 0) + count);
+    }
+  }
+  return [...placeByRoot.values()].sort((left, right) => right.tripCount - left.tripCount);
+};
+
+/**
+ * The places to stand at stops that have more than one, read from the platforms the drawn trips
+ * call at. A stop whose platforms are all one place comes back with nothing.
  */
 const getZentrumSchematicBoardingPlaces = (
   departures: readonly Departure[],
 ): ReadonlyMap<string, readonly ZentrumSchematicBoardingPlace[]> => {
-  const platformsByNodeId = new Map<
-    string,
-    Map<string, { arms: Map<string, number>; callCount: number }>
-  >();
+  const platformsByNodeId = new Map<string, Map<string, ZentrumSchematicPlatform>>();
   for (const departure of departures) {
     const calls = departure.tripCalls ?? [];
     const nodeIds = calls.map((call) => findZentrumSchematicNodeId(call));
@@ -190,9 +290,20 @@ const getZentrumSchematicBoardingPlaces = (
       if (!nodeId || !call.platformCode) continue;
       const platforms = platformsByNodeId.get(nodeId) ?? new Map();
       platformsByNodeId.set(nodeId, platforms);
-      const platform = platforms.get(call.platformCode) ?? { arms: new Map(), callCount: 0 };
-      platforms.set(call.platformCode, platform);
+      // A level and a code: the tunnel's `1(U)` and the street's `1` are two platforms.
+      const key = `${call.providerStopPointId ?? ""}|${call.platformCode}`;
+      const platform: ZentrumSchematicPlatform = platforms.get(key) ?? {
+        arms: new Map(),
+        callCount: 0,
+        latitudes: [],
+        longitudes: [],
+      };
+      platforms.set(key, platform);
       platform.callCount += 1;
+      if (call.latitude !== undefined && call.longitude !== undefined) {
+        platform.latitudes.push(call.latitude);
+        platform.longitudes.push(call.longitude);
+      }
       // Adjacent calls only: a trip leaving the plan and returning must not invent a corridor.
       for (const armNodeId of [nodeIds[index - 1], nodeIds[index + 1]]) {
         if (!armNodeId || armNodeId === nodeId) continue;
@@ -204,26 +315,12 @@ const getZentrumSchematicBoardingPlaces = (
   return new Map(
     [...platformsByNodeId].flatMap(([nodeId, platforms]) => {
       const callCount = [...platforms.values()].reduce((sum, one) => sum + one.callCount, 0);
-      const placeByArmKey = new Map<
-        string,
-        { armTripCounts: Map<string, number>; tripCount: number }
-      >();
-      for (const platform of platforms.values()) {
-        const isDrawn =
+      const drawn = [...platforms.values()].filter(
+        (platform) =>
           platform.arms.size > 0 &&
-          platform.callCount >= callCount * ZENTRUM_SCHEMATIC_BOARDING_PLACE_MINIMUM_SHARE;
-        if (!isDrawn) continue;
-        const armKey = [...platform.arms.keys()].sort().join(" ");
-        const place = placeByArmKey.get(armKey) ?? { armTripCounts: new Map(), tripCount: 0 };
-        placeByArmKey.set(armKey, place);
-        place.tripCount += platform.callCount;
-        for (const [armNodeId, count] of platform.arms) {
-          place.armTripCounts.set(armNodeId, (place.armTripCounts.get(armNodeId) ?? 0) + count);
-        }
-      }
-      const places = [...placeByArmKey.values()]
-        .sort((left, right) => right.tripCount - left.tripCount)
-        .slice(0, ZENTRUM_SCHEMATIC_MAXIMUM_BOARDING_PLACES);
+          platform.callCount >= callCount * ZENTRUM_SCHEMATIC_BOARDING_PLACE_MINIMUM_SHARE,
+      );
+      const places = groupPlatformsIntoPlaces(drawn);
       return places.length >= 2 ? [[nodeId, places] as const] : [];
     }),
   );
@@ -404,7 +501,8 @@ export function createZentrumSchematicReader(): (
  *
  * The width follows the plan's size on screen (`getZentrumSchematicTrackWidth`), so a resize or a
  * zoom redraws the geometry but never re-solves the lanes. A layout drawn at the width it was last
- * drawn at returns the same reading; one whose boarding places alone changed keeps its strokes.
+ * drawn at returns the same reading. Where the marks halt and the lit stretches are cut follows the
+ * capsules, which follow the boarding places, so all of it is redrawn together.
  */
 export function createZentrumSchematicDrawer(): (
   layout: ZentrumSchematicLayout,
@@ -416,25 +514,26 @@ export function createZentrumSchematicDrawer(): (
     const trackWidth = getZentrumSchematicTrackWidth(layout.edges, planWidth);
     if (last && lastLayout === layout && last.trackWidth === trackWidth) return last;
     const { edges, linePaths } = layout;
-    const lanes =
-      last && last.layoutKey === layout.layoutKey && last.trackWidth === trackWidth
-        ? last
-        : {
-            // From the final edges, so marks ride the same geometry the stroke paints.
-            drawnPaths: getZentrumSchematicDrawnPaths(linePaths, edges, trackWidth),
-            vehiclePathsByLineId: new Map(
-              linePaths.map((linePath) => [
-                linePath.lineId,
-                getZentrumSchematicVehiclePathsByEdgeId(linePath, edges, trackWidth),
-              ]),
-            ),
-          };
+    const stopMarks = getZentrumSchematicStopMarks(
+      edges,
+      linePaths,
+      trackWidth,
+      layout.boardingPlacesByNodeId,
+    );
+    // From the final edges, so marks ride the geometry the stroke paints, and both the marks and
+    // the lit stretches stop at the capsules.
+    const stopLinesByNodeId = new Map(stopMarks.map(({ nodeId, capsules }) => [nodeId, capsules]));
     last = {
       ...layout,
       trackWidth,
-      drawnPaths: lanes.drawnPaths,
-      vehiclePathsByLineId: lanes.vehiclePathsByLineId,
-      stopMarks: getZentrumSchematicStopMarks(edges, trackWidth, layout.boardingPlacesByNodeId),
+      drawnPaths: getZentrumSchematicDrawnPaths(linePaths, edges, trackWidth, stopLinesByNodeId),
+      vehiclePathsByLineId: new Map(
+        linePaths.map((linePath) => [
+          linePath.lineId,
+          getZentrumSchematicVehiclePathsByEdgeId(linePath, edges, trackWidth, stopLinesByNodeId),
+        ]),
+      ),
+      stopMarks,
     };
     lastLayout = layout;
     return last;

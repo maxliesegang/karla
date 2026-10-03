@@ -10,7 +10,10 @@ import type { ZentrumSchematicOverlay } from "../../lib/zentrum-schematic-overla
 import {
   ZENTRUM_SCHEMATIC_STOP_CAPSULE_FILL,
   ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH,
+  ZENTRUM_SCHEMATIC_STOP_LINK_PITCH,
+  ZENTRUM_SCHEMATIC_STOP_LINK_WIDTH,
   type ZentrumSchematicStopMark,
+  getZentrumSchematicStrokeData,
 } from "../../lib/zentrum-schematic-stops";
 
 /** One line pattern the drawing paints, with the sign the live network states for it. */
@@ -100,6 +103,8 @@ export function ZentrumSchematicDrawing({
     "--zentrum-stop-capsule-width": trackWidth * ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH,
     "--zentrum-stop-capsule-fill":
       trackWidth * ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH * ZENTRUM_SCHEMATIC_STOP_CAPSULE_FILL,
+    "--zentrum-stop-link-width": trackWidth * ZENTRUM_SCHEMATIC_STOP_LINK_WIDTH,
+    "--zentrum-stop-link-pitch": trackWidth * ZENTRUM_SCHEMATIC_STOP_LINK_PITCH,
   } as CSSProperties;
   return (
     <svg
@@ -244,8 +249,9 @@ function ZentrumSchematicLitLayer({
 }
 
 /**
- * The stop capsules, over everything: all outlines first, then all bodies, so crossing rules merge
- * into one shape.
+ * The stop capsules, over everything: all outlines first, then all bodies, so capsules crossing at
+ * one stop merge into one shape. The dotted links between a stop's places lie under them, so each
+ * dotted rule ends at the capsules it joins.
  */
 const ZentrumSchematicStopMarks = memo(function ZentrumSchematicStopMarks({
   stopMarks,
@@ -254,21 +260,32 @@ const ZentrumSchematicStopMarks = memo(function ZentrumSchematicStopMarks({
   stopMarks: readonly ZentrumSchematicStopMark[];
   selectedStopId?: string;
 }) {
+  const marks = stopMarks.map((mark) => ({
+    nodeId: mark.nodeId,
+    capsules: getZentrumSchematicStrokeData(mark.capsules),
+    links: getZentrumSchematicStrokeData(mark.links),
+    isSelected: mark.nodeId === selectedStopId ? "true" : undefined,
+  }));
   return (
     <g>
-      {stopMarks.map((mark) => (
+      {marks.map(({ nodeId, links }) =>
+        links ? (
+          <path key={`link:${nodeId}`} className="zentrum-schematic-stop-link" d={links} />
+        ) : null,
+      )}
+      {marks.map(({ nodeId, capsules }) => (
         <path
-          key={`casing:${mark.nodeId}`}
+          key={`casing:${nodeId}`}
           className="zentrum-schematic-stop-mark-casing"
-          d={mark.data}
+          d={capsules}
         />
       ))}
-      {stopMarks.map((mark) => (
+      {marks.map(({ nodeId, capsules, isSelected }) => (
         <path
-          key={mark.nodeId}
+          key={nodeId}
           className="zentrum-schematic-stop-mark"
-          d={mark.data}
-          data-selected={mark.nodeId === selectedStopId ? "true" : undefined}
+          d={capsules}
+          data-selected={isSelected}
         />
       ))}
     </g>

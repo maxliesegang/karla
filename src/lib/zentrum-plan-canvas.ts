@@ -1,8 +1,4 @@
-import {
-  ZENTRUM_SCHEMATIC_VIEWBOX,
-  type SchematicPoint,
-  type ZentrumSchematicNode,
-} from "./zentrum-schematic-plan";
+import { ZENTRUM_SCHEMATIC_VIEWBOX, type SchematicPoint } from "./zentrum-schematic-plan";
 import { getZentrumSchematicVehiclePathPlacement } from "./zentrum-schematic-paths";
 
 /** How much room the plan has been given, in CSS pixels. */
@@ -83,61 +79,4 @@ export const getZentrumVehicleTransform = (
 ): string => {
   const placement = getZentrumSchematicVehiclePathPlacement(path, progress);
   return `translate3d(${toZentrumCanvasRun(placement.x - ZENTRUM_SCHEMATIC_VIEWBOX.x)}, ${toZentrumCanvasRun(placement.y - ZENTRUM_SCHEMATIC_VIEWBOX.y)}, 0) translate(-50%, -50%)`;
-};
-
-/** A stop name's type size at a plan width, mirroring `clamp(8px, 0.9cqw, 11.5px)` in the CSS. */
-const getZentrumNameSize = (planWidth: number): number =>
-  Math.min(11.5, Math.max(8, planWidth * 0.009));
-
-/** The width a name wraps at, as `.zentrum-schematic-stop span` caps it. */
-const ZENTRUM_NAME_MEASURE = 92;
-
-/** A generous character width, so a name is never judged to fit too early. */
-const ZENTRUM_NAME_CHARACTER_WIDTH = 0.62;
-
-type ZentrumLabelSide = NonNullable<ZentrumSchematicNode["labelSide"]>;
-
-/** The sides tried for a name that does not fit its authored side, across the stop's axis first. */
-const ZENTRUM_LABEL_SIDE_FALLBACKS: Record<ZentrumLabelSide, readonly ZentrumLabelSide[]> = {
-  below: ["right", "left", "above"],
-  above: ["right", "left", "below"],
-  left: ["below", "above", "right"],
-  right: ["below", "above", "left"],
-};
-
-/**
- * The side a stop's name is set on at this plan width.
- *
- * Names stop shrinking long before the plan does, so on a small plan a name can run off its edge.
- * It then moves to the first side it fits on, measured past what the stop draws there
- * (`labelClearance`), and keeps its authored side where none fits.
- */
-export const getZentrumLabelSide = (
-  node: ZentrumSchematicNode,
-  planWidth: number | undefined,
-  labelClearance?: Readonly<Record<ZentrumLabelSide, number>>,
-): ZentrumLabelSide => {
-  const authored = node.labelSide ?? "below";
-  if (planWidth === undefined) return authored;
-  const unit = planWidth / ZENTRUM_SCHEMATIC_VIEWBOX.width;
-  const size = getZentrumNameSize(planWidth);
-  const character = size * ZENTRUM_NAME_CHARACTER_WIDTH;
-  // A name wraps at its spaces, so it is never narrower than its longest word.
-  const longestWord = Math.max(...node.label.split(/\s+/).map((word) => word.length));
-  const setWidth = node.label.length * character;
-  const width = Math.max(longestWord * character, Math.min(setWidth, ZENTRUM_NAME_MEASURE));
-  // Line height and padding as the stylesheet sets them.
-  const height = (setWidth > ZENTRUM_NAME_MEASURE ? 2 : 1) * size * 1.12 + 4;
-  const { x, y, width: planUnits, height: planHeight } = ZENTRUM_SCHEMATIC_VIEWBOX;
-  const edgeDistance: Record<ZentrumLabelSide, number> = {
-    left: node.x - x,
-    right: x + planUnits - node.x,
-    above: node.y - y,
-    below: y + planHeight - node.y,
-  };
-  const fits = (side: ZentrumLabelSide): boolean =>
-    (edgeDistance[side] - (labelClearance?.[side] ?? 0)) * unit >=
-    (side === "left" || side === "right" ? width : height);
-  if (fits(authored)) return authored;
-  return ZENTRUM_LABEL_SIDE_FALLBACKS[authored].find(fits) ?? authored;
 };

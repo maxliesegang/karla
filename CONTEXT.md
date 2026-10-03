@@ -15,7 +15,8 @@ platform live at this level.
 (through a search hit or a call) and is registered for the rest of the session.
 
 **Boarding place**: what a rider walks to at a stop, usually one stop point. It is derived from trips
-calling at several platforms in turn.
+calling at several platforms in turn. The Zentrum plan reads its places from the corridors each
+platform serves and how near platforms stand, and draws one capsule per place.
 
 ## Boards and rows
 

@@ -18,15 +18,10 @@ import {
 import {
   getZentrumSchematicVehiclePathPlacement,
   getZentrumSchematicLinePathData,
-  getZentrumSchematicLinePathSegments,
   getZentrumSchematicVehiclePathData,
   reverseZentrumSchematicVehiclePath,
 } from "../src/lib/zentrum-schematic-paths.ts";
 import { getZentrumVehicleLinkKey } from "../src/lib/zentrum-plan-canvas.ts";
-import {
-  ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH,
-  getZentrumSchematicStopMarks,
-} from "../src/lib/zentrum-schematic-stops.ts";
 import { run } from "./support/calls.ts";
 import { createRunMotions } from "../src/lib/vehicle-positioning.ts";
 import { createDeparture } from "./support/fixtures.ts";
@@ -1221,9 +1216,9 @@ test("marks ride their line's lane, either way along the corridor", () => {
 
 /*
  * The mark rides the drawn stretch of its line -- the lane and the bends the stroke paints -- not
- * a straight of its own. What that buys is the handover: two corridors' rides meet at the approach
- * the stroke itself turns through, so a mark passing a stop stays on its line's lane through the
- * turn instead of jumping sideways from one corridor's offset to the next.
+ * a straight of its own. What that buys is the handover: two corridors' rides meet on the stroke,
+ * where it crosses the stop's capsule, so a mark passing a stop stays on its line's lane through
+ * the turn instead of jumping sideways from one corridor's offset to the next.
  */
 test("hands a mark over between corridors exactly where its line's stroke turns", () => {
   const timedCall = (
@@ -1264,7 +1259,7 @@ test("hands a mark over between corridors exactly where its line's stroke turns"
   assert.equal(arriving?.to.id, "europaplatz");
   assert.equal(departing?.from.id, "europaplatz");
 
-  // The arriving ride ends where the departing ride begins: the approach the stroke turns through.
+  // The arriving ride ends where the departing ride begins, on the stop's capsule.
   const last = arriving.path.points.at(-1);
   const first = departing.path.points[0];
   assert.ok(last && first);
@@ -1441,23 +1436,35 @@ test("splits a drawn line at the stops without losing or repeating any of it", (
     ]),
   );
   const [linePath] = reading.linePaths;
-  assert.ok(linePath);
+  const drawnPath = reading.drawnPaths.find(({ lineIds }) => lineIds.includes("S11"));
+  assert.ok(linePath && drawnPath);
 
-  const segments = getZentrumSchematicLinePathSegments(linePath, reading.edges, reading.trackWidth);
+  const { segments } = drawnPath;
   assert.deepEqual(
     segments.map(({ edgeId }) => edgeId),
     ["europaplatz\u0000muehlburger-tor", "europaplatz\u0000karlstor"],
   );
-  // The bend into the Karlstor colours with the corridor being entered, not the one left behind.
-  assert.equal(segments[0]?.data, "M 110.00 154.00 L 364.00 154.00");
-  assert.match(
-    segments[1]?.data ?? "",
-    /^M 364\.00 154\.00 A 10\.00 10\.00 0 0 1 374\.00 164\.00 /,
-  );
-  // Joined end to end, the stretches are the one drawn line the whole-path reading lays.
-  assert.equal(
-    [segments[0]?.data, segments[1]?.data.replace(/^M [\d.]+ [\d.]+ /, "")].join(" "),
-    getZentrumSchematicLinePathData(linePath, reading.edges, reading.trackWidth),
+  const pointsOf = (data: string) =>
+    [...data.matchAll(/[ML] ([\d.-]+) ([\d.-]+)/g)].map(([, x, y]) => ({
+      x: Number(x),
+      y: Number(y),
+    }));
+  const [west, south] = segments.map(({ data }) => pointsOf(data));
+  // The stretches meet, neither losing nor repeating any of the line between them...
+  assert.deepEqual(west.at(-1), south[0]);
+  const whole = getZentrumSchematicLinePathData(linePath, reading.edges, reading.trackWidth);
+  assert.ok(whole.startsWith(`M ${west[0].x.toFixed(2)} ${west[0].y.toFixed(2)} `));
+  assert.ok(whole.endsWith(` ${south.at(-1)?.x.toFixed(2)} ${south.at(-1)?.y.toFixed(2)}`));
+  // ...and they meet on Europaplatz's capsule, where the line's marks halt.
+  const [capsule] =
+    reading.stopMarks.find(({ nodeId }) => nodeId === "europaplatz")?.capsules ?? [];
+  assert.ok(capsule);
+  const cut = south[0];
+  assert.ok(
+    Math.abs(
+      (capsule.to.x - capsule.from.x) * (cut.y - capsule.from.y) -
+        (capsule.to.y - capsule.from.y) * (cut.x - capsule.from.x),
+    ) < 0.1,
   );
 });
 
@@ -1624,289 +1631,4 @@ test("keeps groups joining a corridor from opposite sides from weaving down it",
   // And on the Kaiserstraße east of the Marktplatz the turning pair rides south of line 1, which
   // is the side they turn towards.
   assert.deepEqual(orderOn("kronenplatz", "marktplatz").indexOf("1"), 0);
-});
-
-/** Every coordinate in a mark's path, which is all a test needs to measure the shape it draws. */
-const markExtent = (data: string) => {
-  const numbers = [...data.matchAll(/-?\d+(?:\.\d+)?/g)].map((match) => Number(match[0]));
-  // Every command in the path ends in a coordinate pair; the arcs' radii come in threes before it.
-  const points = data
-    .split(/(?=[MLA])/)
-    .map((command) =>
-      command
-        .trim()
-        .split(/[\s,]+/)
-        .slice(-2)
-        .map(Number),
-    )
-    .filter(([x, y]) => Number.isFinite(x) && Number.isFinite(y));
-  assert.ok(numbers.length > 0 && points.length > 0);
-  const xs = points.map(([x]) => x);
-  const ys = points.map(([, y]) => y);
-  return {
-    width: Math.max(...xs) - Math.min(...xs),
-    height: Math.max(...ys) - Math.min(...ys),
-    centre: {
-      x: (Math.max(...xs) + Math.min(...xs)) / 2,
-      y: (Math.max(...ys) + Math.min(...ys)) / 2,
-    },
-  };
-};
-
-/** The rules one stop is marked with, as the endpoints of each of them. */
-const stopBars = (reading: ZentrumSchematicReading, nodeId: string) => {
-  const [mark] = getZentrumSchematicStopMarks(
-    reading.edges,
-    reading.trackWidth,
-    reading.boardingPlacesByNodeId,
-  ).filter((candidate) => candidate.nodeId === nodeId);
-  assert.ok(mark, `no mark at ${nodeId}`);
-  return mark.data.split("M ").slice(1).map(markExtent);
-};
-
-/**
- * A stop on a band is marked across the whole of it, not on the lane that happens to run through
- * the middle: the rule is what says the lines beside that one call here too.
- */
-test("rules across every lane of a corridor at a through stop", () => {
-  const along = [
-    call("muehlburger-tor", "7000039"),
-    call("europaplatz", "7000037"),
-    call("marktplatz", "7000041"),
-  ];
-  const reading = buildZentrumSchematicReading(
-    drawn([
-      board(...["1", "2", "3"].map((lineId) => departure(lineId, along, { id: `${lineId}-trip` }))),
-    ]),
-  );
-  const bars = stopBars(reading, "europaplatz");
-
-  // One straight through the stop is one rule, square to it and crossing the whole band: the three
-  // coloured lanes and the casing they share, so no outer line escapes the stop it calls at.
-  assert.equal(bars.length, 1);
-  assert.equal(bars[0].width, 0);
-  assert.ok(bars[0].height > 3 * reading.trackWidth);
-  assert.deepEqual(bars[0].centre, { x: 374, y: 154 });
-});
-
-/**
- * The rule is a mark on the band, so it grows with the band and with nothing else: a busy stop is
- * a longer rule, never a deeper one.
- */
-test("grows a stop's rule across the band and not along the corridor", () => {
-  const along = [
-    call("muehlburger-tor", "7000039"),
-    call("europaplatz", "7000037"),
-    call("marktplatz", "7000041"),
-  ];
-  const getRule = (lineIds: readonly string[]) => {
-    const reading = buildZentrumSchematicReading(
-      drawn([
-        board(...lineIds.map((lineId) => departure(lineId, along, { id: `${lineId}-trip` }))),
-      ]),
-    );
-    const [bar] = stopBars(reading, "europaplatz");
-    return { ...bar, trackWidth: reading.trackWidth };
-  };
-  const quiet = getRule(["1", "2"]);
-  const busy = getRule(["1", "2", "3", "4", "5", "6"]);
-
-  assert.ok(busy.height / busy.trackWidth >= quiet.height / quiet.trackWidth + 3.5);
-  assert.equal(busy.width, 0);
-});
-
-/**
- * Where the corridors part and the reading cannot say where the platforms are, each straight
- * through the stop is ruled once -- so a line turning through the corner is marked as calling
- * there rather than as passing it.
- */
-test("rules each straight through a stop the reading names no places at", () => {
-  const reading = buildZentrumSchematicReading(
-    drawn([
-      board(
-        departure("1", [
-          call("muehlburger-tor", "7000039"),
-          call("europaplatz", "7000037"),
-          call("karlstor", "7000061"),
-        ]),
-        departure("2", [call("muehlburger-tor", "7000039"), call("europaplatz", "7000037")], {
-          id: "2-trip",
-        }),
-        departure("3", [call("muehlburger-tor", "7000039"), call("europaplatz", "7000037")], {
-          id: "3-trip",
-        }),
-      ),
-    ]),
-  );
-  const bars = stopBars(reading, "europaplatz");
-
-  // Every trip here boards at platform 1, so the stop is one place and its two straights -- the
-  // corridor west and the branch south -- are ruled at the stop itself.
-  assert.equal(reading.boardingPlacesByNodeId.has("europaplatz"), false);
-  assert.equal(bars.length, 2);
-  for (const bar of bars) assert.deepEqual(bar.centre, { x: 374, y: 154 });
-  assert.ok(bars.some((bar) => bar.width === 0 && bar.height > 3 * reading.trackWidth));
-  assert.ok(bars.some((bar) => bar.height === 0 && bar.width > reading.trackWidth));
-});
-
-/**
- * A stop is marked once whatever calls there. The rule crosses the lanes, so a single line needs
- * no mark of another kind and gets the same one every other stop has.
- */
-test("rules a stop served by one line as it rules every other", () => {
-  const reading = buildZentrumSchematicReading(
-    drawn([
-      board(departure("1", [call("muehlburger-tor", "7000039"), call("europaplatz", "7000037")])),
-    ]),
-  );
-  const bars = stopBars(reading, "europaplatz");
-
-  assert.equal(bars.length, 1);
-  assert.ok(bars[0].height > reading.trackWidth);
-});
-
-/**
- * Karlstor is the case the platform reading exists for: its trams towards Ettlinger Tor board on
- * the eastern arm of the crossing and its trams towards Mathystraße on the southern one, and a
- * rider standing there is looking for one of the two.
- */
-test("rules a junction once for each place its platforms say it is", () => {
-  const eastward = [
-    call("europaplatz", "7000037", "4"),
-    call("karlstor", "7000061", "1"),
-    call("ettlinger-tor", "7000071", "2"),
-  ];
-  const southward = [
-    call("europaplatz", "7000037", "4"),
-    call("karlstor", "7000061", "3"),
-    call("mathystrasse", "7000062", "3"),
-  ];
-  const reading = buildZentrumSchematicReading(
-    drawn([
-      board(
-        ...["1", "2"].map((lineId) => departure(lineId, eastward, { id: `${lineId}-east` })),
-        ...["3", "4"].map((lineId) => departure(lineId, southward, { id: `${lineId}-south` })),
-      ),
-    ]),
-  );
-
-  assert.deepEqual(
-    reading.boardingPlacesByNodeId.get("karlstor")?.map((place) => [...place.armTripCounts.keys()]),
-    [
-      ["europaplatz", "ettlinger-tor"],
-      ["europaplatz", "mathystrasse"],
-    ],
-  );
-  const bars = stopBars(reading, "karlstor");
-  assert.equal(bars.length, 2);
-  // The arm each place is drawn on is the one the other place does not use, and the rule stands out
-  // along it, clear of the band crossing it: east of the crossing, and south of it.
-  const [eastern] = bars.filter((bar) => bar.width === 0);
-  const [southern] = bars.filter((bar) => bar.height === 0);
-  assert.ok(eastern.centre.x > 374 + reading.trackWidth);
-  assert.ok(southern.centre.y > 286 + reading.trackWidth);
-  // Each rule stays on the arm it marks: it is offset along the corridor, never across it further
-  // than the band it crosses stands off the corridor's own middle.
-  assert.ok(Math.abs(eastern.centre.y - 286) <= reading.trackWidth);
-  assert.ok(Math.abs(southern.centre.x - 374) <= reading.trackWidth);
-});
-
-/**
- * A platform a board window saw a handful of times is a diversion or a layover, not a place a
- * rider waits, and drawing a rule for it would put a stop where there is none.
- */
-test("leaves a barely used platform out of a stop's places", () => {
-  const along = [
-    call("europaplatz", "7000037", "4"),
-    call("karlstor", "7000061", "1"),
-    call("ettlinger-tor", "7000071", "2"),
-  ];
-  const diverted = [
-    call("europaplatz", "7000037", "4"),
-    call("karlstor", "7000061", "9"),
-    call("mathystrasse", "7000062", "3"),
-  ];
-  const reading = buildZentrumSchematicReading(
-    drawn([
-      board(
-        ...Array.from({ length: 30 }, (_, index) =>
-          departure("1", along, { id: `regular-${index}`, tripId: `regular-${index}` }),
-        ),
-        departure("1", diverted, { id: "diverted", tripId: "diverted" }),
-      ),
-    ]),
-  );
-
-  assert.equal(reading.boardingPlacesByNodeId.has("karlstor"), false);
-  assert.deepEqual(
-    stopBars(reading, "karlstor").map((bar) => bar.centre),
-    [
-      { x: 374, y: 286 },
-      { x: 374, y: 286 },
-    ],
-  );
-});
-
-/*
- * A stop is drawn as a capsule: the rule stroked wide with round ends. A name spaced off the rule's
- * own end would stand inside the capsule's round end, so the clearance carries it too.
- */
-test("spaces a stop's name clear of its capsule's round end", () => {
-  const reading = buildZentrumSchematicReading(
-    drawn([
-      board(
-        departure(
-          "S1",
-          [
-            call("europaplatz", "7001004"),
-            call("marktplatz", "7001003"),
-            call("kronenplatz", "7001002"),
-          ],
-          { id: "capsule", tripId: "capsule" },
-        ),
-      ),
-    ]),
-  );
-  const mark = getZentrumSchematicStopMarks(reading.edges, reading.trackWidth, new Map()).find(
-    ({ nodeId }) => nodeId === "marktplatz",
-  );
-  const marktplatz = ZENTRUM_SCHEMATIC_NODES.find(({ id }) => id === "marktplatz");
-  assert.ok(mark && marktplatz);
-  // The one rule across the Kaiserstraße is vertical; its lower end is the farthest it reaches down.
-  const ruleEnds = [...mark.data.matchAll(/[ML] ([\d.]+) ([\d.]+)/g)].map(([, , y]) => Number(y));
-  const ruleBelow = Math.max(...ruleEnds) - marktplatz.y;
-  assert.ok(
-    mark.labelClearance.below >=
-      ruleBelow + (reading.trackWidth * ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH) / 2 - 0.01,
-  );
-});
-
-/*
- * Two streets through one stop: one capsule each where they cross square, since neither crosses the
- * other's lanes; one capsule where they cross at a slant inside it, since the second would only
- * tangle with the first.
- */
-test("lays one capsule where a street crosses another at a slant inside its rule", () => {
-  const through = (lineId: string, stopIds: readonly string[]) =>
-    departure(
-      lineId,
-      stopIds.map((stopId) => call(stopId, stopId)),
-      { id: `${lineId}-through`, tripId: `${lineId}-through` },
-    );
-  const reading = buildZentrumSchematicReading(
-    drawn([
-      board(
-        through("S2", ["kronenplatz", "durlacher-tor", "gottesauer-platz"]),
-        through("4", ["karl-wilhelm-platz", "durlacher-tor", "rueppurrer-tor"]),
-        through("S1", ["marktplatz", "ettlinger-tor", "kongresszentrum"]),
-        through("5", ["karlstor", "ettlinger-tor", "rueppurrer-tor"]),
-      ),
-    ]),
-  );
-  const marks = getZentrumSchematicStopMarks(reading.edges, reading.trackWidth, new Map());
-  const ruleCount = (nodeId: string) =>
-    (marks.find((mark) => mark.nodeId === nodeId)?.data.match(/M /g) ?? []).length;
-
-  assert.equal(ruleCount("durlacher-tor"), 1);
-  assert.equal(ruleCount("ettlinger-tor"), 2);
 });

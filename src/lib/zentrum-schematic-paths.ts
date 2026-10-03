@@ -47,14 +47,6 @@ const joinPieces = (pieces: readonly ZentrumSchematicLinePathPiece[]): string =>
         " ",
       );
 
-const splitPieces = (
-  pieces: readonly ZentrumSchematicLinePathPiece[],
-): readonly ZentrumSchematicLinePathSegment[] =>
-  pieces.map(({ edgeId, start, commands }) => ({
-    edgeId,
-    data: [`M ${formatPoint(start)}`, ...commands].join(" "),
-  }));
-
 /** One line pattern as the drawing paints it: the geometry, and every line that geometry is. */
 export type ZentrumSchematicDrawnPath = ZentrumSchematicLinePath & {
   /** The pattern as one SVG path, in the drawing's own units. */
@@ -64,7 +56,7 @@ export type ZentrumSchematicDrawnPath = ZentrumSchematicLinePath & {
    * their patterns coincide they are painted once and the path answers for all of them.
    */
   lineIds: readonly string[];
-  /** The pattern split at the stops, one stretch per corridor, which an overlay lights by. */
+  /** The pattern cut at the stops' capsules, one stretch per corridor, which an overlay lights by. */
   segments: readonly ZentrumSchematicLinePathSegment[];
 };
 
@@ -73,6 +65,7 @@ export function getZentrumSchematicDrawnPaths(
   linePaths: readonly ZentrumSchematicLinePath[],
   edges: readonly ZentrumSchematicEdge[],
   trackWidth: number | undefined,
+  stopLinesByNodeId: ReadonlyMap<string, readonly ZentrumSchematicStopLine[]> = new Map(),
 ): readonly ZentrumSchematicDrawnPath[] {
   const drawnByGeometry = new Map<string, ZentrumSchematicDrawnPath & { lineIds: string[] }>();
   for (const linePath of linePaths) {
@@ -87,13 +80,13 @@ export function getZentrumSchematicDrawnPaths(
       ...linePath,
       data,
       lineIds: [linePath.lineId],
-      segments: splitPieces(pieces),
+      segments: getZentrumSchematicLinePathSegments(linePath, edges, trackWidth, stopLinesByNodeId),
     });
   }
   return [...drawnByGeometry.values()];
 }
 
-/** One corridor's stretch of a drawn line pattern: the turn into it, and the straight along it. */
+/** One corridor's stretch of a drawn line pattern, from one stop's capsule to the next's. */
 export type ZentrumSchematicLinePathSegment = {
   /** The observed corridor this stretch runs along. */
   edgeId: string;
@@ -102,15 +95,24 @@ export type ZentrumSchematicLinePathSegment = {
 };
 
 /**
- * A drawn line pattern split at the stops, one stretch per corridor. Each stretch owns the bend
- * into its corridor, and joined end to end they are exactly `getZentrumSchematicLinePathData`.
+ * A drawn line pattern split at the stops, one stretch per corridor, cut where the marks halt: on
+ * the stop's capsule. Joined end to end they run the whole of `getZentrumSchematicLinePathData`,
+ * with its bends as the points a mark follows round them.
  */
 export function getZentrumSchematicLinePathSegments(
   linePath: ZentrumSchematicLinePath,
   edges: readonly ZentrumSchematicEdge[],
   trackWidth: number | undefined,
+  stopLinesByNodeId: ReadonlyMap<string, readonly ZentrumSchematicStopLine[]> = new Map(),
 ): readonly ZentrumSchematicLinePathSegment[] {
-  return splitPieces(getZentrumSchematicLinePathPieces(linePath, edges, trackWidth));
+  return [
+    ...getZentrumSchematicVehiclePathsByEdgeId(linePath, edges, trackWidth, stopLinesByNodeId),
+  ].map(([edgeId, { points }]) => ({
+    edgeId,
+    data: points
+      .map((point, index) => `${index === 0 ? "M" : "L"} ${formatPoint(point)}`)
+      .join(" "),
+  }));
 }
 
 /** How the path leaves one corridor's lane for the next: a bend, or nothing at all. */
@@ -290,6 +292,29 @@ const getZentrumSchematicLaneLegs = (
   return { legs, bends };
 };
 
+/** Where a lane is not straight at a stop: a turn, or a step sideways, as the points it draws. */
+export type ZentrumSchematicLaneBend = {
+  nodeId: string;
+  trackId: string;
+  points: readonly SchematicPoint[];
+};
+
+/** Every lane's bends at the stops it passes, which a stop's sign keeps off. */
+export function getZentrumSchematicLaneBends(
+  linePaths: readonly ZentrumSchematicLinePath[],
+  edges: readonly ZentrumSchematicEdge[],
+  trackWidth: number,
+): readonly ZentrumSchematicLaneBend[] {
+  return linePaths.flatMap((linePath) => {
+    const { legs, bends } = getZentrumSchematicLaneLegs(linePath, edges, trackWidth);
+    return bends.flatMap((bend, index) =>
+      bend.points.length > 0
+        ? [{ nodeId: legs[index].toNodeId, trackId: linePath.trackId, points: bend.points }]
+        : [],
+    );
+  });
+}
+
 type ZentrumSchematicLinePathPiece = {
   edgeId: string;
   start: SchematicPoint;
@@ -333,28 +358,110 @@ export type ZentrumSchematicVehiclePath = {
   steps: readonly number[];
 };
 
-/** One line pattern's vehicle paths, by the corridor each is read on. */
+/** A straight a mark halts on at a stop: the spine of one of the stop's capsules. */
+export type ZentrumSchematicStopLine = { from: SchematicPoint; to: SchematicPoint };
+
+/** How far along a stroke's segment it crosses a stop line, as a share of it; undefined if not. */
+const getStopLineCrossing = (
+  start: SchematicPoint,
+  end: SchematicPoint,
+  line: ZentrumSchematicStopLine,
+): number | undefined => {
+  const run = subtractPoints(end, start);
+  const span = subtractPoints(line.to, line.from);
+  const across = crossProduct(run, span);
+  if (Math.abs(across) < 1e-9) return undefined;
+  const offset = subtractPoints(line.from, start);
+  const along = crossProduct(offset, span) / across;
+  const onLine = crossProduct(offset, run) / across;
+  return along >= 0 && along <= 1 && onLine >= 0 && onLine <= 1 ? along : undefined;
+};
+
+/**
+ * One line pattern's vehicle paths, by the corridor each is read on.
+ *
+ * The pattern's stroke is cut where it crosses each stop's capsule, so a mark halts on the capsule
+ * it calls at. A capsule laid out along an arm past a bend (a corner stop, or a place standing
+ * clear of the curves) has the mark ride round the bend to it. Where the lane crosses no capsule,
+ * the cut falls where the stroke starts its bend, or at the stop on a straight.
+ */
 export function getZentrumSchematicVehiclePathsByEdgeId(
   linePath: ZentrumSchematicLinePath,
   edges: readonly ZentrumSchematicEdge[],
   trackWidth: number | undefined,
+  stopLinesByNodeId: ReadonlyMap<string, readonly ZentrumSchematicStopLine[]> = new Map(),
 ): ReadonlyMap<string, ZentrumSchematicVehiclePath> {
   const { legs, bends } = getZentrumSchematicLaneLegs(linePath, edges, trackWidth);
   const pathsByEdgeId = new Map<string, ZentrumSchematicVehiclePath>();
-  legs.forEach((segment, index) => {
-    const incomingBend = bends[index - 1];
-    const outgoingBend = bends[index];
-    const end = outgoingBend ? outgoingBend.approach : segment.to;
-    const points = [
-      ...(incomingBend && incomingBend.points.length > 0 ? incomingBend.points : [segment.from]),
-      end,
+  if (legs.length === 0) return pathsByEdgeId;
+
+  // The whole stroke as one polyline, with each point's distance along it.
+  const points: SchematicPoint[] = [];
+  const distances: number[] = [];
+  const push = (point: SchematicPoint) => {
+    const last = points.at(-1);
+    if (last && last.x === point.x && last.y === point.y) return;
+    distances.push(
+      last ? (distances.at(-1) ?? 0) + Math.hypot(point.x - last.x, point.y - last.y) : 0,
+    );
+    points.push(point);
+  };
+  const fallbacks = [0];
+  push(legs[0].from);
+  for (const [index, bend] of bends.entries()) {
+    push(bend.points[0] ?? legs[index].to);
+    fallbacks.push(distances.at(-1) ?? 0);
+    for (const point of bend.points.slice(1)) push(point);
+  }
+  push(legs[legs.length - 1].to);
+  const total = distances.at(-1) ?? 0;
+  fallbacks.push(total);
+  if (points.length < 2) return pathsByEdgeId;
+
+  // Each stop is looked for between the middles of the stretches either side of it.
+  const nodeIds = [legs[0].fromNodeId, ...legs.map(({ toNodeId }) => toNodeId)];
+  const cuts = nodeIds.map((nodeId, index) => {
+    const fallback = fallbacks[index];
+    const earliest = index === 0 ? 0 : (fallbacks[index - 1] + fallback) / 2;
+    const latest = index === nodeIds.length - 1 ? total : (fallback + fallbacks[index + 1]) / 2;
+    let cut = fallback;
+    for (const line of stopLinesByNodeId.get(nodeId) ?? []) {
+      for (let point = 1; point < points.length; point += 1) {
+        const along = getStopLineCrossing(points[point - 1], points[point], line);
+        if (along === undefined) continue;
+        const distance = distances[point - 1] + (distances[point] - distances[point - 1]) * along;
+        if (distance < earliest || distance > latest) continue;
+        if (cut === fallback || Math.abs(distance - fallback) < Math.abs(cut - fallback)) {
+          cut = distance;
+        }
+      }
+    }
+    return cut;
+  });
+
+  const pointAt = (distance: number): SchematicPoint => {
+    let index = 1;
+    while (index < points.length - 1 && distances[index] < distance) index += 1;
+    const span = distances[index] - distances[index - 1];
+    const share = span > 0 ? (distance - distances[index - 1]) / span : 0;
+    return {
+      x: points[index - 1].x + (points[index].x - points[index - 1].x) * share,
+      y: points[index - 1].y + (points[index].y - points[index - 1].y) * share,
+    };
+  };
+  legs.forEach((leg, index) => {
+    const [start, end] = [cuts[index], cuts[index + 1]];
+    const stretch = [
+      pointAt(start),
+      ...points.filter((_, point) => distances[point] > start && distances[point] < end),
+      pointAt(end),
     ];
-    const steps = getPathSteps(points);
+    const steps = getPathSteps(stretch);
     if (steps)
-      pathsByEdgeId.set(segment.edgeId, {
-        fromNodeId: segment.fromNodeId,
-        toNodeId: segment.toNodeId,
-        points,
+      pathsByEdgeId.set(leg.edgeId, {
+        fromNodeId: leg.fromNodeId,
+        toNodeId: leg.toNodeId,
+        points: stretch,
         steps,
       });
   });

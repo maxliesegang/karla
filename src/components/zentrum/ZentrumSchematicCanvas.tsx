@@ -4,13 +4,14 @@ import {
   type TrajectoryAnimationFields,
 } from "../../hooks/vehicle-trajectory-animation";
 import {
-  getZentrumLabelSide,
   getZentrumVehicleLinkKey,
   getZentrumVehicleTransform,
   toZentrumCanvasLeft,
+  toZentrumCanvasRun,
   toZentrumCanvasTop,
 } from "../../lib/zentrum-plan-canvas";
 import type { ZentrumSchematicReading, ZentrumSchematicVehicle } from "../../lib/zentrum-schematic";
+import { placeZentrumSchematicLabels } from "../../lib/zentrum-schematic-labels";
 import {
   ZENTRUM_SCHEMATIC_NODES,
   ZENTRUM_SCHEMATIC_VIEWBOX,
@@ -306,7 +307,13 @@ const ZentrumSchematicStops = memo(function ZentrumSchematicStops({
   planWidth: number | undefined;
   onSelectStation: (stationId: string) => void;
 }) {
-  const { lineIdsByNodeId, stopMarks } = schematic;
+  const { edges, lineIdsByNodeId, stopMarks, trackWidth } = schematic;
+  // Placed here rather than with the drawing: a printed travel time makes every name taller.
+  const hasTimes = stopMinutesByNodeId !== undefined;
+  const labelsByNodeId = useMemo(
+    () => placeZentrumSchematicLabels(edges, stopMarks, trackWidth, planWidth, hasTimes),
+    [edges, stopMarks, trackWidth, planWidth, hasTimes],
+  );
   const junctions = useMemo(() => getJunctionIds(schematic), [schematic]);
   const visibleNodes = useMemo(
     () => ZENTRUM_SCHEMATIC_NODES.filter((node) => lineIdsByNodeId.has(node.id)),
@@ -315,16 +322,6 @@ const ZentrumSchematicStops = memo(function ZentrumSchematicStops({
   const stopMarkByNodeId = useMemo(
     () => new Map(stopMarks.map((mark) => [mark.nodeId, mark])),
     [stopMarks],
-  );
-  const labelSideByNodeId = useMemo(
-    () =>
-      new Map(
-        visibleNodes.map((node) => [
-          node.id,
-          getZentrumLabelSide(node, planWidth, stopMarkByNodeId.get(node.id)?.labelClearance),
-        ]),
-      ),
-    [visibleNodes, planWidth, stopMarkByNodeId],
   );
   const showsEveryName = planWidth !== undefined && planWidth >= ZENTRUM_NAME_EVERY_STOP_WIDTH;
   return (
@@ -336,35 +333,47 @@ const ZentrumSchematicStops = memo(function ZentrumSchematicStops({
           ? lineIdsAtNode.some((lineId) => highlightedLineIds.has(lineId))
           : false;
         const isSelected = selectedStationId === node.id;
-        const labelSide = labelSideByNodeId.get(node.id) ?? "below";
+        const label = labelsByNodeId.get(node.id);
         const travel = stopMinutesByNodeId?.get(node.id);
         const minutes = travel?.minutes;
         const isMuted = stopMinutesByNodeId
           ? minutes === undefined && !isSelected
           : highlightedLineIds !== undefined && !isHighlighted;
         // Only a followed line names its stops: an opened stop's lines cover most of the plan.
+        // A name the placer could not set clear is printed only when pointed at.
         const isNamed =
-          showsEveryName ||
-          junctions.has(node.id) ||
-          (selectedLineId !== undefined && isHighlighted) ||
-          isSelected;
+          isSelected ||
+          (label?.fits !== false &&
+            (showsEveryName ||
+              junctions.has(node.id) ||
+              (selectedLineId !== undefined && isHighlighted)));
+        // The button is the stop's capsule, the thing a finger lands on; the name hangs off it
+        // where the placer set it.
+        const centre = stopMark
+          ? {
+              x: (stopMark.main.from.x + stopMark.main.to.x) / 2,
+              y: (stopMark.main.from.y + stopMark.main.to.y) / 2,
+            }
+          : node;
         return (
           <button
             key={node.id}
             type="button"
-            className={`zentrum-schematic-stop ${labelSide}`}
+            className="zentrum-schematic-stop"
+            data-side={label?.side ?? node.labelSide ?? "below"}
             data-muted={isMuted}
-            /* A reached stop shows its minutes even where its name has no room. */
-            data-named={isNamed ? "true" : minutes !== undefined ? "time" : "false"}
+            /* A reached stop shows its minutes even where its name is held back for the room --
+               but not where the placer found no room at all, which the panel lists instead. */
+            data-named={
+              isNamed ? "true" : minutes !== undefined && label?.fits !== false ? "time" : "false"
+            }
             data-selected={isSelected}
             style={
               {
-                left: toZentrumCanvasLeft(node.x),
-                top: toZentrumCanvasTop(node.y),
-                // The anchor spans what the stop draws on the name's side, so the name clears it.
-                ...(stopMark && {
-                  "--zentrum-stop-dot": `${(stopMark.labelClearance[labelSide] * 200) / ZENTRUM_SCHEMATIC_VIEWBOX.width}cqw`,
-                }),
+                left: toZentrumCanvasLeft(centre.x),
+                top: toZentrumCanvasTop(centre.y),
+                "--zentrum-label-x": toZentrumCanvasRun((label?.anchor.x ?? centre.x) - centre.x),
+                "--zentrum-label-y": toZentrumCanvasRun((label?.anchor.y ?? centre.y) - centre.y),
               } as CSSProperties
             }
             onClick={() => onSelectStation(node.id)}

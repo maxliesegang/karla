@@ -1372,7 +1372,8 @@ button.brand:active .brand-mark,
    as clearly over eight colours as over one; both are stated in lane widths, because the mark's job
    is to cross the band and the band is measured in lanes. */
 .zentrum-schematic-stop-mark-casing,
-.zentrum-schematic-stop-mark {
+.zentrum-schematic-stop-mark,
+.zentrum-schematic-stop-link {
   /* Decoration across the band. The stop's own button, which is what a reader points at and what
      reads the stop out, still lies above it. */
   pointer-events: none;
@@ -1381,8 +1382,8 @@ button.brand:active .brand-mark,
 }
 /* The capsule: the rule stroked wide in ink, and again narrower in the page's own colour, which
    leaves a white body in a dark outline -- the stop mark of a printed network plan, and the white
-   ring the line diagram marks its stops with. Both widths come from the layout that spaces names
-   off the capsule (ZentrumSchematicDrawing). */
+   ring the line diagram marks its stops with. All widths come from the drawing
+   (ZentrumSchematicDrawing), which takes them from the lane width. */
 .zentrum-schematic-stop-mark-casing {
   stroke: var(--ink);
   stroke-width: var(--zentrum-stop-capsule-width);
@@ -1390,6 +1391,13 @@ button.brand:active .brand-mark,
 .zentrum-schematic-stop-mark {
   stroke: var(--surface);
   stroke-width: var(--zentrum-stop-capsule-fill);
+}
+/* The walk between two places of one stop: a dotted rule in ink, as printed plans mark an
+   interchange on foot. Zero-length dashes with round caps are dots. */
+.zentrum-schematic-stop-link {
+  stroke: var(--ink);
+  stroke-width: var(--zentrum-stop-link-width);
+  stroke-dasharray: 0 var(--zentrum-stop-link-pitch);
 }
 /* The stop the plan is read from is filled: the "Sie sind hier" of a printed plan. */
 .zentrum-schematic-stop-mark[data-selected="true"] {
@@ -1587,38 +1595,27 @@ button.brand:active .brand-mark,
   stroke-linecap: round;
   stroke-linejoin: round;
 }
+/* The stop's button is its capsule: the thing a finger lands on, centred on the capsule the
+   drawing lays at the stop. It draws nothing of its own -- the capsule is the mark. The name hangs
+   off it where the label placer set it (zentrum-schematic-labels.ts), which keeps names off the
+   bands, the capsules and each other. */
 .zentrum-schematic-stop {
   position: absolute;
   z-index: 2;
-  display: flex;
-  align-items: center;
-  /* Stated as a share of the canvas, like everything else the plan spaces: a gap in fixed pixels
-     is a gap that closes as the plan is zoomed in, which is the moment the names have the most
-     room and need it least. */
-  gap: clamp(4px, 0.45cqw, 8px);
-  padding: 2px 3px;
+  width: clamp(14px, 1.6cqw, 24px);
+  height: clamp(14px, 1.6cqw, 24px);
+  padding: 0;
   border: 0;
-  border-radius: var(--radius-s);
-  /* No plate under a name: twenty-five opaque tiles were covering the corridors the plan is for.
-     The name is set lighter and carries a halo of the panel's own colour instead, which lifts it
-     off a corridor it crosses without hiding what runs underneath. The plate returns on hover and
-     focus, where one name is deliberately being read and the rest can afford to be behind it. */
+  border-radius: 50%;
   background: transparent;
   color: var(--ink);
   font: inherit;
   font-size: clamp(8px, 0.9cqw, 11.5px);
   font-weight: 650;
   line-height: 1.12;
-  text-align: left;
-  /* Names wrap rather than run: the plan puts three of Europaplatz's places within two grid steps
-     of each other, and a label that stayed on one line would cross both its neighbours. */
-  white-space: normal;
-  text-wrap: balance;
+  transform: translate(-50%, -50%);
   cursor: pointer;
-  transition:
-    opacity 180ms ease,
-    background 180ms ease,
-    transform 180ms ease;
+  transition: opacity 180ms ease;
 }
 /* The travel time, set as a timetable sets its minutes: a figure in tabular digits heading the name,
    with no plate -- the halo the name carries lifts it off the lines. */
@@ -1633,11 +1630,10 @@ button.brand:active .brand-mark,
   line-height: 1;
   white-space: nowrap;
 }
-.zentrum-schematic-stop.above .zentrum-schematic-stop-time,
-.zentrum-schematic-stop.below .zentrum-schematic-stop-time {
+.zentrum-schematic-stop:is([data-side="above"], [data-side="below"]) .zentrum-schematic-stop-time {
   justify-content: center;
 }
-.zentrum-schematic-stop.left .zentrum-schematic-stop-time {
+.zentrum-schematic-stop[data-side$="left"] .zentrum-schematic-stop-time {
   justify-content: flex-end;
 }
 /* The line that gets the rider there, set plain beside the minutes: a dozen stops each in a
@@ -1660,7 +1656,19 @@ button.brand:active .brand-mark,
   font-size: 0.72em;
   font-weight: 700;
 }
+/* No plate under a name: twenty-five opaque tiles were covering the corridors the plan is for. The
+   name carries a halo of the panel's own colour instead, and the plate returns on hover and focus,
+   where one name is deliberately being read. Names wrap rather than run, at a measure the placer
+   sizes them by. */
 .zentrum-schematic-stop span {
+  position: absolute;
+  top: calc(50% + var(--zentrum-label-y));
+  left: calc(50% + var(--zentrum-label-x));
+  width: max-content;
+  padding: 2px 3px;
+  text-align: left;
+  white-space: normal;
+  text-wrap: balance;
   max-width: 92px;
   /* A word longer than the measure widens the name rather than running out under what follows. */
   min-width: min-content;
@@ -1720,39 +1728,37 @@ button.brand:active .brand-mark,
 .zentrum-schematic-stop[data-muted="true"] {
   opacity: 0.42;
 }
-/* The stop is marked once, by the rule the drawing lays across its lines. What the button carries
-   is the room that mark takes: the thing a finger lands on, and the thing the name is spaced from.
-   It draws nothing of its own -- a dot over the rule would be a second mark for one stop, and at a
-   junction it would be a white disc over the corner the lines turn through. */
 .zentrum-schematic-stop i {
-  flex: 0 0 auto;
-  width: var(--zentrum-stop-dot);
-  height: var(--zentrum-stop-dot);
+  position: absolute;
+  inset: 0;
 }
-/* Every label hangs off its stop, and the mark is what the coordinate names — so the offsets are
-   stated in the mark's own size rather than in the pixels it happened to be. */
-.zentrum-schematic-stop {
-  --zentrum-stop-dot: clamp(5px, 0.65cqw, 9px);
+/* A name is set against its anchor from the side the placer chose: beside it, centred on the axis
+   it does not move along. */
+.zentrum-schematic-stop[data-side="right"] span {
+  transform: translateY(-50%);
 }
-.zentrum-schematic-stop.below {
-  transform: translate(-50%, calc(var(--zentrum-stop-dot) / -2 - 2px));
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-}
-.zentrum-schematic-stop.above {
-  transform: translate(-50%, calc(-100% + var(--zentrum-stop-dot) / 2 + 2px));
-  flex-direction: column-reverse;
-  align-items: center;
-  text-align: center;
-}
-.zentrum-schematic-stop.left {
-  transform: translate(calc(-100% + var(--zentrum-stop-dot) / 2 + 3px), -50%);
-  flex-direction: row-reverse;
+.zentrum-schematic-stop[data-side="left"] span {
+  transform: translate(-100%, -50%);
   text-align: right;
 }
-.zentrum-schematic-stop.right {
-  transform: translate(calc(var(--zentrum-stop-dot) / -2 - 3px), -50%);
+.zentrum-schematic-stop[data-side="above"] span {
+  transform: translate(-50%, -100%);
+  text-align: center;
+}
+.zentrum-schematic-stop[data-side="below"] span {
+  transform: translateX(-50%);
+  text-align: center;
+}
+.zentrum-schematic-stop[data-side="above-right"] span {
+  transform: translateY(-100%);
+}
+.zentrum-schematic-stop[data-side="above-left"] span {
+  transform: translate(-100%, -100%);
+  text-align: right;
+}
+.zentrum-schematic-stop[data-side="below-left"] span {
+  transform: translateX(-100%);
+  text-align: right;
 }
 /* One band under the plan: the legend, which is also the filter, the caption, and the plan's
    reading at the end a thumb reaches. */
