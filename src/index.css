@@ -1949,9 +1949,6 @@ button.brand:active .brand-mark,
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.zentrum-schematic-reading {
-  flex: 0 0 auto;
-}
 
 /* ---------- Departures ---------- */
 /* The stop's name and the one control over its board. They share a line while both fit and the
@@ -5306,7 +5303,7 @@ button.line-diagram-bundle-option:focus-visible {
   .zentrum-sheet-heading h2 {
     font-size: 22px;
   }
-  /* Stacked, the legend takes the band's first row and the caption and reading share the second. */
+  /* Stacked, the legend takes the band's first row and the caption the second. */
   .zentrum-schematic-lines {
     flex-basis: 100%;
   }
@@ -5318,10 +5315,6 @@ button.line-diagram-bundle-option:focus-visible {
     -webkit-line-clamp: 2;
     white-space: normal;
   }
-  .app-shell:not(.station-board-mode) .zentrum-schematic-toolbar .zentrum-schematic-reading {
-    flex: 0 0 auto;
-  }
-  .app-shell:not(.station-board-mode) .zentrum-schematic-reading button,
   .app-shell:not(.station-board-mode) .zentrum-sheet-readings button {
     min-height: 34px;
   }

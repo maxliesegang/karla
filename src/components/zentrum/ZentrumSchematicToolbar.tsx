@@ -1,27 +1,13 @@
 import { LineBadge } from "../LineBadge";
-import { SegmentedControl } from "../SegmentedControl";
 import type { ZentrumLineSignReader } from "./line-sign";
 
-/** The plan's own two readings: its lines, or where the trams on it are still going. */
-export type ZentrumPlanReading = "lines" | "progress";
-
-const PLAN_READINGS = [
-  { value: "lines", label: "Linien" },
-  { value: "progress", label: "Fahrwege" },
-] as const;
-
-/**
- * The band under the plan: legend, caption and the plan's reading. The legend doubles as the
- * filter: tapping a badge follows that line.
- */
+/** The band under the plan: legend and caption. Tapping a badge follows that line. */
 export function ZentrumSchematicToolbar({
   caption,
   lineIds,
   getSign,
   selectedLineId,
   onSelectLine,
-  planReading,
-  onChangePlanReading,
 }: {
   /** What the drawing cannot say itself: what the colour means, and how many trams run. */
   caption: string;
@@ -30,9 +16,6 @@ export function ZentrumSchematicToolbar({
   /** The followed line, as the address names it. */
   selectedLineId?: string;
   onSelectLine: (lineId: string | undefined) => void;
-  planReading: ZentrumPlanReading;
-  /** Absent while an opened stop decides what is lit. */
-  onChangePlanReading?: (reading: ZentrumPlanReading) => void;
 }) {
   return (
     <div className="zentrum-schematic-toolbar">
@@ -70,15 +53,6 @@ export function ZentrumSchematicToolbar({
         })}
       </div>
       <p className="zentrum-schematic-caption">{caption}</p>
-      {onChangePlanReading && (
-        <SegmentedControl
-          className="departure-board-order-control zentrum-schematic-reading"
-          value={planReading}
-          items={PLAN_READINGS}
-          onValueChange={onChangePlanReading}
-          ariaLabel="Was der Plan zeigt"
-        />
-      )}
     </div>
   );
 }

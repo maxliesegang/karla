@@ -13,7 +13,6 @@ import {
   type ZentrumSchematicOverlay,
   type ZentrumStopBoardRow,
   getMinutesUntilArrival,
-  getZentrumProgressOverlay,
   getZentrumStopBoard,
   getZentrumTravelTimes,
 } from "../../lib/zentrum-schematic-overlays";
@@ -23,11 +22,7 @@ import {
 } from "../../lib/zentrum-schematic-plan";
 import type { ZentrumLineSignReader } from "./line-sign";
 import { ZentrumSchematicCanvas, type ZentrumStopTravelTag } from "./ZentrumSchematicCanvas";
-import {
-  ZentrumPlanControls,
-  ZentrumSchematicToolbar,
-  type ZentrumPlanReading,
-} from "./ZentrumSchematicToolbar";
+import { ZentrumPlanControls, ZentrumSchematicToolbar } from "./ZentrumSchematicToolbar";
 import {
   type ZentrumReachedStop,
   ZentrumStopPanel,
@@ -43,19 +38,16 @@ const formatCount = (count: number, one: string, many: string): string =>
 const getZentrumSchematicCaption = (
   selectedLineId: string | undefined,
   vehicleCount: number,
-  colour: ZentrumPlanReading | ZentrumStopReading,
+  stopReading: ZentrumStopReading | undefined,
 ): string => {
-  if (colour === "departures") return "Farbig: Weg der nächsten Bahnen hierher";
-  if (colour === "travelTimes") return "Minuten bis zur Ankunft, ohne Umsteigen";
+  if (stopReading === "departures") return "Farbig: Weg der nächsten Bahnen hierher";
+  if (stopReading === "destinations") return "Minuten bis zur Ankunft, ohne Umsteigen";
   if (selectedLineId) {
     return vehicleCount === 0
       ? `Linie ${selectedLineId} · gerade keine Bahn im Plan`
       : `Linie ${selectedLineId} · ${formatCount(vehicleCount, "Bahn", "Bahnen")} im Plan`;
   }
-  const running = formatCount(vehicleCount, "Bahn", "Bahnen");
-  return colour === "progress"
-    ? `${running} · farbig: ihr Weg voraus`
-    : `${running} im Plan · Haltestelle antippen`;
+  return `${formatCount(vehicleCount, "Bahn", "Bahnen")} im Plan · Haltestelle antippen`;
 };
 
 /** What an opened stop lights, and its readings. */
@@ -144,8 +136,7 @@ export function ZentrumSchematic({
   onChangeFullscreen: (isFullscreen: boolean) => void;
 }) {
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>();
-  const [planReading, setPlanReading] = useState<ZentrumPlanReading>("lines");
-  const [stopReading, setStopReading] = useState<ZentrumStopReading>("travelTimes");
+  const [stopReading, setStopReading] = useState<ZentrumStopReading>("destinations");
   const plan = useZentrumPlanCanvas();
   // The lane width follows the plan's on-screen size.
   const [drawSchematic] = useState(createZentrumSchematicDrawer);
@@ -174,13 +165,11 @@ export function ZentrumSchematic({
   const selectedVehicle = vehicles.find((vehicle) => vehicle.id === selectedVehicleId);
   const selectedStop =
     selectedStopId === undefined ? undefined : zentrumSchematicNodeById.get(selectedStopId);
-  // An opened stop lights the plan; without one, the plan's own reading does.
+  // Only an opened stop lights the plan.
   const stopView = selectedStop
     ? getZentrumStopView(stopReading, selectedStop, stopBoard, vehicles, runDepartures, feedNow)
     : undefined;
-  const overlay =
-    stopView?.overlay ??
-    (planReading === "progress" ? getZentrumProgressOverlay(vehicles) : undefined);
+  const overlay = stopView?.overlay;
   const followedVehicleCount = selectedLineId
     ? vehicles.filter((vehicle) => vehicle.lineId === selectedLineId).length
     : vehicles.length;
@@ -265,14 +254,12 @@ export function ZentrumSchematic({
           caption={getZentrumSchematicCaption(
             selectedLineId,
             followedVehicleCount,
-            selectedStop ? stopReading : planReading,
+            selectedStop ? stopReading : undefined,
           )}
           lineIds={schematic.lineIds}
           getSign={getSign}
           selectedLineId={selectedLineId}
           onSelectLine={selectLine}
-          planReading={planReading}
-          onChangePlanReading={selectedStop ? undefined : setPlanReading}
         />
       </div>
       {sheet}

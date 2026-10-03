@@ -365,7 +365,7 @@ const ZentrumSchematicStops = memo(function ZentrumSchematicStops({
             }
             onClick={() => onSelectStation(node.id)}
             aria-pressed={isSelected}
-            aria-label={`${node.label}, Linien ${lineIdsAtNode.join(", ")}${travel ? `, mit Linie ${travel.lineId} in ${travel.minutes} Minuten erreichbar` : ""}. ${isSelected ? "Haltestelle schließen" : "Abfahrten und Fahrzeiten ab hier"}`}
+            aria-label={`${node.label}, Linien ${lineIdsAtNode.join(", ")}${travel ? `, mit Linie ${travel.lineId} in ${travel.minutes} Minuten erreichbar` : ""}. ${isSelected ? "Haltestelle schließen" : "Ziele und Abfahrten ab hier"}`}
           >
             <i aria-hidden="true" />
             <span>

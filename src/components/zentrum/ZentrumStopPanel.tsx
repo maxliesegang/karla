@@ -24,10 +24,10 @@ import { SegmentedControl } from "../SegmentedControl";
 import type { ZentrumLineSignReader } from "./line-sign";
 
 /** The two questions an opened stop answers on the plan. */
-export type ZentrumStopReading = "departures" | "travelTimes";
+export type ZentrumStopReading = "destinations" | "departures";
 
 const STOP_READINGS = [
-  { value: "travelTimes", label: "Fahrzeiten" },
+  { value: "destinations", label: "Ziele" },
   { value: "departures", label: "Abfahrten" },
 ] as const;
 
