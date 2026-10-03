@@ -1,8 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { Departure, DepartureBoard, TransitNetwork } from "../src/data/transit-types.ts";
+import type {
+  Departure,
+  DepartureBoard,
+  TransitLine,
+  TransitNetwork,
+} from "../src/data/transit-types.ts";
 import { parseRoute } from "../src/routing.ts";
-import { findSelectedLine } from "../src/selected-line.ts";
+import { findBundledLines, findSelectedLine } from "../src/selected-line.ts";
 
 const TRIP = "de:kvv:00S02_:.kvv-21-12-E.5.T0.946.s26";
 const network = { lines: [] } as unknown as TransitNetwork;
@@ -46,4 +51,33 @@ test("without a trip the bare stop names no line", () => {
     findSelectedLine(route, network, [], liveBoard([]), undefined, undefined),
     undefined,
   );
+});
+
+const S5 = { id: "S5" } as TransitLine;
+
+test("an addressed sibling no reading has named yet holds while the stop's board loads", () => {
+  // A shared `line/S5+S2` link opened cold: neither the network nor the board has seen S2 yet.
+  const lines = findBundledLines(["S2"], S5, network, null);
+
+  assert.deepEqual(
+    lines.map(({ id }) => id),
+    ["S2"],
+  );
+});
+
+test("a sibling the live board says serves the stop holds without a row or an observation", () => {
+  const board = {
+    dataStatus: "live",
+    departures: [],
+    servingLines: [{ lineId: "S2" }],
+  } as unknown as DepartureBoard;
+
+  assert.deepEqual(
+    findBundledLines(["S2"], S5, network, board).map(({ id }) => id),
+    ["S2"],
+  );
+});
+
+test("a sibling the live board does not serve is dropped", () => {
+  assert.deepEqual(findBundledLines(["S2"], S5, network, liveBoard([])), []);
 });

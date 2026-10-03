@@ -3,7 +3,8 @@
  */
 import { getLineSign } from "./data/line-signs";
 import type { Departure, DepartureBoard, TransitLine, TransitNetwork } from "./data/transit-types";
-import { isSameLineFamily } from "./lib/line-families";
+import { getResolvedBundledLineIds } from "./lib/line-bundles";
+import { findLineForRoute, isSameLineFamily } from "./lib/line-families";
 import { getTripLineId, type AppRoute } from "./routing";
 
 /**
@@ -43,4 +44,30 @@ export function findSelectedLine(
   return route.lineId && !isBoardReadable
     ? getLineSign(network.lines, route.lineId, "other")
     : undefined;
+}
+
+const EMPTY_LINES: readonly TransitLine[] = [];
+
+/**
+ * The addressed siblings, signed: observed, else as this stop's board runs them, else neutral. The
+ * live board alone drops one (`getResolvedBundledLineIds`), so a cold link keeps its bundle.
+ */
+export function findBundledLines(
+  bundledLineIds: readonly string[],
+  selectedLine: TransitLine | undefined,
+  network: TransitNetwork,
+  departureBoard: DepartureBoard | null,
+): readonly TransitLine[] {
+  if (!selectedLine || bundledLineIds.length === 0) return EMPTY_LINES;
+  return getResolvedBundledLineIds(bundledLineIds, departureBoard).flatMap((lineId) => {
+    if (isSameLineFamily(lineId, selectedLine.id)) return [];
+    const running = departureBoard?.departures.find((departure) =>
+      isSameLineFamily(departure.lineId, lineId),
+    );
+    const observed = findLineForRoute(network.lines, lineId);
+    if (observed) return [observed];
+    return running
+      ? [getLineSign(network.lines, running.lineId, running.transportMode)]
+      : [getLineSign(network.lines, lineId, "other")];
+  });
 }

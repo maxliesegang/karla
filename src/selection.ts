@@ -9,13 +9,8 @@ import { useTransitStop } from "./hooks/transit-network";
 import { useRunReadings } from "./hooks/run-reading-loader";
 import { mergeRunReading } from "./lib/trip-calls";
 import { findBestRunReading } from "./lib/trips";
-import { getLineSign } from "./data/line-signs";
-import { findLineForRoute, isSameLineFamily } from "./lib/line-families";
-import {
-  createLineSelection,
-  getResolvedBundledLineIds,
-  type LineSelection,
-} from "./lib/line-bundles";
+import { findLineForRoute } from "./lib/line-families";
+import { createLineSelection, type LineSelection } from "./lib/line-bundles";
 import type {
   Departure,
   DepartureBoard,
@@ -32,11 +27,10 @@ import {
   replaceCurrentRoute,
   type AppRoute,
 } from "./routing";
-import { findSelectedLine } from "./selected-line";
+import { findBundledLines, findSelectedLine } from "./selected-line";
 import { stationBoardConfig } from "./station-board";
 
 const EMPTY_DEPARTURES: readonly Departure[] = [];
-const EMPTY_LINES: readonly TransitLine[] = [];
 /**
  * Whether the visible board asks for calling sequences. Only an unattended board printing `via`
  * does; selected-line trips are read one at a time.
@@ -263,28 +257,16 @@ const findRunInDepartureBoards = (
     ? findBestRunReading(boards, (departures) => findDepartureByAddressId(departures, addressId))
     : undefined;
 
-/**
- * The addressed siblings that resolve at this stop. Kept while the board is unread or unavailable;
- * a live whole-stop board resolves them from `servingLines`, not just its rows.
- */
 function useBundledLines(
   bundledLineIds: readonly string[],
   selectedLine: TransitLine | undefined,
   network: TransitNetwork,
   departureBoard: DepartureBoard | null,
 ): readonly TransitLine[] {
-  return useMemo(() => {
-    if (!selectedLine || bundledLineIds.length === 0) return EMPTY_LINES;
-    return getResolvedBundledLineIds(bundledLineIds, departureBoard).flatMap((lineId) => {
-      if (isSameLineFamily(lineId, selectedLine.id)) return [];
-      const running = departureBoard?.departures.find((departure) =>
-        isSameLineFamily(departure.lineId, lineId),
-      );
-      const observed = findLineForRoute(network.lines, lineId);
-      if (observed) return [observed];
-      return running ? [getLineSign(network.lines, running.lineId, running.transportMode)] : [];
-    });
-  }, [bundledLineIds, departureBoard, network, selectedLine]);
+  return useMemo(
+    () => findBundledLines(bundledLineIds, selectedLine, network, departureBoard),
+    [bundledLineIds, departureBoard, network, selectedLine],
+  );
 }
 
 /** The destination last headed for on this line; another line starts over. */
