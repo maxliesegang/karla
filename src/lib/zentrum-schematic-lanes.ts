@@ -519,7 +519,7 @@ const isStraightPair = (
 };
 
 /**
- * How far each corridor's band of lanes sits off the corridor's middle.
+ * How far each corridor's band of lanes sits off the corridor's middle, in lanes.
  *
  * Centred bands would re-centre the lanes at every stop, so a line along a straight (the
  * Kaiserstraße) would step aside wherever the number of lines changes. Instead a lane running
@@ -527,11 +527,13 @@ const isStraightPair = (
  * straight votes for the offset between their bands, one vote per through lane, the majority
  * winning (ties to no shift). The busiest corridor of a straight stays centred and the rest hang
  * off it; corridors on no straight stay centred. Lanes that lose a vote step sideways in a bend.
+ *
+ * Counted in lanes rather than plan units, so the lane width can follow the screen without the
+ * lanes being laid out again.
  */
 export const getTrackBandOffsetByEdgeId = (
   edges: readonly ZentrumSchematicLanedEdge[],
   linePaths: readonly ZentrumSchematicLinePath[],
-  trackWidth: number,
 ): ReadonlyMap<string, number> => {
   const edgeById = new Map(edges.map((edge) => [edge.id, edge]));
 
@@ -559,10 +561,9 @@ export const getTrackBandOffsetByEdgeId = (
       if (arrivingLane < 0 || leavingLane < 0) continue;
       // b_leaving - b_arriving, from o_arriving(arrivingLane) = o_leaving(leavingLane).
       const delta =
-        (arrivingLane -
-          leavingLane +
-          (leaving.trackLineIds.length - arriving.trackLineIds.length) / 2) *
-        trackWidth;
+        arrivingLane -
+        leavingLane +
+        (leaving.trackLineIds.length - arriving.trackLineIds.length) / 2;
       const canonicalDelta = arriving.id === leftId ? delta : -delta;
       const pair = votesByPairKey.get(pairKey) ?? {
         leftId,

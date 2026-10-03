@@ -93,7 +93,7 @@ export function ZentrumSchematicDrawing({
   /** The lane width, which is also the lane pitch. */
   trackWidth: number;
 }) {
-  // The stroke width must equal the lane pitch for colours to meet; the layout decides it and
+  // The stroke width must equal the lane pitch for colours to meet; the drawer decides it and
   // tells the stylesheet, as it does the capsule's.
   const trackStyle = {
     "--zentrum-schematic-track-width": trackWidth,

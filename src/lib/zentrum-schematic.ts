@@ -106,15 +106,21 @@ export type ZentrumSchematicVehiclePathEdgeRange = {
   end: number;
 };
 
-/** The plan as laid out for what runs over it, with every geometry that follows from that. */
-export type ZentrumSchematicReading = {
-  /** Identifies the layout: two readings with one key draw the same geometry. */
+/** The plan as laid out for what runs over it: everything that holds whatever the lane width. */
+export type ZentrumSchematicLayout = {
+  /** Identifies the layout: two layouts with one key place the same lanes. */
   layoutKey: string;
   edges: readonly ZentrumSchematicEdge[];
   linePaths: readonly ZentrumSchematicLinePath[];
   /** Every drawn line, in legend order. */
   lineIds: readonly string[];
   lineIdsByNodeId: ReadonlyMap<string, readonly string[]>;
+  /** The stops with more than one place to stand, and those places. */
+  boardingPlacesByNodeId: ReadonlyMap<string, readonly ZentrumSchematicBoardingPlace[]>;
+};
+
+/** The layout drawn at one lane width, with every geometry that follows from that. */
+export type ZentrumSchematicReading = ZentrumSchematicLayout & {
   /** The lane width, which is also the lane pitch, so neighbouring lanes meet exactly. */
   trackWidth: number;
   /** The strokes the drawing paints. */
@@ -124,8 +130,6 @@ export type ZentrumSchematicReading = {
     string,
     ReadonlyMap<string, ZentrumSchematicVehicleSegmentPath>
   >;
-  /** The stops with more than one place to stand, and those places. */
-  boardingPlacesByNodeId: ReadonlyMap<string, readonly ZentrumSchematicBoardingPlace[]>;
   stopMarks: readonly ZentrumSchematicStopMark[];
 };
 
@@ -323,12 +327,14 @@ const observeZentrumSchematic = (
   };
 };
 
-/** The part of a reading that follows from the layout alone. */
-type ZentrumSchematicLayout = Omit<ZentrumSchematicReading, "boardingPlacesByNodeId" | "stopMarks">;
-
 /** The lanes laid out for what was observed: the plan's one expensive step. */
 const layOutZentrumSchematic = (
-  { edges: observedEdges, linePaths, lineIdsByNodeId }: ZentrumSchematicObservation,
+  {
+    edges: observedEdges,
+    linePaths,
+    lineIdsByNodeId,
+    boardingPlacesByNodeId,
+  }: ZentrumSchematicObservation,
   layoutKey: string,
 ): ZentrumSchematicLayout => {
   const trackLineIdsByEdgeId = getTrackLineIdsByEdgeId(observedEdges, linePaths);
@@ -336,8 +342,7 @@ const layOutZentrumSchematic = (
     ...edge,
     trackLineIds: trackLineIdsByEdgeId.get(edge.id) ?? [],
   }));
-  const trackWidth = getZentrumSchematicTrackWidth(lanes);
-  const trackBandOffsetByEdgeId = getTrackBandOffsetByEdgeId(lanes, linePaths, trackWidth);
+  const trackBandOffsetByEdgeId = getTrackBandOffsetByEdgeId(lanes, linePaths);
   const edges: readonly ZentrumSchematicEdge[] = lanes.map((edge) => ({
     ...edge,
     trackBandOffset: trackBandOffsetByEdgeId.get(edge.id) ?? 0,
@@ -348,15 +353,7 @@ const layOutZentrumSchematic = (
     linePaths,
     lineIds: [...new Set(edges.flatMap((edge) => edge.lineIds))].sort(compareLineIds),
     lineIdsByNodeId,
-    trackWidth,
-    // From the final edges, so marks ride the same geometry the stroke paints.
-    drawnPaths: getZentrumSchematicDrawnPaths(linePaths, edges, trackWidth),
-    vehiclePathsByLineId: new Map(
-      linePaths.map((linePath) => [
-        linePath.lineId,
-        getZentrumSchematicVehiclePathsByEdgeId(linePath, edges, trackWidth),
-      ]),
-    ),
+    boardingPlacesByNodeId,
   };
 };
 
@@ -370,8 +367,9 @@ const getZentrumSchematicLayoutKey = ({ edges, linePaths }: ZentrumSchematicObse
 /** One reading, for a caller that keeps none between refreshes. */
 export function buildZentrumSchematicReading(
   drawnVehicles: readonly Departure[],
+  planWidth?: number,
 ): ZentrumSchematicReading {
-  return createZentrumSchematicReader()(drawnVehicles);
+  return createZentrumSchematicDrawer()(createZentrumSchematicReader()(drawnVehicles), planWidth);
 }
 
 /**
@@ -380,32 +378,66 @@ export function buildZentrumSchematicReading(
  * Runs come and go every few seconds; corridors and patterns change a few times a day, and the
  * layout costs tens of milliseconds. A refresh that only swapped runs returns the same object, so
  * everything memoized on it stays put. Boarding places count calls, so they can change on their
- * own; only the stop marks are redrawn then.
+ * own; the lanes are kept then.
  */
 export function createZentrumSchematicReader(): (
   drawnVehicles: readonly Departure[],
-) => ZentrumSchematicReading {
-  let last: { placesKey: string; reading: ZentrumSchematicReading } | undefined;
+) => ZentrumSchematicLayout {
+  let last: { placesKey: string; layout: ZentrumSchematicLayout } | undefined;
   return (drawnVehicles) => {
     const observation = observeZentrumSchematic(drawnVehicles);
     const layoutKey = getZentrumSchematicLayoutKey(observation);
     const placesKey = getBoardingPlacesKey(observation.boardingPlacesByNodeId);
-    const isSameLayout = last?.reading.layoutKey === layoutKey;
-    if (last && isSameLayout && last.placesKey === placesKey) return last.reading;
+    const isSameLayout = last?.layout.layoutKey === layoutKey;
+    if (last && isSameLayout && last.placesKey === placesKey) return last.layout;
     const layout =
-      last && isSameLayout ? last.reading : layOutZentrumSchematic(observation, layoutKey);
-    const { boardingPlacesByNodeId } = observation;
-    const reading: ZentrumSchematicReading = {
+      last && isSameLayout
+        ? { ...last.layout, boardingPlacesByNodeId: observation.boardingPlacesByNodeId }
+        : layOutZentrumSchematic(observation, layoutKey);
+    last = { placesKey, layout };
+    return layout;
+  };
+}
+
+/**
+ * A drawer that lays a layout's lanes at the width its plan is drawn at.
+ *
+ * The width follows the plan's size on screen (`getZentrumSchematicTrackWidth`), so a resize or a
+ * zoom redraws the geometry but never re-solves the lanes. A layout drawn at the width it was last
+ * drawn at returns the same reading; one whose boarding places alone changed keeps its strokes.
+ */
+export function createZentrumSchematicDrawer(): (
+  layout: ZentrumSchematicLayout,
+  planWidth: number | undefined,
+) => ZentrumSchematicReading {
+  let last: ZentrumSchematicReading | undefined;
+  let lastLayout: ZentrumSchematicLayout | undefined;
+  return (layout, planWidth) => {
+    const trackWidth = getZentrumSchematicTrackWidth(layout.edges, planWidth);
+    if (last && lastLayout === layout && last.trackWidth === trackWidth) return last;
+    const { edges, linePaths } = layout;
+    const lanes =
+      last && last.layoutKey === layout.layoutKey && last.trackWidth === trackWidth
+        ? last
+        : {
+            // From the final edges, so marks ride the same geometry the stroke paints.
+            drawnPaths: getZentrumSchematicDrawnPaths(linePaths, edges, trackWidth),
+            vehiclePathsByLineId: new Map(
+              linePaths.map((linePath) => [
+                linePath.lineId,
+                getZentrumSchematicVehiclePathsByEdgeId(linePath, edges, trackWidth),
+              ]),
+            ),
+          };
+    last = {
       ...layout,
-      boardingPlacesByNodeId,
-      stopMarks: getZentrumSchematicStopMarks(
-        layout.edges,
-        layout.trackWidth,
-        boardingPlacesByNodeId,
-      ),
+      trackWidth,
+      drawnPaths: lanes.drawnPaths,
+      vehiclePathsByLineId: lanes.vehiclePathsByLineId,
+      stopMarks: getZentrumSchematicStopMarks(edges, trackWidth, layout.boardingPlacesByNodeId),
     };
-    last = { placesKey, reading };
-    return reading;
+    lastLayout = layout;
+    return last;
   };
 }
 

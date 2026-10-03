@@ -1,7 +1,13 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Departure, DepartureBoard } from "../../data/transit-types";
 import { useZentrumPlanCanvas } from "../../hooks/zentrum-plan-canvas";
-import type { ZentrumSchematicReading, ZentrumSchematicVehicle } from "../../lib/zentrum-schematic";
+import { createRunMotions } from "../../lib/vehicle-positioning";
+import {
+  type ZentrumSchematicLayout,
+  type ZentrumSchematicVehicle,
+  createZentrumSchematicDrawer,
+  getZentrumSchematicVehicles,
+} from "../../lib/zentrum-schematic";
 import {
   type ZentrumSchematicOverlay,
   type ZentrumStopBoardRow,
@@ -110,11 +116,10 @@ const getZentrumStopView = (
  * readings to the panel. A vehicle opens over the stop it was found from.
  */
 export function ZentrumSchematic({
-  schematic,
+  layout,
   getSign,
   selectedLineId,
   selectedStopId,
-  vehicles,
   runDepartures,
   stopBoard,
   feedNow,
@@ -123,13 +128,13 @@ export function ZentrumSchematic({
   onSelectStop,
   onChangeFullscreen,
 }: {
-  schematic: ZentrumSchematicReading;
+  /** The lanes laid out for what runs over the plan, drawn here at the width the plan is shown. */
+  layout: ZentrumSchematicLayout;
   getSign: ZentrumLineSignReader;
   /** The followed line, as the address names it. */
   selectedLineId?: string;
   /** The opened stop, as the address names it. */
   selectedStopId?: string;
-  vehicles: readonly ZentrumSchematicVehicle[];
   /** Every run the posts name, including those not on the plan yet. */
   runDepartures: readonly Departure[];
   /** The opened stop's own board, or null until it answers. */
@@ -145,6 +150,15 @@ export function ZentrumSchematic({
   const [planReading, setPlanReading] = useState<ZentrumPlanReading>("lines");
   const [stopReading, setStopReading] = useState<ZentrumStopReading>("travelTimes");
   const plan = useZentrumPlanCanvas();
+  // The lane width follows the plan's size on screen, so the geometry is drawn where it is measured.
+  const [drawSchematic] = useState(createZentrumSchematicDrawer);
+  const schematic = useMemo(
+    () => drawSchematic(layout, plan.planWidth),
+    [drawSchematic, layout, plan.planWidth],
+  );
+  // How the marks have been moving, kept while the plan is mounted.
+  const [motions] = useState(createRunMotions);
+  const vehicles = getZentrumSchematicVehicles(schematic, runDepartures, feedNow, motions);
 
   // Escape leaves full screen; back already does, since the size is part of the address.
   useEffect(() => {

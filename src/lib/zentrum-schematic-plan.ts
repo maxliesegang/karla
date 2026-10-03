@@ -94,8 +94,8 @@ export type ZentrumSchematicLanedEdge = ZentrumSchematicObservedEdge & {
 
 export type ZentrumSchematicEdge = ZentrumSchematicLanedEdge & {
   /**
-   * How far the middle of the band of lanes sits off the corridor's middle, along its normal.
-   * Zero unless a straight moves it (`getTrackBandOffsetByEdgeId`).
+   * How far the middle of the band of lanes sits off the corridor's middle, along its normal, in
+   * lanes. Zero unless a straight moves it (`getTrackBandOffsetByEdgeId`).
    */
   trackBandOffset: number;
 };
@@ -163,33 +163,62 @@ export const orientCorridorRun = (edge: ZentrumSchematicObservedEdge): Schematic
 };
 
 /**
- * The width a lane is drawn at, which is also the pitch between lanes, so that lines sharing a
- * corridor read as one striped band rather than as services apart on the ground.
+ * The width a lane is drawn at before the plan has been measured. A lane's width is also the pitch
+ * between lanes, so that lines sharing a corridor read as one striped band rather than as services
+ * apart on the ground.
  */
 const ZENTRUM_SCHEMATIC_TRACK_WIDTH = 7;
 
 /**
- * The widest a band may grow (eight lanes, the busiest the Zentrum has been seen) before every
- * lane in the plan is thinned. One width for the whole plan keeps each line one stroke.
+ * The width a lane aims for on screen, in CSS pixels. A line keeps one weight however big the plan
+ * is drawn: a small plan does not thin it to a hairline, and zooming in pulls the lanes apart rather
+ * than fattening them.
  */
-const ZENTRUM_SCHEMATIC_TRACK_BAND_WIDTH = 56;
+const ZENTRUM_SCHEMATIC_TRACK_PIXELS = 6;
 
-/** The width every lane in this reading is drawn at, read from its busiest corridor. */
+/**
+ * The widest a band may grow, in plan units, before every lane in the plan is thinned. Set by the
+ * closest the plan brings a stop to a busy corridor it does not call at: Albtalbahnhof stands 62
+ * units off the Hauptbahnhof's ten lanes, and a band this wide still leaves its capsule clear. One
+ * width for the whole plan keeps each line one stroke.
+ */
+const ZENTRUM_SCHEMATIC_TRACK_BAND_WIDTH = 80;
+
+/** The step the width moves in, so a resize redraws the lanes only once it shows. */
+const ZENTRUM_SCHEMATIC_TRACK_WIDTH_STEP = 0.25;
+
+/**
+ * The width every lane in this reading is drawn at, for a plan drawn `planWidth` CSS pixels wide:
+ * the on-screen aim, held to what the busiest corridor leaves room for.
+ */
 export const getZentrumSchematicTrackWidth = (
   edges: readonly ZentrumSchematicLanedEdge[],
-): number =>
-  Math.min(
-    ZENTRUM_SCHEMATIC_TRACK_WIDTH,
+  planWidth: number | undefined,
+): number => {
+  const wanted =
+    planWidth === undefined || planWidth <= 0
+      ? ZENTRUM_SCHEMATIC_TRACK_WIDTH
+      : Math.max(
+          ZENTRUM_SCHEMATIC_TRACK_WIDTH_STEP,
+          Math.round(
+            (ZENTRUM_SCHEMATIC_TRACK_PIXELS * ZENTRUM_SCHEMATIC_VIEWBOX.width) /
+              planWidth /
+              ZENTRUM_SCHEMATIC_TRACK_WIDTH_STEP,
+          ) * ZENTRUM_SCHEMATIC_TRACK_WIDTH_STEP,
+        );
+  return Math.min(
+    wanted,
     ZENTRUM_SCHEMATIC_TRACK_BAND_WIDTH /
       Math.max(...edges.map((edge) => edge.trackLineIds.length), 1),
   );
+};
 
 /** A lane's signed distance from the middle of its corridor, positive along the corridor normal. */
 export const getTrackOffset = (
   edge: ZentrumSchematicEdge,
   lineIndex: number,
   trackWidth: number,
-): number => edge.trackBandOffset + (lineIndex - (edge.trackLineIds.length - 1) / 2) * trackWidth;
+): number => (edge.trackBandOffset + lineIndex - (edge.trackLineIds.length - 1) / 2) * trackWidth;
 
 /** Where a lane runs at a stop; without a width, every line runs down the corridor's centre. */
 export const getLineTrackPoint = (

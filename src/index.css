@@ -1309,7 +1309,7 @@ button.brand:active .brand-mark,
 }
 /* One lane is laid exactly one lane's width from its neighbour, so lines sharing a corridor stand
    in one band instead of apart. `--zentrum-schematic-track-width` is set on the drawing by the view,
-   from the layout that spaced the lanes; never restate it here. Paint runs casing, seam, colour:
+   from the width the lanes were spaced at; never restate it here. Paint runs casing, seam, colour:
    the halo below only ever surfaces around the outside of a band, and the seam -- laid at the full
    lane width the colours are painted short of -- shows as a fine gap of the page's own colour
    between neighbouring lanes, so lanes that touch still read as two.
@@ -1327,7 +1327,9 @@ button.brand:active .brand-mark,
 }
 .zentrum-schematic-network-track-casing {
   stroke: var(--surface);
-  stroke-width: calc(var(--zentrum-schematic-track-width) + 3);
+  /* A share of the lane rather than a fixed reach, so the halo keeps its weight as the width follows
+     the screen. */
+  stroke-width: calc(var(--zentrum-schematic-track-width) * 1.43);
   opacity: 0.96;
 }
 .zentrum-schematic-network-track-seam {

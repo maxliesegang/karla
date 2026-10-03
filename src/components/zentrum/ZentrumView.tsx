@@ -3,11 +3,7 @@ import type { DepartureBoard, DepartureBoardCoverage } from "../../data/transit-
 import { useDepartureBoard } from "../../hooks/departure-board";
 import { useZentrumVehicles } from "../../hooks/zentrum-vehicles";
 import type { ObservedNetwork } from "../../lib/observed-network";
-import { createRunMotions } from "../../lib/vehicle-positioning";
-import {
-  createZentrumSchematicReader,
-  getZentrumSchematicVehicles,
-} from "../../lib/zentrum-schematic";
+import { createZentrumSchematicReader } from "../../lib/zentrum-schematic";
 import { navigateTo, replaceCurrentRoute, routePaths } from "../../routing";
 import { ObservationEmptyState } from "../ObservationEmptyState";
 import { createZentrumLineSignReader } from "./line-sign";
@@ -53,18 +49,14 @@ export function ZentrumView({
   // The drawing reads the same runs the marks are placed from, so a line keeps its lanes while any
   // of its marks is still on them. The reader keeps the last layout between refreshes.
   const [readSchematic] = useState(createZentrumSchematicReader);
-  const schematic = useMemo(() => readSchematic(runDepartures), [readSchematic, runDepartures]);
-  // How the marks have been moving, kept while the plan is mounted.
-  const [motions] = useState(createRunMotions);
-  const vehicles = getZentrumSchematicVehicles(schematic, runDepartures, feedNow, motions);
+  const layout = useMemo(() => readSchematic(runDepartures), [readSchematic, runDepartures]);
   // The feed's mode signs the lines that have no verified sign.
   const getSign = useMemo(() => createZentrumLineSignReader(network.lines), [network.lines]);
   // A followed line or opened stop leaves the address once nothing drawn names it, but not before
   // the reading has answered at all.
-  const isLineObserved = selectedLineId === undefined || schematic.lineIds.includes(selectedLineId);
-  const isStopObserved =
-    selectedStopId === undefined || schematic.lineIdsByNodeId.has(selectedStopId);
-  const isReadingAnswered = schematic.lineIds.length > 0;
+  const isLineObserved = selectedLineId === undefined || layout.lineIds.includes(selectedLineId);
+  const isStopObserved = selectedStopId === undefined || layout.lineIdsByNodeId.has(selectedStopId);
+  const isReadingAnswered = layout.lineIds.length > 0;
   useEffect(() => {
     if ((!isLineObserved || !isStopObserved) && isReadingAnswered) {
       replaceCurrentRoute(routePaths.zentrum({}, isFullscreen));
@@ -103,11 +95,10 @@ export function ZentrumView({
     <>
       {ZENTRUM_PAGE_NAME}
       <ZentrumSchematic
-        schematic={schematic}
+        layout={layout}
         getSign={getSign}
         selectedLineId={followedLineId}
         selectedStopId={openedStopId}
-        vehicles={vehicles}
         runDepartures={runDepartures}
         stopBoard={openedStopBoard}
         feedNow={feedNow}

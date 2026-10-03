@@ -5,6 +5,7 @@ import { isZentrumStop, zentrumStopIds } from "../src/data/zentrum-stops.ts";
 import {
   type ZentrumSchematicReading,
   buildZentrumSchematicReading,
+  createZentrumSchematicDrawer,
   createZentrumSchematicReader,
   getZentrumSchematicVehicles,
 } from "../src/lib/zentrum-schematic.ts";
@@ -329,7 +330,7 @@ test("keeps a through line level while the lines around it change", () => {
       [from.id, to.id].includes("muehlburger-tor") && [from.id, to.id].includes("europaplatz"),
   );
   assert.ok(westCorridor);
-  assert.equal(westCorridor.trackBandOffset, -reading.trackWidth);
+  assert.equal(westCorridor.trackBandOffset, -1);
   assert.equal(
     reading.edges.find(
       ({ from, to }) =>
@@ -656,31 +657,83 @@ test("hangs a narrower straight off the top of the band its through lines run in
   );
 });
 
+const crowdedCorridor = () => [call("muehlburger-tor", "7000039"), call("europaplatz", "7000037")];
+const corridorRuns = (lineCount: number) =>
+  drawn([
+    board(
+      ...Array.from({ length: lineCount }, (_, index) =>
+        departure(String(index + 1), crowdedCorridor(), { id: `${index + 1}-trip` }),
+      ),
+    ),
+  ]);
+
 /*
  * A lane is only as wide as the drawing can afford, and every lane in it is that width: one width
  * for the whole plan is what lets a line be a single stroke, so a corridor busier than the band
  * thins the drawing rather than spilling over the corridors beside it.
  */
 test("thins every lane together when a corridor outgrows the band", () => {
-  const crowded = [call("muehlburger-tor", "7000039"), call("europaplatz", "7000037")];
-  const busy = buildZentrumSchematicReading(
-    drawn([
-      board(
-        ...["1", "2", "3", "4", "5", "6", "7", "8", "9"].map((lineId) =>
-          departure(lineId, crowded, { id: `${lineId}-trip` }),
-        ),
-      ),
-    ]),
-  );
-  const quiet = buildZentrumSchematicReading(
-    drawn([
-      board(...["1", "2"].map((lineId) => departure(lineId, crowded, { id: `${lineId}-trip` }))),
-    ]),
-  );
+  const busy = buildZentrumSchematicReading(corridorRuns(12));
+  const busier = buildZentrumSchematicReading(corridorRuns(16));
+  const quiet = buildZentrumSchematicReading(corridorRuns(2));
 
-  assert.equal(busy.edges[0]?.trackLineIds.length, 9);
+  assert.equal(busy.edges[0]?.trackLineIds.length, 12);
   assert.ok(busy.trackWidth < quiet.trackWidth);
-  assert.equal(busy.trackWidth * 9, quiet.trackWidth * 8);
+  // Past the band, the band holds its width and the lanes share it.
+  assert.equal(busy.trackWidth * 12, busier.trackWidth * 16);
+});
+
+/*
+ * A line keeps one weight on screen: drawn on a smaller plan its lanes are wider in plan units,
+ * so it does not shrink to a hairline with the plan.
+ */
+test("draws a lane at one width on screen, whatever size the plan is drawn at", () => {
+  const runs = corridorRuns(2);
+  const small = buildZentrumSchematicReading(runs, ZENTRUM_SCHEMATIC_VIEWBOX.width / 2);
+  const large = buildZentrumSchematicReading(runs, ZENTRUM_SCHEMATIC_VIEWBOX.width * 2);
+  const onScreen = (reading: ZentrumSchematicReading, planWidth: number) =>
+    (reading.trackWidth * planWidth) / ZENTRUM_SCHEMATIC_VIEWBOX.width;
+
+  assert.equal(small.trackWidth, large.trackWidth * 4);
+  assert.equal(
+    onScreen(small, ZENTRUM_SCHEMATIC_VIEWBOX.width / 2),
+    onScreen(large, ZENTRUM_SCHEMATIC_VIEWBOX.width * 2),
+  );
+  // The lanes still meet: neighbours stand one lane width apart.
+  const [first, second] = small.edges[0].trackLineIds.map((trackId) => {
+    const linePath = small.linePaths.find((path) => path.trackId === trackId);
+    assert.ok(linePath);
+    return getZentrumSchematicLinePathData(linePath, small.edges, small.trackWidth);
+  });
+  const y = (data: string) => Number(data.split(" ")[2]);
+  assert.equal(Math.abs(y(first) - y(second)), small.trackWidth);
+});
+
+test("a small plan widens its lanes only as far as the busiest corridor leaves room", () => {
+  const tiny = ZENTRUM_SCHEMATIC_VIEWBOX.width / 10;
+  const quiet = buildZentrumSchematicReading(corridorRuns(2), tiny);
+  const busy = buildZentrumSchematicReading(corridorRuns(10), tiny);
+
+  assert.ok(busy.trackWidth < quiet.trackWidth);
+  assert.equal(
+    busy.trackWidth * 10,
+    buildZentrumSchematicReading(corridorRuns(20), tiny).trackWidth * 20,
+  );
+});
+
+test("a resize redraws the lanes without laying them out again", () => {
+  const layout = createZentrumSchematicReader()(corridorRuns(3));
+  const draw = createZentrumSchematicDrawer();
+  const wide = draw(layout, 1200);
+
+  // A resize too small to show keeps the reading, so nothing memoized on it is redrawn.
+  assert.equal(draw(layout, 1201), wide);
+
+  const narrow = draw(layout, 600);
+  assert.notEqual(narrow, wide);
+  assert.ok(narrow.trackWidth > wide.trackWidth);
+  assert.equal(narrow.edges, wide.edges);
+  assert.equal(narrow.layoutKey, wide.layoutKey);
 });
 
 test("does not reserve lanes for services that join later on a straight", () => {
