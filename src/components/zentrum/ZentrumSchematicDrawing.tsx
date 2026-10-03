@@ -97,14 +97,16 @@ export function ZentrumSchematicDrawing({
   trackWidth: number;
 }) {
   // The stroke width must equal the lane pitch for colours to meet; the drawer decides it and
-  // tells the stylesheet, as it does the capsule's.
+  // tells the stylesheet, as it does the capsule's. Each is a px length -- a user unit inside the
+  // SVG -- because Firefox drops a unitless calc() as a stroke width and draws it at 1.
   const trackStyle = {
-    "--zentrum-schematic-track-width": trackWidth,
-    "--zentrum-stop-capsule-width": trackWidth * ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH,
-    "--zentrum-stop-capsule-fill":
-      trackWidth * ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH * ZENTRUM_SCHEMATIC_STOP_CAPSULE_FILL,
-    "--zentrum-stop-link-width": trackWidth * ZENTRUM_SCHEMATIC_STOP_LINK_WIDTH,
-    "--zentrum-stop-link-pitch": trackWidth * ZENTRUM_SCHEMATIC_STOP_LINK_PITCH,
+    "--zentrum-schematic-track-width": `${trackWidth}px`,
+    "--zentrum-stop-capsule-width": `${trackWidth * ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH}px`,
+    "--zentrum-stop-capsule-fill": `${
+      trackWidth * ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH * ZENTRUM_SCHEMATIC_STOP_CAPSULE_FILL
+    }px`,
+    "--zentrum-stop-link-width": `${trackWidth * ZENTRUM_SCHEMATIC_STOP_LINK_WIDTH}px`,
+    "--zentrum-stop-link-pitch": `${trackWidth * ZENTRUM_SCHEMATIC_STOP_LINK_PITCH}px`,
   } as CSSProperties;
   return (
     <svg
