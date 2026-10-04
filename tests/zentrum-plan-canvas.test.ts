@@ -2,16 +2,23 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   getNeighboringZentrumZoom,
+  getZentrumOpeningScroll,
   getZentrumPlanWidth,
+  getZentrumPortraitFrameHeight,
+  getZentrumRevealScroll,
   getZentrumVehicleTransform,
   toZentrumCanvasLeft,
   toZentrumCanvasTop,
   toZentrumCanvasRun,
   ZENTRUM_MAXIMUM_ZOOM,
   ZENTRUM_MINIMUM_ZOOM,
+  ZENTRUM_PORTRAIT_FRAME,
   ZENTRUM_ZOOM_STEPS,
 } from "../src/lib/zentrum-plan-canvas.ts";
-import { ZENTRUM_SCHEMATIC_VIEWBOX } from "../src/lib/zentrum-schematic-plan.ts";
+import {
+  ZENTRUM_SCHEMATIC_VIEWBOX,
+  zentrumSchematicNodeById,
+} from "../src/lib/zentrum-schematic-plan.ts";
 
 test("the plan opens whole, and steps stop at both ends of the range", () => {
   assert.equal(ZENTRUM_ZOOM_STEPS[0], 1);
@@ -35,15 +42,55 @@ test("the whole plan is drawn inside the box, in whichever dimension runs out fi
   assert.equal(getZentrumPlanWidth(null, 1), undefined);
 });
 
-test("a portrait box is filled by its height and panned, not fitted to a stripe", () => {
-  const ratio = ZENTRUM_SCHEMATIC_VIEWBOX.width / ZENTRUM_SCHEMATIC_VIEWBOX.height;
-  // A phone: the whole plan across the width would be a stripe in a box the length of the screen,
-  // so the plan is drawn down the height and the box pans sideways to the rest of it.
-  assert.equal(getZentrumPlanWidth({ width: 420, height: 620 }, 1), Math.floor(620 * ratio));
-  // However tall the box, the panning stops: a plan is not read three screens at a time.
-  assert.equal(getZentrumPlanWidth({ width: 360, height: 4000 }, 1), 1080);
+test("a portrait box fits the city-centre frame across its width, however tall it is", () => {
+  const ratio = ZENTRUM_SCHEMATIC_VIEWBOX.width / ZENTRUM_PORTRAIT_FRAME.width;
+  assert.equal(getZentrumPlanWidth({ width: 372, height: 635 }, 1), Math.floor(372 * ratio));
+  assert.equal(getZentrumPlanWidth({ width: 372, height: 4000 }, 1), Math.floor(372 * ratio));
+  assert.equal(
+    getZentrumPlanWidth({ width: 372, height: 635 }, 1.3),
+    Math.floor(1.3 * 372 * ratio),
+  );
   // A landscape panel still opens on the whole plan, fitted to whichever dimension runs out first.
-  assert.equal(getZentrumPlanWidth({ width: 900, height: 300 }, 1), Math.floor(300 * ratio));
+  const planRatio = ZENTRUM_SCHEMATIC_VIEWBOX.width / ZENTRUM_SCHEMATIC_VIEWBOX.height;
+  assert.equal(getZentrumPlanWidth({ width: 900, height: 300 }, 1), Math.floor(300 * planRatio));
+});
+
+test("the portrait frame holds the city centre from Europaplatz to Werderstraße", () => {
+  const { x, y, width, height } = ZENTRUM_PORTRAIT_FRAME;
+  for (const id of [
+    "europaplatz",
+    "marktplatz",
+    "kronenplatz",
+    "werderstrasse",
+    "hauptbahnhof",
+    "albtalbahnhof",
+    "tivoli",
+  ]) {
+    const node = zentrumSchematicNodeById.get(id);
+    assert.ok(node, id);
+    assert.ok(node.x > x && node.x < x + width && node.y > y && node.y < y + height, id);
+  }
+  // A portrait box is as tall as the frame, so no band of it is left empty.
+  assert.equal(getZentrumPortraitFrameHeight(width), height);
+});
+
+test("a plan opens centred on the city-centre frame", () => {
+  const { x, y, width, height } = ZENTRUM_PORTRAIT_FRAME;
+  // Drawn at twice the plan's own size.
+  const box = { scrollWidth: 2312, scrollHeight: 1276, clientWidth: 200, clientHeight: 100 };
+  assert.deepEqual(getZentrumOpeningScroll(box), {
+    left: 2 * (x - ZENTRUM_SCHEMATIC_VIEWBOX.x) + width - 100,
+    top: 2 * (y - ZENTRUM_SCHEMATIC_VIEWBOX.y) + height - 50,
+  });
+});
+
+test("an opened stop is scrolled into view only when it lies near or past the edge", () => {
+  // In the middle of the view: the plan stays where the reader left it.
+  assert.equal(getZentrumRevealScroll(100, 250, 300), 100);
+  // Past the far edge: just far enough to clear the margin, not centred.
+  assert.equal(getZentrumRevealScroll(100, 450, 300), 450 - 300 + 15);
+  // Before the near edge.
+  assert.equal(getZentrumRevealScroll(100, 110, 300), 110 - 15);
 });
 
 test("a schematic coordinate is read as a share of the canvas it is drawn on", () => {

@@ -4,6 +4,7 @@ import {
   type TrajectoryAnimationFields,
 } from "../../hooks/vehicle-trajectory-animation";
 import {
+  getZentrumRevealScroll,
   getZentrumVehicleLinkKey,
   getZentrumVehicleTransform,
   toZentrumCanvasLeft,
@@ -99,7 +100,7 @@ export function ZentrumSchematicCanvas({
 }) {
   const canvasRef = useRef<HTMLDivElement>(null);
 
-  // Bring an opened stop to the middle of a panned plan.
+  // Bring an opened stop into view, moving the plan no further than that.
   useEffect(() => {
     const scroller = scrollRef.current;
     const canvas = canvasRef.current;
@@ -107,15 +108,17 @@ export function ZentrumSchematicCanvas({
       selectedStopId === undefined ? undefined : zentrumSchematicNodeById.get(selectedStopId);
     if (!scroller || !canvas || !node) return;
     const x =
+      canvas.offsetLeft +
       ((node.x - ZENTRUM_SCHEMATIC_VIEWBOX.x) / ZENTRUM_SCHEMATIC_VIEWBOX.width) *
-      canvas.offsetWidth;
+        canvas.offsetWidth;
     const y =
+      canvas.offsetTop +
       ((node.y - ZENTRUM_SCHEMATIC_VIEWBOX.y) / ZENTRUM_SCHEMATIC_VIEWBOX.height) *
-      canvas.offsetHeight;
+        canvas.offsetHeight;
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     scroller.scrollTo({
-      left: canvas.offsetLeft + x - scroller.clientWidth / 2,
-      top: canvas.offsetTop + y - scroller.clientHeight / 2,
+      left: getZentrumRevealScroll(scroller.scrollLeft, x, scroller.clientWidth),
+      top: getZentrumRevealScroll(scroller.scrollTop, y, scroller.clientHeight),
       behavior: reduceMotion ? "auto" : "smooth",
     });
   }, [selectedStopId, scrollRef]);

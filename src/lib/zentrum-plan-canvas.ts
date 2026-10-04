@@ -17,26 +17,65 @@ export const getNeighboringZentrumZoom = (zoom: number, direction: 1 | -1): numb
   return ZENTRUM_ZOOM_STEPS[Math.min(Math.max(next, 0), ZENTRUM_ZOOM_STEPS.length - 1)];
 };
 
-/** How far a portrait box may pan, in multiples of its width. */
-const ZENTRUM_PORTRAIT_PLAN_MAXIMUM_PAN = 3;
+/**
+ * The city centre a portrait box opens on, in plan coordinates: Europaplatz to Werderstraße and
+ * Kaiserstraße to Albtalbahnhof, with room for their names.
+ */
+export const ZENTRUM_PORTRAIT_FRAME = { x: 297, y: 82, width: 532, height: 600 } as const;
 
 /**
- * The plan's drawn width at a zoom: landscape fits the whole plan; portrait fills the height and
- * pans sideways, as phone maps do. Undefined before measurement.
+ * The plan's drawn width at a zoom: landscape fits the whole plan; portrait fits the frame across
+ * its width and pans to the rest. Undefined before measurement.
  */
 export const getZentrumPlanWidth = (
   box: ZentrumPlanBox | null,
   zoom: number,
 ): number | undefined => {
   if (!box) return undefined;
-  const heightWidth =
-    (box.height * ZENTRUM_SCHEMATIC_VIEWBOX.width) / ZENTRUM_SCHEMATIC_VIEWBOX.height;
   const fitted =
     box.height > box.width
-      ? Math.min(heightWidth, box.width * ZENTRUM_PORTRAIT_PLAN_MAXIMUM_PAN)
-      : Math.min(box.width, heightWidth);
+      ? (box.width * ZENTRUM_SCHEMATIC_VIEWBOX.width) / ZENTRUM_PORTRAIT_FRAME.width
+      : Math.min(
+          box.width,
+          (box.height * ZENTRUM_SCHEMATIC_VIEWBOX.width) / ZENTRUM_SCHEMATIC_VIEWBOX.height,
+        );
   // Floored, so a fractional pixel does not cause a scrollbar.
   return Math.floor(zoom * fitted);
+};
+
+/** How tall a portrait box of this width draws the frame at the first zoom step. */
+export const getZentrumPortraitFrameHeight = (boxWidth: number): number =>
+  (boxWidth * ZENTRUM_PORTRAIT_FRAME.height) / ZENTRUM_PORTRAIT_FRAME.width;
+
+/** A scrollport's extent, in CSS pixels. */
+export type ZentrumScrollBox = {
+  scrollWidth: number;
+  scrollHeight: number;
+  clientWidth: number;
+  clientHeight: number;
+};
+
+/** The scroll that centres the frame; a plan that fits whole is clamped back to the origin. */
+export const getZentrumOpeningScroll = (box: ZentrumScrollBox): { left: number; top: number } => {
+  const { x, y, width, height } = ZENTRUM_PORTRAIT_FRAME;
+  const view = ZENTRUM_SCHEMATIC_VIEWBOX;
+  return {
+    left: Math.round(
+      ((x - view.x + width / 2) / view.width) * box.scrollWidth - box.clientWidth / 2,
+    ),
+    top: Math.round(
+      ((y - view.y + height / 2) / view.height) * box.scrollHeight - box.clientHeight / 2,
+    ),
+  };
+};
+
+/** How far from a scrollport's edge a revealed point must stand, as a share of its size. */
+const ZENTRUM_REVEAL_MARGIN = 0.05;
+
+/** The scroll along one axis that brings a point inside the margin, moving no further than that. */
+export const getZentrumRevealScroll = (scroll: number, point: number, client: number): number => {
+  const margin = client * ZENTRUM_REVEAL_MARGIN;
+  return Math.min(Math.max(scroll, point - client + margin), point - margin);
 };
 
 /** A schematic coordinate as a share of the canvas width. */

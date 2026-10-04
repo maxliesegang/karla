@@ -5462,10 +5462,17 @@ button.line-diagram-bundle-option:focus-visible {
     flex: 1 1 auto;
     min-height: 0;
   }
+  /* Stacked, the plan's row is no taller than the city-centre frame its box opens on; the height
+     left over goes to the panel and band below. The 2px are the scrollport's border. */
+  .zentrum-schematic {
+    --zentrum-stage-row: minmax(0, calc(var(--zentrum-frame-height, 100dvh) + 2px));
+    grid-template-rows: var(--zentrum-stage-row) auto;
+    align-content: start;
+  }
   /* Stacked, what a reader opened rises between the plan and the band rather than beside them. */
   .zentrum-schematic[data-has-panel="true"] {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) auto auto;
+    grid-template-rows: var(--zentrum-stage-row) auto auto;
     grid-template-areas: "stage" "panel" "toolbar";
   }
   .zentrum-panel {

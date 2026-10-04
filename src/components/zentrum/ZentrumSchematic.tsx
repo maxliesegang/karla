@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useMemo, useState } from "react";
 import type { Departure, DepartureBoard } from "../../data/transit-types";
 import { useStoredPreference } from "../../hooks/stored-preference";
 import { useZentrumPlanCanvas } from "../../hooks/zentrum-plan-canvas";
@@ -298,6 +298,11 @@ export function ZentrumSchematic({
       data-following={selectedLineId !== undefined}
       data-fullscreen={isFullscreen}
       data-has-panel={panel !== undefined}
+      style={
+        plan.frameHeight === undefined
+          ? undefined
+          : ({ "--zentrum-frame-height": `${plan.frameHeight}px` } as CSSProperties)
+      }
       aria-label="Schematischer Linienplan des Zentrums"
     >
       <div className="zentrum-schematic-stage">
