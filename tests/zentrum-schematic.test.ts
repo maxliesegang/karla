@@ -1341,6 +1341,30 @@ test("lights the corridors ahead of a placed vehicle, and none behind it", () =>
   assert.deepEqual([...(past?.aheadEdgeIds ?? [])], ["kronenplatz\u0000marktplatz"]);
 });
 
+test("paints a line crossing a wider band over it, whatever its number", () => {
+  const east = [call("kronenplatz", "7000002"), call("durlacher-tor", "7001001")];
+  const reading = buildZentrumSchematicReading(
+    drawn([
+      board(
+        departure("S2", [...east, call("gottesauer-platz", "7000004")], { id: "s2", tripId: "s2" }),
+        departure("S5", [...east, call("gottesauer-platz", "7000004")], { id: "s5", tripId: "s5" }),
+        departure("1", [...east, call("gottesauer-platz", "7000004")]),
+        departure("4", [
+          call("rueppurrer-tor", "7000066"),
+          call("durlacher-tor", "7000003"),
+          call("karl-wilhelm-platz", "7000005"),
+        ]),
+      ),
+    ]),
+  );
+
+  // Under the band it would vanish for the band's width; over it, the band is hidden by one lane.
+  assert.deepEqual(
+    reading.drawnPaths.map(({ lineIds }) => lineIds.join("+")),
+    ["1", "S2", "S5", "4"],
+  );
+});
+
 /* One stretch per corridor, turns going with the corridor entered, joining into the path. */
 test("splits a drawn line at the stops without losing or repeating any of it", () => {
   const reading = buildZentrumSchematicReading(

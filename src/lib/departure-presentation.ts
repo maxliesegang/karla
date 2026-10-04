@@ -2,6 +2,8 @@ import { labelByTransportMode } from "../data/line-signs";
 import type { Departure, DepartureBoard, TripCall } from "../data/transit-types";
 import { findExpectedDepartureInstant, getBoardAgeMs, getCountdownMinutes } from "./feed-clock";
 import { formatSpokenPlatformLabel } from "./platform-naming";
+import { formatDistance } from "./geo";
+import type { RideProgress } from "./ride-progress";
 import { isSelectedLine, type LineSelection } from "./line-bundles";
 import { getCallsAfterCurrentStop, getTripCallInstant } from "./trip-calls";
 import { isSameRun } from "./trips";
@@ -268,6 +270,24 @@ export type TripCallTimeReading = DepartureTimeReading & {
   /** True once the vehicle is due to have left this call. */
   isPast: boolean;
 };
+
+/**
+ * Where a ride's countdown comes from. Without a position it is the feed's times, which are a
+ * prediction unless the next call is unmonitored.
+ */
+export function getRideCountdownSourceLabel(
+  progress: Pick<RideProgress, "source" | "metersToNextCall">,
+  nextCallTime: TripCallTimeReading | undefined,
+): string {
+  if (progress.source === "position") {
+    return progress.metersToNextCall === undefined
+      ? "nach Standort"
+      : `nach Standort · noch ${formatDistance(progress.metersToNextCall)}`;
+  }
+  return !nextCallTime || nextCallTime.punctuality === "unmonitored"
+    ? "nach Fahrplan"
+    : "nach Echtzeitprognose";
+}
 
 /** The time a trip calls at one of its stops, or nothing when the trip states none. */
 export function getTripCallTimeReading(

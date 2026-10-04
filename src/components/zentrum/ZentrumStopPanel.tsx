@@ -12,24 +12,20 @@ import {
 } from "../../lib/departure-presentation";
 import {
   type ZentrumStopBoardRow,
+  type ZentrumTravelMeasure,
   type ZentrumTravelTime,
-  getMinutesUntilArrival,
 } from "../../lib/zentrum-schematic-overlays";
 import { isRailDeparture } from "../../lib/zentrum-schematic-plan";
 import { getDepartureOpenPath, navigateTo, routePaths } from "../../routing";
 import { DepartureCountdown } from "../DepartureCountdown";
 import { DepartureTime } from "../DepartureTime";
 import { LineBadge } from "../LineBadge";
-import { SegmentedControl } from "../SegmentedControl";
+import type { ZentrumPanelEntranceMotion } from "../../lib/zentrum-panel";
+import { ZENTRUM_STOP_PANEL_ID } from "./ZentrumStopBar";
 import type { ZentrumLineSignReader } from "./line-sign";
 
 /** The two questions an opened stop answers on the plan. */
 export type ZentrumStopReading = "destinations" | "departures";
-
-const STOP_READINGS = [
-  { value: "destinations", label: "Ziele" },
-  { value: "departures", label: "Abfahrten" },
-] as const;
 
 /** Minutes as the board's countdown prints them. */
 export const toCountdownReading = (minutes: number): CountdownReading =>
@@ -38,73 +34,67 @@ export const toCountdownReading = (minutes: number): CountdownReading =>
     : { kind: "minutes", minutes, label: `${minutes} min` };
 
 /** One stop the travel-time reading reaches, by the tram that gets there first. */
-export type ZentrumReachedStop = ZentrumTravelTime & { nodeId: string; label: string };
+export type ZentrumReachableStop = ZentrumTravelTime & {
+  nodeId: string;
+  label: string;
+  /** Until arrival, or on board, as the measure says. */
+  minutes: number;
+};
 
 /**
- * An opened stop's panel, written like the departure board. Departures are the stop's whole
- * board: a row whose tram is on the plan selects it, any other opens its trip. The plan says
- * where; this says when.
+ * An opened stop's panel, written like the departure board; its name and reading stand on the
+ * bar. Departures are the stop's whole board: a row whose tram is on the plan selects it, any
+ * other opens its trip. The plan says where; this says when.
  */
 export function ZentrumStopPanel({
   stopId,
   label,
   reading,
-  onChangeReading,
   rows,
   board,
-  reachedStops,
+  reachableStops,
+  travelMeasure,
   selectedVehicleId,
   onSelectVehicle,
   getSign,
   feedNow,
-  onClose,
+  entranceMotion,
 }: {
   stopId: string;
   label: string;
   reading: ZentrumStopReading;
-  onChangeReading: (reading: ZentrumStopReading) => void;
   /** The stop's board read against the plan, or undefined until it answers. */
   rows?: readonly ZentrumStopBoardRow[];
   board: DepartureBoard | null;
-  reachedStops: readonly ZentrumReachedStop[];
+  reachableStops: readonly ZentrumReachableStop[];
+  travelMeasure: ZentrumTravelMeasure;
   selectedVehicleId?: string;
   onSelectVehicle: (vehicleId: string) => void;
   getSign: ZentrumLineSignReader;
   feedNow: number;
-  onClose: () => void;
+  entranceMotion: ZentrumPanelEntranceMotion;
 }) {
   const staleLabel = reading === "departures" ? getStaleBoardLabel(board, feedNow) : undefined;
   return (
-    <aside className="zentrum-sheet" aria-label={`Haltestelle ${label}`}>
-      <div className="zentrum-sheet-heading">
-        <h2>{label}</h2>
-        <button
-          type="button"
-          className="zentrum-sheet-close"
-          aria-label={`${label} schließen`}
-          onClick={onClose}
-        >
-          ×
-        </button>
-      </div>
-      <SegmentedControl
-        className="departure-board-order-control zentrum-sheet-readings"
-        value={reading}
-        items={STOP_READINGS}
-        onValueChange={onChangeReading}
-        ariaLabel={`Was der Plan ab ${label} zeigt`}
-      />
-      <p className="zentrum-sheet-note">
+    <aside
+      id={ZENTRUM_STOP_PANEL_ID}
+      className="zentrum-panel"
+      data-entrance-motion={entranceMotion}
+      aria-label={`Haltestelle ${label}`}
+    >
+      <p className="zentrum-panel-note">
         {reading === "departures"
           ? (staleLabel ?? (
               <>
-                <span className="zentrum-sheet-on-plan" aria-hidden="true" /> = schon im Plan
+                <span className="zentrum-panel-on-plan" aria-hidden="true" /> = schon im Plan
               </>
             ))
-          : "Direkt ab hier, ohne Umsteigen."}
+          : travelMeasure === "ride"
+            ? "Fahrzeit in der Bahn, direkt ab hier, ohne Umsteigen."
+            : "Direkt ab hier, ohne Umsteigen."}
       </p>
       <div
-        className="zentrum-sheet-list"
+        className="zentrum-panel-list"
         style={{ "--row-inset": "0px" } as CSSProperties}
         aria-live="polite"
       >
@@ -147,7 +137,7 @@ export function ZentrumStopPanel({
                   </span>
                   <span className="departure-destination">
                     {vehicleId !== undefined && (
-                      <span className="zentrum-sheet-on-plan" title="Schon im Plan" />
+                      <span className="zentrum-panel-on-plan" title="Schon im Plan" />
                     )}
                     {departure.destination}
                   </span>
@@ -159,21 +149,33 @@ export function ZentrumStopPanel({
               );
             })
           )
-        ) : reachedStops.length === 0 ? (
+        ) : reachableStops.length === 0 ? (
           <p className="panel-empty">Gerade keine direkte Fahrt ab hier bekannt.</p>
         ) : (
-          <ol className="zentrum-sheet-reached">
-            {reachedStops.map((reached) => (
-              <li key={reached.nodeId}>
-                <LineBadge line={getSign(reached.lineId)} size="sm" />
-                <span className="zentrum-sheet-reached-name">
-                  {reached.label}
-                  <small>an {formatClockTime(new Date(reached.arrivesAt))}</small>
+          <ol key={stopId} className="zentrum-panel-destinations">
+            {reachableStops.map((reachable) => (
+              <li key={reachable.nodeId}>
+                <LineBadge line={getSign(reachable.lineId)} size="sm" />
+                <span className="zentrum-panel-destinations-name">
+                  {reachable.label}
+                  <small>
+                    {travelMeasure === "ride"
+                      ? `ab ${formatClockTime(new Date(reachable.departsAt))}`
+                      : `an ${formatClockTime(new Date(reachable.arrivesAt))}`}
+                  </small>
                 </span>
                 <span className="departure-countdown">
-                  <DepartureCountdown
-                    reading={toCountdownReading(getMinutesUntilArrival(reached.arrivesAt, feedNow))}
-                  />
+                  {travelMeasure === "ride" ? (
+                    <DepartureCountdown
+                      reading={{
+                        kind: "minutes",
+                        minutes: reachable.minutes,
+                        label: `${reachable.minutes} min`,
+                      }}
+                    />
+                  ) : (
+                    <DepartureCountdown reading={toCountdownReading(reachable.minutes)} />
+                  )}
                 </span>
               </li>
             ))}
@@ -181,7 +183,7 @@ export function ZentrumStopPanel({
         )}
       </div>
       <a
-        className="zentrum-sheet-link"
+        className="zentrum-panel-link"
         href={`#${routePaths.stop(stopId)}`}
         aria-label={`Haltestellenseite ${label} öffnen`}
       >

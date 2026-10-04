@@ -5,6 +5,8 @@ import {
   type RunSegmentTrajectory,
 } from "../lib/vehicle-positioning";
 import {
+  type TrajectoryAnimationProperty,
+  canReuseAnimatedValue,
   isCorrectivePlacement,
   getTrajectoryKeyframes,
   TRAJECTORY_CORRECTION_MS,
@@ -13,11 +15,11 @@ import {
 /**
  * One mark's segment-length Web Animation, shared by the line diagram and the Zentrum map:
  * - a signature over the plan and coordinates decides whether the running animation still applies;
- * - a replan continues from the painted transform, correcting over a few seconds;
+ * - a replan continues from the painted value, correcting over a few seconds;
  * - a placement is never animated from the old paint, except one within a link
  *   (`placedAfterLinks`), which is corrected like a replan;
  * - a mark without trajectory, or under `prefers-reduced-motion`, is painted at its tick position.
- * The caller supplies the coordinates (`getTransform`); marks are found by `data-marker-key`.
+ * The caller supplies the property values (`getValue`); marks are found by `data-marker-key`.
  */
 
 /** The fields of a mark this hook reads; a caller's own mark type extends them. */
@@ -41,26 +43,24 @@ export type TrajectoryAnimationFields = {
 
 type KeptAnimation = {
   signature: string;
+  linkKey: string;
   geometrySignature: string | undefined;
   motion: RunPlacementMotion;
   animation: Animation;
 };
 
-/** The property a mark's position is stated in: its transform, or a stroke's dash offset. */
-type AnimatedProperty = "transform" | "strokeDashoffset";
-
 export function useVehicleTrajectoryAnimations<Mark extends TrajectoryAnimationFields>({
   container,
   marks,
-  getTransform,
+  getValue,
   getBoundaryProgresses,
   geometrySignature,
   property = "transform",
 }: {
   container: RefObject<HTMLElement | null>;
   marks: readonly Mark[];
-  /** The mark's position at a progress, in the caller's coordinates. */
-  getTransform: (mark: Mark, progress: number) => string | undefined;
+  /** The animated property value at a progress. */
+  getValue: (mark: Mark, progress: number) => string | undefined;
   /** Progresses keyframed on their own, per mark. */
   getBoundaryProgresses?: (mark: Mark) => readonly number[];
   /**
@@ -68,8 +68,8 @@ export function useVehicleTrajectoryAnimations<Mark extends TrajectoryAnimationF
    * marks stay on the moved geometry. Undefined always carries the paint.
    */
   geometrySignature?: string;
-  /** The property `getTransform` states; a lit stroke follows its mark by dash offset. */
-  property?: AnimatedProperty;
+  /** The property `getValue` states; a lit stroke follows its mark by dash offset. */
+  property?: TrajectoryAnimationProperty;
 }) {
   const animationsRef = useRef(new Map<string, KeptAnimation>());
 
@@ -78,15 +78,33 @@ export function useVehicleTrajectoryAnimations<Mark extends TrajectoryAnimationF
     if (!layer) return;
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const liveKeys = new Set<string>();
+    // A replan continues from the painted position, captured before cancelling. A placement does
+    // not, except one within a link, which would otherwise blink. A geometry change does not either.
+    const readReusableAnimatedValue = (
+      element: HTMLElement | SVGElement,
+      mark: Mark,
+      active: KeptAnimation | undefined,
+    ): string | undefined => {
+      const isCorrective = mark.motion !== "placed" || isCorrectivePlacement(mark.placedAfterLinks);
+      if (
+        !isCorrective ||
+        !active ||
+        active.geometrySignature !== geometrySignature ||
+        !canReuseAnimatedValue(property, active.linkKey, mark.linkKey)
+      )
+        return undefined;
+      const painted = getComputedStyle(element)[property];
+      return painted === "none" ? undefined : painted;
+    };
     for (const mark of marks) {
       liveKeys.add(mark.key);
       const element = layer.querySelector<HTMLElement | SVGElement>(
         `[data-marker-key="${CSS.escape(mark.key)}"]`,
       );
       if (!element) continue;
-      const fromTransform = getTransform(mark, mark.progress);
-      const toTransform = getTransform(mark, 1);
-      if (reduceMotion || !fromTransform || !toTransform) {
+      const fromValue = getValue(mark, mark.progress);
+      const toValue = getValue(mark, 1);
+      if (reduceMotion || !fromValue || !toValue) {
         animationsRef.current.get(mark.key)?.animation.cancel();
         animationsRef.current.delete(mark.key);
         continue;
@@ -94,23 +112,20 @@ export function useVehicleTrajectoryAnimations<Mark extends TrajectoryAnimationF
       if (!mark.trajectory) {
         // No journey to plan. A correctable placement is carried over a few seconds from the old
         // animation's paint; anything else snaps to where it belongs.
-        const signature = ["held", mark.linkKey, fromTransform, geometrySignature ?? ""].join(":");
+        const signature = ["held", mark.linkKey, fromValue, geometrySignature ?? ""].join(":");
         const active = animationsRef.current.get(mark.key);
         if (active?.signature === signature) continue;
-        const corrective = mark.motion !== "placed" || isCorrectivePlacement(mark.placedAfterLinks);
-        const paintedTransform =
-          corrective && active && active.geometrySignature === geometrySignature
-            ? getComputedStyle(element)[property]
-            : undefined;
+        const paintedValue = readReusableAnimatedValue(element, mark, active);
         active?.animation.cancel();
         animationsRef.current.delete(mark.key);
-        if (!paintedTransform || paintedTransform === "none") continue;
+        if (!paintedValue) continue;
         const animation = element.animate(
-          [{ [property]: paintedTransform }, { [property]: fromTransform }],
+          [{ [property]: paintedValue }, { [property]: fromValue }],
           { duration: TRAJECTORY_CORRECTION_MS, easing: "linear", fill: "both" },
         );
         animationsRef.current.set(mark.key, {
           signature,
+          linkKey: mark.linkKey,
           geometrySignature,
           motion: mark.motion,
           animation,
@@ -118,8 +133,8 @@ export function useVehicleTrajectoryAnimations<Mark extends TrajectoryAnimationF
         continue;
       }
       const { trajectory } = mark;
-      const plannedFromTransform = getTransform(mark, trajectory.startProgress);
-      if (!plannedFromTransform) continue;
+      const plannedFromValue = getValue(mark, trajectory.startProgress);
+      if (!plannedFromValue) continue;
       const signature = [
         mark.linkKey,
         trajectory.startProgress,
@@ -129,8 +144,8 @@ export function useVehicleTrajectoryAnimations<Mark extends TrajectoryAnimationF
         trajectory.cruiseVelocity,
         trajectory.acceleratesUntil,
         trajectory.brakesFrom,
-        plannedFromTransform,
-        toTransform,
+        plannedFromValue,
+        toValue,
         geometrySignature ?? "",
       ].join(":");
       const active = animationsRef.current.get(mark.key);
@@ -139,14 +154,7 @@ export function useVehicleTrajectoryAnimations<Mark extends TrajectoryAnimationF
         (mark.motion !== "placed" || active.motion === "placed")
       )
         continue;
-      // A replan continues from the painted position, captured before cancelling. A placement does
-      // not, except one within a link, which would otherwise blink. A geometry change does not
-      // either.
-      const isCorrective = mark.motion !== "placed" || isCorrectivePlacement(mark.placedAfterLinks);
-      const paintedTransform =
-        isCorrective && active && active.geometrySignature === geometrySignature
-          ? getComputedStyle(element)[property]
-          : undefined;
+      const paintedValue = readReusableAnimatedValue(element, mark, active);
       active?.animation.cancel();
 
       const waitingMs = Math.max(0, trajectory.startsAt - trajectory.sampledAt);
@@ -154,8 +162,8 @@ export function useVehicleTrajectoryAnimations<Mark extends TrajectoryAnimationF
       // The first keyframe is the present position, so paint and animation agree from the first
       // frame.
       const movingFrom = getRunTrajectoryProgress(trajectory, animationStartsAt);
-      const movingFromTransform = getTransform(mark, movingFrom);
-      if (!movingFromTransform) continue;
+      const movingFromValue = getValue(mark, movingFrom);
+      if (!movingFromValue) continue;
       const movingDuration =
         waitingMs > 0
           ? trajectory.arrivesAt - trajectory.startsAt
@@ -164,14 +172,13 @@ export function useVehicleTrajectoryAnimations<Mark extends TrajectoryAnimationF
       const keyframes = getTrajectoryKeyframes({
         trajectory,
         animationStartsAt,
-        getTransform: (progress) => getTransform(mark, progress),
+        getValue: (progress) => getValue(mark, progress),
         boundaryProgresses: getBoundaryProgresses?.(mark) ?? [],
-        paintedTransform:
-          paintedTransform && paintedTransform !== "none" ? paintedTransform : undefined,
+        paintedValue,
       });
       if (keyframes.length === 0) continue;
       const animation = element.animate(
-        keyframes.map(({ transform, offset }) => ({ [property]: transform, offset })),
+        keyframes.map(({ value, offset }) => ({ [property]: value, offset })),
         {
           delay: waitingMs,
           duration: movingDuration,
@@ -181,6 +188,7 @@ export function useVehicleTrajectoryAnimations<Mark extends TrajectoryAnimationF
       );
       animationsRef.current.set(mark.key, {
         signature,
+        linkKey: mark.linkKey,
         geometrySignature,
         motion: mark.motion,
         animation,

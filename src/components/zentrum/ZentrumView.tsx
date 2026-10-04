@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DepartureBoard, DepartureBoardCoverage } from "../../data/transit-types";
 import { useDepartureBoard } from "../../hooks/departure-board";
+import type { NearbyStopsController } from "../../hooks/nearby-stops";
+import { useNearestZentrumStopOpening } from "../../hooks/zentrum-nearest-stop";
 import { useZentrumVehicles } from "../../hooks/zentrum-vehicles";
 import type { ObservedNetwork } from "../../lib/observed-network";
 import { createZentrumSchematicReader } from "../../lib/zentrum-schematic";
@@ -30,6 +32,7 @@ export function ZentrumView({
   selectedLineId,
   selectedStopId,
   isFullscreen,
+  nearbyStops,
 }: {
   network: ObservedNetwork;
   /** How many observation posts this reading rests on. */
@@ -42,6 +45,8 @@ export function ZentrumView({
   selectedStopId?: string;
   /** Whether the plan fills the screen. */
   isFullscreen: boolean;
+  /** Where the rider stands, asked only when the plan is set to open at the nearest stop. */
+  nearbyStops: NearbyStopsController;
 }) {
   // Runs named by the posts, placed from their own readings; the set changes only as runs come and
   // go.
@@ -62,6 +67,16 @@ export function ZentrumView({
       replaceCurrentRoute(routePaths.zentrum({}, isFullscreen));
     }
   }, [isLineObserved, isStopObserved, isReadingAnswered, isFullscreen]);
+  const openNearestStop = useCallback(
+    (stopId: string) => replaceCurrentRoute(routePaths.zentrum({ stopId }, isFullscreen)),
+    [isFullscreen],
+  );
+  const locationNote = useNearestZentrumStopOpening(
+    nearbyStops,
+    layout.lineIdsByNodeId,
+    selectedLineId !== undefined || selectedStopId !== undefined,
+    openNearestStop,
+  );
   const followedLineId = isLineObserved ? selectedLineId : undefined;
   const openedStopId = isStopObserved ? selectedStopId : undefined;
   // An opened stop reads its whole board; the plan only draws trams already inside it.
@@ -102,6 +117,7 @@ export function ZentrumView({
         stopBoard={openedStopBoard}
         feedNow={feedNow}
         isFullscreen={isFullscreen}
+        locationNote={locationNote}
         onSelectLine={selectLine}
         onSelectStop={selectStop}
         onChangeFullscreen={changeFullscreen}

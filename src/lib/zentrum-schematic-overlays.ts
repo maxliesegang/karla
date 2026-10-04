@@ -37,7 +37,7 @@ const lightEdges = (
 /**
  * Corridors lit while any tram of the line has them ahead; a tram's own corridor from the tram on.
  */
-export function getZentrumProgressOverlay(
+export function getZentrumVehiclePathsOverlay(
   vehicles: readonly ZentrumSchematicVehicle[],
 ): ZentrumSchematicOverlay {
   const edgeIdsByLineId = new Map<string, Set<string>>();
@@ -208,15 +208,36 @@ export type ZentrumTravelTime = {
   departsAt: number;
 };
 
+/** What "nearest" means for a reached stop: the soonest arrival, or the shortest ride. */
+export type ZentrumTravelMeasure = "arrival" | "ride";
+
+/** Whole minutes on board, at least one. */
+export const getRideMinutes = ({ departsAt, arrivesAt }: ZentrumTravelTime): number =>
+  Math.max(1, Math.round((arrivesAt - departsAt) / 60_000));
+
+const getMeasuredTime = (time: ZentrumTravelTime, measure: ZentrumTravelMeasure): number =>
+  measure === "ride" ? time.arrivesAt - time.departsAt : time.arrivesAt;
+
+/** By the measure, then the sooner arrival, then the line. */
+const compareTravelTimes = (
+  left: ZentrumTravelTime,
+  right: ZentrumTravelTime,
+  measure: ZentrumTravelMeasure,
+): number =>
+  getMeasuredTime(left, measure) - getMeasuredTime(right, measure) ||
+  left.arrivesAt - right.arrivesAt ||
+  compareLineIds(left.lineId, right.lineId);
+
 /**
- * How soon a rider at a stop reaches every other stop on one tram, from every run the posts named
- * (waits for trams outside the Zentrum count). Direct rides only; the feed says nothing reliable
- * about changes.
+ * How soon, or how briefly, a rider at a stop reaches every other stop on one tram, from every run
+ * the posts named (waits for trams outside the Zentrum count). Direct rides only; the feed says
+ * nothing reliable about changes.
  */
 export function getZentrumTravelTimes(
   departures: readonly Departure[],
   nodeId: string,
   feedNow: number,
+  measure: ZentrumTravelMeasure = "arrival",
 ): {
   travelTimesByNodeId: ReadonlyMap<string, ZentrumTravelTime>;
   overlay: ZentrumSchematicOverlay;
@@ -250,18 +271,10 @@ export function getZentrumTravelTimes(
       previous = node;
       const arrivesAt = getTripCallInstant(calls[index], "arrival");
       if (arrivesAt === undefined || node === nodeId) continue;
+      const candidate = { arrivesAt, lineId: departure.lineId, departsAt };
       const known = bestByNodeId.get(node);
-      const isBetter =
-        !known ||
-        arrivesAt < known.arrivesAt ||
-        (arrivesAt === known.arrivesAt && compareLineIds(departure.lineId, known.lineId) < 0);
-      if (isBetter) {
-        bestByNodeId.set(node, {
-          arrivesAt,
-          lineId: departure.lineId,
-          departsAt,
-          edgeIds: [...edgeIds],
-        });
+      if (!known || compareTravelTimes(candidate, known, measure) < 0) {
+        bestByNodeId.set(node, { ...candidate, edgeIds: [...edgeIds] });
       }
     }
   }

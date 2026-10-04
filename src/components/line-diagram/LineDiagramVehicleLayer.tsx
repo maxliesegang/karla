@@ -124,7 +124,7 @@ function LineDiagramVehicleLayerView({
       },
     ]),
     geometrySignature,
-    getTransform: (mark, progress) => getVehicleTransform(mark, progress),
+    getValue: (mark, progress) => getVehicleTransform(mark, progress),
     // Every row boundary a link crosses is a keyframe.
     getBoundaryProgresses: (mark) => {
       const rowSpan = mark.toIndex - mark.fromIndex;

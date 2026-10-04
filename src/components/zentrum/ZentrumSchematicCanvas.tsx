@@ -17,7 +17,11 @@ import {
   ZENTRUM_SCHEMATIC_VIEWBOX,
   zentrumSchematicNodeById,
 } from "../../lib/zentrum-schematic-plan";
-import type { ZentrumSchematicOverlay } from "../../lib/zentrum-schematic-overlays";
+import type { ZentrumExperiments } from "../../lib/zentrum-experiments";
+import type {
+  ZentrumSchematicOverlay,
+  ZentrumTravelMeasure,
+} from "../../lib/zentrum-schematic-overlays";
 import type { ZentrumLineSignReader } from "./line-sign";
 import {
   ZentrumSchematicDrawing,
@@ -29,7 +33,11 @@ import {
 const ZENTRUM_NAME_EVERY_STOP_WIDTH = 1000;
 
 /** How soon a stop is reached from the opened one, and the line that gets the rider there. */
-export type ZentrumStopTravelTag = { minutes: number; lineId: string };
+export type ZentrumStopTravelTag = {
+  minutes: number;
+  lineId: string;
+  measure: ZentrumTravelMeasure;
+};
 
 /** A mark with what its animation needs. */
 type ZentrumVehicleMark = ZentrumSchematicVehicle & TrajectoryAnimationFields;
@@ -54,14 +62,15 @@ export function ZentrumSchematicCanvas({
   schematic,
   getSign,
   selectedLineId,
-  selectedStationId,
+  selectedStopId,
   vehicles,
   overlay,
+  unlitLineStyle,
   vehicleMinutesById,
   stopMinutesByNodeId,
   selectedVehicleId,
   onSelectVehicle,
-  onSelectStation,
+  onSelectStop,
   scrollRef,
   zoom,
   planWidth,
@@ -71,17 +80,19 @@ export function ZentrumSchematicCanvas({
   /** The followed line. */
   selectedLineId?: string;
   /** The opened stop. */
-  selectedStationId?: string;
+  selectedStopId?: string;
   vehicles: readonly ZentrumSchematicVehicle[];
   /** What is lit over the route traces, or nothing to draw every line whole. */
   overlay?: ZentrumSchematicOverlay;
+  /** How lines calling at the opened stop are drawn where the overlay does not light them. */
+  unlitLineStyle?: ZentrumExperiments["unlitLineStyle"];
   /** The countdown on each tram the opened stop waits for; when present, other marks recede. */
   vehicleMinutesById?: ReadonlyMap<string, number>;
   /** Minutes to each stop from the opened one, printed before its name; unreached stops recede. */
   stopMinutesByNodeId?: ReadonlyMap<string, ZentrumStopTravelTag>;
   selectedVehicleId?: string;
   onSelectVehicle: (vehicleId: string) => void;
-  onSelectStation: (stationId: string) => void;
+  onSelectStop: (stationId: string) => void;
   scrollRef: RefObject<HTMLDivElement | null>;
   zoom: number;
   planWidth: number | undefined;
@@ -93,7 +104,7 @@ export function ZentrumSchematicCanvas({
     const scroller = scrollRef.current;
     const canvas = canvasRef.current;
     const node =
-      selectedStationId === undefined ? undefined : zentrumSchematicNodeById.get(selectedStationId);
+      selectedStopId === undefined ? undefined : zentrumSchematicNodeById.get(selectedStopId);
     if (!scroller || !canvas || !node) return;
     const x =
       ((node.x - ZENTRUM_SCHEMATIC_VIEWBOX.x) / ZENTRUM_SCHEMATIC_VIEWBOX.width) *
@@ -107,14 +118,14 @@ export function ZentrumSchematicCanvas({
       top: canvas.offsetTop + y - scroller.clientHeight / 2,
       behavior: reduceMotion ? "auto" : "smooth",
     });
-  }, [selectedStationId, scrollRef]);
+  }, [selectedStopId, scrollRef]);
 
   // The lines kept at full strength: the followed one, or those calling at the opened stop.
   const { lineIdsByNodeId } = schematic;
   const highlightedLineIds = useMemo(() => {
-    if (selectedStationId !== undefined) return new Set(lineIdsByNodeId.get(selectedStationId));
+    if (selectedStopId !== undefined) return new Set(lineIdsByNodeId.get(selectedStopId));
     return selectedLineId === undefined ? undefined : new Set([selectedLineId]);
-  }, [lineIdsByNodeId, selectedLineId, selectedStationId]);
+  }, [lineIdsByNodeId, selectedLineId, selectedStopId]);
 
   const drawnLinePaths = useMemo(
     () => schematic.drawnPaths.map((path) => ({ ...path, sign: getSign(path.lineId) })),
@@ -133,7 +144,7 @@ export function ZentrumSchematicCanvas({
     container: canvasRef,
     marks: vehicleMarks,
     geometrySignature,
-    getTransform: (mark, progress) => getZentrumVehicleTransform(mark.path, progress),
+    getValue: (mark, progress) => getZentrumVehicleTransform(mark.path, progress),
     getBoundaryProgresses: getBendProgresses,
   });
   // A lit stretch uses its mark's keyframes, so the colour ends at the mark.
@@ -150,7 +161,7 @@ export function ZentrumSchematicCanvas({
     marks: stretchMarks,
     geometrySignature,
     property: "strokeDashoffset",
-    getTransform: (mark, progress) => getZentrumLitStretchOffset(progress, mark.end),
+    getValue: (mark, progress) => getZentrumLitStretchOffset(progress, mark.end),
     getBoundaryProgresses: getBendProgresses,
   });
 
@@ -168,8 +179,9 @@ export function ZentrumSchematicCanvas({
           drawnLinePaths={drawnLinePaths}
           stopMarks={schematic.stopMarks}
           highlightedLineIds={highlightedLineIds}
-          selectedStopId={selectedStationId}
+          selectedStopId={selectedStopId}
           overlay={overlay}
+          unlitLineStyle={unlitLineStyle}
           trackWidth={schematic.trackWidth}
         />
 
@@ -177,10 +189,10 @@ export function ZentrumSchematicCanvas({
           schematic={schematic}
           highlightedLineIds={highlightedLineIds}
           selectedLineId={selectedLineId}
-          selectedStationId={selectedStationId}
+          selectedStopId={selectedStopId}
           stopMinutesByNodeId={stopMinutesByNodeId}
           planWidth={planWidth}
-          onSelectStation={onSelectStation}
+          onSelectStop={onSelectStop}
         />
 
         {vehicles.map((vehicle) => {
@@ -283,18 +295,18 @@ const ZentrumSchematicStops = memo(function ZentrumSchematicStops({
   schematic,
   highlightedLineIds,
   selectedLineId,
-  selectedStationId,
+  selectedStopId,
   stopMinutesByNodeId,
   planWidth,
-  onSelectStation,
+  onSelectStop,
 }: {
   schematic: ZentrumSchematicReading;
   highlightedLineIds?: ReadonlySet<string>;
   selectedLineId?: string;
-  selectedStationId?: string;
+  selectedStopId?: string;
   stopMinutesByNodeId?: ReadonlyMap<string, ZentrumStopTravelTag>;
   planWidth: number | undefined;
-  onSelectStation: (stationId: string) => void;
+  onSelectStop: (stationId: string) => void;
 }) {
   const { edges, lineIdsByNodeId, stopMarks, trackWidth } = schematic;
   // Here, not with the drawing: a printed travel time makes every name taller.
@@ -321,7 +333,7 @@ const ZentrumSchematicStops = memo(function ZentrumSchematicStops({
         const isHighlighted = highlightedLineIds
           ? lineIdsAtNode.some((lineId) => highlightedLineIds.has(lineId))
           : false;
-        const isSelected = selectedStationId === node.id;
+        const isSelected = selectedStopId === node.id;
         const label = labelsByNodeId.get(node.id);
         const travel = stopMinutesByNodeId?.get(node.id);
         const minutes = travel?.minutes;
@@ -363,9 +375,9 @@ const ZentrumSchematicStops = memo(function ZentrumSchematicStops({
                 "--zentrum-label-y": toZentrumCanvasRun((label?.anchor.y ?? centre.y) - centre.y),
               } as CSSProperties
             }
-            onClick={() => onSelectStation(node.id)}
+            onClick={() => onSelectStop(node.id)}
             aria-pressed={isSelected}
-            aria-label={`${node.label}, Linien ${lineIdsAtNode.join(", ")}${travel ? `, mit Linie ${travel.lineId} in ${travel.minutes} Minuten erreichbar` : ""}. ${isSelected ? "Haltestelle schließen" : "Ziele und Abfahrten ab hier"}`}
+            aria-label={`${node.label}, Linien ${lineIdsAtNode.join(", ")}${travel ? `, mit Linie ${travel.lineId} ${travel.measure === "ride" ? `${travel.minutes} Minuten Fahrt` : `in ${travel.minutes} Minuten erreichbar`}` : ""}. ${isSelected ? "Haltestelle schließen" : "Ziele und Abfahrten ab hier"}`}
           >
             <i aria-hidden="true" />
             <span>

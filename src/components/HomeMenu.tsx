@@ -13,7 +13,7 @@ const homeMenuItems: readonly {
 }[] = [
   {
     label: "Linien",
-    description: "Alle Bahn- und Buslinien im KVV",
+    description: "Bahn- und Buslinien, die gerade unterwegs sind",
     path: routePaths.network(),
   },
   {

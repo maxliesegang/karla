@@ -1,13 +1,19 @@
+import type { ReactNode } from "react";
 import { LineBadge } from "../LineBadge";
 import type { ZentrumLineSignReader } from "./line-sign";
+import { ZentrumExperimentsMenu } from "./ZentrumExperimentsMenu";
 
-/** The band under the plan: legend and caption. Tapping a badge follows that line. */
+/**
+ * The band under the plan: legend, caption and an opened stop's bar. Tapping a badge follows that
+ * line. The band keeps its height whatever stands in it.
+ */
 export function ZentrumSchematicToolbar({
   caption,
   lineIds,
   getSign,
   selectedLineId,
   onSelectLine,
+  stopBar,
 }: {
   /** What the drawing cannot say itself: what the colour means, and how many trams run. */
   caption: string;
@@ -16,9 +22,10 @@ export function ZentrumSchematicToolbar({
   /** The followed line, as the address names it. */
   selectedLineId?: string;
   onSelectLine: (lineId: string | undefined) => void;
+  stopBar?: ReactNode;
 }) {
   return (
-    <div className="zentrum-schematic-toolbar">
+    <div className="zentrum-schematic-toolbar" data-has-stop={stopBar !== undefined}>
       <div
         className="zentrum-schematic-lines"
         data-has-selection={selectedLineId !== undefined}
@@ -53,6 +60,7 @@ export function ZentrumSchematicToolbar({
         })}
       </div>
       <p className="zentrum-schematic-caption">{caption}</p>
+      {stopBar}
     </div>
   );
 }
@@ -65,6 +73,7 @@ export function ZentrumPlanControls({
   onChangeZoom,
   isFullscreen,
   onChangeFullscreen,
+  isStopOpen,
 }: {
   zoom: number;
   canZoomIn: boolean;
@@ -73,9 +82,11 @@ export function ZentrumPlanControls({
   /** Whether the plan is being read at the size of the screen. */
   isFullscreen: boolean;
   onChangeFullscreen: (isFullscreen: boolean) => void;
+  isStopOpen: boolean;
 }) {
   return (
     <div className="zentrum-plan-controls">
+      <ZentrumExperimentsMenu isStopOpen={isStopOpen} />
       <button
         type="button"
         className="zentrum-plan-expand"

@@ -8,7 +8,8 @@ import {
 } from "../src/lib/zentrum-schematic.ts";
 import {
   getMinutesUntilArrival,
-  getZentrumProgressOverlay,
+  getRideMinutes,
+  getZentrumVehiclePathsOverlay,
   getZentrumStopBoard,
   getZentrumStopDepartures,
   getZentrumTravelTimes,
@@ -80,7 +81,7 @@ test("lights a tram's corridor from the tram onwards, and nothing behind it", ()
   const [vehicle] = placeVehicles([eastbound("lead", 0)], 1);
   assert.ok(vehicle);
 
-  const overlay = getZentrumProgressOverlay([vehicle]);
+  const overlay = getZentrumVehiclePathsOverlay([vehicle]);
 
   // The corridor it is on goes out behind it, so it is a stretch from the mark, not lit whole.
   assert.deepEqual([...(overlay.edgeIdsByLineId.get("S1") ?? [])], [MARKTPLATZ_KRONENPLATZ]);
@@ -96,7 +97,7 @@ test("keeps a corridor lit whole while a tram behind will still run it", () => {
   const lead = vehicles.find(({ id }) => id.includes("lead"));
   assert.equal(lead?.from.id, "marktplatz");
 
-  const overlay = getZentrumProgressOverlay(vehicles);
+  const overlay = getZentrumVehiclePathsOverlay(vehicles);
 
   // The lead is on the Marktplatz–Kronenplatz corridor; the follower still has all of it ahead.
   assert.ok(overlay.edgeIdsByLineId.get("S1")?.has(MARKTPLATZ_KRONENPLATZ));
@@ -228,6 +229,33 @@ test("reads how soon every stop is reached directly, by the tram that gets there
     EUROPAPLATZ_MARKTPLATZ,
     MARKTPLATZ_KRONENPLATZ,
   ]);
+});
+
+test("reads the shortest ride to each stop when riding time is the measure", () => {
+  const runs = [
+    run(
+      "slow",
+      "2",
+      [
+        ["europaplatz", 1],
+        ["marktplatz", 4],
+        ["kronenplatz", 7],
+      ],
+      "Wolfartsweier",
+    ),
+    eastbound("fast", 5),
+  ];
+
+  const byArrival = getZentrumTravelTimes(runs, "europaplatz", instant(1));
+  const byRide = getZentrumTravelTimes(runs, "europaplatz", instant(1), "ride");
+
+  assert.equal(byArrival.travelTimesByNodeId.get("kronenplatz")?.lineId, "2");
+  assert.deepEqual(byRide.travelTimesByNodeId.get("kronenplatz"), {
+    arrivesAt: instant(9),
+    lineId: "S1",
+    departsAt: instant(5),
+  });
+  assert.equal(getRideMinutes(byRide.travelTimesByNodeId.get("kronenplatz")!), 4);
 });
 
 test("counts minutes to an arrival up, never promising one early", () => {

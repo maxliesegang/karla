@@ -3,7 +3,7 @@ import { getRunTrajectoryProgress, type RunSegmentTrajectory } from "./vehicle-p
 /**
  * One trajectory as Web Animation keyframes: the acceleration–cruise–braking curve
  * (`vehicle-positioning.ts`) sampled densely on the ramps and at each boundary the drawing cares
- * about. A revised plan starts from the painted transform, correcting over a few seconds.
+ * about. A revised plan starts from the painted value, correcting over a few seconds.
  */
 
 /** A revised prediction meets the painted marker over this short visual correction. */
@@ -19,29 +19,42 @@ export const PLACEMENT_CORRECTION_MAX_LINKS = 1;
 export const isCorrectivePlacement = (placedAfterLinks: number | undefined): boolean =>
   placedAfterLinks !== undefined && placedAfterLinks <= PLACEMENT_CORRECTION_MAX_LINKS;
 
-/** One keyframe of a WAAPI animation: the mark's transform, and when along the link it holds. */
-export type TrajectoryKeyframe = { transform: string; offset: number };
+/** The property a mark's position is stated in: its transform, or a stroke's dash offset. */
+export type TrajectoryAnimationProperty = "transform" | "strokeDashoffset";
+
+/**
+ * Whether the painted value can seed the next animation. A dash offset is measured along its own
+ * link's stretch, so on another link it would mean another place.
+ */
+export const canReuseAnimatedValue = (
+  property: TrajectoryAnimationProperty,
+  paintedLinkKey: string,
+  linkKey: string,
+): boolean => property === "transform" || paintedLinkKey === linkKey;
+
+/** One keyframe of a WAAPI animation: the animated value, and when along the link it holds. */
+export type TrajectoryKeyframe = { value: string; offset: number };
 
 export type TrajectoryKeyframeOptions = {
   /** The trajectory the mark follows, as the placement sampled it. */
   trajectory: RunSegmentTrajectory;
   /** Feed-clock instant the animation starts at. */
   animationStartsAt: number;
-  /** The mark's transform at a progress, in the drawing's coordinates. */
-  getTransform: (progress: number) => string | undefined;
+  /** The animated property value at a progress. */
+  getValue: (progress: number) => string | undefined;
   /** Progresses within the link whose crossings get their own keyframes. */
   boundaryProgresses?: readonly number[];
-  /** The painted transform, which a replan starts from. */
-  paintedTransform?: string;
+  /** The painted value, which a replan starts from. */
+  paintedValue?: string;
 };
 
 /** Keyframes from `animationStartsAt` to the next stop: distinct, in order, offsets ending at 1. */
 export function getTrajectoryKeyframes({
   trajectory,
   animationStartsAt,
-  getTransform,
+  getValue,
   boundaryProgresses = [],
-  paintedTransform,
+  paintedValue,
 }: TrajectoryKeyframeOptions): TrajectoryKeyframe[] {
   const duration = trajectory.arrivesAt - animationStartsAt;
   if (duration <= 0) return [];
@@ -60,7 +73,7 @@ export function getTrajectoryKeyframes({
     }
     return (before + after) / 2;
   };
-  const correctionEndsAt = paintedTransform
+  const correctionEndsAt = paintedValue
     ? Math.min(trajectory.arrivesAt, animationStartsAt + TRAJECTORY_CORRECTION_MS)
     : animationStartsAt;
   const rampSamples = (from: number, to: number) =>
@@ -80,7 +93,7 @@ export function getTrajectoryKeyframes({
     .filter((instant, index, all) => index === 0 || instant !== all[index - 1]);
   return times.flatMap((instant, index) => {
     const progress = getRunTrajectoryProgress(trajectory, instant);
-    const transform = index === 0 && paintedTransform ? paintedTransform : getTransform(progress);
-    return transform ? [{ transform, offset: (instant - animationStartsAt) / duration }] : [];
+    const value = index === 0 && paintedValue ? paintedValue : getValue(progress);
+    return value ? [{ value, offset: (instant - animationStartsAt) / duration }] : [];
   });
 }

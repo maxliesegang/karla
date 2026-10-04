@@ -1,9 +1,12 @@
 import type { Departure, TransitLine } from "../data/transit-types";
 import type { RidePositionController } from "../hooks/ride-position";
-import { formatClockTime, getTripCallTimeReading } from "../lib/departure-presentation";
+import {
+  formatClockTime,
+  getRideCountdownSourceLabel,
+  getTripCallTimeReading,
+} from "../lib/departure-presentation";
 import type { RideProgress } from "../lib/ride-progress";
 import { classNames } from "../lib/class-names";
-import { formatDistance } from "../lib/geo";
 import { LineBadge } from "./LineBadge";
 
 /**
@@ -41,7 +44,6 @@ export function RideStatusPanel({
     nextCall,
     minutesToNextCall,
     alightingCall,
-    metersToNextCall,
     stopsToAlighting,
     isAlightingNext,
     isFinished,
@@ -49,13 +51,7 @@ export function RideStatusPanel({
   } = rideProgress;
   const alightingCallTime = alightingCall && getTripCallTimeReading(alightingCall, feedNow);
   const nextCallTime = nextCall && getTripCallTimeReading(nextCall, feedNow);
-  // Which source the countdown came from, and the distance left where the device is the source.
-  const sourceLabel =
-    rideProgress.source === "schedule"
-      ? "geschätzt nach Fahrplan"
-      : metersToNextCall === undefined
-        ? "nach Standort"
-        : `nach Standort · noch ${formatDistance(metersToNextCall)}`;
+  const countdownSourceLabel = getRideCountdownSourceLabel(rideProgress, nextCallTime);
 
   if (isFinished) {
     return (
@@ -115,7 +111,7 @@ export function RideStatusPanel({
               </>
             )}
           </p>
-          <p className="ride-status-source">{sourceLabel}</p>
+          <p className="ride-status-source">{countdownSourceLabel}</p>
         </div>
       )}
 

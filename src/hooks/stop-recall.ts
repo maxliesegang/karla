@@ -4,6 +4,7 @@ import { useStoredPreference } from "./stored-preference";
 import { appSettings } from "../lib/app-settings";
 import {
   findRecentStops,
+  forgetRecentStops,
   rememberStopVisit,
   withStopVisit,
   type RecentStop,
@@ -38,10 +39,13 @@ export function useStopRecall(visitedStop: TransitStop | undefined): {
     setRecentStops(withStopVisit(recentStops, visitedStopId, visitedStopName));
   }
 
+  // Not remembering means keeping nothing, so turning it off clears the list.
+  if (!settings.isRememberingStops && recentStops.length > 0) setRecentStops([]);
+
   // The effect only writes storage.
   useEffect(() => {
-    if (visitedStopId && settings.isRememberingStops)
-      rememberStopVisit(visitedStopId, visitedStopName);
+    if (!settings.isRememberingStops) forgetRecentStops();
+    else if (visitedStopId) rememberStopVisit(visitedStopId, visitedStopName);
   }, [visitedStopId, visitedStopName, settings.isRememberingStops]);
 
   return {

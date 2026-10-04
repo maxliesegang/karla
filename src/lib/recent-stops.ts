@@ -84,3 +84,14 @@ export function rememberStopVisit(stopId: string, stopName?: string): void {
     // A full or blocked store only costs a remembered stop.
   }
 }
+
+/** Clears the list from this device; failure is silent. */
+export function forgetRecentStops(): void {
+  try {
+    const storage = readStorage();
+    storage?.removeItem(RECENT_STOPS_STORAGE_KEY);
+    storage?.removeItem(LEGACY_RECENT_STOP_STORAGE_KEY);
+  } catch {
+    // A blocked store has nothing kept to clear.
+  }
+}

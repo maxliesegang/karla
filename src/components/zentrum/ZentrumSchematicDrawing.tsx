@@ -1,4 +1,4 @@
-import { type CSSProperties, memo } from "react";
+import { type CSSProperties, type SVGProps, memo } from "react";
 import type { TransitLine } from "../../data/transit-types";
 import { ZENTRUM_SCHEMATIC_VIEWBOX } from "../../lib/zentrum-schematic-plan";
 import {
@@ -6,6 +6,7 @@ import {
   type ZentrumSchematicLinePathSegment,
   getZentrumSchematicVehiclePathData,
 } from "../../lib/zentrum-schematic-paths";
+import type { ZentrumExperiments } from "../../lib/zentrum-experiments";
 import type { ZentrumSchematicOverlay } from "../../lib/zentrum-schematic-overlays";
 import {
   ZENTRUM_SCHEMATIC_STOP_CAPSULE_FILL,
@@ -27,7 +28,7 @@ export const getZentrumLitStretchOffset = (progress: number, end: number): strin
   `${-Math.min(1, Math.max(0, progress / end))}px`;
 
 /** Whether a stroke recedes: none of its lines is kept at full strength. */
-const isDimmed = (
+const getDimmedAttribute = (
   highlightedLineIds: ReadonlySet<string> | undefined,
   lineIds: readonly string[],
 ): "true" | undefined =>
@@ -35,8 +36,30 @@ const isDimmed = (
     ? "true"
     : undefined;
 
-const lineColor = (linePath: ZentrumSchematicDrawnLinePath) =>
+const getLineColorStyle = (linePath: ZentrumSchematicDrawnLinePath) =>
   ({ "--zentrum-line-color": linePath.sign.color }) as CSSProperties;
+
+/** A track stroke with a surface-colored gap at crossings; dimmed tracks leave no gap. */
+function ZentrumTrackStroke({
+  isStretch,
+  ...stroke
+}: Omit<SVGProps<SVGPathElement>, "className"> & {
+  "data-dimmed"?: "true";
+  /** A stretch lit to its mark, dashed by its group's animated offset. */
+  isStretch?: boolean;
+}) {
+  const dash = isStretch
+    ? ({ pathLength: 1, strokeDasharray: "1 2", "data-stretch": "true" } as const)
+    : undefined;
+  return (
+    <>
+      {!stroke["data-dimmed"] && (
+        <path className="zentrum-schematic-network-track-gap" d={stroke.d} {...dash} />
+      )}
+      <path className="zentrum-schematic-network-track-color" {...stroke} {...dash} />
+    </>
+  );
+}
 
 /**
  * Corridors a line is lit along that its drawn pattern does not run (an S8 via the Hauptbahnhof),
@@ -77,6 +100,7 @@ export function ZentrumSchematicDrawing({
   highlightedLineIds,
   selectedStopId,
   overlay,
+  unlitLineStyle = "trace",
   trackWidth,
 }: {
   drawnLinePaths: readonly ZentrumSchematicDrawnLinePath[];
@@ -87,6 +111,8 @@ export function ZentrumSchematicDrawing({
   selectedStopId?: string;
   /** What is lit over the traces; nothing draws every line whole. */
   overlay?: ZentrumSchematicOverlay;
+  /** How highlighted lines are drawn where the overlay does not light them. */
+  unlitLineStyle?: ZentrumExperiments["unlitLineStyle"];
   /** The lane width, which is also the lane pitch. */
   trackWidth: number;
 }) {
@@ -112,7 +138,8 @@ export function ZentrumSchematicDrawing({
       <ZentrumSchematicTracks
         drawnLinePaths={drawnLinePaths}
         highlightedLineIds={highlightedLineIds}
-        isTraced={overlay !== undefined}
+        hasOverlay={overlay !== undefined}
+        unlitLineStyle={unlitLineStyle}
       />
       {overlay && (
         <ZentrumSchematicLitLayer
@@ -130,11 +157,13 @@ export function ZentrumSchematicDrawing({
 const ZentrumSchematicTracks = memo(function ZentrumSchematicTracks({
   drawnLinePaths,
   highlightedLineIds,
-  isTraced,
+  hasOverlay,
+  unlitLineStyle,
 }: {
   drawnLinePaths: readonly ZentrumSchematicDrawnLinePath[];
   highlightedLineIds?: ReadonlySet<string>;
-  isTraced: boolean;
+  hasOverlay: boolean;
+  unlitLineStyle: ZentrumExperiments["unlitLineStyle"];
 }) {
   return (
     <g>
@@ -145,25 +174,22 @@ const ZentrumSchematicTracks = memo(function ZentrumSchematicTracks({
           d={linePath.data}
         />
       ))}
-      {/* The seam between touching lanes, and the rim around a band. */}
-      {drawnLinePaths.map((linePath) => (
-        <path
-          key={`seam:${linePath.id}`}
-          className="zentrum-schematic-network-track-seam"
-          d={linePath.data}
-        />
-      ))}
-      {drawnLinePaths.map((linePath) => (
-        <path
-          key={`base:${linePath.id}`}
-          className="zentrum-schematic-network-track-color"
-          d={linePath.data}
-          stroke={isTraced ? undefined : linePath.sign.color}
-          style={lineColor(linePath)}
-          data-trace={isTraced ? "true" : undefined}
-          data-dimmed={isDimmed(highlightedLineIds, linePath.lineIds)}
-        />
-      ))}
+      {drawnLinePaths.map((linePath) => {
+        const dimmedAttribute = getDimmedAttribute(highlightedLineIds, linePath.lineIds);
+        const usesUnlitLineStyle = hasOverlay && unlitLineStyle !== "trace" && !dimmedAttribute;
+        const isGrayTrace = hasOverlay && !usesUnlitLineStyle;
+        return (
+          <ZentrumTrackStroke
+            key={`base:${linePath.id}`}
+            d={linePath.data}
+            stroke={isGrayTrace ? undefined : linePath.sign.color}
+            style={getLineColorStyle(linePath)}
+            data-trace={isGrayTrace ? "true" : undefined}
+            data-unlit-style={usesUnlitLineStyle ? unlitLineStyle : undefined}
+            data-dimmed={dimmedAttribute}
+          />
+        );
+      })}
     </g>
   );
 });
@@ -190,13 +216,12 @@ function ZentrumSchematicLitLayer({
           ...linePath.segments
             .filter((segment) => litEdgeIds.has(segment.edgeId))
             .map((segment) => (
-              <path
+              <ZentrumTrackStroke
                 key={`lit:${linePath.id}:${segment.edgeId}`}
-                className="zentrum-schematic-network-track-color"
                 d={segment.data}
                 stroke={linePath.sign.color}
-                style={lineColor(linePath)}
-                data-dimmed={isDimmed(highlightedLineIds, linePath.lineIds)}
+                style={getLineColorStyle(linePath)}
+                data-dimmed={getDimmedAttribute(highlightedLineIds, linePath.lineIds)}
               />
             )),
           ...overlay.stretches.flatMap(({ vehicle, end }) => {
@@ -210,34 +235,32 @@ function ZentrumSchematicLitLayer({
             const data = getZentrumSchematicVehiclePathData(vehicle.path, 0, end);
             if (!data) return [];
             const key = getZentrumLitStretchKey(vehicle.markerKey ?? vehicle.id);
+            // The offset is set on the group, which the gap and the colour both inherit.
             return [
-              <path
+              <g
                 key={key}
                 data-marker-key={key}
-                className="zentrum-schematic-network-track-color"
-                d={data}
-                pathLength={1}
-                strokeDasharray="1 2"
-                stroke={linePath.sign.color}
-                style={{
-                  ...lineColor(linePath),
-                  strokeDashoffset: getZentrumLitStretchOffset(vehicle.progress, end),
-                }}
-                data-stretch="true"
-                data-dimmed={isDimmed(highlightedLineIds, [vehicle.lineId])}
-              />,
+                style={{ strokeDashoffset: getZentrumLitStretchOffset(vehicle.progress, end) }}
+              >
+                <ZentrumTrackStroke
+                  d={data}
+                  isStretch
+                  stroke={linePath.sign.color}
+                  style={getLineColorStyle(linePath)}
+                  data-dimmed={getDimmedAttribute(highlightedLineIds, [vehicle.lineId])}
+                />
+              </g>,
             ];
           }),
         ];
       })}
       {getStrayLitSegments(drawnLinePaths, overlay).map(({ lineId, linePath, segment }) => (
-        <path
+        <ZentrumTrackStroke
           key={`stray:${lineId}:${segment.edgeId}`}
-          className="zentrum-schematic-network-track-color"
           d={segment.data}
           stroke={linePath.sign.color}
-          style={lineColor(linePath)}
-          data-dimmed={isDimmed(highlightedLineIds, [lineId])}
+          style={getLineColorStyle(linePath)}
+          data-dimmed={getDimmedAttribute(highlightedLineIds, [lineId])}
         />
       ))}
     </g>

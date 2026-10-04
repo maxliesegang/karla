@@ -1197,6 +1197,35 @@ button.brand:active .brand-mark,
   font-size: 13px;
   line-height: 1.35;
 }
+.settings-switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 52px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: var(--line-strong);
+  cursor: pointer;
+  transition: background-color 0.18s ease;
+}
+.settings-switch[aria-checked="true"] {
+  background: var(--shell-accent);
+}
+.settings-switch i {
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--surface);
+  box-shadow: 0 1px 3px #10201f40;
+  transition: transform 0.18s ease;
+}
+.settings-switch[aria-checked="true"] i {
+  transform: translateX(20px);
+}
 .settings-footnote {
   margin: 10px 4px 0;
   color: var(--ink-soft);
@@ -1212,24 +1241,21 @@ button.brand:active .brand-mark,
    takes every row under it. What the drawing cannot say of itself is still said, at its foot, by
    the caption. */
 .zentrum-schematic {
+  --zentrum-panel-width: clamp(300px, 27vw, 400px);
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  grid-template-rows: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr) auto;
+  grid-template-areas: "stage" "toolbar";
   gap: 10px clamp(12px, 1.4vw, 20px);
 }
 /* What a reader opened stands beside the plan, where the departure board stands beside a line's
-   diagram -- never over it, so the plan they are reading from stays whole. */
-.zentrum-schematic[data-has-sheet="true"] {
-  grid-template-columns: minmax(0, 1fr) clamp(300px, 27vw, 400px);
-}
-.zentrum-schematic-main {
-  min-width: 0;
-  min-height: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+   diagram -- never over it, so the plan they are reading from stays whole. The band under both
+   keeps its height, so opening a panel never moves it. */
+.zentrum-schematic[data-has-panel="true"] {
+  grid-template-columns: minmax(0, 1fr) var(--zentrum-panel-width);
+  grid-template-areas: "stage panel" "toolbar toolbar";
 }
 /* The drawing is given the panel's whole box: a plan is read by area, and the padding a column of
    words needs to sit off the panel edge is area the drawing spends on nothing. Its own scrollport
@@ -1264,6 +1290,7 @@ button.brand:active .brand-mark,
 
 /* The drawing's own box: the scrollport the plan is panned and zoomed in. */
 .zentrum-schematic-stage {
+  grid-area: stage;
   position: relative;
   flex: 1 1 auto;
   min-height: 0;
@@ -1326,7 +1353,7 @@ button.brand:active .brand-mark,
    darkened by the two rules pressed against it. A gap the colour of the paper separates them just
    as plainly and leaves the colours themselves alone, which is how a printed plan does it. */
 .zentrum-schematic-network-track-casing,
-.zentrum-schematic-network-track-seam,
+.zentrum-schematic-network-track-gap,
 .zentrum-schematic-network-track-color {
   fill: none;
   stroke-linecap: round;
@@ -1339,12 +1366,15 @@ button.brand:active .brand-mark,
   stroke-width: calc(var(--zentrum-schematic-track-width) * 1.43);
   opacity: 0.96;
 }
-.zentrum-schematic-network-track-seam {
+/* Under each line, as wide as its neighbours' colours leave clear (they start 0.68 lanes off), so it
+   parts only lines that cross. */
+.zentrum-schematic-network-track-gap {
   stroke: var(--surface);
-  stroke-width: var(--zentrum-schematic-track-width);
+  stroke-width: calc(var(--zentrum-schematic-track-width) * 1.36);
 }
 .zentrum-schematic-network-track-color {
-  stroke-width: calc(var(--zentrum-schematic-track-width) * 0.84);
+  /* The rest of the lane is a seam wide enough to tell dark neighbours apart. */
+  stroke-width: calc(var(--zentrum-schematic-track-width) * 0.64);
 }
 /* A lit reading uses two visual channels: a quiet dashed trace for the route, then solid colour for
    what the reading lights. This avoids asking a grey tint to mean both "the route exists" and
@@ -1356,10 +1386,27 @@ button.brand:active .brand-mark,
     calc(var(--zentrum-schematic-track-width) * 0.78);
   opacity: 0.9;
 }
+/* A line calling at the opened stop, where the reading does not light it (experiment variants:
+   pattern by colour strength). */
+.zentrum-schematic-network-track-color[data-unlit-style^="dashes"] {
+  stroke-width: calc(var(--zentrum-schematic-track-width) * 0.26);
+  stroke-dasharray: calc(var(--zentrum-schematic-track-width) * 1)
+    calc(var(--zentrum-schematic-track-width) * 1.1);
+  stroke-linecap: butt;
+}
+.zentrum-schematic-network-track-color[data-unlit-style^="dots"] {
+  stroke-width: calc(var(--zentrum-schematic-track-width) * 0.44);
+  stroke-dasharray: 0 calc(var(--zentrum-schematic-track-width) * 0.66);
+  stroke-linecap: round;
+}
+.zentrum-schematic-network-track-color[data-unlit-style$="-muted"] {
+  stroke: color-mix(in srgb, var(--zentrum-line-color) 65%, var(--surface));
+}
 /* Following a line recedes the rest of the band rather than removing it: what a rider is reading is
    one line's way *through* the Zentrum, and a plan emptied of everything else would no longer say
    through what. */
 /* A stretch that ends at a moving mark ends square: a round cap would reach out past the mark. */
+.zentrum-schematic-network-track-gap[data-stretch="true"],
 .zentrum-schematic-network-track-color[data-stretch="true"] {
   stroke-linecap: butt;
 }
@@ -1466,22 +1513,65 @@ button.brand:active .brand-mark,
   pointer-events: none;
 }
 /* The panel beside the plan, written as the departure board is: the name, the readings, rows. */
-.zentrum-sheet {
+.zentrum-panel {
+  grid-area: panel;
   min-width: 0;
   min-height: 0;
   display: flex;
   flex-direction: column;
   gap: 10px;
   overflow: hidden;
-  animation: panel-fade-enter var(--panel-motion) var(--panel-ease) backwards;
+  animation: zentrum-slide-in var(--panel-motion) var(--panel-ease) backwards;
 }
-.zentrum-sheet-heading {
+/* Opened from the bar, the panel rises out of it. */
+.zentrum-panel[data-entrance-motion="rise"] {
+  animation-name: zentrum-rise;
+}
+@keyframes zentrum-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-16px);
+  }
+}
+@keyframes zentrum-rise {
+  from {
+    clip-path: inset(100% 0 0 0);
+    transform: translateY(16px);
+  }
+  to {
+    clip-path: inset(0);
+  }
+}
+/* An opened stop on the band: name, reading and the way to its panel, as wide as the panel it
+   heads. */
+.zentrum-stop-bar {
+  flex: 0 0 auto;
+  width: var(--zentrum-panel-width);
+  min-width: 0;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  animation: zentrum-slide-in var(--panel-motion) var(--panel-ease) backwards;
+}
+.zentrum-stop-bar h2 {
+  animation: zentrum-swap 0.24s ease backwards;
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: clamp(18px, 1.4vw, 22px);
+  line-height: 1.1;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.zentrum-panel-heading {
   display: flex;
   align-items: center;
   gap: 10px;
   min-height: 44px;
 }
-.zentrum-sheet-heading h2 {
+.zentrum-panel-heading h2 {
   flex: 1 1 auto;
   min-width: 0;
   margin: 0;
@@ -1491,7 +1581,7 @@ button.brand:active .brand-mark,
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.zentrum-sheet-close {
+.zentrum-panel-close {
   flex: 0 0 auto;
   width: 34px;
   height: 34px;
@@ -1504,33 +1594,59 @@ button.brand:active .brand-mark,
   line-height: 1;
   cursor: pointer;
 }
-.zentrum-sheet-close:hover,
-.zentrum-sheet-close:focus-visible {
+.zentrum-panel-close:hover,
+.zentrum-panel-close:focus-visible {
   border-color: var(--ink);
   color: var(--ink);
 }
-.zentrum-sheet-note {
+.zentrum-stop-panel-toggle {
+  display: grid;
+  place-items: center;
+}
+.zentrum-stop-panel-toggle svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform var(--panel-motion) var(--panel-ease);
+}
+.zentrum-stop-panel-toggle[aria-expanded="true"] svg {
+  transform: rotate(180deg);
+}
+.zentrum-panel-note {
   margin: 0;
   color: var(--ink-soft);
   font-size: 12.5px;
   line-height: 1.35;
 }
-.zentrum-sheet-list {
+.zentrum-panel-list {
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
   border-top: 1px solid var(--ink);
 }
-.zentrum-sheet-list .departure {
+.zentrum-panel-list .departure {
   padding-block: 10px;
 }
-.zentrum-sheet-reached,
-.zentrum-sheet-calls {
+/* Switching stops swaps what the bar and panel say, in place. */
+@keyframes zentrum-swap {
+  from {
+    opacity: 0;
+  }
+}
+.zentrum-panel-destinations {
+  animation: zentrum-swap 0.24s ease backwards;
+}
+.zentrum-panel-destinations,
+.zentrum-panel-calls {
   margin: 0;
   padding: 0;
   list-style: none;
 }
-.zentrum-sheet-reached li {
+.zentrum-panel-destinations li {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
@@ -1538,21 +1654,21 @@ button.brand:active .brand-mark,
   padding: 9px 0;
   border-bottom: 1px solid var(--line);
 }
-.zentrum-sheet-reached-name {
+.zentrum-panel-destinations-name {
   min-width: 0;
   font-size: 16px;
   font-weight: 700;
 }
-.zentrum-sheet-reached-name small {
+.zentrum-panel-destinations-name small {
   display: block;
   color: var(--ink-soft);
   font-size: 12px;
   font-weight: 650;
 }
-.zentrum-sheet-calls {
+.zentrum-panel-calls {
   border-top: 1px solid var(--ink);
 }
-.zentrum-sheet-calls li {
+.zentrum-panel-calls li {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
@@ -1563,7 +1679,7 @@ button.brand:active .brand-mark,
   font-weight: 650;
 }
 /* The mark of a departure already on the plan: a tram's own dot, as the plan draws it. */
-.zentrum-sheet-on-plan {
+.zentrum-panel-on-plan {
   display: inline-block;
   width: 9px;
   height: 9px;
@@ -1574,7 +1690,7 @@ button.brand:active .brand-mark,
   box-shadow: 0 0 0 1px var(--ink);
   vertical-align: 0.05em;
 }
-.zentrum-sheet-link {
+.zentrum-panel-link {
   align-self: flex-start;
   display: inline-flex;
   align-items: center;
@@ -1589,11 +1705,11 @@ button.brand:active .brand-mark,
   font-weight: 750;
   text-decoration: none;
 }
-.zentrum-sheet-link:hover,
-.zentrum-sheet-link:focus-visible {
+.zentrum-panel-link:hover,
+.zentrum-panel-link:focus-visible {
   border-color: var(--accent-ink);
 }
-.zentrum-sheet-link svg {
+.zentrum-panel-link svg {
   width: 16px;
   height: 16px;
   fill: none;
@@ -1769,8 +1885,10 @@ button.brand:active .brand-mark,
 }
 /* One band under the plan: the legend, which is also the filter, the caption, and the plan's
    reading at the end a thumb reaches. */
+/* As tall as an opened stop's bar, so the band never moves when one opens. */
 .zentrum-schematic-toolbar {
-  flex: 0 0 auto;
+  grid-area: toolbar;
+  min-height: 40px;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1816,10 +1934,43 @@ button.brand:active .brand-mark,
   color: var(--ink);
   cursor: pointer;
 }
-.zentrum-plan-expand {
+.zentrum-plan-expand,
+.zentrum-plan-experiments-toggle {
   border: 1px solid var(--line-strong) !important;
   border-radius: var(--radius-m);
   box-shadow: 0 2px 8px #10201f1f;
+}
+.zentrum-plan-experiments {
+  position: relative;
+}
+.zentrum-plan-experiments-panel {
+  position: absolute;
+  right: calc(100% + 8px);
+  bottom: 0;
+  display: grid;
+  gap: 8px;
+  width: max-content;
+  max-width: min(260px, 70vw);
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-m);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 2px 8px #10201f1f;
+  font-size: 0.85rem;
+}
+.zentrum-plan-experiments-panel legend {
+  float: left;
+  padding: 0;
+  font-weight: 600;
+}
+.zentrum-plan-experiments-panel label {
+  display: grid;
+  gap: 4px;
+}
+.zentrum-plan-experiments-panel label:has(select:disabled) {
+  color: var(--ink-soft);
 }
 .zentrum-plan-controls svg {
   width: 18px;
@@ -4373,11 +4524,13 @@ button.line-diagram-bundle-option:focus-visible {
   background: var(--surface);
   box-shadow: none;
 }
+/* The ends wrap onto a second line before either is cut. */
 .network-termini {
   min-width: 0;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 7px;
+  gap: 2px 7px;
 }
 .network-termini strong {
   overflow: hidden;
@@ -4785,6 +4938,10 @@ button.line-diagram-bundle-option:focus-visible {
   display: flex;
   align-items: center;
   gap: 10px;
+}
+/* The card is the line's colour, so the sign needs an edge to stand on it. */
+.ride-status-line .line-badge {
+  box-shadow: inset 0 0 0 2px var(--shell-ink);
 }
 /* The ride's page heading: the line sign beside it carries the number, so the destination stays a
    compact identity line under the much larger next stop. */
@@ -5283,39 +5440,47 @@ button.line-diagram-bundle-option:focus-visible {
     flex: 1 1 auto;
     min-height: 0;
   }
-  /* Stacked, what a reader opened takes the band under the plan rather than a column beside it:
-     the plan keeps every row above, and the legend and caption -- which speak for the plan's own
-     reading, not the opened one -- give their row to it. */
-  .zentrum-schematic[data-has-sheet="true"] {
+  /* Stacked, what a reader opened rises between the plan and the band rather than beside them. */
+  .zentrum-schematic[data-has-panel="true"] {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-rows: minmax(0, 1fr) auto auto;
+    grid-template-areas: "stage" "panel" "toolbar";
   }
-  .zentrum-schematic[data-has-sheet="true"] .zentrum-schematic-toolbar {
-    display: none;
-  }
-  .zentrum-sheet {
+  .zentrum-panel {
     max-height: 48dvh;
     gap: 8px;
   }
-  .zentrum-sheet-heading {
+  .zentrum-panel-heading {
     min-height: 36px;
   }
-  .zentrum-sheet-heading h2 {
+  .zentrum-panel-heading h2 {
     font-size: 22px;
   }
-  /* Stacked, the legend takes the band's first row and the caption the second. */
+  /* Stacked, the legend takes the band's first row and the caption or an opened stop's bar the
+     second, which holds the bar's height either way. */
   .zentrum-schematic-lines {
     flex-basis: 100%;
   }
   .zentrum-schematic-caption {
     flex: 1 1 0;
+    min-height: 40px;
+    max-height: 40px;
     margin: 0;
-    display: -webkit-box;
-    -webkit-box-orient: vertical;
-    -webkit-line-clamp: 2;
+    display: flex;
+    align-items: center;
     white-space: normal;
   }
-  .app-shell:not(.station-board-mode) .zentrum-sheet-readings button {
+  .zentrum-schematic-toolbar[data-has-stop="true"] .zentrum-schematic-caption {
+    display: none;
+  }
+  .zentrum-stop-bar {
+    flex: 1 1 100%;
+    width: auto;
+  }
+  .zentrum-stop-bar h2 {
+    font-size: 20px;
+  }
+  .app-shell:not(.station-board-mode) .zentrum-stop-readings button {
     min-height: 34px;
   }
   .zentrum-plan-controls button {
@@ -5620,6 +5785,11 @@ button.line-diagram-bundle-option:focus-visible {
   .settings-row .segmented-control button {
     min-height: 44px;
   }
+  /* A switch is small enough to stay beside its text. */
+  .settings-row:has(> .settings-switch) {
+    flex-direction: row;
+    align-items: center;
+  }
   /* A line's two ends stand one above the other, so neither is cut to a few letters. */
   .network-termini {
     display: grid;
@@ -5669,6 +5839,7 @@ button.line-diagram-bundle-option:focus-visible {
     flex-direction: column;
     align-items: flex-start;
     gap: 2px;
+    padding-block: 8px 12px;
     padding-inline: calc(16px + env(safe-area-inset-left)) calc(16px + env(safe-area-inset-right));
   }
   .footer-notices-link {

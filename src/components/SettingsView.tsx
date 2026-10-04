@@ -33,19 +33,29 @@ const landingItems: readonly SegmentedControlItem<AppLanding>[] = [
   { value: "home", label: "Startseite", ariaLabel: "Auf der Startseite öffnen" },
 ];
 
-const rememberingItems: readonly SegmentedControlItem<"on" | "off">[] = [
-  { value: "on", label: "Merken", ariaLabel: "Besuchte Haltestellen merken" },
-  { value: "off", label: "Vergessen", ariaLabel: "Besuchte Haltestellen nicht merken" },
-];
-
-const otherRunsItems: readonly SegmentedControlItem<"on" | "off">[] = [
-  { value: "on", label: "Zeigen", ariaLabel: "Andere Fahrzeuge der Linie im Liniediagramm zeigen" },
-  {
-    value: "off",
-    label: "Verstecken",
-    ariaLabel: "Andere Fahrzeuge der Linie im Liniediagramm ausblenden",
-  },
-];
+/** An on/off setting, read by its row's title. */
+function SettingsSwitch({
+  isOn,
+  label,
+  onChange,
+}: {
+  isOn: boolean;
+  label: string;
+  onChange: (isOn: boolean) => void;
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      className="settings-switch"
+      aria-checked={isOn}
+      aria-label={label}
+      onClick={() => onChange(!isOn)}
+    >
+      <i aria-hidden="true" />
+    </button>
+  );
+}
 
 /** The rider's app settings, applied immediately. */
 export function SettingsView() {
@@ -72,25 +82,23 @@ export function SettingsView() {
         />
         <SettingsRow
           title="Haltestellen merken"
-          description="Besuchte Haltestellen auf diesem Gerät aufbewahren"
+          description="Besuchte Haltestellen auf diesem Gerät aufbewahren. Ausschalten löscht die Liste."
           control={
-            <SegmentedControl
-              value={settings.isRememberingStops ? "on" : "off"}
-              items={rememberingItems}
-              ariaLabel="Haltestellen merken"
-              onValueChange={(value) => write({ isRememberingStops: value === "on" })}
+            <SettingsSwitch
+              isOn={settings.isRememberingStops}
+              label="Haltestellen merken"
+              onChange={(isRememberingStops) => write({ isRememberingStops })}
             />
           }
         />
         <SettingsRow
           title="Andere Fahrzeuge"
-          description="Im Liniediagramm andere Fahrzeuge der Linie zeigen"
+          description="Im Liniendiagramm andere Fahrzeuge der Linie zeigen"
           control={
-            <SegmentedControl
-              value={settings.isShowingOtherLineRuns ? "on" : "off"}
-              items={otherRunsItems}
-              ariaLabel="Andere Fahrzeuge zeigen"
-              onValueChange={(value) => write({ isShowingOtherLineRuns: value === "on" })}
+            <SettingsSwitch
+              isOn={settings.isShowingOtherLineRuns}
+              label="Andere Fahrzeuge zeigen"
+              onChange={(isShowingOtherLineRuns) => write({ isShowingOtherLineRuns })}
             />
           }
         />

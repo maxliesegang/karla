@@ -55,9 +55,21 @@ export type ZentrumSchematicDrawnPath = ZentrumSchematicLinePath & {
   segments: readonly ZentrumSchematicLinePathSegment[];
 };
 
+/** How many lanes a pattern runs beside, on average over its corridors. */
+const getMeanLaneCount = (
+  { nodes }: ZentrumSchematicLinePath,
+  laneCountByEdgeId: ReadonlyMap<string, number>,
+): number => {
+  const laneCounts = nodes
+    .slice(1)
+    .map((node, index) => laneCountByEdgeId.get(getEdgeKey(nodes[index].id, node.id)) ?? 1);
+  return laneCounts.reduce((sum, count) => sum + count, 0) / Math.max(1, laneCounts.length);
+};
+
 /**
  * One path per distinct geometry, coincident lines gathered, lit stretch by stretch along its
- * line's vehicle paths.
+ * line's vehicle paths. Wider bands are painted first: a line over a band hides it for one lane,
+ * while a band over a line hides the line for the band's whole width.
  */
 export function getZentrumSchematicDrawnPaths(
   linePaths: readonly ZentrumSchematicLinePath[],
@@ -81,7 +93,12 @@ export function getZentrumSchematicDrawnPaths(
       segments: toLinePathSegments(vehiclePathsByLineId.get(linePath.lineId) ?? new Map()),
     });
   }
-  return [...drawnByGeometry.values()];
+  const laneCountByEdgeId = new Map(edges.map(({ id, trackLineIds }) => [id, trackLineIds.length]));
+  // A stable sort, so equal bands keep timetable order.
+  return [...drawnByGeometry.values()]
+    .map((drawn) => ({ drawn, meanLaneCount: getMeanLaneCount(drawn, laneCountByEdgeId) }))
+    .sort((left, right) => right.meanLaneCount - left.meanLaneCount)
+    .map(({ drawn }) => drawn);
 }
 
 /** One corridor's stretch of a drawn line pattern, from one stop's capsule to the next's. */

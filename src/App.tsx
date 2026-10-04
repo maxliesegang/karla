@@ -204,6 +204,7 @@ export default function App() {
         nearbyStopsController={nearbyStopsController}
         currentPageStopId={activeView === "stop" ? selection.stopId : undefined}
         onShowNearbyStops={() => showNearbyStops(selection.stopId)}
+        showsNearbyStopButton={activeView !== "home"}
       />
       <div
         className={classNames(...getDashboardClassNames(layout))}
@@ -243,6 +244,7 @@ export default function App() {
                     selectedLineId={route.zentrumLineId || undefined}
                     selectedStopId={route.zentrumStopId || undefined}
                     isFullscreen={route.isZentrumFullscreen}
+                    nearbyStops={nearbyStopsController}
                   />
                 )}
                 {activeView === "network" && (
@@ -364,7 +366,12 @@ export default function App() {
         )}
       </div>
       <DataProvenanceFooter
-        showsNoticesLink={!isStationBoardMode && activeView !== "notices"}
+        /* Not under a board whose own notice bar already leads there. */
+        showsNoticesLink={
+          !isStationBoardMode &&
+          activeView !== "notices" &&
+          !(layout.hasDepartureBoard && stopNotices.length > 0)
+        }
         /* Home and settings read nothing, so the footer names the source without a status. */
         {...(activeView === "notices"
           ? { serviceNoticeBoard: noticeBoard }

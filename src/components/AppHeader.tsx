@@ -19,6 +19,7 @@ export function AppHeader({
   currentPageStopId,
   onShowNearbyStops,
   isStationBoardMode = false,
+  showsNearbyStopButton = true,
 }: {
   /** One level up the selection chain. */
   backPath?: string;
@@ -26,6 +27,8 @@ export function AppHeader({
   currentPageStopId?: string;
   onShowNearbyStops: () => void;
   isStationBoardMode?: boolean;
+  /** Off where the page offers the same action itself. */
+  showsNearbyStopButton?: boolean;
 }) {
   return (
     <header className="app-header">
@@ -59,7 +62,7 @@ export function AppHeader({
         )}
       </div>
 
-      {!isStationBoardMode && (
+      {!isStationBoardMode && showsNearbyStopButton && (
         <nav className="app-header-quick-actions" aria-label="Schnellzugriff">
           <NearbyStopButton
             controller={nearbyStopsController}
