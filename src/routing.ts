@@ -31,6 +31,9 @@ export type ActiveView = RouteView | "line";
 export type ExperimentMap = "center" | "geo" | "region";
 /** The experiment maps with an address of their own; the Zentrum plan has `zentrum`. */
 export type OtherExperimentMap = Exclude<ExperimentMap, "center">;
+/** The geographic map and the region plan are hidden for now: no switch, and their addresses open
+    the Zentrum plan. */
+export const ARE_OTHER_EXPERIMENT_MAPS_SHOWN = false;
 export type TripParent = "stop" | "line";
 
 export const DEFAULT_STOP_ID = "europaplatz";
@@ -249,8 +252,8 @@ export function parseRoute(hash: string): AppRoute {
     case "settings":
       return { ...defaultRoute, view: "settings" };
     case "experiment":
-      // Any other map name opens the Zentrum plan.
-      return rest[0] === "geo" || rest[0] === "region"
+      // Any other map name, or any map while the others are hidden, opens the Zentrum plan.
+      return ARE_OTHER_EXPERIMENT_MAPS_SHOWN && (rest[0] === "geo" || rest[0] === "region")
         ? parseMapRoute(rest[0], rest.slice(1))
         : parseZentrumRoute(rest.slice(1));
     case "center":

@@ -11,12 +11,7 @@ import { SegmentedControl } from "../SegmentedControl";
 const optionKeys = Object.keys(ZENTRUM_PLAN_OPTION_DEFINITIONS) as (keyof ZentrumPlanOptions)[];
 
 /** The plan's options, grouped by reading. */
-export function ZentrumPlanOptionsMenu({
-  isStopOpen,
-}: {
-  /** An opened stop disables overview-only options. */
-  isStopOpen: boolean;
-}) {
+export function ZentrumPlanOptionsMenu() {
   const options = useStoredPreference(zentrumPlanOptions);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   return (
@@ -35,9 +30,8 @@ export function ZentrumPlanOptionsMenu({
                 .filter((key) => ZENTRUM_PLAN_OPTION_DEFINITIONS[key].group === group.id)
                 .map((key) => {
                   const definition = ZENTRUM_PLAN_OPTION_DEFINITIONS[key];
-                  const isDisabled = isStopOpen && "isOverviewOnly" in definition;
                   return (
-                    <fieldset key={key} disabled={isDisabled}>
+                    <fieldset key={key}>
                       <legend>{definition.label}</legend>
                       <SegmentedControl
                         value={options[key]}
@@ -47,9 +41,7 @@ export function ZentrumPlanOptionsMenu({
                         }
                         ariaLabel={definition.label}
                       />
-                      <p>
-                        {isDisabled ? "Nur ohne geöffnete Haltestelle." : definition.description}
-                      </p>
+                      <p>{definition.description}</p>
                     </fieldset>
                   );
                 })}

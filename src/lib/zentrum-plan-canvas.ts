@@ -10,11 +10,13 @@ export const ZENTRUM_ZOOM_STEPS = [1, 1.3, 1.7, 2.2, 2.9] as const;
 export const ZENTRUM_MINIMUM_ZOOM = ZENTRUM_ZOOM_STEPS[0];
 export const ZENTRUM_MAXIMUM_ZOOM = ZENTRUM_ZOOM_STEPS[ZENTRUM_ZOOM_STEPS.length - 1];
 
-/** The step in or out from the current one, held at the ends of the range. */
+/**
+ * The next step in or out from the current zoom, held at the ends of the range. A zoom between
+ * steps, as the wheel leaves it, goes to the nearest step in that direction.
+ */
 export const getNeighboringZentrumZoom = (zoom: number, direction: 1 | -1): number => {
-  const index = ZENTRUM_ZOOM_STEPS.indexOf(zoom as (typeof ZENTRUM_ZOOM_STEPS)[number]);
-  const next = (index < 0 ? 0 : index) + direction;
-  return ZENTRUM_ZOOM_STEPS[Math.min(Math.max(next, 0), ZENTRUM_ZOOM_STEPS.length - 1)];
+  const steps = direction === 1 ? ZENTRUM_ZOOM_STEPS : [...ZENTRUM_ZOOM_STEPS].reverse();
+  return steps.find((step) => (step - zoom) * direction > 0.001) ?? steps[steps.length - 1];
 };
 
 /**

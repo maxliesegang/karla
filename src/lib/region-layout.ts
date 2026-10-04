@@ -1,7 +1,7 @@
 /**
- * The region plan's layout: the Zentrum's stops pinned where the Zentrum plan draws them, the other
- * junctions annealed on an octilinear grid, and the places between junctions spaced evenly along
- * their branch. Kilometres set only a branch's direction, never its length.
+ * The region plan's layout: the Zentrum's stops where the Zentrum plan draws them, the other
+ * junctions routed on an octilinear grid graph, and the places between junctions set along their
+ * branch at their share of it. Distance from home shrinks by a `RegionScale`.
  */
 
 export type Point = { x: number; y: number };
@@ -11,128 +11,165 @@ export type RegionLayoutNode = { id: string; latitude: number; longitude: number
 export type RegionLayout = {
   /** In map units, the plan's origin at its top-left corner. */
   positions: ReadonlyMap<string, Point>;
-  /** The one bend an edge takes, by `regionEdgeKey`. */
-  bends: ReadonlyMap<string, Point>;
+  /** The bends an edge takes, in order from its `from`, by `regionEdgeKey`. */
+  bends: ReadonlyMap<string, readonly Point[]>;
   viewBox: { x: number; y: number; width: number; height: number };
-  /** What the solve could not avoid: crowded dots, a way over a dot, two ways on one stretch. */
+  /** What the solve could not avoid: a way along another, a link too short for its places. */
   faults: readonly string[];
   /** The drawing's total cost, faults aside: lower reads better. Compares solves of one network. */
   cost: number;
+  /** Map units per compressed kilometre. */
+  unitsPerKm: number;
 };
 
 export const regionEdgeKey = ({ from, to }: { from: string; to: string }): string =>
   `${from} ${to}`;
 
-/** The Zentrum's stops the region draws too, in Zentrum grid cells. */
-export function getZentrumPins(
-  nodeIds: readonly string[],
-  zentrumNodes: readonly { id: string; x: number; y: number }[],
-  zentrumGrid: number,
-): Map<string, Point> {
-  const wanted = new Set(nodeIds);
-  return new Map(
-    zentrumNodes
-      .filter(({ id }) => wanted.has(id))
-      .map(({ id, x, y }) => [
-        id,
-        { x: Math.round(x / zentrumGrid), y: Math.round(y / zentrumGrid) },
-      ]),
-  );
-}
-
 const bearingOf = (from: Point, to: Point): number =>
   ((Math.atan2(to.y - from.y, to.x - from.x) * 180) / Math.PI + 360) % 360;
 const angleBetween = (left: number, right: number): number =>
   Math.abs(((left - right + 540) % 360) - 180);
-const unitOf = (degrees: number): Point => ({
-  x: Math.round(Math.cos((degrees * Math.PI) / 180) * 1e9) / 1e9,
-  y: Math.round(Math.sin((degrees * Math.PI) / 180) * 1e9) / 1e9,
-});
 
 /**
- * The axis, west to east, grown from both ends: each step takes the neighbour that carries most of
- * the last stretch's lines (at least half), lies within 45° of straight on, and is in the home
- * place.
+ * The axis, west to east, grown from both ends: each step takes the neighbour within 45° of straight
+ * on whose stretch keeps at least half the lines of the given axis's stretch at that end.
  */
 export function extendAxis(
   axis: readonly string[],
   edges: readonly RegionLayoutEdge[],
   geography: ReadonlyMap<string, Point>,
-  isHome: (id: string) => boolean,
 ): string[] {
   const grown = [...axis];
   const lineIdsBetween = (left: string, right: string) =>
     edges.find(({ from, to }) => (from === left && to === right) || (from === right && to === left))
       ?.lineIds ?? [];
-  const step = (end: string, previous: string, heading: number): string | undefined => {
-    const lineIds = lineIdsBetween(previous, end);
+  const step = (end: string, heading: number, trunk: readonly string[]): string | undefined => {
     const at = geography.get(end);
     if (!at) return undefined;
     const candidates = edges
       .filter(({ from, to }) => from === end || to === end)
       .map((edge) => ({
         id: edge.from === end ? edge.to : edge.from,
-        shared: edge.lineIds.filter((lineId) => lineIds.includes(lineId)).length,
+        shared: edge.lineIds.filter((lineId) => trunk.includes(lineId)).length,
       }))
       .filter(({ id, shared }) => {
         const point = geography.get(id);
         return (
           !grown.includes(id) &&
-          isHome(id) &&
           point !== undefined &&
-          shared * 2 >= lineIds.length &&
+          shared * 2 >= trunk.length &&
           angleBetween(bearingOf(at, point), heading) <= 45
         );
       })
       .sort((left, right) => right.shared - left.shared);
     return candidates[0]?.id;
   };
+  const eastTrunk = lineIdsBetween(axis[axis.length - 2], axis[axis.length - 1]);
+  const westTrunk = lineIdsBetween(axis[0], axis[1]);
   for (;;) {
-    const next = step(grown[grown.length - 1], grown[grown.length - 2], 0);
+    const next = step(grown[grown.length - 1], 0, eastTrunk);
     if (!next) break;
     grown.push(next);
   }
   for (;;) {
-    const next = step(grown[0], grown[1], 180);
+    const next = step(grown[0], 180, westTrunk);
     if (!next) break;
     grown.unshift(next);
   }
   return grown;
 }
 
-/** A way's length as its places use it: on the level, names stand side by side and need twice the room. */
-const readingLengths = (path: readonly Point[]): number[] =>
-  path.slice(1).map((point, index) => {
-    const length = Math.hypot(point.x - path[index].x, point.y - path[index].y);
-    return point.y === path[index].y ? length / 2 : length;
-  });
-const readingLength = (path: readonly Point[]): number =>
-  readingLengths(path).reduce((sum, length) => sum + length, 0);
+const segmentLengths = (path: readonly Point[]): number[] =>
+  path.slice(1).map((point, index) => Math.hypot(point.x - path[index].x, point.y - path[index].y));
 
-/** Grid steps along `unit` that make `length` of reading length. */
-const cellsFor = (unit: Point, length: number): number =>
-  unit.y === 0 ? length * 2 : unit.x !== 0 ? length / Math.SQRT2 : length;
+const lengthOf = (path: readonly Point[]): number =>
+  segmentLengths(path).reduce((sum, length) => sum + length, 0);
 
-/** `count` points at equal reading steps along a way, its ends left out. */
-export function placeEvenly(path: readonly Point[], count: number): Point[] {
-  const lengths = readingLengths(path);
-  const total = lengths.reduce((sum, length) => sum + length, 0);
-  const points: Point[] = [];
-  for (let index = 1; index <= count; index += 1) {
-    let along = (total * index) / (count + 1);
-    let segment = 0;
-    while (segment < lengths.length - 1 && along > lengths[segment] + 1e-9) {
-      along -= lengths[segment];
-      segment += 1;
-    }
-    const share = lengths[segment] === 0 ? 0 : along / lengths[segment];
-    const [from, to] = [path[segment], path[segment + 1]];
-    points.push({
-      x: Math.round((from.x + (to.x - from.x) * share) * 1e6) / 1e6,
-      y: Math.round((from.y + (to.y - from.y) * share) * 1e6) / 1e6,
-    });
+/**
+ * Distances along a way of `total` length at the given shares, each at least `gap` from the one
+ * before and the last at least `gap` from the end, while the way is long enough for that.
+ */
+function spreadAlong(total: number, shares: readonly number[], gap: number): number[] {
+  const room = Math.min(gap, total / (shares.length + 1));
+  const along = shares.map((share) => share * total);
+  for (let index = 0; index < along.length; index += 1) {
+    along[index] = Math.max(along[index], (index === 0 ? 0 : along[index - 1]) + room);
   }
-  return points;
+  for (let index = along.length - 1; index >= 0; index -= 1) {
+    const limit = index === along.length - 1 ? total : along[index + 1];
+    along[index] = Math.min(along[index], limit - room);
+  }
+  return along;
+}
+
+/** The point `distance` along a way. */
+function pointAlong(path: readonly Point[], distance: number): Point {
+  const lengths = segmentLengths(path);
+  let left = distance;
+  let segment = 0;
+  while (segment < lengths.length - 1 && left > lengths[segment] + 1e-9) {
+    left -= lengths[segment];
+    segment += 1;
+  }
+  const share = lengths[segment] === 0 ? 0 : left / lengths[segment];
+  const [from, to] = [path[segment], path[segment + 1]];
+  return {
+    x: Math.round((from.x + (to.x - from.x) * share) * 1e6) / 1e6,
+    y: Math.round((from.y + (to.y - from.y) * share) * 1e6) / 1e6,
+  };
+}
+
+/** Places along a way at their shares of its length, kept `gap` apart as `spreadAlong` does. */
+export const placeAtShares = (
+  path: readonly Point[],
+  shares: readonly number[],
+  gap: number,
+): Point[] =>
+  spreadAlong(lengthOf(path), shares, gap).map((distance) => pointAlong(path, distance));
+
+/** A way's corners: its ends and every point where it turns. */
+function cornersOf(path: readonly Point[]): Point[] {
+  return path.filter((point, index) => {
+    if (index === 0 || index === path.length - 1) return true;
+    const [before, after] = [path[index - 1], path[index + 1]];
+    return (
+      (point.x - before.x) * (after.y - point.y) !== (point.y - before.y) * (after.x - point.x)
+    );
+  });
+}
+
+/** How the map shrinks with distance from its home: a smooth fisheye, or bands with their own scale. */
+export type RegionScale =
+  | { kind: "fisheye"; coreKm: number; falloffKm: number }
+  | { kind: "zones"; zones: readonly { untilKm: number; factor: number }[] }
+  /** Zones up to the city's edge; beyond it straight arms with places a fixed step apart. */
+  | { kind: "arms"; zones: readonly { untilKm: number; factor: number }[] };
+
+/**
+ * A point's place on the map, in kilometres from home. A fisheye keeps the core true; beyond it the
+ * scale falls ever faster, as (1 + x / `falloffKm`)^-1.5, so the whole region fits within
+ * `coreKm + 2 × falloffKm`, with no step at the edge. Zones scale each band; past the last zone a
+ * point stands on its edge, so only its direction is kept.
+ */
+export function compressRegion(point: Point, scale: RegionScale): Point {
+  const distance = Math.hypot(point.x, point.y);
+  let reach = distance;
+  if (scale.kind === "fisheye") {
+    if (distance > scale.coreKm) {
+      const beyond = (distance - scale.coreKm) / scale.falloffKm;
+      reach = scale.coreKm + 2 * scale.falloffKm * (1 - 1 / Math.sqrt(1 + beyond));
+    }
+  } else {
+    reach = 0;
+    let from = 0;
+    for (const { untilKm, factor } of scale.zones) {
+      reach += (Math.min(distance, untilKm) - from) * factor;
+      if (distance <= untilKm) break;
+      from = untilKm;
+    }
+  }
+  const factor = distance === 0 ? 0 : reach / distance;
+  return { x: point.x * factor, y: point.y * factor };
 }
 
 /** Kilometres east and south of a point, for bearings only. */
@@ -140,61 +177,6 @@ export const projectKm = (node: RegionLayoutNode, origin: RegionLayoutNode): Poi
   x: (node.longitude - origin.longitude) * 111.32 * Math.cos((origin.latitude * Math.PI) / 180),
   y: -(node.latitude - origin.latitude) * 110.574,
 });
-
-/** The octilinear ways between two grid points with at most one bend. */
-function getPathOptions(from: Point, to: Point): Point[][] {
-  const dx = to.x - from.x;
-  const dy = to.y - from.y;
-  if (dx === 0 || dy === 0 || Math.abs(dx) === Math.abs(dy)) return [[from, to]];
-  const run = Math.min(Math.abs(dx), Math.abs(dy));
-  const bends = [
-    { x: from.x + Math.sign(dx) * run, y: from.y + Math.sign(dy) * run },
-    { x: to.x - Math.sign(dx) * run, y: to.y - Math.sign(dy) * run },
-    { x: to.x, y: from.y },
-    { x: from.x, y: to.y },
-  ];
-  // Two diagonals meet on the grid when the run is even.
-  if ((dx + dy) % 2 === 0) {
-    bends.push(
-      { x: from.x + (dx + dy) / 2, y: from.y + (dx + dy) / 2 },
-      { x: from.x + (dx - dy) / 2, y: from.y - (dx - dy) / 2 },
-    );
-  }
-  return bends.map((bend) => [from, bend, to]);
-}
-
-function distanceToSegment(point: Point, from: Point, to: Point): number {
-  const runX = to.x - from.x;
-  const runY = to.y - from.y;
-  const lengthSquared = runX * runX + runY * runY;
-  if (lengthSquared === 0) return Math.hypot(point.x - from.x, point.y - from.y);
-  const along = Math.max(
-    0,
-    Math.min(1, ((point.x - from.x) * runX + (point.y - from.y) * runY) / lengthSquared),
-  );
-  return Math.hypot(point.x - (from.x + along * runX), point.y - (from.y + along * runY));
-}
-
-const cross = (p: Point, q: Point, r: Point) =>
-  (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x);
-
-const segmentsCross = (a: Point, b: Point, c: Point, d: Point): boolean =>
-  Math.sign(cross(a, b, c)) * Math.sign(cross(a, b, d)) < 0 &&
-  Math.sign(cross(c, d, a)) * Math.sign(cross(c, d, b)) < 0;
-
-/** Two segments on one line for some length: two ways drawn as one. */
-function segmentsOverlap(a: Point, b: Point, c: Point, d: Point): boolean {
-  if (Math.abs(cross(a, b, c)) > 1e-9 || Math.abs(cross(a, b, d)) > 1e-9) return false;
-  const axis = Math.abs(a.x - b.x) > 1e-9 ? "x" : "y";
-  const [low, high] = [Math.min(a[axis], b[axis]), Math.max(a[axis], b[axis])];
-  const [otherLow, otherHigh] = [Math.min(c[axis], d[axis]), Math.max(c[axis], d[axis])];
-  return Math.min(high, otherHigh) - Math.max(low, otherLow) > 1e-9;
-}
-
-/** A line's cost for turning by `turn` degrees: straight on is free, a hairpin dearest (octi). */
-const turnCost = (turn: number): number =>
-  turn < 1 ? 0 : turn <= 46 ? 1 : turn <= 91 ? 1.5 : turn <= 136 ? 2 : 3;
-
 /** Branches whose next one clockwise differs from the ground's, by bearing; 0 when the order holds. */
 export function countOrderBreaks<Key>(
   layout: ReadonlyMap<Key, number>,
@@ -275,441 +257,677 @@ function buildChains(
   return { skeleton, chains };
 }
 
-const WEIGHT = {
-  fault: 1e6,
-  /** Per (45°)² that a chain's chord strays from its geographic bearing. */
-  direction: 10,
-  /** Per line, per octi turn unit. */
-  bend: 6,
-  /** Per cell² a chain's length strays from its places' even spacing. */
-  length: 4,
-  /** Per branch around a junction that leaves in another turn than on the ground. */
-  order: 60,
-  /** Per (45°)² that a junction's bearing from home strays from its geographic one. */
-  topography: 6,
-  crossing: 80,
-  /** Per cell² outside the frame. */
-  frame: 30,
-} as const;
-/** In cells: dots closer than this crowd; a way closer to a foreign dot passes over it. */
-const SEPARATION = 1.5;
-const CLEARANCE = 0.75;
+/** The eight grid headings, clockwise from east, y pointing south. */
+const HEADINGS: readonly Point[] = [
+  { x: 1, y: 0 },
+  { x: 1, y: 1 },
+  { x: 0, y: 1 },
+  { x: -1, y: 1 },
+  { x: -1, y: 0 },
+  { x: -1, y: -1 },
+  { x: 0, y: -1 },
+  { x: 1, y: -1 },
+];
+const START = 8;
+/** 45° steps between two headings, 0 to 4. */
+const turnSteps = (left: number, right: number): number => {
+  const steps = Math.abs(left - right) % 8;
+  return Math.min(steps, 8 - steps);
+};
+/** A line's price for a turn of so many 45° steps (octi): straight on is free. */
+const TURN_PRICE = [0, 1, 1.5, 2, 3] as const;
+const headingBetween = (from: Point, to: Point): number =>
+  HEADINGS.findIndex(
+    ({ x, y }) => x === Math.sign(to.x - from.x) && y === Math.sign(to.y - from.y),
+  );
 
-type ChainShape = { path: Point[]; dots: Point[]; length: number };
+const COST = {
+  step: 1,
+  /** Per turn price and line. */
+  bend: 3,
+  /** Per cell a junction stands from where its geography puts it. */
+  move: 1.5,
+  /** A step beside a junction the way does not serve. */
+  crowd: 3,
+  /** A step along a way already drawn: a fault, allowed so a way is always found. */
+  blocked: 1000,
+  /** A way crossing another, straight through. */
+  crossing: 40,
+  /** Per branch around a junction that leaves in another turn than on the ground. */
+  order: 25,
+  /** A step inside the core by a link that does not serve it. */
+  core: 30,
+  /** Per cell² a link between junctions is too short for its places. */
+  spring: 10,
+} as const;
+/** Cells between two places on an arm beyond the city's edge. */
+const ARM_STEP = 2;
+/** Cells of room kept around everything placed. */
+const GRID_MARGIN = 3;
+/** The least cells between two stops of the axis beyond the core, room for their names. */
+const AXIS_GAP = 3;
+/** Cells around its target a junction may stand in. */
+const CANDIDATE_RADIUS = 4;
+const LOCAL_SEARCH_ROUNDS = 12;
 
 /**
- * Lays the network out. `pins` are in grid cells, `frame` the cells the plan may reach beyond them;
- * `spacing` is the step between places
- * on a branch, in cells. The axis's nodes keep the pinned row.
+ * The scale and offset that best carry kilometres onto cells for the given pairs (least squares,
+ * no rotation): the region drawn at the core plan's scale.
+ */
+function fitToCells(pairs: readonly { km: Point; cell: Point }[]): {
+  cellsPerKm: number;
+  toCells: (km: Point) => Point;
+} {
+  const mean = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
+  const km = { x: mean(pairs.map(({ km }) => km.x)), y: mean(pairs.map(({ km }) => km.y)) };
+  const cell = {
+    x: mean(pairs.map(({ cell }) => cell.x)),
+    y: mean(pairs.map(({ cell }) => cell.y)),
+  };
+  let spread = 0;
+  let covariance = 0;
+  for (const pair of pairs) {
+    const [dx, dy] = [pair.km.x - km.x, pair.km.y - km.y];
+    spread += dx ** 2 + dy ** 2;
+    covariance += dx * (pair.cell.x - cell.x) + dy * (pair.cell.y - cell.y);
+  }
+  const cellsPerKm = spread > 0 ? covariance / spread : 1;
+  return {
+    cellsPerKm,
+    toCells: (point) => ({
+      x: cell.x + (point.x - km.x) * cellsPerKm,
+      y: cell.y + (point.y - km.y) * cellsPerKm,
+    }),
+  };
+}
+
+/**
+ * Lays the network out on an octilinear grid graph, after Bast, Brosi and Storandt's octi: places
+ * between junctions are taken out and set back at their share of the way; links between junctions
+ * are routed one by one, busiest first, around what is already drawn, paying for every turn; a local
+ * search then moves junctions a cell at a time. The core's stops keep its plan's shape and fix the
+ * scale; the axis keeps their row; `scale` shrinks the region with distance from `homeId`.
  */
 export function solveRegionLayout({
   nodes,
   edges,
-  pins,
+  core,
   axis,
   homeId,
+  scale,
   grid,
-  spacing,
-  frame,
-  seed,
-  steps = 400_000,
+  gap,
 }: {
   nodes: readonly RegionLayoutNode[];
   edges: readonly RegionLayoutEdge[];
-  pins: ReadonlyMap<string, Point>;
+  /** An authored plan of the core, on a grid of `cell` units. */
+  core: { cell: number; stops: readonly { id: string; x: number; y: number }[] };
   axis: readonly string[];
   homeId: string;
+  scale: RegionScale;
+  /** Map units per cell. */
   grid: number;
-  spacing: number;
-  frame: { x: number; y: number };
-  seed: number;
-  steps?: number;
+  /** The least cells between two places on a link. */
+  gap: number;
 }): RegionLayout {
   const nodeById = new Map(nodes.map((node) => [node.id, node]));
   const homeNode = nodeById.get(homeId) ?? nodes[0];
   const geography = new Map(nodes.map((node) => [node.id, projectKm(node, homeNode)]));
+  const compressed = new Map(
+    [...geography].map(([id, point]) => [id, compressRegion(point, scale)] as const),
+  );
+  // The core plan's stops stand on its own grid; the region is fitted to that scale.
+  const pins = new Map(
+    core.stops
+      .filter(({ id }) => nodeById.has(id))
+      .map(({ id, x, y }) => [id, { x: Math.round(x / core.cell), y: Math.round(y / core.cell) }]),
+  );
+  const fit = fitToCells(
+    [...pins].map(([id, cell]) => ({ km: compressed.get(id) ?? { x: 0, y: 0 }, cell })),
+  );
+  /** Where the projection puts a stop, in cells. */
+  const projected = (id: string): Point => fit.toCells(compressed.get(id) ?? { x: 0, y: 0 });
   const axisRow = axis.map((id) => pins.get(id)?.y).find((y) => y !== undefined) ?? 0;
-  const fixed = new Set([...pins.keys(), ...axis]);
+  const onAxis = new Set(axis);
   const { skeleton, chains } = buildChains(
     nodes.map(({ id }) => id),
     edges,
-    fixed,
+    new Set([...pins.keys(), ...axis]),
   );
-  const skeletonIds = [...skeleton];
-  const chainsAt = new Map<string, Chain[]>(skeletonIds.map((id) => [id, []]));
-  for (const chain of chains) {
-    chainsAt.get(chain.from)?.push(chain);
-    if (chain.to !== chain.from) chainsAt.get(chain.to)?.push(chain);
+  const chainsAt = new Map<string, number[]>();
+  for (const [index, chain] of chains.entries()) {
+    for (const id of new Set([chain.from, chain.to])) {
+      chainsAt.set(id, [...(chainsAt.get(id) ?? []), index]);
+    }
   }
-  const desiredLength = (chain: Chain) => (chain.interior.length + 1) * spacing;
-
-  // Start: pins and the axis where they belong, the rest grown outward along geographic bearings.
-  const layout = new Map<string, Point>(pins);
-  const homeCell = pins.get(homeId) ?? { x: 0, y: 0 };
-  for (const id of axis) {
-    if (layout.has(id)) continue;
+  // Beyond the city's edge, only the step count and direction of a stop count.
+  const cityEdgeKm =
+    scale.kind === "arms" ? (scale.zones[scale.zones.length - 1]?.untilKm ?? 0) : Infinity;
+  const isOutside = (id: string) => {
     const point = geography.get(id) ?? { x: 0, y: 0 };
-    const pinned = [...axis].filter((other) => pins.has(other));
-    const nearest = pinned.reduce((best, other) =>
-      Math.abs((geography.get(other)?.x ?? 0) - point.x) <
-      Math.abs((geography.get(best)?.x ?? 0) - point.x)
-        ? other
-        : best,
-    );
-    const offset = axis.indexOf(id) - axis.indexOf(nearest);
-    layout.set(id, {
-      x: (pins.get(nearest)?.x ?? 0) + offset * spacing * 2,
-      y: axisRow,
-    });
-  }
-  const queue = [...layout.keys()];
-  while (queue.length > 0) {
-    const id = queue.shift() as string;
-    const from = layout.get(id) as Point;
-    for (const chain of chainsAt.get(id) ?? []) {
-      const other = chain.from === id ? chain.to : chain.from;
-      if (layout.has(other)) continue;
-      const bearing = bearingOf(
-        geography.get(id) ?? { x: 0, y: 0 },
-        geography.get(other) ?? { x: 0, y: 0 },
-      );
-      const unit = unitOf(Math.round(bearing / 45) * 45);
-      const length = cellsFor(unit, desiredLength(chain));
-      layout.set(other, {
-        x: from.x + Math.round(unit.x * length),
-        y: from.y + Math.round(unit.y * length),
-      });
-      queue.push(other);
-    }
-  }
-  for (const id of skeletonIds) {
-    if (!layout.has(id)) {
-      const point = geography.get(id) ?? { x: 0, y: 0 };
-      layout.set(id, { x: Math.round(point.x), y: Math.round(point.y) });
-    }
-  }
-
-  // Each junction's nodes beyond it, seen from the fixed core: they move with it.
-  const beyond = new Map<string, string[]>();
-  for (const id of skeletonIds) {
-    if (fixed.has(id)) continue;
-    const reached = new Set<string>([...fixed].filter((other) => other !== id));
-    const stack = [...reached];
-    while (stack.length > 0) {
-      const current = stack.pop() as string;
-      for (const chain of chainsAt.get(current) ?? []) {
-        const other = chain.from === current ? chain.to : chain.from;
-        if (other === id || reached.has(other)) continue;
-        reached.add(other);
-        stack.push(other);
+    return Math.hypot(point.x, point.y) > cityEdgeKm;
+  };
+  /** A step's cells: as projected inside the city, out to its edge and then a fixed arm step. */
+  const stepCells = (from: string, to: string) => {
+    if (isOutside(from) && isOutside(to)) return ARM_STEP;
+    // Beyond the edge the projection stands a stop on the edge, so this reaches it.
+    const [a, b] = [projected(from), projected(to)];
+    const inside = Math.hypot(a.x - b.x, a.y - b.y);
+    return isOutside(from) || isOutside(to) ? inside + ARM_STEP : inside;
+  };
+  const stopsOf = (chain: Chain) => [chain.from, ...chain.interior, chain.to];
+  const armTargets = new Map<string, Point>();
+  if (scale.kind === "arms") {
+    const known = (id: string) =>
+      pins.get(id) ?? armTargets.get(id) ?? (isOutside(id) ? undefined : projected(id));
+    const queue = [...skeleton].filter((id) => known(id) !== undefined);
+    while (queue.length > 0) {
+      const id = queue.shift() as string;
+      const start = known(id) as Point;
+      for (const index of chainsAt.get(id) ?? []) {
+        const chain = chains[index];
+        const other = chain.from === id ? chain.to : chain.from;
+        if (known(other) !== undefined) continue;
+        const stops = chain.from === id ? stopsOf(chain) : stopsOf(chain).reverse();
+        const length = stops
+          .slice(1)
+          .reduce((sum, stop, step) => sum + stepCells(stops[step], stop), 0);
+        const [from, to] = [geography.get(id), geography.get(other)];
+        const run = from && to ? Math.hypot(to.x - from.x, to.y - from.y) || 1 : 1;
+        armTargets.set(other, {
+          x: start.x + (from && to ? (to.x - from.x) / run : 1) * length,
+          y: start.y + (from && to ? (to.y - from.y) / run : 0) * length,
+        });
+        queue.push(other);
       }
     }
-    beyond.set(
-      id,
-      skeletonIds.filter((other) => other === id || !reached.has(other)),
-    );
   }
+  /** Every line on a link pays for its turns, as at a node. */
+  const lineWeight = (chain: Chain) => chain.lineIds.length;
+  const neededLength = (chain: Chain) => (chain.interior.length + 1) * gap;
 
-  const minimumDistance = (point: Point, path: readonly Point[]): number => {
-    let best = Number.POSITIVE_INFINITY;
-    for (let index = 1; index < path.length; index += 1) {
-      best = Math.min(best, distanceToSegment(point, path[index - 1], path[index]));
+  // The grid: everything the projection places, and a margin around it.
+  const everywhere = [
+    ...pins.values(),
+    ...[...skeleton].map((id) => armTargets.get(id) ?? projected(id)),
+  ];
+  const box = {
+    left: Math.floor(Math.min(...everywhere.map(({ x }) => x))) - GRID_MARGIN,
+    right: Math.ceil(Math.max(...everywhere.map(({ x }) => x))) + GRID_MARGIN,
+    top: Math.floor(Math.min(...everywhere.map(({ y }) => y))) - GRID_MARGIN,
+    bottom: Math.ceil(Math.max(...everywhere.map(({ y }) => y))) + GRID_MARGIN,
+  };
+  // Inside the core plan's box, only links between its stops run.
+  const pinPoints = [...pins.values()];
+  const coreBox = {
+    left: Math.min(...pinPoints.map(({ x }) => x)),
+    right: Math.max(...pinPoints.map(({ x }) => x)),
+    top: Math.min(...pinPoints.map(({ y }) => y)),
+    bottom: Math.max(...pinPoints.map(({ y }) => y)),
+  };
+  const isInCore = ({ x, y }: Point) =>
+    x > coreBox.left && x < coreBox.right && y > coreBox.top && y < coreBox.bottom;
+  const servesCore = (chain: Chain) => pins.has(chain.from) && pins.has(chain.to);
+  const width = box.right - box.left + 1;
+  const cellCount = width * (box.bottom - box.top + 1);
+  const isInside = ({ x, y }: Point) =>
+    x >= box.left && x <= box.right && y >= box.top && y <= box.bottom;
+  const cellOf = ({ x, y }: Point) => x - box.left + (y - box.top) * width;
+  const pointOf = (cell: number): Point => ({
+    x: (cell % width) + box.left,
+    y: Math.floor(cell / width) + box.top,
+  });
+  /** The shortest octilinear length between two cells. */
+  const octile = (left: Point, right: Point) => {
+    const [dx, dy] = [Math.abs(left.x - right.x), Math.abs(left.y - right.y)];
+    return Math.max(dx, dy) + (Math.SQRT2 - 1) * Math.min(dx, dy);
+  };
+
+  const targetOf = (id: string): Point => {
+    const pinned = pins.get(id);
+    if (pinned) return pinned;
+    const point = armTargets.get(id) ?? projected(id);
+    return { x: point.x, y: onAxis.has(id) ? axisRow : point.y };
+  };
+
+  // What is drawn: junctions on cells, and each chain's way through cells.
+  const placed = new Map<string, number>();
+  const stationAt = new Map<number, string>();
+  const usedBy = new Int32Array(cellCount).fill(-1);
+  const drawnSteps = new Map<string, number>();
+  const ways = new Map<number, number[]>();
+  const stepKey = (left: number, right: number) =>
+    left < right ? `${left}:${right}` : `${right}:${left}`;
+  const settle = (id: string, cell: number) => {
+    placed.set(id, cell);
+    stationAt.set(cell, id);
+  };
+  const unsettle = (id: string) => {
+    const cell = placed.get(id);
+    if (cell !== undefined) stationAt.delete(cell);
+    placed.delete(id);
+  };
+  const draw = (index: number, cells: number[]) => {
+    ways.set(index, cells);
+    for (const cell of cells.slice(1, -1)) usedBy[cell] = index;
+    for (let step = 1; step < cells.length; step += 1) {
+      drawnSteps.set(stepKey(cells[step - 1], cells[step]), index);
     }
-    return best;
   };
-  const shapes = new Map<Chain, ChainShape>();
-  /** A chain not shaped yet reads as its first way, so shaping one never waits on another. */
-  const shapeOf = (chain: Chain): ChainShape => {
-    const known = shapes.get(chain);
-    if (known) return known;
-    const [path] = getPathOptions(
-      layout.get(chain.from) ?? { x: 0, y: 0 },
-      layout.get(chain.to) ?? { x: 0, y: 0 },
+  const erase = (index: number) => {
+    const cells = ways.get(index);
+    if (!cells) return;
+    for (const cell of cells.slice(1, -1)) if (usedBy[cell] === index) usedBy[cell] = -1;
+    for (let step = 1; step < cells.length; step += 1) {
+      const key = stepKey(cells[step - 1], cells[step]);
+      if (drawnSteps.get(key) === index) drawnSteps.delete(key);
+    }
+    ways.delete(index);
+  };
+  /** A step along a drawn way, across one, or clear of both. */
+  const stepKind = (from: number, heading: number, index: number): "along" | "across" | "clear" => {
+    const at = pointOf(from);
+    const { x, y } = HEADINGS[heading];
+    const to = cellOf({ x: at.x + x, y: at.y + y });
+    const owner = drawnSteps.get(stepKey(from, to));
+    if (owner !== undefined && owner !== index) return "along";
+    if (usedBy[to] !== -1 && usedBy[to] !== index) return "across";
+    if (x === 0 || y === 0) return "clear";
+    const crossing = drawnSteps.get(
+      stepKey(cellOf({ x: at.x + x, y: at.y }), cellOf({ x: at.x, y: at.y + y })),
     );
-    return {
-      path,
-      dots: placeEvenly(path, chain.interior.length),
-      length: readingLength(path),
-    };
+    return crossing !== undefined && crossing !== index ? "across" : "clear";
   };
-  const leavingBearing = (chain: Chain, id: string, path: readonly Point[]): number =>
-    chain.from === id
-      ? bearingOf(path[0], path[1])
-      : bearingOf(path[path.length - 1], path[path.length - 2]);
-
-  /** What each of the chain's lines pays to turn at a node, against the other chains there. */
-  const turnsAt = (id: string, chain: Chain, path: readonly Point[]): number => {
-    let cost = 0;
-    const leaving = leavingBearing(chain, id, path);
-    for (const lineId of chain.lineIds) {
+  const stepPrice = (from: number, heading: number, index: number): number => {
+    const kind = stepKind(from, heading, index);
+    return kind === "along" ? COST.blocked : kind === "across" ? COST.crossing : 0;
+  };
+  const crowds = (cell: number, served: readonly string[]): boolean => {
+    const at = pointOf(cell);
+    for (let dx = -1; dx <= 1; dx += 1) {
+      for (let dy = -1; dy <= 1; dy += 1) {
+        const near = { x: at.x + dx, y: at.y + dy };
+        if (!isInside(near)) continue;
+        const station = stationAt.get(cellOf(near));
+        if (station && !served.includes(station)) return true;
+      }
+    }
+    return false;
+  };
+  /** The heading a drawn chain leaves a node in. */
+  const leavingAt = (index: number, id: string): number | undefined => {
+    const cells = ways.get(index);
+    if (!cells || cells.length < 2) return undefined;
+    const chain = chains[index];
+    const atStart = placed.get(id) === cells[0] && chain.from !== chain.to;
+    const [from, to] = atStart
+      ? [cells[0], cells[1]]
+      : [cells[cells.length - 1], cells[cells.length - 2]];
+    return headingBetween(pointOf(from), pointOf(to));
+  };
+  /** What a chain's lines pay to turn at a node against the chains already drawn there. */
+  const nodeTurn = (id: string, index: number, leaving: number): number => {
+    let price = 0;
+    for (const lineId of chains[index].lineIds) {
       let best: number | undefined;
       for (const other of chainsAt.get(id) ?? []) {
-        if (other === chain || !other.lineIds.includes(lineId)) continue;
-        const turn = 180 - angleBetween(leaving, leavingBearing(other, id, shapeOf(other).path));
-        best = Math.min(best ?? Number.POSITIVE_INFINITY, turnCost(turn));
+        if (other === index || !chains[other].lineIds.includes(lineId)) continue;
+        const otherLeaving = leavingAt(other, id);
+        if (otherLeaving === undefined) continue;
+        const turn = TURN_PRICE[4 - turnSteps(leaving, otherLeaving)];
+        best = Math.min(best ?? Number.POSITIVE_INFINITY, turn);
       }
-      cost += best ?? 0;
+      price += best ?? 0;
     }
-    return cost;
+    return price * COST.bend;
   };
 
-  /** The node's order breaks: chains drawn as they leave, on the ground towards their far end. */
-  const orderBreaksAt = (id: string): number => {
-    const drawn = new Map<Chain, number>();
-    const ground = new Map<Chain, number>();
-    for (const chain of chainsAt.get(id) ?? []) {
-      if (chain.from === chain.to) continue;
-      const other = chain.from === id ? chain.to : chain.from;
-      drawn.set(chain, leavingBearing(chain, id, shapeOf(chain).path));
-      ground.set(
-        chain,
-        bearingOf(geography.get(id) ?? { x: 0, y: 0 }, geography.get(other) ?? { x: 0, y: 0 }),
-      );
+  /** The cheapest way from any source cell to any target cell (A*), what is drawn as obstacles. */
+  const route = (
+    index: number,
+    from: { id: string; cells: Map<number, number> },
+    to: { id: string; cells: Map<number, number>; settled: boolean },
+  ): number[] => {
+    const chain = chains[index];
+    const served = [chain.from, chain.to];
+    const targets = [...to.cells.keys()].map(pointOf);
+    const estimate = (cell: number) => {
+      const at = pointOf(cell);
+      return Math.min(...targets.map((target) => octile(at, target))) * COST.step;
+    };
+    const states = cellCount * 9;
+    const cost = new Float64Array(states).fill(Number.POSITIVE_INFINITY);
+    const previous = new Int32Array(states).fill(-1);
+    const heap: [number, number][] = [];
+    const push = (priority: number, state: number) => {
+      heap.push([priority, state]);
+      let child = heap.length - 1;
+      while (child > 0) {
+        const parent = (child - 1) >> 1;
+        if (heap[parent][0] <= heap[child][0]) break;
+        [heap[parent], heap[child]] = [heap[child], heap[parent]];
+        child = parent;
+      }
+    };
+    const pop = (): [number, number] | undefined => {
+      const top = heap[0];
+      const last = heap.pop();
+      if (heap.length > 0 && last) {
+        heap[0] = last;
+        let parent = 0;
+        for (;;) {
+          const [left, right] = [parent * 2 + 1, parent * 2 + 2];
+          let smallest = parent;
+          if (left < heap.length && heap[left][0] < heap[smallest][0]) smallest = left;
+          if (right < heap.length && heap[right][0] < heap[smallest][0]) smallest = right;
+          if (smallest === parent) break;
+          [heap[parent], heap[smallest]] = [heap[smallest], heap[parent]];
+          parent = smallest;
+        }
+      }
+      return top;
+    };
+    for (const [cell, startCost] of from.cells) {
+      cost[cell * 9 + START] = startCost;
+      push(startCost + estimate(cell), cell * 9 + START);
     }
-    return countOrderBreaks(drawn, ground);
+    let best = { cost: Number.POSITIVE_INFINITY, state: -1, cell: -1 };
+    for (let entry = pop(); entry; entry = pop()) {
+      const [priority, state] = entry;
+      if (priority >= best.cost) break;
+      const spent = cost[state];
+      if (priority - estimate(Math.floor(state / 9)) > spent + 1e-9) continue;
+      const cell = Math.floor(state / 9);
+      const heading = state % 9;
+      const at = pointOf(cell);
+      for (let next = 0; next < 8; next += 1) {
+        if (heading !== START && turnSteps(heading, next) === 4) continue;
+        // A way crosses another straight through, never turning on it.
+        if (
+          heading !== START &&
+          usedBy[cell] !== -1 &&
+          usedBy[cell] !== index &&
+          next !== heading
+        ) {
+          continue;
+        }
+        const nextPoint = { x: at.x + HEADINGS[next].x, y: at.y + HEADINGS[next].y };
+        if (!isInside(nextPoint)) continue;
+        const nextCell = cellOf(nextPoint);
+        if (from.cells.has(nextCell)) continue;
+        const station = stationAt.get(nextCell);
+        const isTarget = to.cells.has(nextCell);
+        if (station !== undefined && !(isTarget && to.settled)) continue;
+        let price = COST.step * (next % 2 === 1 ? Math.SQRT2 : 1);
+        price += stepPrice(cell, next, index);
+        if (!isTarget && crowds(nextCell, served)) price += COST.crowd;
+        if (!servesCore(chain) && isInCore(nextPoint)) price += COST.core;
+        price +=
+          heading === START
+            ? placed.has(from.id)
+              ? nodeTurn(from.id, index, next)
+              : 0
+            : TURN_PRICE[turnSteps(heading, next)] * COST.bend * lineWeight(chain);
+        const reached = spent + price;
+        const nextState = nextCell * 9 + next;
+        if (isTarget) {
+          const arrival =
+            reached +
+            (to.cells.get(nextCell) ?? 0) +
+            (to.settled ? nodeTurn(to.id, index, (next + 4) % 8) : 0);
+          if (arrival < best.cost) {
+            best = { cost: arrival, state, cell: nextCell };
+          }
+          continue;
+        }
+        if (reached < cost[nextState]) {
+          cost[nextState] = reached;
+          previous[nextState] = state;
+          push(reached + estimate(nextCell), nextState);
+        }
+      }
+    }
+    if (best.state < 0) return [];
+    const cells = [best.cell];
+    for (let state = best.state; state >= 0; state = previous[state]) {
+      cells.push(Math.floor(state / 9));
+    }
+    return cells.reverse();
   };
 
-  const ownCost = (chain: Chain, path: readonly Point[], length: number): number => {
-    const from = path[0];
-    const to = path[path.length - 1];
-    if (from.x === to.x && from.y === to.y) return WEIGHT.fault;
-    const geoBearing = bearingOf(geography.get(chain.from) ?? from, geography.get(chain.to) ?? to);
-    let cost = WEIGHT.direction * (angleBetween(bearingOf(from, to), geoBearing) / 45) ** 2;
-    if (path.length > 2) {
-      const turn = angleBetween(bearingOf(path[0], path[1]), bearingOf(path[1], path[2]));
-      cost += WEIGHT.bend * chain.lineIds.length * turnCost(turn);
+  /** Free cells for an unplaced junction, priced by how far they stand from where it belongs. */
+  const candidatesFor = (id: string, from: Point | undefined, chain: Chain) => {
+    let target = targetOf(id);
+    const needed = chain.interior.length > 0 ? neededLength(chain) : 0;
+    if (from && Math.hypot(target.x - from.x, target.y - from.y) < needed) {
+      const away = Math.hypot(target.x - from.x, target.y - from.y) || 1;
+      target = {
+        x: from.x + ((target.x - from.x) / away) * needed,
+        y: onAxis.has(id) ? axisRow : from.y + ((target.y - from.y) / away) * needed,
+      };
     }
-    const lengthWeight = chain.interior.length > 0 ? WEIGHT.length : WEIGHT.length / 4;
-    cost += lengthWeight * (length - desiredLength(chain)) ** 2;
-    return cost;
+    for (let radius = CANDIDATE_RADIUS; radius <= 64; radius *= 2) {
+      const cells = new Map<number, number>();
+      for (let dx = -radius; dx <= radius; dx += 1) {
+        for (let dy = onAxis.has(id) ? 0 : -radius; dy <= (onAxis.has(id) ? 0 : radius); dy += 1) {
+          const point = {
+            x: Math.round(target.x) + dx,
+            y: onAxis.has(id) ? axisRow : Math.round(target.y) + dy,
+          };
+          if (!isInside(point)) continue;
+          const cell = cellOf(point);
+          if (stationAt.has(cell) || usedBy[cell] !== -1 || crowds(cell, [])) continue;
+          if (from && Math.hypot(point.x - from.x, point.y - from.y) < needed - 0.5) continue;
+          cells.set(cell, COST.move * Math.hypot(point.x - target.x, point.y - target.y));
+        }
+      }
+      if (cells.size > 0) return cells;
+    }
+    return new Map([[cellOf({ x: Math.round(target.x), y: Math.round(target.y) }), 0]]);
   };
 
-  function shapeChain(chain: Chain): ChainShape {
-    const from = layout.get(chain.from) ?? { x: 0, y: 0 };
-    const to = layout.get(chain.to) ?? { x: 0, y: 0 };
-    const options = getPathOptions(from, to).map((path) => {
-      const length = readingLength(path);
-      const passed = skeletonIds.filter((id) => {
-        if (id === chain.from || id === chain.to) return false;
-        const point = layout.get(id);
-        return point !== undefined && minimumDistance(point, path) < CLEARANCE;
-      }).length;
-      const score =
-        passed * WEIGHT.fault +
-        ownCost(chain, path, length) +
-        WEIGHT.bend * (turnsAt(chain.from, chain, path) + turnsAt(chain.to, chain, path));
-      return { path, length, score };
-    });
-    options.sort((left, right) => left.score - right.score);
-    const { path, length } = options[0];
-    return { path, length, dots: placeEvenly(path, chain.interior.length) };
+  /** Draws one chain from its placed end, placing the other. */
+  const lay = (index: number) => {
+    const chain = chains[index];
+    if (chain.from === chain.to) return;
+    const [from, to] = placed.has(chain.from) ? [chain.from, chain.to] : [chain.to, chain.from];
+    if (!placed.has(from)) {
+      const target = targetOf(from);
+      const [cell] = candidatesFor(from, undefined, chain).keys();
+      settle(from, cell ?? cellOf({ x: Math.round(target.x), y: Math.round(target.y) }));
+    }
+    const fromPoint = pointOf(placed.get(from) as number);
+    const toCells = placed.has(to)
+      ? new Map([[placed.get(to) as number, 0]])
+      : candidatesFor(to, fromPoint, chain);
+    let cells = route(
+      index,
+      { id: from, cells: new Map([[placed.get(from) as number, 0]]) },
+      { id: to, cells: toCells, settled: placed.has(to) },
+    );
+    if (cells.length === 0) cells = [placed.get(from) as number, [...toCells.keys()][0]];
+    if (!placed.has(to)) settle(to, cells[cells.length - 1]);
+    if (placed.get(chain.from) !== cells[0]) cells.reverse();
+    draw(index, cells);
+  };
+
+  // Busiest first, outward from the pins (octi's ordering).
+  for (const [id, cell] of pins) settle(id, cellOf(cell));
+  // The axis beyond the pins: on their row, in order, where geography puts it but never crowded.
+  const pinnedAt = axis.flatMap((id, index) => (pins.has(id) ? [index] : []));
+  if (pinnedAt.length > 0) {
+    for (const [first, last, direction] of [
+      [pinnedAt[pinnedAt.length - 1], axis.length, 1],
+      [pinnedAt[0], -1, -1],
+    ] as const) {
+      let previous = pins.get(axis[first])?.x ?? 0;
+      for (let index = first + direction; index !== last; index += direction) {
+        const wanted = Math.round(targetOf(axis[index]).x);
+        const x =
+          direction === 1
+            ? Math.max(wanted, previous + AXIS_GAP)
+            : Math.min(wanted, previous - AXIS_GAP);
+        settle(axis[index], cellOf({ x, y: axisRow }));
+        previous = x;
+      }
+    }
   }
-  const reshape = (ids: Iterable<string>) => {
-    const touched = new Set<Chain>();
-    for (const id of ids) for (const chain of chainsAt.get(id) ?? []) touched.add(chain);
-    for (const chain of touched) shapes.set(chain, shapeChain(chain));
-  };
-  for (const chain of chains) shapes.set(chain, shapeChain(chain));
-  reshape(skeletonIds);
-
-  const pairTerms = (left: readonly Point[], right: readonly Point[]) => {
-    let crossings = 0;
-    let overlaps = 0;
-    for (let i = 1; i < left.length; i += 1) {
-      for (let j = 1; j < right.length; j += 1) {
-        if (segmentsCross(left[i - 1], left[i], right[j - 1], right[j])) crossings += 1;
-        if (segmentsOverlap(left[i - 1], left[i], right[j - 1], right[j])) overlaps += 1;
+  const lineDegree = (id: string) =>
+    (chainsAt.get(id) ?? []).reduce((sum, index) => sum + chains[index].lineIds.length, 0);
+  const order: number[] = [];
+  const reached = new Set<string>(pins.keys());
+  const queue = [...pins.keys()];
+  const ordered = new Set<number>();
+  const visit = () => {
+    while (queue.length > 0) {
+      queue.sort((left, right) => lineDegree(right) - lineDegree(left));
+      const id = queue.shift() as string;
+      const around = [...(chainsAt.get(id) ?? [])].sort(
+        (left, right) => chains[right].lineIds.length - chains[left].lineIds.length,
+      );
+      for (const index of around) {
+        if (ordered.has(index)) continue;
+        ordered.add(index);
+        order.push(index);
+        for (const other of [chains[index].from, chains[index].to]) {
+          if (reached.has(other)) continue;
+          reached.add(other);
+          queue.push(other);
+        }
       }
     }
-    return { crossings, overlaps };
   };
-  const pinXs = [...pins.values()].map(({ x }) => x);
-  const pinYs = [...pins.values()].map(({ y }) => y);
-  const bounds = {
-    left: Math.min(...pinXs) - frame.x,
-    right: Math.max(...pinXs) + frame.x,
-    top: Math.min(...pinYs) - frame.y,
-    bottom: Math.max(...pinYs) + frame.y,
-  };
-  const frameExcess = (point: Point): number =>
-    Math.max(0, bounds.left - point.x, point.x - bounds.right) +
-    Math.max(0, bounds.top - point.y, point.y - bounds.bottom);
+  visit();
+  for (const id of skeleton) {
+    if (reached.has(id)) continue;
+    reached.add(id);
+    queue.push(id);
+    visit();
+  }
+  for (const index of order) lay(index);
 
-  type Dot = { point: Point; id: string; nodeId?: string; chain?: Chain };
-  const dotsOf = (moved: ReadonlySet<string>, chainSet: ReadonlySet<Chain>): Dot[] => [
-    ...[...moved].map((id) => ({ point: layout.get(id) as Point, id, nodeId: id })),
-    ...[...chainSet].flatMap((chain) =>
-      shapeOf(chain).dots.map((point, index) => ({ point, id: chain.interior[index], chain })),
-    ),
-  ];
-  const allDots = (): Dot[] => dotsOf(new Set(skeletonIds), new Set(chains));
-  const belongsTo = (dot: Dot, chain: Chain) =>
-    dot.chain === chain || dot.nodeId === chain.from || dot.nodeId === chain.to;
-
-  /** Every term that changes when `moved` move, with the faults counted apart. */
-  const scoreAround = (moved: ReadonlySet<string>, describe?: string[]): number => {
-    const touched = new Set<Chain>();
-    for (const id of moved) for (const chain of chainsAt.get(id) ?? []) touched.add(chain);
-    let cost = 0;
-    const ends = new Set<string>();
-    for (const chain of touched) {
-      const shape = shapeOf(chain);
-      cost += ownCost(chain, shape.path, shape.length);
-      ends.add(chain.from);
-      ends.add(chain.to);
+  /** The drawing's cost: lengths, turns, crowding, faults, strays from geography, order breaks. */
+  const score = (): number => {
+    let total = 0;
+    for (const [index, cells] of ways) {
+      const chain = chains[index];
+      const points = cells.map(pointOf);
+      for (let step = 1; step < cells.length; step += 1) {
+        const heading = headingBetween(points[step - 1], points[step]);
+        total += COST.step * (heading % 2 === 1 ? Math.SQRT2 : 1);
+        total += stepPrice(cells[step - 1], heading, index);
+        if (step > 1) {
+          const turn = turnSteps(headingBetween(points[step - 2], points[step - 1]), heading);
+          total += TURN_PRICE[turn] * COST.bend * lineWeight(chain);
+        }
+      }
+      for (const point of points) if (!servesCore(chain) && isInCore(point)) total += COST.core;
+      const short = neededLength(chain) - lengthOf(points);
+      if (chain.interior.length > 0 && short > 0.5) total += COST.spring * short ** 2;
     }
-    for (const id of ends) {
+    for (const [id, cell] of placed) {
+      if (pins.has(id)) continue;
+      const point = pointOf(cell);
+      const target = targetOf(id);
+      total += COST.move * Math.hypot(point.x - target.x, point.y - target.y);
       const around = chainsAt.get(id) ?? [];
-      for (const chain of around) {
-        cost += WEIGHT.bend * turnsAt(id, chain, shapeOf(chain).path);
+      for (const index of around) {
+        const leaving = leavingAt(index, id);
+        if (leaving !== undefined) total += nodeTurn(id, index, leaving) / 2;
       }
-      if (around.length > 2) cost += WEIGHT.order * orderBreaksAt(id);
-    }
-
-    const touchedList = [...touched];
-    for (const [index, chain] of touchedList.entries()) {
-      const path = shapeOf(chain).path;
-      for (const other of chains) {
-        if (other === chain || (touched.has(other) && touchedList.indexOf(other) < index)) continue;
-        const { crossings, overlaps } = pairTerms(path, shapeOf(other).path);
-        cost += WEIGHT.crossing * crossings + WEIGHT.fault * overlaps;
-        if (overlaps && describe)
-          describe.push(`overlap ${chain.from}–${chain.to} ${other.from}–${other.to}`);
-      }
-    }
-    const dirty = dotsOf(moved, touched);
-    const everyDot = allDots();
-    for (const dot of dirty) {
-      cost += WEIGHT.frame * frameExcess(dot.point) ** 2;
-      const geo = geography.get(dot.id);
-      if (!dot.nodeId || dot.id === homeId || !geo || Math.hypot(geo.x, geo.y) === 0) continue;
-      if (dot.point.x === homeCell.x && dot.point.y === homeCell.y) continue;
-      const stray = angleBetween(bearingOf(homeCell, dot.point), bearingOf({ x: 0, y: 0 }, geo));
-      cost += WEIGHT.topography * (stray / 45) ** 2;
-    }
-    for (const [index, dot] of dirty.entries()) {
-      for (const other of everyDot) {
-        if (other.point === dot.point) continue;
-        const isDirty = dirty.some((entry) => entry.point === other.point);
-        if (isDirty && dirty.findIndex((entry) => entry.point === other.point) < index) continue;
-        if (Math.hypot(dot.point.x - other.point.x, dot.point.y - other.point.y) < SEPARATION) {
-          cost += WEIGHT.fault;
-          describe?.push(
-            `crowded ${dot.nodeId ?? dot.chain?.interior.join(",")} ${other.nodeId ?? "a place"}`,
+      if (around.length > 2) {
+        const drawn = new Map<number, number>();
+        const ground = new Map<number, number>();
+        for (const index of around) {
+          const leaving = leavingAt(index, id);
+          const chain = chains[index];
+          const other = chain.from === id ? chain.to : chain.from;
+          if (leaving === undefined) continue;
+          drawn.set(index, leaving * 45);
+          ground.set(
+            index,
+            bearingOf(geography.get(id) ?? { x: 0, y: 0 }, geography.get(other) ?? { x: 0, y: 0 }),
           );
         }
-      }
-      for (const chain of chains) {
-        if (belongsTo(dot, chain)) continue;
-        if (minimumDistance(dot.point, shapeOf(chain).path) < CLEARANCE) {
-          cost += WEIGHT.fault;
-          describe?.push(`${dot.nodeId ?? "a place"} on ${chain.from}–${chain.to}`);
-        }
+        total += COST.order * countOrderBreaks(drawn, ground);
       }
     }
-    for (const dot of everyDot) {
-      if (dirty.some((entry) => entry.point === dot.point)) continue;
-      for (const chain of touched) {
-        if (belongsTo(dot, chain)) continue;
-        if (minimumDistance(dot.point, shapeOf(chain).path) < CLEARANCE) {
-          cost += WEIGHT.fault;
-          describe?.push(`${dot.nodeId ?? "a place"} on ${chain.from}–${chain.to}`);
-        }
-      }
-    }
-    return cost;
+    return total;
   };
 
-  const movable = skeletonIds.filter((id) => !pins.has(id));
-  const isAxis = new Set(axis);
-  const random = makeRandom(seed);
-  /** The chain towards the core, where a node has exactly one. */
-  const parentChain = new Map<string, Chain>();
-  for (const id of movable) {
-    const subtree = new Set(beyond.get(id) ?? [id]);
-    const towardsCore = (chainsAt.get(id) ?? []).filter(
-      (chain) => !subtree.has(chain.from === id ? chain.to : chain.from),
+  // Local search: each junction tries its eight neighbouring cells, its chains drawn again.
+  const movable = [...skeleton].filter((id) => !pins.has(id) && !onAxis.has(id) && placed.has(id));
+  const relay = (id: string, cell: number) => {
+    const around = chainsAt.get(id) ?? [];
+    for (const index of around) erase(index);
+    unsettle(id);
+    settle(id, cell);
+    const sorted = [...around].sort(
+      (left, right) => chains[right].lineIds.length - chains[left].lineIds.length,
     );
-    if (towardsCore.length === 1) parentChain.set(id, towardsCore[0]);
-  }
-  /** A shift that sets a node its chain's length from the chain's other end, folded at random. */
-  const getJump = (id: string, chain: Chain): Point => {
-    const anchor = layout.get(chain.from === id ? chain.to : chain.from) as Point;
-    const point = layout.get(id) as Point;
-    const first = Math.floor(random() * 8) * 45;
-    const second = first + [0, 45, -45, 90, -90][Math.floor(random() * 5)];
-    const length = desiredLength(chain);
-    const along = Math.round(random() * length);
-    const step = (degrees: number, distance: number): Point => {
-      const unit = unitOf(degrees);
-      const cells = cellsFor(unit, distance);
-      return { x: Math.round(unit.x * cells), y: Math.round(unit.y * cells) };
-    };
-    const [a, b] = [step(first, along), step(second, length - along)];
-    return { x: anchor.x + a.x + b.x - point.x, y: anchor.y + a.y + b.y - point.y };
+    for (const index of sorted) lay(index);
   };
-  const tryMove = (group: readonly string[], dx: number, dy: number, temperature: number) => {
-    const moved = new Set(group);
-    const before = scoreAround(moved);
-    const previous = group.map((id) => layout.get(id) as Point);
-    for (const [index, id] of group.entries()) {
-      layout.set(id, { x: previous[index].x + dx, y: previous[index].y + dy });
-    }
-    reshape(moved);
-    const after = scoreAround(moved);
-    const accepted =
-      after <= before || (temperature > 0 && random() < Math.exp((before - after) / temperature));
-    if (!accepted) {
-      for (const [index, id] of group.entries()) layout.set(id, previous[index]);
-      reshape(moved);
-    }
-    return accepted ? before - after : 0;
-  };
-
-  for (let step = 0; step < steps && movable.length > 0; step += 1) {
-    const temperature = 40 * (1 - step / steps) ** 3 + 0.05;
-    const id = movable[Math.floor(random() * movable.length)];
-    const subtree = beyond.get(id) ?? [id];
-    const canCarry = !subtree.some((other) => isAxis.has(other));
-    const parent = parentChain.get(id);
-    if (parent && canCarry && random() < 0.15) {
-      const jump = getJump(id, parent);
-      tryMove(subtree, jump.x, jump.y, temperature);
-      continue;
-    }
-    const group = random() < 0.35 && canCarry ? subtree : [id];
-    const reach = random() < 0.75 ? 1 : 2;
-    const dx = (Math.floor(random() * 3) - 1) * reach;
-    const dy = isAxis.has(id) ? 0 : (Math.floor(random() * 3) - 1) * reach;
-    if (dx === 0 && dy === 0) continue;
-    tryMove(group, dx, dy, temperature);
-  }
-  // Repair: each node still in a fault tries every cell within three, alone or with its branch.
-  for (let round = 0; round < 30; round += 1) {
+  let current = score();
+  for (let round = 0; round < LOCAL_SEARCH_ROUNDS; round += 1) {
     let improved = false;
     for (const id of movable) {
-      if (scoreAround(new Set([id])) < WEIGHT.fault) continue;
-      for (const group of [[id], beyond.get(id) ?? [id]]) {
-        if (group.some((other) => isAxis.has(other) && other !== id)) continue;
-        for (let dx = -3; dx <= 3; dx += 1) {
-          for (let dy = isAxis.has(id) ? 0 : -3; dy <= (isAxis.has(id) ? 0 : 3); dy += 1) {
-            if ((dx !== 0 || dy !== 0) && tryMove(group, dx, dy, 0) > 0) improved = true;
-          }
-        }
+      const home = placed.get(id) as number;
+      const at = pointOf(home);
+      let best = { cell: home, score: current };
+      for (const heading of onAxis.has(id) ? [0, 4] : [0, 1, 2, 3, 4, 5, 6, 7]) {
+        const next = { x: at.x + HEADINGS[heading].x, y: at.y + HEADINGS[heading].y };
+        if (!isInside(next)) continue;
+        const cell = cellOf(next);
+        const ownWay = (chainsAt.get(id) ?? []).includes(usedBy[cell]);
+        if (stationAt.has(cell) || (usedBy[cell] !== -1 && !ownWay)) continue;
+        relay(id, cell);
+        const tried = score();
+        if (tried < best.score - 1e-6) best = { cell, score: tried };
+      }
+      relay(id, best.cell);
+      if (best.cell !== home) {
+        current = score();
+        improved = true;
       }
     }
     if (!improved) break;
   }
-  for (const chain of chains) shapes.set(chain, shapeChain(chain));
 
+  // Into the plan: places at their projected share of their chain, cells into map units.
+  const cells = new Map<string, Point>();
+  for (const [id, cell] of placed) cells.set(id, pointOf(cell));
+  const shapes = new Map<number, { corners: Point[]; along: number[] }>();
+  for (const [index, way] of ways) {
+    const chain = chains[index];
+    const corners = cornersOf(way.map(pointOf));
+    const stops = stopsOf(chain);
+    const reach = stops.slice(1).map((stop, step) => stepCells(stops[step], stop));
+    const whole = reach.reduce((sum, length) => sum + length, 0) || 1;
+    let walked = 0;
+    const shares = chain.interior.map((_, place) => {
+      walked += reach[place];
+      return walked / whole;
+    });
+    const along = spreadAlong(lengthOf(corners), shares, gap);
+    shapes.set(index, { corners, along });
+    for (const [place, id] of chain.interior.entries()) {
+      cells.set(id, pointAlong(corners, along[place]));
+    }
+  }
   const faults: string[] = [];
-  const total = scoreAround(new Set(skeletonIds), faults);
-
-  // Into map units, the frame's corner at the origin.
-  const cells = new Map<string, Point>(layout);
-  for (const chain of chains) {
-    const { dots } = shapeOf(chain);
-    for (const [index, id] of chain.interior.entries()) cells.set(id, dots[index]);
+  for (const [index, way] of ways) {
+    const points = way.map(pointOf);
+    for (let step = 1; step < way.length; step += 1) {
+      const heading = headingBetween(points[step - 1], points[step]);
+      if (stepKind(way[step - 1], heading, index) === "along") {
+        faults.push(`${chains[index].from}–${chains[index].to} along another way`);
+        break;
+      }
+    }
+    const chain = chains[index];
+    if (chain.interior.length > 0 && neededLength(chain) - lengthOf(points) > 0.5) {
+      faults.push(`${chain.from}–${chain.to} too short for its places`);
+    }
   }
   const margin = 2;
   const xs = [...cells.values()].map(({ x }) => x);
@@ -719,16 +937,23 @@ export function solveRegionLayout({
     x: Math.round((point.x + shift.x) * grid * 100) / 100,
     y: Math.round((point.y + shift.y) * grid * 100) / 100,
   });
-
-  const bends = new Map<string, Point>();
-  for (const chain of chains) {
-    const { path, length } = shapeOf(chain);
-    if (path.length < 3) continue;
-    const bendAt = readingLength(path.slice(0, 2));
-    const step = length / (chain.interior.length + 1);
-    const index = Math.floor(bendAt / step);
-    if (Math.abs(bendAt - index * step) < 1e-6) continue;
-    bends.set(regionEdgeKey(chain.edges[index]), toUnits(path[1]));
+  // Each bend belongs to the edge between the two places it falls between.
+  const bends = new Map<string, Point[]>();
+  for (const [index, { corners, along }] of shapes) {
+    const chain = chains[index];
+    const sequence = [chain.from, ...chain.interior];
+    const legs = segmentLengths(corners);
+    let bendAt = 0;
+    for (let corner = 1; corner < corners.length - 1; corner += 1) {
+      bendAt += legs[corner - 1];
+      if (along.some((distance) => Math.abs(distance - bendAt) < 1e-6)) continue;
+      const place = along.filter((distance) => distance < bendAt).length;
+      const edge = chain.edges[place];
+      const forward = edge.from === sequence[place];
+      const known = bends.get(regionEdgeKey(edge)) ?? [];
+      const point = toUnits(corners[corner]);
+      bends.set(regionEdgeKey(edge), forward ? [...known, point] : [point, ...known]);
+    }
   }
   return {
     positions: new Map([...cells].map(([id, point]) => [id, toUnits(point)])),
@@ -739,18 +964,8 @@ export function solveRegionLayout({
       width: (Math.max(...xs) - Math.min(...xs) + 2 * margin) * grid,
       height: (Math.max(...ys) - Math.min(...ys) + 2 * margin) * grid,
     },
-    faults: [...new Set(faults)],
-    cost: Math.round(total % WEIGHT.fault),
-  };
-}
-
-/** A repeatable shuffle, so a solve prints the same plan twice. */
-function makeRandom(seed: number): () => number {
-  let state = seed >>> 0 || 1;
-  return () => {
-    state ^= state << 13;
-    state ^= state >>> 17;
-    state ^= state << 5;
-    return ((state >>> 0) % 1_000_000) / 1_000_000;
+    faults,
+    cost: Math.round(current % COST.blocked),
+    unitsPerKm: fit.cellsPerKm * grid,
   };
 }

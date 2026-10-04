@@ -1,13 +1,14 @@
 import { useMemo, useState } from "react";
-import { findCatalogStop } from "../../data/generated/kvv-stop-catalog";
+import { findCatalogStop, kvvStopCatalog } from "../../data/generated/kvv-stop-catalog";
 import type { DepartureBoard, DepartureBoardCoverage, TripCall } from "../../data/transit-types";
-import { useZentrumVehicles } from "../../hooks/zentrum-vehicles";
+import { useDailyZentrumVehicles } from "../../hooks/zentrum-vehicles";
 import { getDirectTravelTimes } from "../../lib/direct-travel-times";
 import {
   createGeoNetworkReader,
   getGeoBounds,
   getGeoPlaces,
   getGeoStopId,
+  getPointsBox,
   projectGeoPosition,
   toGeoDrawing,
 } from "../../lib/geo-map";
@@ -30,10 +31,17 @@ const locateCatalogStop = (call: TripCall) => {
   return stop && { latitude: stop.latitude, longitude: stop.longitude };
 };
 
-const MARKTPLATZ_POINT = { x: 0, y: 0 };
-
-/** Opens on Karlsruhe from Knielingen to Durlach; zooms until a city block fills a thumb. */
-const GEO_MAP_SCALE = { openingSpan: 9, maximumScale: 900 };
+/**
+ * Opens on the city, every district a line serves, from Knielingen to Grötzingen and Neureut to
+ * Wettersbach; zooms until a city block fills a thumb.
+ */
+const GEO_MAP_SCALE = {
+  opening: getPointsBox(
+    kvvStopCatalog.filter(({ lineCount }) => lineCount > 0).map(projectGeoPosition),
+    0.5,
+  ) ?? { x: -8, y: -6, width: 16, height: 13 },
+  maximumScale: 900,
+};
 
 /**
  * The geographic map: the stops the Zentrum's posts see runs call, at their real positions, to the
@@ -53,8 +61,8 @@ export function GeoMapView({
   selectedStopId?: string;
   isFullscreen: boolean;
 }) {
-  // The Zentrum's runs: the same readings, drawn another way.
-  const { runDepartures, feedNow } = useZentrumVehicles(departureBoards);
+  // The Zentrum's runs on daily lines: the same readings, drawn another way.
+  const { runDepartures, feedNow } = useDailyZentrumVehicles(departureBoards);
   const [readNetwork] = useState(() => createGeoNetworkReader(locateCatalogStop));
   const geo = useMemo(() => readNetwork(runDepartures), [readNetwork, runDepartures]);
   const drawing = useMemo(() => toGeoDrawing(geo), [geo]);
@@ -91,7 +99,6 @@ export function GeoMapView({
         places={places}
         bounds={bounds}
         scale={GEO_MAP_SCALE}
-        homePoint={MARKTPLATZ_POINT}
         selectedStopId={selectedStopId}
         times={times}
         feedNow={feedNow}

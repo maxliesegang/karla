@@ -94,12 +94,16 @@ URL.
 
 **Geographic map**: the experiment page's `geo` map. Stops stand where the feed locates them,
 linked in the order observed runs call them, out to the runs' ends. Places are named by the feed's
-`placeName`.
+`placeName`. Like the region plan, it draws only **daily lines**: those the timetable runs on every
+day of the week (`npm run refresh:stops` lists the others).
 
 **Region plan**: the experiment page's `region` map. An octilinear plan of the observed network,
 solved offline: in Karlsruhe only junctions and ends, every other place once per branch. Stops it
-leaves out are ridden past. The Zentrum's stops stand as on the Zentrum plan, with the Kaiserstraße
-as its east–west axis; branches keep their direction, not their distances, and fold to stay compact.
+leaves out are ridden past. The Zentrum's stops keep the Zentrum plan's shape; its east–west axis
+runs on from Entenfang to Durlach. The map shrinks with distance from Marktplatz by its **scale**:
+a fisheye, zones, or arms (zones up to the city's edge, straight arms beyond it). Arm places are
+ticks named on hover; ends, Karlsruhe and the axis are named. At rest it shows corridors; an opened
+stop colours its lines.
 
 **Plan options**: choices for how the Zentrum plan opens and displays paths, lines and travel times.
 _Avoid_: experiments (the page contains experimental maps; these choices configure one plan).

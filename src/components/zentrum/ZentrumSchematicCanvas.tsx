@@ -68,6 +68,7 @@ export function ZentrumSchematicCanvas({
   overlay,
   unlitLineStyle,
   vehicleMinutesById,
+  departedVehicleIds,
   stopMinutesByNodeId,
   selectedVehicleId,
   onSelectVehicle,
@@ -89,6 +90,8 @@ export function ZentrumSchematicCanvas({
   unlitLineStyle?: ZentrumPlanOptions["unlitLineStyle"];
   /** The countdown on each tram the opened stop waits for; when present, other marks recede. */
   vehicleMinutesById?: ReadonlyMap<string, number>;
+  /** Trams that have left the opened stop; on its lines they recede only partly. */
+  departedVehicleIds?: ReadonlySet<string>;
   /** Minutes to each stop from the opened one, printed before its name; unreached stops recede. */
   stopMinutesByNodeId?: ReadonlyMap<string, ZentrumStopTravelTag>;
   selectedVehicleId?: string;
@@ -207,10 +210,13 @@ export function ZentrumSchematicCanvas({
               getSign={getSign}
               minutes={minutes}
               isSelected={selectedVehicleId === vehicle.id}
-              isDimmed={
-                (vehicleMinutesById !== undefined && minutes === undefined) ||
-                (highlightedLineIds !== undefined && !highlightedLineIds.has(vehicle.lineId))
-              }
+              dimming={getVehicleDimming(
+                vehicle,
+                minutes,
+                vehicleMinutesById,
+                highlightedLineIds,
+                departedVehicleIds,
+              )}
               onSelect={onSelectVehicle}
             />
           );
@@ -219,6 +225,21 @@ export function ZentrumSchematicCanvas({
     </div>
   );
 }
+
+type ZentrumVehicleDimming = "dimmed" | "departed" | undefined;
+
+/** Off-reading lines dim fully; their own trams that have left the opened stop only recede. */
+const getVehicleDimming = (
+  vehicle: ZentrumSchematicVehicle,
+  minutes: number | undefined,
+  vehicleMinutesById: ReadonlyMap<string, number> | undefined,
+  highlightedLineIds: ReadonlySet<string> | undefined,
+  departedVehicleIds: ReadonlySet<string> | undefined,
+): ZentrumVehicleDimming => {
+  if (highlightedLineIds !== undefined && !highlightedLineIds.has(vehicle.lineId)) return "dimmed";
+  if (departedVehicleIds?.has(vehicle.id)) return "departed";
+  return vehicleMinutesById !== undefined && minutes === undefined ? "dimmed" : undefined;
+};
 
 /** Where a vehicle is, in words, for the mark's label. */
 const describeVehiclePlace = ({ phase, from, to }: ZentrumSchematicVehicle): string => {
@@ -234,7 +255,7 @@ function ZentrumSchematicVehicleMark({
   getSign,
   minutes,
   isSelected,
-  isDimmed,
+  dimming,
   onSelect,
 }: {
   vehicle: ZentrumSchematicVehicle;
@@ -242,7 +263,7 @@ function ZentrumSchematicVehicleMark({
   /** Minutes until it leaves the opened stop, if the stop waits for it. */
   minutes?: number;
   isSelected: boolean;
-  isDimmed: boolean;
+  dimming: ZentrumVehicleDimming;
   onSelect: (vehicleId: string) => void;
 }) {
   const sign = getSign(vehicle.lineId);
@@ -261,7 +282,8 @@ function ZentrumSchematicVehicleMark({
       className="zentrum-schematic-vehicle"
       data-marker-key={getMarkerKey(vehicle)}
       data-selected={isSelected}
-      data-dimmed={isDimmed ? "true" : undefined}
+      data-dimmed={dimming === "dimmed" ? "true" : undefined}
+      data-departed={dimming === "departed" ? "true" : undefined}
       style={style}
       title={`Linie ${vehicle.lineId} nach ${vehicle.destination}; ${place}`}
       aria-label={`Linie ${vehicle.lineId} nach ${vehicle.destination}, ${place}${countdown ? `, fährt an der Haltestelle ${countdown === "jetzt" ? "jetzt" : `in ${countdown}`}` : ""}`}

@@ -1,13 +1,21 @@
 import { useMemo } from "react";
-import { REGION_PLAN } from "../../data/generated/region-plan";
+import { kvvStopCatalog } from "../../data/generated/kvv-stop-catalog";
+import { REGION_PLANS } from "../../data/generated/region-plan";
 import type { DepartureBoard, DepartureBoardCoverage } from "../../data/transit-types";
-import { useZentrumVehicles } from "../../hooks/zentrum-vehicles";
+import { useStoredPreference } from "../../hooks/stored-preference";
+import { useDailyZentrumVehicles } from "../../hooks/zentrum-vehicles";
 import { getDirectTravelTimes } from "../../lib/direct-travel-times";
-import { getGeoLinkId, getGeoStopId, type MapDrawing } from "../../lib/geo-map";
+import { getGeoLinkId, getGeoStopId, getPointsBox, type MapDrawing } from "../../lib/geo-map";
 import type { ObservedNetwork } from "../../lib/observed-network";
-import { zentrumSchematicNodeById } from "../../lib/zentrum-schematic-plan";
+import {
+  REGION_HOME_PLACE_NAME,
+  type RegionPlan,
+  type RegionScaleName,
+} from "../../lib/region-plan";
+import { createStoredPreference } from "../../lib/stored-preference";
 import { ExperimentMapPage } from "../experiment/ExperimentMapPage";
 import { ObservationEmptyState } from "../ObservationEmptyState";
+import { SegmentedControl } from "../SegmentedControl";
 import { createZentrumLineSignReader } from "../zentrum/line-sign";
 
 const regionPageHeading = <h1 className="visually-hidden">Experimente: Regionsplan</h1>;
@@ -18,51 +26,81 @@ const regionEmptyLabels = {
   empty: "Derzeit keine Fahrten beobachtet",
 };
 
-/** Opens on the Zentrum's stops; zooms until neighbouring nodes stand a thumb apart. */
-const REGION_PLAN_SCALE = { openingSpan: REGION_PLAN.grid * 36, maximumScale: 6 };
+const REGION_SCALE_CHOICES = [
+  { value: "fisheye", label: "Fischauge" },
+  { value: "zones", label: "Zonen" },
+  { value: "arms", label: "Äste" },
+] as const satisfies readonly { value: RegionScaleName; label: string }[];
 
-const nodeIdByStopId = new Map(
-  REGION_PLAN.nodes.flatMap((node) => node.stopIds.map((stopId) => [stopId, node.id] as const)),
+const regionScalePreference = createStoredPreference<RegionScaleName>({
+  key: "karla:region-scale",
+  parse: (stored) => REGION_SCALE_CHOICES.find(({ value }) => value === stored)?.value ?? "fisheye",
+});
+
+/**
+ * The city's places as the feed names them: Karlsruhe and its districts, which the catalog names
+ * with a note such as "Neureut (Karlsruhe)" or "Grötzingen (b KA)".
+ */
+const CITY_PLACE_NAMES = new Set(
+  kvvStopCatalog.map(({ placeName }) => placeName.replace(/\s*\(.*\)$/, "")),
 );
 
-const regionDrawing: MapDrawing = {
-  stops: new Map(
-    REGION_PLAN.nodes.map((node) => [
-      node.id,
-      {
-        id: node.id,
-        name: node.label,
-        placeName: node.placeName,
-        lineIds: node.lineIds,
-        x: node.x,
-        y: node.y,
-      },
-    ]),
-  ),
-  links: REGION_PLAN.edges.map((edge) => ({
-    id: getGeoLinkId(edge.fromId, edge.toId),
-    fromId: edge.fromId,
-    toId: edge.toId,
-    lineIds: edge.lineIds,
-    ...(edge.via ? { via: edge.via } : {}),
-  })),
-};
-
-const zentrumNodes = REGION_PLAN.nodes.filter(({ id }) => zentrumSchematicNodeById.has(id));
-/** The middle of the Zentrum's stops, which the plan pins as the Zentrum plan draws them. */
-const ZENTRUM_MIDDLE =
-  zentrumNodes.length > 0
-    ? {
-        x:
-          (Math.min(...zentrumNodes.map(({ x }) => x)) +
-            Math.max(...zentrumNodes.map(({ x }) => x))) /
-          2,
-        y:
-          (Math.min(...zentrumNodes.map(({ y }) => y)) +
-            Math.max(...zentrumNodes.map(({ y }) => y))) /
-          2,
-      }
-    : { x: REGION_PLAN.viewBox.width / 2, y: REGION_PLAN.viewBox.height / 2 };
+/** One solved plan as the map draws it. */
+function readRegionPlan(plan: RegionPlan) {
+  const nodeIdByStopId = new Map(
+    plan.nodes.flatMap((node) => node.stopIds.map((stopId) => [stopId, node.id] as const)),
+  );
+  const drawing: MapDrawing = {
+    stops: new Map(
+      plan.nodes.map((node) => [
+        node.id,
+        {
+          id: node.id,
+          name: node.label,
+          placeName: node.placeName,
+          lineIds: node.lineIds,
+          x: node.x,
+          y: node.y,
+        },
+      ]),
+    ),
+    links: plan.edges.map((edge) => ({
+      id: getGeoLinkId(edge.fromId, edge.toId),
+      fromId: edge.fromId,
+      toId: edge.toId,
+      lineIds: edge.lineIds,
+      ...(edge.bends ? { bends: edge.bends } : {}),
+    })),
+  };
+  const linkCountByNodeId = new Map<string, number>();
+  for (const { fromId, toId } of plan.edges) {
+    for (const id of [fromId, toId])
+      linkCountByNodeId.set(id, (linkCountByNodeId.get(id) ?? 0) + 1);
+  }
+  const axis = new Set(plan.axis);
+  // Named at rest: Karlsruhe, the axis and the ends. Every other place waits for a pointer.
+  const quietNodeIds = new Set(
+    plan.nodes
+      .filter(
+        ({ id, placeName }) =>
+          placeName !== undefined &&
+          placeName !== REGION_HOME_PLACE_NAME &&
+          !axis.has(id) &&
+          linkCountByNodeId.get(id) !== 1,
+      )
+      .map(({ id }) => id),
+  );
+  // Opens on the city with its districts; zooms until neighbouring nodes stand a thumb apart.
+  const scale = {
+    opening:
+      getPointsBox(
+        plan.nodes.filter(({ placeName }) => placeName && CITY_PLACE_NAMES.has(placeName)),
+        plan.grid * 2,
+      ) ?? plan.viewBox,
+    maximumScale: 6,
+  };
+  return { plan, nodeIdByStopId, drawing, quietNodeIds, scale };
+}
 
 /**
  * The region plan: every place the observed lines reach, and the city's junctions, on a solved
@@ -83,11 +121,16 @@ export function RegionPlanView({
   selectedStopId?: string;
   isFullscreen: boolean;
 }) {
-  // The Zentrum's runs: the same readings, drawn another way.
-  const { runDepartures, feedNow } = useZentrumVehicles(departureBoards);
+  // The Zentrum's runs on daily lines: the same readings, drawn another way.
+  const { runDepartures, feedNow } = useDailyZentrumVehicles(departureBoards);
   const getSign = useMemo(() => createZentrumLineSignReader(network.lines), [network.lines]);
+  const scaleName = useStoredPreference(regionScalePreference);
+  const { plan, nodeIdByStopId, drawing, quietNodeIds, scale } = useMemo(
+    () => readRegionPlan(REGION_PLANS[scaleName]),
+    [scaleName],
+  );
   const openedNodeId =
-    selectedStopId && regionDrawing.stops.has(selectedStopId) ? selectedStopId : undefined;
+    selectedStopId && drawing.stops.has(selectedStopId) ? selectedStopId : undefined;
   const times = useMemo(
     () =>
       openedNodeId
@@ -100,7 +143,7 @@ export function RegionPlanView({
             true,
           )
         : undefined,
-    [openedNodeId, runDepartures, feedNow],
+    [openedNodeId, runDepartures, feedNow, nodeIdByStopId],
   );
 
   if (network.stops.length === 0) {
@@ -117,18 +160,28 @@ export function RegionPlanView({
       <ExperimentMapPage
         map="region"
         label="Regionsplan"
-        drawing={regionDrawing}
-        bounds={REGION_PLAN.viewBox}
-        scale={REGION_PLAN_SCALE}
-        homePoint={ZENTRUM_MIDDLE}
+        key={scaleName}
+        drawing={drawing}
+        bounds={plan.viewBox}
+        scale={scale}
         selectedStopId={selectedStopId}
         times={times}
         feedNow={feedNow}
         getSign={getSign}
         isAnswered
         isFullscreen={isFullscreen}
-        linesAtRest
-        overviewCaption={`${regionDrawing.stops.size} Orte und Knoten · antippen`}
+        quietStopIds={quietNodeIds}
+        zones={plan.zones}
+        options={
+          <SegmentedControl
+            className="departure-board-order-control"
+            value={scaleName}
+            items={REGION_SCALE_CHOICES}
+            onValueChange={(next) => regionScalePreference.write(next)}
+            ariaLabel="Maßstab"
+          />
+        }
+        overviewCaption={`${drawing.stops.size} Orte und Knoten · antippen`}
       />
     </>
   );

@@ -166,6 +166,13 @@ function getZentrumStopApproaches(
   return candidates;
 }
 
+/** The trams on the plan that will still leave a stop; the rest of its lines' trams have left it. */
+export const getZentrumApproachingVehicleIds = (
+  vehicles: readonly ZentrumSchematicVehicle[],
+  nodeId: string,
+): ReadonlySet<string> =>
+  new Set(getZentrumStopApproaches(vehicles, nodeId).map(({ vehicle }) => vehicle.id));
+
 /** One row of a stop's board, read against the plan. */
 export type ZentrumStopBoardRow = {
   departure: Departure;

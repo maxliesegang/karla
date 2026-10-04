@@ -26,8 +26,9 @@ test("the plan opens whole, and steps stop at both ends of the range", () => {
   assert.equal(getNeighboringZentrumZoom(ZENTRUM_MAXIMUM_ZOOM, 1), ZENTRUM_MAXIMUM_ZOOM);
   assert.equal(getNeighboringZentrumZoom(ZENTRUM_ZOOM_STEPS[0], 1), ZENTRUM_ZOOM_STEPS[1]);
   assert.equal(getNeighboringZentrumZoom(ZENTRUM_ZOOM_STEPS[2], -1), ZENTRUM_ZOOM_STEPS[1]);
-  // A step out of a width the steps do not name lands back on the range rather than nowhere.
-  assert.equal(getNeighboringZentrumZoom(1.42, 1), ZENTRUM_ZOOM_STEPS[1]);
+  // A zoom the wheel left between steps goes to the nearest step in that direction.
+  assert.equal(getNeighboringZentrumZoom(1.42, 1), ZENTRUM_ZOOM_STEPS[2]);
+  assert.equal(getNeighboringZentrumZoom(1.42, -1), ZENTRUM_ZOOM_STEPS[1]);
 });
 
 test("the whole plan is drawn inside the box, in whichever dimension runs out first", () => {

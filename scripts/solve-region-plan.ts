@@ -3,11 +3,11 @@
  * (`src/lib/region-plan.ts`), laid out octilinearly, written to
  * `src/data/generated/region-plan.ts`.
  *
- *     npm run solve:region -- [--from <file>] [--add] [--grid 20] [--spacing 2] [--frame 26x32] [--seed 2] [--steps 400000] [--out <file>]
+ *     npm run solve:region -- [--from <file>] [--add] [--grid 20] [--gap 1.5] [--out <file>]
  *
  * Reads the observation posts once and saves the observed network beside the script, so solves can
  * re-run offline. `--add` merges a new reading into the saved one: lines missing at one hour are
- * caught at another.
+ * caught at another. Only lines that run every day are solved.
  */
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
@@ -16,6 +16,7 @@ import { KvvEfaClient } from "../src/data/kvv-efa-client.ts";
 import { kvvStopMappingByLocalStopId } from "../src/data/kvv-stop-mappings.ts";
 import { StopRegistry } from "../src/data/stop-registry.ts";
 import type { Departure } from "../src/data/transit-types.ts";
+import { runsEveryDay } from "../src/lib/daily-lines.ts";
 import { createGeoNetworkReader, type GeoNetwork, type GeoStop } from "../src/lib/geo-map.ts";
 import {
   REACH_OBSERVATION_POST_STOP_IDS,
@@ -23,13 +24,19 @@ import {
 } from "../src/lib/observed-network.ts";
 import {
   extendAxis,
-  getZentrumPins,
+  compressRegion,
   projectKm,
   type RegionLayout,
+  type RegionScale,
   regionEdgeKey,
   solveRegionLayout,
 } from "../src/lib/region-layout.ts";
-import { deriveRegionPlan } from "../src/lib/region-plan.ts";
+import {
+  deriveRegionPlan,
+  REGION_HOME_PLACE_NAME,
+  type RegionPlan,
+  type RegionScaleName,
+} from "../src/lib/region-plan.ts";
 import {
   isRailDeparture,
   ZENTRUM_SCHEMATIC_GRID,
@@ -39,7 +46,28 @@ import { chooseLabelSide } from "./octilinear-layout.ts";
 
 const OBSERVATIONS_PATH = "scripts/region-plan-observations.json";
 const OUTPUT_PATH = "src/data/generated/region-plan.ts";
-const HOME_PLACE_NAME = "Karlsruhe";
+/**
+ * The ways the region may shrink with distance: a smooth fisheye; the Zentrum, the city and the
+ * rest as zones; or the same city with straight arms beyond it.
+ */
+const SCALES: Record<RegionScaleName, RegionScale> = {
+  fisheye: { kind: "fisheye", coreKm: 2.5, falloffKm: 2.5 },
+  zones: {
+    kind: "zones",
+    zones: [
+      { untilKm: 2, factor: 1 },
+      { untilKm: 6.5, factor: 0.35 },
+      { untilKm: Number.POSITIVE_INFINITY, factor: 0.08 },
+    ],
+  },
+  arms: {
+    kind: "arms",
+    zones: [
+      { untilKm: 2, factor: 1 },
+      { untilKm: 6.5, factor: 0.35 },
+    ],
+  },
+};
 /** The axis is the Zentrum row this stop stands on. */
 const HOME_STOP_ID = "marktplatz";
 
@@ -117,10 +145,21 @@ function merge(saved: SavedNetwork, network: GeoNetwork): GeoNetwork {
   return { stops, links: [...links.values()] };
 }
 
+/** The saved reading without the lines that miss a weekday, and what only they serve. */
+function keepDailyLines(saved: SavedNetwork): GeoNetwork {
+  const withDailyLines = <Item extends { lineIds: readonly string[] }>(items: readonly Item[]) =>
+    items
+      .map((item) => ({ ...item, lineIds: item.lineIds.filter(runsEveryDay) }))
+      .filter(({ lineIds }) => lineIds.length > 0);
+  return {
+    stops: new Map(withDailyLines(saved.stops).map((stop) => [stop.id, stop])),
+    links: withDailyLines(saved.links),
+  };
+}
+
 async function main(): Promise<void> {
   const from = readOption("--from");
   const grid = Number(readOption("--grid") ?? 20);
-  const seed = Number(readOption("--seed") ?? 2);
 
   let saved: SavedNetwork;
   if (from) {
@@ -137,11 +176,8 @@ async function main(): Promise<void> {
       : toSaved(observed, [now]);
     writeFileSync(OBSERVATIONS_PATH, `${JSON.stringify(saved, null, 2)}\n`);
   }
-  const network: GeoNetwork = {
-    stops: new Map(saved.stops.map((stop) => [stop.id, stop])),
-    links: saved.links,
-  };
-  const plan = deriveRegionPlan(network, HOME_PLACE_NAME);
+  const network = keepDailyLines(saved);
+  const plan = deriveRegionPlan(network, REGION_HOME_PLACE_NAME);
   console.log(
     `${network.stops.size} stops, ${network.links.length} links -> ${plan.nodes.length} nodes, ${plan.edges.length} edges`,
   );
@@ -159,62 +195,64 @@ async function main(): Promise<void> {
     to: toId,
     lineIds,
   }));
-  const pins = getZentrumPins(
-    plan.nodes.map(({ id }) => id),
-    ZENTRUM_SCHEMATIC_NODES,
-    ZENTRUM_SCHEMATIC_GRID,
-  );
   const home = layoutNodes.find(({ id }) => id === HOME_STOP_ID);
-  const homePin = pins.get(HOME_STOP_ID);
-  if (!home || !homePin) throw new Error(`${HOME_STOP_ID} is not on both plans`);
-  const placeById = new Map(plan.nodes.map((node) => [node.id, node.placeName]));
+  const homeOnPlan = ZENTRUM_SCHEMATIC_NODES.find(({ id }) => id === HOME_STOP_ID);
+  if (!home || !homeOnPlan) throw new Error(`${HOME_STOP_ID} is not on both plans`);
+  const nodeIds = new Set(layoutNodes.map(({ id }) => id));
   const axis = extendAxis(
-    [...pins]
-      .filter(([, point]) => point.y === homePin.y)
-      .sort(([, left], [, right]) => left.x - right.x)
-      .map(([id]) => id),
+    ZENTRUM_SCHEMATIC_NODES.filter(({ id, y }) => y === homeOnPlan.y && nodeIds.has(id))
+      .sort((left, right) => left.x - right.x)
+      .map(({ id }) => id),
     edges,
     new Map(layoutNodes.map((node) => [node.id, projectKm(node, home)])),
-    (id) => (placeById.get(id) ?? HOME_PLACE_NAME) === HOME_PLACE_NAME,
   );
   console.log(`axis: ${axis.join(" – ")}`);
-  const [frameX, frameY] = (readOption("--frame") ?? "26x32").split("x").map(Number);
-  const layout = solveRegionLayout({
-    nodes: layoutNodes,
-    edges,
-    pins,
-    axis,
-    homeId: HOME_STOP_ID,
-    grid,
-    spacing: Number(readOption("--spacing") ?? 2),
-    frame: { x: frameX, y: frameY },
-    seed,
-    ...(readOption("--steps") ? { steps: Number(readOption("--steps")) } : {}),
-  });
-  console.log(`  ${layout.bends.size} bends, cost ${layout.cost}`);
-  if (layout.faults.length > 0) {
-    console.error(`  ${layout.faults.length} faults remain:`);
-    for (const fault of layout.faults) console.error(`    ${fault}`);
-    console.error(
-      "No arrangement without faults was found. Try another --seed or a larger --frame.",
-    );
-    process.exitCode = 1;
-    return;
+  const gap = Number(readOption("--gap") ?? 1.5);
+  const solved: Partial<Record<RegionScaleName, RegionPlan>> = {};
+  for (const name of Object.keys(SCALES) as RegionScaleName[]) {
+    const scale = SCALES[name];
+    const layout = solveRegionLayout({
+      nodes: layoutNodes,
+      edges,
+      core: { cell: ZENTRUM_SCHEMATIC_GRID, stops: ZENTRUM_SCHEMATIC_NODES },
+      axis,
+      homeId: HOME_STOP_ID,
+      scale,
+      grid,
+      gap,
+    });
+    console.log(`  ${name}: ${layout.bends.size} bends, cost ${layout.cost}`);
+    if (layout.faults.length > 0) {
+      console.error(`  ${layout.faults.length} faults remain:`);
+      for (const fault of layout.faults) console.error(`    ${fault}`);
+      process.exitCode = 1;
+      return;
+    }
+    solved[name] = formatPlan(plan, layout, grid, axis, zoneRadii(scale, layout.unitsPerKm));
   }
   const outputPath = readOption("--out") ?? OUTPUT_PATH;
-  writeFileSync(outputPath, formatPlan(plan, layout, grid, saved.capturedAt));
+  writeFileSync(outputPath, formatPlans(solved, saved.capturedAt));
   console.log(`-> ${outputPath}`);
 }
 
 const edgesOf = (plan: ReturnType<typeof deriveRegionPlan>) =>
   plan.edges.map(({ fromId, toId }) => ({ from: fromId, to: toId }));
 
+/** The zones' outer edges, in map units around home; a fisheye has none. */
+function zoneRadii(scale: RegionScale, unitsPerKm: number): number[] {
+  if (scale.kind === "fisheye") return [];
+  return scale.zones
+    .filter(({ untilKm }) => Number.isFinite(untilKm))
+    .map(({ untilKm }) => compressRegion({ x: untilKm, y: 0 }, scale).x * unitsPerKm);
+}
+
 function formatPlan(
   plan: ReturnType<typeof deriveRegionPlan>,
   layout: RegionLayout,
   grid: number,
-  capturedAt: readonly string[],
-): string {
+  axis: readonly string[],
+  zones: readonly number[],
+): RegionPlan {
   const nodes = plan.nodes
     .map((node) => {
       const point = layout.positions.get(node.id) ?? { x: 0, y: 0 };
@@ -224,26 +262,37 @@ function formatPlan(
     .sort((left, right) => left.y - right.y || left.x - right.x);
   const edges = [...plan.edges]
     .map((edge) => {
-      const via = layout.bends.get(regionEdgeKey({ from: edge.fromId, to: edge.toId }));
-      return via ? { ...edge, via } : edge;
+      const bends = layout.bends.get(regionEdgeKey({ from: edge.fromId, to: edge.toId }));
+      return bends ? { ...edge, bends } : edge;
     })
     .sort(
       (left, right) =>
         left.fromId.localeCompare(right.fromId) || left.toId.localeCompare(right.toId),
     );
+  const homePoint = layout.positions.get(HOME_STOP_ID) ?? { x: 0, y: 0 };
+  return {
+    grid,
+    viewBox: layout.viewBox,
+    axis,
+    ...(zones.length > 0 ? { zones: { center: homePoint, radii: zones } } : {}),
+    nodes,
+    edges,
+  };
+}
+
+function formatPlans(
+  plans: Partial<Record<RegionScaleName, RegionPlan>>,
+  capturedAt: readonly string[],
+): string {
   return `// Generated by scripts/solve-region-plan.ts — do not edit by hand.
 //
 // Observed ${capturedAt.join(", ")}.
 //
 // Refresh with: npm run solve:region
 
-import type { RegionPlan } from "../../lib/region-plan";
+import type { RegionPlan, RegionScaleName } from "../../lib/region-plan";
 
-export const REGION_PLAN: RegionPlan = ${JSON.stringify(
-    { grid, viewBox: layout.viewBox, nodes, edges },
-    null,
-    2,
-  )};
+export const REGION_PLANS: Record<RegionScaleName, RegionPlan> = ${JSON.stringify(plans, null, 2)};
 `;
 }
 

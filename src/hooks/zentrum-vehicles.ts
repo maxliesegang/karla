@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import type { Departure, DepartureBoard } from "../data/transit-types";
+import { runsEveryDay } from "../lib/daily-lines";
 import { getZentrumRunObservation } from "../lib/zentrum-run-observation";
 import { useLineRunDepartures } from "./line-run-departures";
 
@@ -21,4 +22,17 @@ export function useZentrumVehicles(departureBoards: readonly DepartureBoard[]): 
     observation.clockBoard,
     false,
   );
+}
+
+/** The Zentrum's runs on lines that run every day: the network maps leave out the rest. */
+export function useDailyZentrumVehicles(departureBoards: readonly DepartureBoard[]): {
+  runDepartures: readonly Departure[];
+  feedNow: number;
+} {
+  const { runDepartures, feedNow } = useZentrumVehicles(departureBoards);
+  const dailyRuns = useMemo(
+    () => runDepartures.filter(({ lineId }) => runsEveryDay(lineId)),
+    [runDepartures],
+  );
+  return { runDepartures: dailyRuns, feedNow };
 }

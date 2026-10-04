@@ -180,20 +180,27 @@ test("the plan is lit by a followed line or by an opened stop, and the address s
   assert.equal(routePaths.zentrum(), "/experiment/center");
 });
 
-test("the geographic map opens a stop of its own, and closing it returns to the map", () => {
-  const opened = parseRoute("#/experiment/geo/full/stop/durlach-bahnhof");
-  assert.equal(opened.experimentMap, "geo");
-  assert.equal(opened.mapStopId, "durlach-bahnhof");
-  assert.equal(opened.zentrumStopId, "");
-  assert.equal(opened.isMapFullscreen, true);
+test("hidden experiment map addresses open the Zentrum with the same selection and size", () => {
+  for (const map of ["geo", "region"] as const) {
+    assert.deepEqual(parseRoute(routePaths.map(map)), parseRoute(routePaths.zentrum()));
+    for (const isFullscreen of [false, true]) {
+      const path = routePaths.map(map, "durlach-bahnhof", isFullscreen);
+      assert.deepEqual(
+        parseRoute(path),
+        parseRoute(routePaths.zentrum({ stopId: "durlach-bahnhof" }, isFullscreen)),
+      );
+      assert.equal(layoutFor(path).backPath, routePaths.zentrum({}, isFullscreen));
+    }
+  }
+});
+
+test("experiment map paths carry their map, stop and size", () => {
+  assert.equal(routePaths.map("geo"), "/experiment/geo");
   assert.equal(
     routePaths.map("geo", "durlach-bahnhof", true),
     "/experiment/geo/full/stop/durlach-bahnhof",
   );
-  assert.equal(parseRoute("#/experiment/center").experimentMap, "center");
-  assert.equal(layoutFor("#/experiment/geo/stop/7001521").backPath, "/experiment/geo");
-  assert.equal(parseRoute("#/experiment/region/stop/entenfang").experimentMap, "region");
-  assert.equal(layoutFor("#/experiment/region/stop/entenfang").backPath, "/experiment/region");
+  assert.equal(routePaths.map("region", "entenfang"), "/experiment/region/stop/entenfang");
 });
 
 test("the experiment page opens the Zentrum plan, and the plan's earlier addresses still resolve", () => {

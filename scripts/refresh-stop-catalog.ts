@@ -3,7 +3,8 @@
  * - EFA `XML_STOPLIST_REQUEST`: the municipality's stops with provider id, global id, name,
  *   position and locality (which GTFS lacks).
  * - KVV's CC0 GTFS feed: lines and calls per stop, for the whole municipality in one download.
- * Joined on the global id, not on the provider id's shape.
+ * Joined on the global id, not on the provider id's shape. Also writes
+ * `src/data/generated/kvv-line-days.ts`: the rail and tram lines that do not run every day.
  *
  *     npm run refresh:stops
  *
@@ -20,6 +21,11 @@ import { createInterface } from "node:readline";
 const STOP_LIST_ENDPOINT = "https://projekte.kvv-efa.de/sl3-alone/XML_STOPLIST_REQUEST";
 const GTFS_ARCHIVE_URL = "https://projekte.kvv-efa.de/GTFS/google_transit.zip";
 const OUTPUT_PATH = new URL("../src/data/generated/kvv-stop-catalog.ts", import.meta.url);
+const LINE_DAYS_OUTPUT_PATH = new URL("../src/data/generated/kvv-line-days.ts", import.meta.url);
+/** GTFS `route_type`s of trams, metros and rail: the lines the maps draw. */
+const RAIL_ROUTE_TYPES = new Set(["0", "1", "2"]);
+/** A line runs on a weekday when it runs on at least this share of that weekday's dates. */
+const WEEKDAY_SHARE = 0.5;
 
 /** The official municipality key (Gemeindekennziffer). */
 const MUNICIPALITY_OMC = "8212000";
@@ -49,8 +55,12 @@ async function main(): Promise<void> {
     const feedVersion = await downloadGtfsArchive(archivePath);
     console.log(`GTFS: feed version ${feedVersion}`);
 
-    const lineByTripId = await readLineNamesByTrip(archivePath);
+    const { lineByTripId, serviceIdsByRailLine } = await readLinesByTrip(archivePath);
     console.log(`GTFS: ${lineByTripId.size} trips`);
+
+    const nonDailyLineIds = await readNonDailyLines(archivePath, serviceIdsByRailLine);
+    await writeFile(LINE_DAYS_OUTPUT_PATH, renderLineDaysModule(nonDailyLineIds, feedVersion));
+    console.log(`GTFS: lines not running every day: ${nonDailyLineIds.join(", ")}`);
 
     const serviceByGlobalId = await readServiceByStation(archivePath, lineByTripId);
     console.log(`GTFS: service read for ${serviceByGlobalId.size} stations`);
@@ -145,19 +155,83 @@ async function downloadGtfsArchive(archivePath: string): Promise<string> {
   return version;
 }
 
-/** The passenger-facing line name for each trip. */
-async function readLineNamesByTrip(archivePath: string): Promise<Map<string, string>> {
+/** The passenger-facing line name for each trip, and the services each rail line's trips run on. */
+async function readLinesByTrip(archivePath: string): Promise<{
+  lineByTripId: Map<string, string>;
+  serviceIdsByRailLine: Map<string, Set<string>>;
+}> {
   const nameByRouteId = new Map<string, string>();
-  for await (const [routeId, , shortName] of columnsOf(archivePath, "routes.txt", 3)) {
-    if (routeId && shortName) nameByRouteId.set(routeId, shortName);
+  const railRouteIds = new Set<string>();
+  for await (const [routeId, , shortName, , routeType] of columnsOf(archivePath, "routes.txt", 5)) {
+    if (!routeId || !shortName) continue;
+    nameByRouteId.set(routeId, shortName);
+    if (RAIL_ROUTE_TYPES.has(routeType ?? "")) railRouteIds.add(routeId);
   }
 
   const lineByTripId = new Map<string, string>();
-  for await (const [routeId, , tripId] of columnsOf(archivePath, "trips.txt", 3)) {
-    const name = nameByRouteId.get(routeId ?? "");
-    if (tripId && name) lineByTripId.set(tripId, name);
+  const serviceIdsByRailLine = new Map<string, Set<string>>();
+  for await (const [routeId = "", serviceId, tripId] of columnsOf(archivePath, "trips.txt", 3)) {
+    const name = nameByRouteId.get(routeId);
+    if (!tripId || !name) continue;
+    lineByTripId.set(tripId, name);
+    if (!railRouteIds.has(routeId) || !serviceId) continue;
+    const services = serviceIdsByRailLine.get(name) ?? new Set<string>();
+    services.add(serviceId);
+    serviceIdsByRailLine.set(name, services);
   }
-  return lineByTripId;
+  return { lineByTripId, serviceIdsByRailLine };
+}
+
+const DAY_MS = 86_400_000;
+const parseGtfsDate = (value: string): number =>
+  Date.UTC(Number(value.slice(0, 4)), Number(value.slice(4, 6)) - 1, Number(value.slice(6, 8)));
+
+/**
+ * The rail lines that miss a weekday: on fewer than `WEEKDAY_SHARE` of that weekday's dates in the
+ * feed period, none of their trips run.
+ */
+async function readNonDailyLines(
+  archivePath: string,
+  serviceIdsByLine: ReadonlyMap<string, ReadonlySet<string>>,
+): Promise<string[]> {
+  const datesByServiceId = new Map<string, Set<number>>();
+  let [periodStart, periodEnd] = [Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY];
+  for await (const [serviceId, ...fields] of columnsOf(archivePath, "calendar.txt", 10)) {
+    const [start, end] = [fields[7], fields[8]];
+    if (!serviceId || !start || !end) continue;
+    const dates = new Set<number>();
+    for (let day = parseGtfsDate(start); day <= parseGtfsDate(end); day += DAY_MS) {
+      // `monday` comes first; `getUTCDay` counts from Sunday.
+      if (fields[(new Date(day).getUTCDay() + 6) % 7] === "1") dates.add(day);
+    }
+    datesByServiceId.set(serviceId, dates);
+    periodStart = Math.min(periodStart, parseGtfsDate(start));
+    periodEnd = Math.max(periodEnd, parseGtfsDate(end));
+  }
+  for await (const [serviceId, date, type] of columnsOf(archivePath, "calendar_dates.txt", 3)) {
+    if (!serviceId || !date) continue;
+    const dates = datesByServiceId.get(serviceId) ?? new Set<number>();
+    datesByServiceId.set(serviceId, dates);
+    if (type === "1") dates.add(parseGtfsDate(date));
+    else dates.delete(parseGtfsDate(date));
+  }
+
+  const weekdayDates = Array.from({ length: 7 }, () => [] as number[]);
+  for (let day = periodStart; day <= periodEnd; day += DAY_MS) {
+    weekdayDates[new Date(day).getUTCDay()].push(day);
+  }
+  const nonDaily: string[] = [];
+  for (const [line, serviceIds] of serviceIdsByLine) {
+    const runs = new Set<number>();
+    for (const serviceId of serviceIds) {
+      for (const day of datesByServiceId.get(serviceId) ?? []) runs.add(day);
+    }
+    const missesAWeekday = weekdayDates.some(
+      (dates) => dates.filter((day) => runs.has(day)).length < dates.length * WEEKDAY_SHARE,
+    );
+    if (missesAWeekday) nonDaily.push(line);
+  }
+  return nonDaily.sort((left, right) => left.localeCompare(right, "de", { numeric: true }));
 }
 
 /**
@@ -260,6 +334,21 @@ function readFields(line: string, fieldCount: number): (string | undefined)[] {
     }
   }
   return fields;
+}
+
+function renderLineDaysModule(nonDailyLineIds: readonly string[], feedVersion: string): string {
+  return `// Generated by scripts/refresh-stop-catalog.ts — do not edit by hand.
+//
+// KVV GTFS feed version ${feedVersion} (CC0), https://projekte.kvv-efa.de/GTFS/google_transit.zip
+//
+// Refresh with: npm run refresh:stops
+
+/**
+ * Rail and tram lines that miss a weekday in the timetable period: weekday-only, weekend-only,
+ * night and leisure lines. A line not named here runs every day.
+ */
+export const kvvNonDailyLineIds: ReadonlySet<string> = new Set(${JSON.stringify(nonDailyLineIds).replaceAll(",", ", ")});
+`;
 }
 
 /** The generated module, one row per stop for clean diffs. */

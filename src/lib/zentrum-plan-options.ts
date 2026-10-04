@@ -8,12 +8,12 @@ export const ZENTRUM_PLAN_OPTION_GROUPS = [
 ] as const;
 
 export const ZENTRUM_PLAN_OPTION_DEFINITIONS = {
-  /** Vehicle paths are shown only in the overview. */
+  /** Paths are drawn only in the overview; at an opened stop, departed trams recede less. */
   vehiclePathMode: {
     group: "overview",
     label: "Fahrwege",
-    description: "Färbt die Strecke, die jede Bahn im Plan noch vor sich hat.",
-    isOverviewOnly: true,
+    description:
+      "Färbt die Strecke, die jede Bahn im Plan noch vor sich hat. An einer geöffneten Haltestelle bleiben Bahnen, die von ihr wegfahren, halb sichtbar.",
     choices: [
       { value: "off", label: "Aus" },
       { value: "ahead", label: "An" },

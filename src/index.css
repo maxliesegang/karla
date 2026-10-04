@@ -504,24 +504,22 @@ button.brand:active .brand-mark,
   margin-bottom: 8px;
 }
 /* One row at every width: the stops are a shortcut strip, not a shelf — a second band costs the
-   pages below a row each. Where four names overflow the measure, the row rides off the edge and
-   the thumb — or a sideways swipe where there is no thumb — travels it. */
+   pages below a row each. The row shows the stops that fit whole and drops the rest: a chip cut at
+   the edge, or a name cut short, reads as broken rather than as a row that goes on. The chips wrap
+   so the ones past the first line can be found and hidden (`HomeEntry`); the newest come first,
+   so the ones dropped are the stops least likely to be the answer. */
 .recent-stops ul {
   display: flex;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   gap: 8px;
   margin: 0;
   padding: 0;
   list-style: none;
-  overflow-x: auto;
-  overscroll-behavior-x: contain;
-  scrollbar-width: none;
 }
-.recent-stops ul::-webkit-scrollbar {
-  display: none;
-}
+/* A single name wider than the whole row is the one cut short rather than left out. */
 .recent-stops li {
-  flex: 0 0 auto;
+  min-width: 0;
+  max-width: 100%;
 }
 /* The stops are the loud row of the home: a rider who has been here before is answered by one of
    these, and everything else on the page is for the visit where none of them is the answer. */
@@ -541,6 +539,12 @@ button.brand:active .brand-mark,
 }
 .recent-stops a:hover {
   border-color: var(--shell-accent);
+}
+.recent-stops a span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .recent-stops a b {
   color: var(--accent-ink);
@@ -1399,6 +1403,16 @@ button.brand:active .brand-mark,
 .zentrum-schematic-vehicle[data-dimmed="true"][data-selected="true"] {
   opacity: 1;
 }
+/* A tram of the opened stop's lines that has left it: still its line's colour, but behind the
+   ones the stop waits for, and well clear of the lines the stop does not serve. */
+.zentrum-schematic-vehicle[data-departed="true"] {
+  opacity: 0.55;
+}
+.zentrum-schematic-vehicle[data-departed="true"]:hover,
+.zentrum-schematic-vehicle[data-departed="true"]:focus-visible,
+.zentrum-schematic-vehicle[data-departed="true"][data-selected="true"] {
+  opacity: 1;
+}
 /* The stop mark: one fine rule laid across the lines calling there, the tick every printed transit
    plan marks a station with. It is drawn over the band rather than under it, and it is thin enough
    that it never hides a colour for longer than its own width -- which is what lets the network stay
@@ -1868,12 +1882,26 @@ button.brand:active .brand-mark,
 /* As tall as an opened stop's bar, so the band never moves when one opens. */
 /* ---------- Experiment page: map choice and the geographic map ---------- */
 /* Bottom left, across from the zoom: the top of a phone's plan holds the centre's names. */
-.experiment-map-switch {
+.experiment-map-switch,
+.experiment-map-options {
   position: absolute;
-  bottom: 10px;
   left: 10px;
   z-index: 6;
   box-shadow: 0 2px 8px #10201f1f;
+}
+.experiment-map-switch {
+  bottom: 10px;
+}
+.experiment-map-options {
+  top: 10px;
+}
+/* A zone's edge: where the map changes its scale. */
+.experiment-map-zones path {
+  fill: none;
+  stroke: color-mix(in srgb, var(--ink) 22%, var(--surface));
+  stroke-width: 1.2px;
+  stroke-dasharray: 5 5;
+  vector-effect: non-scaling-stroke;
 }
 .experiment-map-canvas {
   position: relative;
@@ -1883,35 +1911,27 @@ button.brand:active .brand-mark,
   position: absolute;
   inset: 0;
 }
-.experiment-map-canvas polyline {
+.experiment-map-canvas path {
   fill: none;
   stroke-linejoin: round;
 }
-.experiment-map-links polyline {
+.experiment-map-links path {
   stroke: color-mix(in srgb, var(--ink) 34%, var(--surface));
   stroke-width: 1.4px;
   stroke-linecap: round;
   vector-effect: non-scaling-stroke;
 }
-.experiment-map-links polyline[data-weight="2"] {
+.experiment-map-links path[data-weight="2"] {
   stroke-width: 2px;
 }
-.experiment-map-links polyline[data-weight="3"],
-.experiment-map-links polyline[data-weight="4"] {
+.experiment-map-links path[data-weight="3"],
+.experiment-map-links path[data-weight="4"] {
   stroke-width: 2.8px;
 }
-.experiment-map-canvas[data-has-selection="true"] .experiment-map-links polyline {
+.experiment-map-canvas[data-has-selection="true"] .experiment-map-links path {
   stroke: color-mix(in srgb, var(--ink) 16%, var(--surface));
 }
-.experiment-map-lines polyline {
-  stroke-width: 3px;
-  stroke-linecap: round;
-  vector-effect: non-scaling-stroke;
-}
-.experiment-map-lines[data-dimmed="true"] {
-  opacity: 0.16;
-}
-.experiment-map-lit polyline {
+.experiment-map-lit path {
   stroke-width: 3px;
   stroke-linecap: round;
   vector-effect: non-scaling-stroke;
@@ -1972,7 +1992,7 @@ button.brand:active .brand-mark,
 .experiment-map-stop > span {
   position: absolute;
   top: 50%;
-  left: calc(50% + 6px);
+  left: calc(50% + var(--experiment-label-gap, 6px));
   display: flex;
   align-items: baseline;
   gap: 0.3em;
@@ -1985,9 +2005,15 @@ button.brand:active .brand-mark,
     0 0 3px var(--surface),
     0 0 5px var(--surface);
 }
+/* A name shown unasked steps back behind the lines; an opened stop's answers keep full ink. */
+.experiment-map-stop[data-at-rest="true"] > span {
+  color: var(--ink-soft);
+  font-size: 11px;
+  font-weight: 550;
+}
 .experiment-map-stop[data-side="left"] > span {
   left: auto;
-  right: calc(50% + 6px);
+  right: calc(50% + var(--experiment-label-gap, 6px));
 }
 .experiment-map-stop:is([data-side="above"], [data-side="below"]) > span {
   left: 50%;
@@ -1995,10 +2021,10 @@ button.brand:active .brand-mark,
 }
 .experiment-map-stop[data-side="above"] > span {
   top: auto;
-  bottom: calc(50% + 6px);
+  bottom: calc(50% + var(--experiment-label-gap, 6px));
 }
 .experiment-map-stop[data-side="below"] > span {
-  top: calc(50% + 6px);
+  top: calc(50% + var(--experiment-label-gap, 6px));
 }
 .experiment-map-stop[data-selected="true"] > span {
   font-size: 13px;
@@ -2015,6 +2041,33 @@ button.brand:active .brand-mark,
 .experiment-map-stop:hover::before,
 .experiment-map-stop:focus-visible::before {
   border-color: var(--ink);
+}
+/* A place on an arm: a tick across its line, named while pointed at. */
+.experiment-map-stop[data-tick="true"]::before {
+  inset: 3px auto auto 7px;
+  width: 2px;
+  height: 10px;
+  border: 0;
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--ink) 45%, var(--surface));
+  transform: rotate(var(--experiment-tick-angle, 0deg));
+}
+.experiment-map-stop[data-tick="true"][data-reached="true"]::before {
+  background: var(--experiment-line-color);
+}
+.experiment-map-canvas[data-has-selection="true"]
+  .experiment-map-stop[data-tick="true"]:not(
+    [data-reached="true"],
+    [data-selected="true"]
+  )::before {
+  background: color-mix(in srgb, var(--ink) 18%, var(--surface));
+}
+.experiment-map-stop > span[data-hover] {
+  display: none;
+}
+.experiment-map-stop:is(:hover, :focus-visible) > span[data-hover] {
+  z-index: 4;
+  display: flex;
 }
 
 .zentrum-schematic-toolbar {
@@ -6138,4 +6191,14 @@ button.line-diagram-bundle-option:focus-visible {
     animation: none !important;
     transition: none !important;
   }
+}
+
+/* A map being dragged with the mouse: it holds the hand, and nothing under it reacts or selects. */
+.zentrum-schematic-scroll.is-drag-panning {
+  cursor: grabbing;
+  user-select: none;
+}
+.zentrum-schematic-scroll.is-drag-panning * {
+  cursor: grabbing;
+  pointer-events: none;
 }

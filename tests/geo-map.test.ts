@@ -8,6 +8,8 @@ import {
   getGeoPlaces,
   getGeoStopId,
   placeGeoLabels,
+  toRoundedPath,
+  toOctagon,
   projectGeoPosition,
 } from "../src/lib/geo-map.ts";
 import { createDeparture } from "./support/fixtures.ts";
@@ -194,4 +196,100 @@ test("sets labels by priority, beside their point, and drops those with no room"
   assert.equal(placed.has("apart"), true);
   // Beside "first" every side overlaps either it or its label.
   assert.equal(placed.has("crowded"), false);
+});
+
+test("keeps a name off the drawn lines while one side of its point is clear", () => {
+  const placed = placeGeoLabels([{ id: "europaplatz", x: 100, y: 100, width: 60, height: 14 }], {
+    lines: [{ from: { x: 0, y: 100 }, to: { x: 300, y: 100 }, halfWidth: 6 }],
+  });
+  assert.equal(placed.get("europaplatz"), "above");
+});
+
+test("sets a name over a line rather than leave it out, when every side crosses one", () => {
+  const placed = placeGeoLabels([{ id: "marktplatz", x: 100, y: 100, width: 60, height: 14 }], {
+    lines: [
+      { from: { x: 0, y: 100 }, to: { x: 300, y: 100 }, halfWidth: 6 },
+      { from: { x: 100, y: 0 }, to: { x: 100, y: 300 }, halfWidth: 6 },
+    ],
+  });
+  assert.equal(placed.get("marktplatz"), "right");
+});
+
+test("keeps names inside the map", () => {
+  const placed = placeGeoLabels([{ id: "heilbronn", x: 290, y: 50, width: 60, height: 14 }], {
+    frame: { left: 0, top: 0, right: 300, bottom: 300 },
+  });
+  assert.equal(placed.get("heilbronn"), "left");
+});
+
+test("keeps a name clear of the next dot, so two names never read as one", () => {
+  const placed = placeGeoLabels([{ id: "hauptbahnhof", x: 0, y: 0, width: 40, height: 14 }], {
+    dots: [
+      { x: 0, y: 0 },
+      { x: 48, y: 0 },
+    ],
+  });
+  assert.notEqual(placed.get("hauptbahnhof"), "right");
+  assert.equal(placed.has("hauptbahnhof"), true);
+});
+
+test("sets a name beyond a wide bundle, off the lines it would otherwise cover", () => {
+  const placed = placeGeoLabels(
+    [{ id: "europaplatz", x: 100, y: 100, width: 60, height: 14, gap: 16 }],
+    {
+      lines: [
+        { from: { x: 0, y: 100 }, to: { x: 300, y: 100 }, halfWidth: 14 },
+        { from: { x: 100, y: 100 }, to: { x: 100, y: 300 }, halfWidth: 14 },
+      ],
+    },
+  );
+  assert.equal(placed.get("europaplatz"), "above");
+});
+
+test("rounds a way's bend by a radius, never past half its shorter leg", () => {
+  assert.equal(
+    toRoundedPath(
+      [
+        { x: 0, y: 0 },
+        { x: 10, y: 0 },
+        { x: 10, y: 10 },
+      ],
+      2,
+    ),
+    "M0 0L8 0Q10 0 10 2L10 10",
+  );
+  assert.equal(
+    toRoundedPath(
+      [
+        { x: 0, y: 0 },
+        { x: 2, y: 0 },
+        { x: 2, y: 10 },
+      ],
+      4,
+    ),
+    "M0 0L1 0Q2 0 2 1L2 10",
+  );
+  assert.equal(
+    toRoundedPath(
+      [
+        { x: 0, y: 0 },
+        { x: 5, y: 5 },
+      ],
+      4,
+    ),
+    "M0 0L5 5",
+  );
+});
+
+test("outlines a zone as an octagon whose sides stand its radius from the centre", () => {
+  const corners = toOctagon({ x: 10, y: 10 }, 4);
+  assert.equal(corners.length, 8);
+  const xs = corners.map(({ x }) => x);
+  const ys = corners.map(({ y }) => y);
+  assert.ok(Math.abs(Math.max(...xs) - 14) < 1e-9 && Math.abs(Math.min(...ys) - 6) < 1e-9);
+  // Every other side is a diagonal at the same distance.
+  const onDiagonal = (point: { x: number; y: number }) =>
+    Math.abs(point.x - 10 + (point.y - 10)) / Math.SQRT2;
+  assert.ok(Math.abs(onDiagonal(corners[1]) - 4) < 1e-9);
+  assert.ok(Math.abs(onDiagonal(corners[2]) - 4) < 1e-9);
 });

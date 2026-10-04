@@ -1,4 +1,4 @@
-import type { ComponentProps } from "react";
+import type { ComponentProps, ReactNode } from "react";
 import { type ExperimentMapScale, useExperimentMapCanvas } from "../../hooks/experiment-map-canvas";
 import type { ExperimentMap } from "../../routing";
 import { ZentrumPlanControls } from "../zentrum/ZentrumSchematicToolbar";
@@ -13,6 +13,7 @@ export function ExperimentMapStage({
   scale,
   isFullscreen,
   onChangeFullscreen,
+  options,
 }: {
   map: ExperimentMap;
   canvas: Omit<ComponentProps<typeof ExperimentMapCanvas>, "scale" | "scrollRef" | "onScroll">;
@@ -21,6 +22,8 @@ export function ExperimentMapStage({
   scale: ExperimentMapScale;
   isFullscreen: boolean;
   onChangeFullscreen: (isFullscreen: boolean) => void;
+  /** Choices for how this map draws, floating in its top corner. */
+  options?: ReactNode;
 }) {
   const canvas = useExperimentMapCanvas(canvasProps.bounds, openOn, scale);
   return (
@@ -41,6 +44,7 @@ export function ExperimentMapStage({
         wholeLabel="ganze Karte"
       />
       <ExperimentMapSwitch map={map} />
+      {options && <div className="experiment-map-options">{options}</div>}
     </div>
   );
 }

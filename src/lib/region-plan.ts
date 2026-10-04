@@ -3,7 +3,16 @@
  * ends; every other place once per branch. Solved into an octilinear drawing offline
  * (`npm run solve:region`).
  */
-import { type GeoLink, type GeoNetwork, type GeoStop, getGeoLinkId } from "./geo-map";
+import {
+  type GeoLink,
+  type GeoNetwork,
+  type GeoStop,
+  getGeoLinkId,
+  type MapZones,
+} from "./geo-map";
+
+/** The place whose stops the plan reduces to junctions and ends. */
+export const REGION_HOME_PLACE_NAME = "Karlsruhe";
 
 export type RegionNode = {
   /** The stop the node is drawn for, and the id it opens by. */
@@ -19,13 +28,20 @@ export type RegionEdge = { fromId: string; toId: string; lineIds: readonly strin
 
 export type RegionPlanNodes = { nodes: readonly RegionNode[]; edges: readonly RegionEdge[] };
 
+/** How a region plan shrinks with distance from Marktplatz. */
+export type RegionScaleName = "fisheye" | "zones" | "arms";
+
 /** The solved drawing, in grid units, as `npm run solve:region` writes it. */
 export type RegionPlan = {
   grid: number;
   viewBox: { x: number; y: number; width: number; height: number };
+  /** The east–west axis through the Zentrum, west to east. */
+  axis: readonly string[];
+  /** Where each zone ends; only a zoned plan has them. */
+  zones?: MapZones;
   nodes: readonly (RegionNode & { x: number; y: number; labelSide?: string })[];
-  /** `via` is the one bend an edge may take. */
-  edges: readonly (RegionEdge & { via?: { x: number; y: number } })[];
+  /** `bends` are the corners an edge turns at, in order from its `fromId`. */
+  edges: readonly (RegionEdge & { bends?: readonly { x: number; y: number }[] })[];
 };
 
 const sameSet = (left: readonly string[], right: readonly string[]): boolean =>

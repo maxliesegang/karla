@@ -36,8 +36,11 @@ export type MapDrawing = {
       y: number;
     }
   >;
-  links: readonly (GeoLink & { via?: { x: number; y: number } })[];
+  links: readonly (GeoLink & { bends?: readonly { x: number; y: number }[] })[];
 };
+
+/** Zone edges around a centre, in map units: where a map changes its scale. */
+export type MapZones = { center: { x: number; y: number }; radii: readonly number[] };
 
 /** The geographic network drawn in kilometres from Marktplatz. */
 export const toGeoDrawing = (network: GeoNetwork): MapDrawing => ({
@@ -145,21 +148,27 @@ export function projectGeoPosition({ latitude, longitude }: GeoPosition): { x: n
 
 export type GeoBox = { x: number; y: number; width: number; height: number };
 
-/** The kilometres the drawn stops span, with a margin; the city centre when nothing is drawn. */
-export function getGeoBounds(network: GeoNetwork, margin = 1.5): GeoBox {
-  const points = [...network.stops.values()].map(projectGeoPosition);
-  if (points.length === 0) return { x: -5, y: -5, width: 10, height: 10 };
+/** The box around some points, with a margin on every side. */
+export function getPointsBox(
+  points: readonly { x: number; y: number }[],
+  margin: number,
+): GeoBox | undefined {
+  if (points.length === 0) return undefined;
   const xs = points.map(({ x }) => x);
   const ys = points.map(({ y }) => y);
   const x = Math.min(...xs) - margin;
   const y = Math.min(...ys) - margin;
-  return {
-    x,
-    y,
-    width: Math.max(...xs) + margin - x,
-    height: Math.max(...ys) + margin - y,
-  };
+  return { x, y, width: Math.max(...xs) + margin - x, height: Math.max(...ys) + margin - y };
 }
+
+/** The kilometres the drawn stops span, with a margin; the city centre when nothing is drawn. */
+export const getGeoBounds = (network: GeoNetwork, margin = 1.5): GeoBox =>
+  getPointsBox([...network.stops.values()].map(projectGeoPosition), margin) ?? {
+    x: -5,
+    y: -5,
+    width: 10,
+    height: 10,
+  };
 
 /** A town or district, named as the feed names the place of its stops. */
 export type GeoPlace = GeoPosition & { name: string; stopCount: number };
@@ -228,8 +237,15 @@ export function getGeoDestinationLabels(
 /** Where a label stands from its point; `center` is over it. */
 export type GeoLabelSide = "right" | "left" | "above" | "below" | "center";
 
-/** A label to set beside its point, in screen pixels. */
-export type GeoLabelCandidate = { id: string; x: number; y: number; width: number; height: number };
+/** A label to set beside its point, in screen pixels; `gap` clears what is drawn at the point. */
+export type GeoLabelCandidate = {
+  id: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  gap?: number;
+};
 
 /** Room between a point and its label, and around a labelled point. */
 const GEO_LABEL_GAP = 6;
@@ -243,38 +259,89 @@ const overlaps = (a: GeoRect, b: GeoRect): boolean =>
   a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 
 export const getGeoLabelRect = (
-  { x, y, width, height }: GeoLabelCandidate,
+  { x, y, width, height, gap = GEO_LABEL_GAP }: GeoLabelCandidate,
   side: GeoLabelSide,
 ): GeoRect => {
-  const left =
-    side === "right"
-      ? x + GEO_LABEL_GAP
-      : side === "left"
-        ? x - GEO_LABEL_GAP - width
-        : x - width / 2;
-  const top =
-    side === "above"
-      ? y - GEO_LABEL_GAP - height
-      : side === "below"
-        ? y + GEO_LABEL_GAP
-        : y - height / 2;
+  const left = side === "right" ? x + gap : side === "left" ? x - gap - width : x - width / 2;
+  const top = side === "above" ? y - gap - height : side === "below" ? y + gap : y - height / 2;
   return { left, top, right: left + width, bottom: top + height };
 };
 
+const dotBox = ({ x, y }: { x: number; y: number }): GeoRect => ({
+  left: x - GEO_LABEL_GAP,
+  top: y - GEO_LABEL_GAP,
+  right: x + GEO_LABEL_GAP,
+  bottom: y + GEO_LABEL_GAP,
+});
+
 const GEO_LABEL_SIDES: readonly GeoLabelSide[] = ["right", "left", "above", "below"];
+/** Room kept between two names, so they never read as one. */
+const GEO_LABEL_SPACING = 3;
+
+/** A drawn line on screen: a segment and half its painted width, in pixels. */
+export type GeoSegment = {
+  from: { x: number; y: number };
+  to: { x: number; y: number };
+  halfWidth: number;
+};
+
+const inflate = (rect: GeoRect, by: number): GeoRect => ({
+  left: rect.left - by,
+  top: rect.top - by,
+  right: rect.right + by,
+  bottom: rect.bottom + by,
+});
+
+/** Whether a segment passes through a box (Liang–Barsky clipping). */
+function crossesRect({ from, to, halfWidth }: GeoSegment, rect: GeoRect): boolean {
+  const box = inflate(rect, halfWidth);
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  let enter = 0;
+  let leave = 1;
+  for (const [p, q] of [
+    [-dx, from.x - box.left],
+    [dx, box.right - from.x],
+    [-dy, from.y - box.top],
+    [dy, box.bottom - from.y],
+  ]) {
+    if (p === 0) {
+      if (q <= 0) return false;
+      continue;
+    }
+    const t = q / p;
+    if (p < 0) enter = Math.max(enter, t);
+    else leave = Math.min(leave, t);
+    if (enter > leave) return false;
+  }
+  return true;
+}
 
 /**
- * Labels in the order given, each on the first free side of its point and clear of `obstacles`;
- * the rest stay unset.
+ * Labels in the order given, each on the first side of its point that stays inside `frame` and
+ * clear of other names, `dots` and `obstacles`, preferring one no line crosses; the rest stay unset.
  */
 export function placeGeoLabels(
   candidates: readonly GeoLabelCandidate[],
-  sides: readonly GeoLabelSide[] = GEO_LABEL_SIDES,
-  obstacles: readonly GeoRect[] = [],
+  {
+    sides = GEO_LABEL_SIDES,
+    obstacles = [],
+    dots = [],
+    lines = [],
+    frame,
+  }: {
+    sides?: readonly GeoLabelSide[];
+    obstacles?: readonly GeoRect[];
+    /** Every drawn point, labelled or not. */
+    dots?: readonly { x: number; y: number }[];
+    lines?: readonly GeoSegment[];
+    frame?: GeoRect;
+  } = {},
 ): ReadonlyMap<string, GeoLabelSide> {
   const placed = new Map<string, GeoLabelSide>();
   const taken: GeoRect[] = [...obstacles];
   const labelledPoints: { x: number; y: number }[] = [];
+  const dotBoxes = dots.map((dot) => ({ dot, box: dotBox(dot) }));
   for (const candidate of candidates) {
     const { x, y } = candidate;
     if (
@@ -284,19 +351,83 @@ export function placeGeoLabels(
     ) {
       continue;
     }
-    const side = sides.find((option) => {
-      const rect = getGeoLabelRect(candidate, option);
-      return !taken.some((other) => overlaps(rect, other));
-    });
+    const fits = (rect: GeoRect) =>
+      (!frame ||
+        (rect.left >= frame.left &&
+          rect.top >= frame.top &&
+          rect.right <= frame.right &&
+          rect.bottom <= frame.bottom)) &&
+      !taken.some((other) => overlaps(inflate(rect, GEO_LABEL_SPACING), other)) &&
+      !dotBoxes.some(
+        ({ dot, box }) => Math.hypot(dot.x - x, dot.y - y) > 0.5 && overlaps(rect, box),
+      );
+    const isClear = (rect: GeoRect) => !lines.some((line) => crossesRect(line, rect));
+    const rectOf = (side: GeoLabelSide) => getGeoLabelRect(candidate, side);
+    const side =
+      sides.find((option) => fits(rectOf(option)) && isClear(rectOf(option))) ??
+      sides.find((option) => fits(rectOf(option)));
     if (!side) continue;
     placed.set(candidate.id, side);
-    taken.push(getGeoLabelRect(candidate, side), {
-      left: x - GEO_LABEL_GAP,
-      top: y - GEO_LABEL_GAP,
-      right: x + GEO_LABEL_GAP,
-      bottom: y + GEO_LABEL_GAP,
-    });
+    taken.push(rectOf(side), dotBox({ x, y }));
     labelledPoints.push({ x, y });
   }
   return placed;
+}
+
+const round2 = (value: number): number => Math.round(value * 100) / 100;
+
+/** A way as an SVG path, each bend rounded by `radius`, at most half the shorter leg. */
+export function toRoundedPath(points: readonly { x: number; y: number }[], radius: number): string {
+  const [first, ...rest] = points;
+  if (!first) return "";
+  let path = `M${round2(first.x)} ${round2(first.y)}`;
+  for (const [index, point] of rest.entries()) {
+    const previous = points[index];
+    const next = rest[index + 1];
+    if (!next) {
+      path += `L${round2(point.x)} ${round2(point.y)}`;
+      continue;
+    }
+    const inLength = Math.hypot(point.x - previous.x, point.y - previous.y);
+    const outLength = Math.hypot(next.x - point.x, next.y - point.y);
+    const cut = Math.min(radius, inLength / 2, outLength / 2);
+    const enter = {
+      x: point.x - ((point.x - previous.x) / (inLength || 1)) * cut,
+      y: point.y - ((point.y - previous.y) / (inLength || 1)) * cut,
+    };
+    const leave = {
+      x: point.x + ((next.x - point.x) / (outLength || 1)) * cut,
+      y: point.y + ((next.y - point.y) / (outLength || 1)) * cut,
+    };
+    path += `L${round2(enter.x)} ${round2(enter.y)}Q${round2(point.x)} ${round2(point.y)} ${round2(leave.x)} ${round2(leave.y)}`;
+  }
+  return path;
+}
+
+/** A closed way as an SVG path, every corner rounded by `radius`. */
+export function toRoundedRing(points: readonly { x: number; y: number }[], radius: number): string {
+  const first = points[0];
+  const last = points[points.length - 1];
+  if (!first || !last) return "";
+  // Starts between two corners, so the first is rounded too.
+  const start = { x: (first.x + last.x) / 2, y: (first.y + last.y) / 2 };
+  return `${toRoundedPath([start, ...points, start], radius)}Z`;
+}
+
+/** A regular octagon around `center`, each side `radius` from it: a zone's edge on an octilinear map. */
+export function toOctagon(
+  center: { x: number; y: number },
+  radius: number,
+): { x: number; y: number }[] {
+  const half = radius * Math.tan(Math.PI / 8);
+  return [
+    { x: radius, y: -half },
+    { x: radius, y: half },
+    { x: half, y: radius },
+    { x: -half, y: radius },
+    { x: -radius, y: half },
+    { x: -radius, y: -half },
+    { x: -half, y: -radius },
+    { x: half, y: -radius },
+  ].map(({ x, y }) => ({ x: center.x + x, y: center.y + y }));
 }

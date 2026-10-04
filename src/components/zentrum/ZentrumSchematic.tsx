@@ -17,6 +17,7 @@ import {
   getMinutesUntilArrival,
   getRideMinutes,
   getZentrumVehiclePathsOverlay,
+  getZentrumApproachingVehicleIds,
   getZentrumStopBoard,
   getZentrumTravelTimes,
   type ZentrumTravelTime,
@@ -27,9 +28,10 @@ import {
   type ZentrumSchematicNode,
   zentrumSchematicNodeById,
 } from "../../lib/zentrum-schematic-plan";
+import { ARE_OTHER_EXPERIMENT_MAPS_SHOWN } from "../../routing";
+import { ExperimentMapSwitch } from "../experiment/ExperimentMapSwitch";
 import type { ZentrumLineSignReader } from "./line-sign";
 import { ZentrumSchematicCanvas, type ZentrumStopTravelTag } from "./ZentrumSchematicCanvas";
-import { ExperimentMapSwitch } from "../experiment/ExperimentMapSwitch";
 import { ZentrumPlanOptionsMenu } from "./ZentrumPlanOptionsMenu";
 import { ZentrumPlanControls, ZentrumSchematicToolbar } from "./ZentrumSchematicToolbar";
 import {
@@ -220,6 +222,14 @@ export function ZentrumSchematic({
     [stopReading, selectedStop, stopBoard, vehicles, runDepartures, feedNow, options.travelMeasure],
   );
   const isShowingVehiclePaths = !selectedStop && options.vehiclePathMode === "ahead";
+  // With Fahrwege on, an opened stop keeps the trams that have left it half visible.
+  const departedVehicleIds = useMemo(() => {
+    if (!selectedStop || options.vehiclePathMode !== "ahead") return undefined;
+    const approachingIds = getZentrumApproachingVehicleIds(vehicles, selectedStop.id);
+    return new Set(
+      vehicles.filter((vehicle) => !approachingIds.has(vehicle.id)).map((vehicle) => vehicle.id),
+    );
+  }, [selectedStop, options.vehiclePathMode, vehicles]);
   const overlay = useMemo(
     () =>
       stopView?.overlay ??
@@ -317,6 +327,7 @@ export function ZentrumSchematic({
           overlay={overlay}
           unlitLineStyle={options.unlitLineStyle}
           vehicleMinutesById={stopView?.vehicleMinutesById}
+          departedVehicleIds={departedVehicleIds}
           stopMinutesByNodeId={stopView?.stopMinutesByNodeId}
           selectedVehicleId={selectedVehicleId}
           onSelectVehicle={toggleVehicle}
@@ -332,9 +343,9 @@ export function ZentrumSchematic({
           onChangeZoom={plan.changeZoom}
           isFullscreen={isFullscreen}
           onChangeFullscreen={onChangeFullscreen}
-          optionsMenu={<ZentrumPlanOptionsMenu isStopOpen={selectedStop !== undefined} />}
+          optionsMenu={<ZentrumPlanOptionsMenu />}
         />
-        <ExperimentMapSwitch map="center" />
+        {ARE_OTHER_EXPERIMENT_MAPS_SHOWN && <ExperimentMapSwitch map="center" />}
       </div>
       <ZentrumSchematicToolbar
         caption={

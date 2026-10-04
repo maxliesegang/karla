@@ -1,7 +1,7 @@
-import { useCallback, useEffect } from "react";
+import { type ReactNode, useCallback, useEffect } from "react";
 import type { ExperimentMapScale } from "../../hooks/experiment-map-canvas";
 import type { DirectTravelTime } from "../../lib/direct-travel-times";
-import type { GeoBox, MapDrawing } from "../../lib/geo-map";
+import type { GeoBox, MapDrawing, MapZones } from "../../lib/geo-map";
 import {
   navigateTo,
   type OtherExperimentMap,
@@ -22,7 +22,6 @@ export function ExperimentMapPage({
   places = [],
   bounds,
   scale,
-  homePoint,
   selectedStopId,
   times,
   feedNow,
@@ -30,7 +29,9 @@ export function ExperimentMapPage({
   isAnswered,
   isFullscreen,
   overviewCaption,
-  linesAtRest,
+  quietStopIds,
+  zones,
+  options,
 }: {
   map: OtherExperimentMap;
   /** The section's accessible name. */
@@ -38,9 +39,8 @@ export function ExperimentMapPage({
   drawing: MapDrawing;
   places?: readonly { name: string; x: number; y: number }[];
   bounds: GeoBox;
+  /** Without an opened stop the map opens on the middle of `scale.opening`. */
   scale: ExperimentMapScale;
-  /** Where the map opens without an opened stop. */
-  homePoint: { x: number; y: number };
   /** The opened stop, as the address names it. */
   selectedStopId?: string;
   /** The opened stop's direct rides. */
@@ -50,7 +50,11 @@ export function ExperimentMapPage({
   isAnswered: boolean;
   isFullscreen: boolean;
   overviewCaption: string;
-  linesAtRest?: boolean;
+  /** Stops drawn small and named only on hover, or once a ride reaches them. */
+  quietStopIds?: ReadonlySet<string>;
+  zones?: MapZones;
+  /** Choices for how this map draws. */
+  options?: ReactNode;
 }) {
   const openedStop = selectedStopId ? drawing.stops.get(selectedStopId) : undefined;
   useEffect(() => {
@@ -86,7 +90,12 @@ export function ExperimentMapPage({
       <ExperimentMapStage
         map={map}
         scale={scale}
-        openOn={openedStop ?? homePoint}
+        openOn={
+          openedStop ?? {
+            x: scale.opening.x + scale.opening.width / 2,
+            y: scale.opening.y + scale.opening.height / 2,
+          }
+        }
         isFullscreen={isFullscreen}
         onChangeFullscreen={changeFullscreen}
         canvas={{
@@ -98,8 +107,10 @@ export function ExperimentMapPage({
           selectedStopId: openedStop?.id,
           getSign,
           onSelectStop: selectStop,
-          linesAtRest,
+          quietStopIds,
+          zones,
         }}
+        options={options}
       />
       <div className="zentrum-schematic-toolbar" data-has-stop={openedStop !== undefined}>
         <p className="zentrum-schematic-caption">{caption}</p>
