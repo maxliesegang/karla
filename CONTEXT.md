@@ -92,6 +92,15 @@ URL.
 
 **Experiment page**: a place to try experimental maps, including the Zentrum plan.
 
+**Geographic map**: the experiment page's `geo` map. Stops stand where the feed locates them,
+linked in the order observed runs call them, out to the runs' ends. Places are named by the feed's
+`placeName`.
+
+**Region plan**: the experiment page's `region` map. An octilinear plan of the observed network,
+solved offline: in Karlsruhe only junctions and ends, every other place once per branch. Stops it
+leaves out are ridden past. The Zentrum's stops stand as on the Zentrum plan, with the Kaiserstraße
+as its east–west axis; branches keep their direction, not their distances, and fold to stay compact.
+
 **Plan options**: choices for how the Zentrum plan opens and displays paths, lines and travel times.
 _Avoid_: experiments (the page contains experimental maps; these choices configure one plan).
 

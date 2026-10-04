@@ -5,8 +5,12 @@
  */
 import type { Departure, TripCall } from "../data/transit-types";
 import { getCountdownMinutes } from "./feed-clock";
+import {
+  type DirectTravelTime,
+  getDirectTravelTimes,
+  type TravelMeasure,
+} from "./direct-travel-times";
 import { compareLineIds } from "./line-families";
-import { collapseTurnaroundCalls, getTripCallInstant } from "./trip-calls";
 import { isSameRun } from "./trips";
 import type { ZentrumSchematicVehicle } from "./zentrum-schematic";
 import { findZentrumSchematicNodeId, getEdgeKey, isRailDeparture } from "./zentrum-schematic-plan";
@@ -201,37 +205,18 @@ export function getZentrumStopBoard(
 }
 
 /** The soonest a rider leaving one stop now reaches another, and the tram. */
-export type ZentrumTravelTime = {
-  arrivesAt: number;
-  lineId: string;
-  /** When that tram leaves the rider's stop. */
-  departsAt: number;
-};
+export type ZentrumTravelTime = Omit<DirectTravelTime, "stopIds">;
 
-/** What "nearest" means for a reached stop: the soonest arrival, or the shortest ride. */
-export type ZentrumTravelMeasure = "arrival" | "ride";
+export type ZentrumTravelMeasure = TravelMeasure;
 
 /** Whole minutes on board, at least one. */
 export const getRideMinutes = ({ departsAt, arrivesAt }: ZentrumTravelTime): number =>
   Math.max(1, Math.round((arrivesAt - departsAt) / 60_000));
 
-const getMeasuredTime = (time: ZentrumTravelTime, measure: ZentrumTravelMeasure): number =>
-  measure === "ride" ? time.arrivesAt - time.departsAt : time.arrivesAt;
-
-/** By the measure, then the sooner arrival, then the line. */
-const compareTravelTimes = (
-  left: ZentrumTravelTime,
-  right: ZentrumTravelTime,
-  measure: ZentrumTravelMeasure,
-): number =>
-  getMeasuredTime(left, measure) - getMeasuredTime(right, measure) ||
-  left.arrivesAt - right.arrivesAt ||
-  compareLineIds(left.lineId, right.lineId);
-
 /**
  * How soon, or how briefly, a rider at a stop reaches every other stop on one tram, from every run
- * the posts named (waits for trams outside the Zentrum count). Direct rides only; the feed says
- * nothing reliable about changes.
+ * the posts named (waits for trams outside the Zentrum count). A run's reach ends where it leaves
+ * the plan.
  */
 export function getZentrumTravelTimes(
   departures: readonly Departure[],
@@ -242,50 +227,24 @@ export function getZentrumTravelTimes(
   travelTimesByNodeId: ReadonlyMap<string, ZentrumTravelTime>;
   overlay: ZentrumSchematicOverlay;
 } {
-  const bestByNodeId = new Map<string, ZentrumTravelTime & { edgeIds: readonly string[] }>();
-  for (const departure of departures) {
-    if (departure.status === "cancelled") continue;
-    if (!isRailDeparture(departure)) continue;
-    const calls = collapseTurnaroundCalls(departure.tripCalls ?? []);
-    const nodeIds = calls.map((call) => findZentrumSchematicNodeId(call));
-    // Boarding at a complex's last call.
-    let boardIndex = -1;
-    for (const [index, call] of calls.entries()) {
-      if (nodeIds[index] !== nodeId || nodeIds[index + 1] === nodeId) continue;
-      const leaves = getTripCallInstant(call);
-      if (leaves !== undefined && leaves >= feedNow) {
-        boardIndex = index;
-        break;
-      }
-    }
-    if (boardIndex < 0) continue;
-    const departsAt = getTripCallInstant(calls[boardIndex]) ?? feedNow;
-
-    const edgeIds: string[] = [];
-    let previous = nodeId;
-    for (let index = boardIndex + 1; index < calls.length; index += 1) {
-      const node = nodeIds[index];
-      if (!node) break;
-      if (node === previous) continue;
-      edgeIds.push(getEdgeKey(previous, node));
-      previous = node;
-      const arrivesAt = getTripCallInstant(calls[index], "arrival");
-      if (arrivesAt === undefined || node === nodeId) continue;
-      const candidate = { arrivesAt, lineId: departure.lineId, departsAt };
-      const known = bestByNodeId.get(node);
-      if (!known || compareTravelTimes(candidate, known, measure) < 0) {
-        bestByNodeId.set(node, { ...candidate, edgeIds: [...edgeIds] });
-      }
-    }
-  }
-
+  const times = getDirectTravelTimes(
+    departures.filter(isRailDeparture),
+    nodeId,
+    feedNow,
+    measure,
+    findZentrumSchematicNodeId,
+  );
   const edgeIdsByLineId = new Map<string, Set<string>>();
-  for (const { lineId, edgeIds } of bestByNodeId.values()) {
-    lightEdges(edgeIdsByLineId, lineId, edgeIds);
+  for (const { lineId, stopIds } of times.values()) {
+    lightEdges(
+      edgeIdsByLineId,
+      lineId,
+      stopIds.slice(1).map((stopId, index) => getEdgeKey(stopIds[index], stopId)),
+    );
   }
   return {
     travelTimesByNodeId: new Map(
-      [...bestByNodeId].map(([id, { arrivesAt, lineId, departsAt }]) => [
+      [...times].map(([id, { arrivesAt, lineId, departsAt }]) => [
         id,
         { arrivesAt, lineId, departsAt },
       ]),
@@ -298,6 +257,4 @@ export function getZentrumTravelTimes(
 export const getMinutesUntilDeparture = (departsAt: number, feedNow: number): number =>
   Math.max(0, Math.floor((departsAt - Math.floor(feedNow / 60_000) * 60_000) / 60_000));
 
-/** Whole minutes until arrival, rounded up. */
-export const getMinutesUntilArrival = (arrivesAt: number, feedNow: number): number =>
-  Math.max(0, Math.ceil((arrivesAt - feedNow) / 60_000));
+export { getMinutesUntilArrival } from "./direct-travel-times";

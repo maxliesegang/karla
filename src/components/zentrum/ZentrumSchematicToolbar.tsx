@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { LineBadge } from "../LineBadge";
 import type { ZentrumLineSignReader } from "./line-sign";
-import { ZentrumPlanOptionsMenu } from "./ZentrumPlanOptionsMenu";
 
 /**
  * The band under the plan: legend, caption and an opened stop's bar. Tapping a badge follows that
@@ -65,7 +64,7 @@ export function ZentrumSchematicToolbar({
   );
 }
 
-/** The drawing's own zoom and full-screen controls, floating on it so a phone saves a row. */
+/** The drawing's own zoom, options and full-screen controls, floating on it so a phone saves a row. */
 export function ZentrumPlanControls({
   zoom,
   canZoomIn,
@@ -73,7 +72,8 @@ export function ZentrumPlanControls({
   onChangeZoom,
   isFullscreen,
   onChangeFullscreen,
-  isStopOpen,
+  optionsMenu,
+  wholeLabel = "ganzer Plan",
 }: {
   zoom: number;
   canZoomIn: boolean;
@@ -82,11 +82,13 @@ export function ZentrumPlanControls({
   /** Whether the plan is being read at the size of the screen. */
   isFullscreen: boolean;
   onChangeFullscreen: (isFullscreen: boolean) => void;
-  isStopOpen: boolean;
+  optionsMenu?: ReactNode;
+  /** Spoken at the first zoom step. */
+  wholeLabel?: string;
 }) {
   return (
     <div className="zentrum-plan-controls">
-      <ZentrumPlanOptionsMenu isStopOpen={isStopOpen} />
+      {optionsMenu}
       <button
         type="button"
         className="zentrum-plan-expand"
@@ -131,7 +133,7 @@ export function ZentrumPlanControls({
       </div>
       {/* Spoken, not printed: the drawing shows the step, a screen reader needs telling. */}
       <span className="visually-hidden" aria-live="polite">
-        {zoom === 1 ? "ganzer Plan" : `${Math.round(zoom * 100)} %`}
+        {zoom === 1 ? wholeLabel : `${Math.round(zoom * 100)} %`}
       </span>
     </div>
   );

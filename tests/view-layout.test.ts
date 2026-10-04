@@ -171,13 +171,29 @@ test("the plan is lit by a followed line or by an opened stop, and the address s
   assert.equal(opened.view, "experiment");
   assert.equal(opened.zentrumStopId, "marktplatz");
   assert.equal(opened.zentrumLineId, "");
-  assert.equal(opened.isZentrumFullscreen, true);
+  assert.equal(opened.isMapFullscreen, true);
   assert.equal(
     routePaths.zentrum({ stopId: "marktplatz" }, true),
     "/experiment/center/full/stop/marktplatz",
   );
   assert.equal(routePaths.zentrum({ lineId: "S1" }), "/experiment/center/line/S1");
   assert.equal(routePaths.zentrum(), "/experiment/center");
+});
+
+test("the geographic map opens a stop of its own, and closing it returns to the map", () => {
+  const opened = parseRoute("#/experiment/geo/full/stop/durlach-bahnhof");
+  assert.equal(opened.experimentMap, "geo");
+  assert.equal(opened.mapStopId, "durlach-bahnhof");
+  assert.equal(opened.zentrumStopId, "");
+  assert.equal(opened.isMapFullscreen, true);
+  assert.equal(
+    routePaths.map("geo", "durlach-bahnhof", true),
+    "/experiment/geo/full/stop/durlach-bahnhof",
+  );
+  assert.equal(parseRoute("#/experiment/center").experimentMap, "center");
+  assert.equal(layoutFor("#/experiment/geo/stop/7001521").backPath, "/experiment/geo");
+  assert.equal(parseRoute("#/experiment/region/stop/entenfang").experimentMap, "region");
+  assert.equal(layoutFor("#/experiment/region/stop/entenfang").backPath, "/experiment/region");
 });
 
 test("the experiment page opens the Zentrum plan, and the plan's earlier addresses still resolve", () => {

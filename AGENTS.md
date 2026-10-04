@@ -15,6 +15,7 @@ npm run format         # biome format --write . — the formatter is the style a
 npm test               # tests and build must pass before handing off a change
 npm run refresh:stops  # regenerates src/data/generated from the operator's published data
 npm run solve:zentrum  # measures the Zentrum plan against the feed, and solves for a truer one
+npm run solve:region   # derives the region plan's nodes from the feed and solves its layout
 npm run probe:*        # live feed measurements behind the timing constants
 ```
 

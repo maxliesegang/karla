@@ -29,6 +29,8 @@ import {
 } from "../../lib/zentrum-schematic-plan";
 import type { ZentrumLineSignReader } from "./line-sign";
 import { ZentrumSchematicCanvas, type ZentrumStopTravelTag } from "./ZentrumSchematicCanvas";
+import { ExperimentMapSwitch } from "../experiment/ExperimentMapSwitch";
+import { ZentrumPlanOptionsMenu } from "./ZentrumPlanOptionsMenu";
 import { ZentrumPlanControls, ZentrumSchematicToolbar } from "./ZentrumSchematicToolbar";
 import {
   type ZentrumReachableStop,
@@ -330,8 +332,9 @@ export function ZentrumSchematic({
           onChangeZoom={plan.changeZoom}
           isFullscreen={isFullscreen}
           onChangeFullscreen={onChangeFullscreen}
-          isStopOpen={selectedStop !== undefined}
+          optionsMenu={<ZentrumPlanOptionsMenu isStopOpen={selectedStop !== undefined} />}
         />
+        <ExperimentMapSwitch map="center" />
       </div>
       <ZentrumSchematicToolbar
         caption={

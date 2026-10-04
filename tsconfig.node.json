@@ -20,7 +20,8 @@
 
      The first four are the dependency closure of `KvvEfaClient`. The rest are the Zentrum's
      authored drawing surface and the reading built on it, which `solve:zentrum` checks the feed
-     against — it has to make the app's own reading, not a second implementation of it. */
+     against — it has to make the app's own reading, not a second implementation of it. The last
+     eight are the observed network and region plan `solve:region` derives and lays out its nodes with. */
   "include": [
     "vite.config.ts",
     "scripts",
@@ -46,6 +47,14 @@
     "src/lib/zentrum-schematic-lanes.ts",
     "src/lib/zentrum-schematic-paths.ts",
     "src/lib/zentrum-schematic-stops.ts",
-    "src/lib/zentrum-schematic-labels.ts"
+    "src/lib/zentrum-schematic-labels.ts",
+    "src/lib/collections.ts",
+    "src/lib/direct-travel-times.ts",
+    "src/lib/geo-map.ts",
+    "src/lib/observed-network.ts",
+    "src/lib/region-layout.ts",
+    "src/lib/region-plan.ts",
+    "src/lib/stop-naming.ts",
+    "src/lib/stop-services.ts"
   ]
 }

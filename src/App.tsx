@@ -1,4 +1,6 @@
 import { useMemo, useRef, useState } from "react";
+import { GeoMapView } from "./components/geo/GeoMapView";
+import { RegionPlanView } from "./components/region/RegionPlanView";
 import { ZentrumView } from "./components/zentrum/ZentrumView";
 import { DataProvenanceFooter } from "./components/DataProvenanceFooter";
 import { DepartureBoardPanel } from "./components/DepartureBoardPanel";
@@ -194,7 +196,7 @@ export default function App() {
         isStationBoardMode && "station-board-mode",
         isRideInView && "ride-mode",
         /* Fullscreen plan: the middle row takes the bar's height; nothing overlays the footer. */
-        route.view === "experiment" && route.isZentrumFullscreen && "zentrum-fullscreen",
+        route.view === "experiment" && route.isMapFullscreen && "zentrum-fullscreen",
       )}
       style={shellThemeStyle}
     >
@@ -236,14 +238,32 @@ export default function App() {
                   />
                 )}
                 {activeView === "nearby" && <NearbyStopsView controller={nearbyStopsController} />}
-                {activeView === "experiment" && (
+                {activeView === "experiment" && route.experimentMap === "geo" && (
+                  <GeoMapView
+                    network={observedNetwork}
+                    coverage={zentrumCoverage}
+                    departureBoards={observationBoards}
+                    selectedStopId={route.mapStopId || undefined}
+                    isFullscreen={route.isMapFullscreen}
+                  />
+                )}
+                {activeView === "experiment" && route.experimentMap === "region" && (
+                  <RegionPlanView
+                    network={observedNetwork}
+                    coverage={zentrumCoverage}
+                    departureBoards={observationBoards}
+                    selectedStopId={route.mapStopId || undefined}
+                    isFullscreen={route.isMapFullscreen}
+                  />
+                )}
+                {activeView === "experiment" && route.experimentMap === "center" && (
                   <ZentrumView
                     network={observedNetwork}
                     coverage={zentrumCoverage}
                     departureBoards={observationBoards}
                     selectedLineId={route.zentrumLineId || undefined}
                     selectedStopId={route.zentrumStopId || undefined}
-                    isFullscreen={route.isZentrumFullscreen}
+                    isFullscreen={route.isMapFullscreen}
                     nearbyStops={nearbyStopsController}
                   />
                 )}

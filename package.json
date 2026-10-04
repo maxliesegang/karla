@@ -16,6 +16,7 @@
     "lint": "eslint .",
     "format": "biome format --write .",
     "format:check": "biome format .",
+    "solve:region": "node --experimental-strip-types --import ./tests/register-resolver.js scripts/solve-region-plan.ts",
     "solve:zentrum": "node --experimental-strip-types --import ./tests/register-resolver.js scripts/solve-zentrum-layout.ts"
   },
   "dependencies": {

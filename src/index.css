@@ -1866,6 +1866,157 @@ button.brand:active .brand-mark,
 /* One band under the plan: the legend, which is also the filter, the caption, and the plan's
    reading at the end a thumb reaches. */
 /* As tall as an opened stop's bar, so the band never moves when one opens. */
+/* ---------- Experiment page: map choice and the geographic map ---------- */
+/* Bottom left, across from the zoom: the top of a phone's plan holds the centre's names. */
+.experiment-map-switch {
+  position: absolute;
+  bottom: 10px;
+  left: 10px;
+  z-index: 6;
+  box-shadow: 0 2px 8px #10201f1f;
+}
+.experiment-map-canvas {
+  position: relative;
+  flex: 0 0 auto;
+}
+.experiment-map-canvas svg {
+  position: absolute;
+  inset: 0;
+}
+.experiment-map-canvas polyline {
+  fill: none;
+  stroke-linejoin: round;
+}
+.experiment-map-links polyline {
+  stroke: color-mix(in srgb, var(--ink) 34%, var(--surface));
+  stroke-width: 1.4px;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+.experiment-map-links polyline[data-weight="2"] {
+  stroke-width: 2px;
+}
+.experiment-map-links polyline[data-weight="3"],
+.experiment-map-links polyline[data-weight="4"] {
+  stroke-width: 2.8px;
+}
+.experiment-map-canvas[data-has-selection="true"] .experiment-map-links polyline {
+  stroke: color-mix(in srgb, var(--ink) 16%, var(--surface));
+}
+.experiment-map-lines polyline {
+  stroke-width: 3px;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+.experiment-map-lines[data-dimmed="true"] {
+  opacity: 0.16;
+}
+.experiment-map-lit polyline {
+  stroke-width: 3px;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+}
+/* Places are the background's words: large, pale, under everything a finger reaches. */
+.experiment-map-place {
+  position: absolute;
+  z-index: 1;
+  transform: translate(-50%, -50%);
+  color: color-mix(in srgb, var(--ink-soft) 70%, var(--surface));
+  font-size: 13px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+}
+.experiment-map-stop {
+  position: absolute;
+  z-index: 2;
+  width: 16px;
+  height: 16px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 11.5px;
+  font-weight: 650;
+  line-height: 1;
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+}
+.experiment-map-stop::before {
+  content: "";
+  position: absolute;
+  inset: 5px;
+  border: 1.5px solid color-mix(in srgb, var(--ink) 60%, var(--surface));
+  border-radius: 50%;
+  background: var(--surface);
+}
+.experiment-map-canvas[data-has-selection="true"]
+  .experiment-map-stop:not([data-reached="true"], [data-selected="true"])::before {
+  border-color: color-mix(in srgb, var(--ink) 22%, var(--surface));
+}
+.experiment-map-stop[data-reached="true"]::before {
+  border-color: var(--experiment-line-color);
+  border-width: 2px;
+}
+.experiment-map-stop[data-selected="true"] {
+  z-index: 3;
+}
+.experiment-map-stop[data-selected="true"]::before {
+  inset: 2px;
+  border: 3px solid var(--ink);
+}
+.experiment-map-stop > span {
+  position: absolute;
+  top: 50%;
+  left: calc(50% + 6px);
+  display: flex;
+  align-items: baseline;
+  gap: 0.3em;
+  width: max-content;
+  padding: 1px 2px;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  text-shadow:
+    0 0 3px var(--surface),
+    0 0 3px var(--surface),
+    0 0 5px var(--surface);
+}
+.experiment-map-stop[data-side="left"] > span {
+  left: auto;
+  right: calc(50% + 6px);
+}
+.experiment-map-stop:is([data-side="above"], [data-side="below"]) > span {
+  left: 50%;
+  transform: translateX(-50%);
+}
+.experiment-map-stop[data-side="above"] > span {
+  top: auto;
+  bottom: calc(50% + 6px);
+}
+.experiment-map-stop[data-side="below"] > span {
+  top: calc(50% + 6px);
+}
+.experiment-map-stop[data-selected="true"] > span {
+  font-size: 13px;
+  font-weight: 800;
+}
+.experiment-map-stop > span .line-badge {
+  align-self: center;
+}
+.experiment-map-stop > span em {
+  font-style: normal;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.experiment-map-stop:hover::before,
+.experiment-map-stop:focus-visible::before {
+  border-color: var(--ink);
+}
+
 .zentrum-schematic-toolbar {
   grid-area: toolbar;
   min-height: 40px;

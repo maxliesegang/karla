@@ -141,8 +141,11 @@ function getBackPath(
     return nearbyReturnStopId ? routePaths.stop(nearbyReturnStopId) : routePaths.home();
   }
   // Dropping the plan's line or stop returns to the plan at the same size.
+  if (route.view === "experiment" && route.mapStopId && route.experimentMap !== "center") {
+    return routePaths.map(route.experimentMap, undefined, route.isMapFullscreen);
+  }
   if (route.view === "experiment" && (route.zentrumStopId || route.zentrumLineId)) {
-    return routePaths.zentrum({}, route.isZentrumFullscreen);
+    return routePaths.zentrum({}, route.isMapFullscreen);
   }
   return getParentSelectionPath({
     view: route.view,

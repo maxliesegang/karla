@@ -28,6 +28,9 @@ export type RouteView =
  * own.
  */
 export type ActiveView = RouteView | "line";
+export type ExperimentMap = "center" | "geo" | "region";
+/** The experiment maps with an address of their own; the Zentrum plan has `zentrum`. */
+export type OtherExperimentMap = Exclude<ExperimentMap, "center">;
 export type TripParent = "stop" | "line";
 
 export const DEFAULT_STOP_ID = "europaplatz";
@@ -67,8 +70,12 @@ export type AppRoute = {
   zentrumLineId: string;
   /** The stop opened on the Zentrum plan (`…/center/stop/marktplatz`). Excludes `zentrumLineId`. */
   zentrumStopId: string;
-  /** The plan at screen size (`…/center/full`), addressed so the back gesture closes it. */
-  isZentrumFullscreen: boolean;
+  /** The experiment page's map: the Zentrum plan (`center`), the region plan or the geographic map. */
+  experimentMap: ExperimentMap;
+  /** The stop opened on the region plan or the geographic map (`…/geo/stop/durlach-bahnhof`). */
+  mapStopId: string;
+  /** The map at screen size (`…/center/full`), addressed so the back gesture closes it. */
+  isMapFullscreen: boolean;
   /** Address of the selected run; undated and dated provider ids still resolve. */
   addressId?: string;
   /** The level a stop-scoped trip was opened from, retained for the step-up control. */
@@ -91,7 +98,9 @@ const defaultRoute: AppRoute = {
   bundledLineIds: [],
   zentrumLineId: "",
   zentrumStopId: "",
-  isZentrumFullscreen: false,
+  experimentMap: "center",
+  mapStopId: "",
+  isMapFullscreen: false,
   isRide: false,
 };
 
@@ -163,14 +172,26 @@ function parseTripQualifiers(segments: readonly string[]): { from?: string; to?:
 }
 
 /** The Zentrum plan's two sizes, after its map name; the legacy `/center/stops` lands on the plan. */
-function parseZentrumRoute(segments: readonly string[]): AppRoute {
-  const [qualifier, ...tail] = segments;
-  const isZentrumFullscreen = qualifier === "full";
-  const selectionSegments = isZentrumFullscreen ? tail : segments;
+function parseMapRoute(map: OtherExperimentMap, segments: readonly string[]): AppRoute {
+  const isMapFullscreen = segments[0] === "full";
+  const [kind, id] = isMapFullscreen ? segments.slice(1) : segments;
   return {
     ...defaultRoute,
     view: "experiment",
-    isZentrumFullscreen,
+    experimentMap: map,
+    isMapFullscreen,
+    mapStopId: kind === "stop" ? decodePathSegment(id) : "",
+  };
+}
+
+function parseZentrumRoute(segments: readonly string[]): AppRoute {
+  const [qualifier, ...tail] = segments;
+  const isMapFullscreen = qualifier === "full";
+  const selectionSegments = isMapFullscreen ? tail : segments;
+  return {
+    ...defaultRoute,
+    view: "experiment",
+    isMapFullscreen,
     zentrumLineId: selectionSegments[0] === "line" ? decodePathSegment(selectionSegments[1]) : "",
     zentrumStopId: selectionSegments[0] === "stop" ? decodePathSegment(selectionSegments[1]) : "",
   };
@@ -228,8 +249,10 @@ export function parseRoute(hash: string): AppRoute {
     case "settings":
       return { ...defaultRoute, view: "settings" };
     case "experiment":
-      // The Zentrum plan is the page's only map so far, and opens for any map name.
-      return parseZentrumRoute(rest.slice(1));
+      // Any other map name opens the Zentrum plan.
+      return rest[0] === "geo" || rest[0] === "region"
+        ? parseMapRoute(rest[0], rest.slice(1))
+        : parseZentrumRoute(rest.slice(1));
     case "center":
       // The Zentrum plan's address before the experiment page.
       return parseZentrumRoute(rest);
@@ -256,6 +279,9 @@ export const routePaths = {
           ? `/line/${encodePathSegment(selection.lineId)}`
           : ""
     }`,
+  /** The region plan or geographic map with its opened stop, at either size. */
+  map: (map: OtherExperimentMap, stopId?: string, isFullscreen = false) =>
+    `/experiment/${map}${isFullscreen ? "/full" : ""}${stopId ? `/stop/${encodePathSegment(stopId)}` : ""}`,
   network: () => "/network",
   nearby: () => "/nearby",
   notices: () => "/notices",

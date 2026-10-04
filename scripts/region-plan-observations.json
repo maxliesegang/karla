@@ -1,0 +1,4661 @@
+{
+  "capturedAt": ["2026-10-04T13:55:52.911Z", "2026-10-04T14:49:49.592Z"],
+  "stops": [
+    {
+      "id": "albert-braun-strasse--llix78",
+      "name": "Albert-Braun-Straße",
+      "placeName": "Oberreut",
+      "latitude": 48.9891025,
+      "longitude": 8.363499000000001,
+      "lineIds": ["4"]
+    },
+    {
+      "id": "albtalbahnhof",
+      "name": "Karlsruhe Albtalbahnhof",
+      "placeName": "Karlsruhe",
+      "latitude": 48.9936936,
+      "longitude": 8.3960878,
+      "lineIds": ["S1", "S11", "S8", "S4", "S7", "S51", "S5"]
+    },
+    {
+      "id": "alte-bahnmeisterei--1p96jzw",
+      "name": "Alte Bahnmeisterei",
+      "placeName": "Wörth",
+      "latitude": 49.048604,
+      "longitude": 8.266472,
+      "lineIds": ["S5"]
+    },
+    {
+      "id": "alte-roemerstrasse--rgbuq1",
+      "name": "Alte Römerstraße",
+      "placeName": "Rheinzabern",
+      "latitude": 49.109531000000004,
+      "longitude": 8.2730255,
+      "lineIds": ["S51"]
+    },
+    {
+      "id": "altrheinbruecke--46i80q",
+      "name": "Altrheinbrücke",
+      "placeName": "Daxlanden",
+      "latitude": 49.0008465,
+      "longitude": 8.311923,
+      "lineIds": ["3"]
+    },
+    {
+      "id": "am-hang--r4vbs0",
+      "name": "Am Hang",
+      "placeName": "Mörsch",
+      "latitude": 48.9565145,
+      "longitude": 8.28549,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "am-muehlbuckel--s0b23z",
+      "name": "Am Mühlbuckel",
+      "placeName": "Bellheim",
+      "latitude": 49.1926145,
+      "longitude": 8.297877499999998,
+      "lineIds": ["S51"]
+    },
+    {
+      "id": "ankerstrasse--32jt8u",
+      "name": "Ankerstraße",
+      "placeName": "Daxlanden",
+      "latitude": 49.006607,
+      "longitude": 8.3346185,
+      "lineIds": ["3"]
+    },
+    {
+      "id": "arbeitsagentur",
+      "name": "Arbeitsagentur",
+      "placeName": "Karlsruhe",
+      "latitude": 49.003245,
+      "longitude": 8.386384,
+      "lineIds": ["6"]
+    },
+    {
+      "id": "au-im-murgtal--1s93xfm",
+      "name": "Au im Murgtal",
+      "placeName": "Weisenbach",
+      "latitude": 48.718814,
+      "longitude": 8.362372,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "augartenstrasse",
+      "name": "Augartenstraße",
+      "placeName": "Karlsruhe",
+      "latitude": 48.9987185,
+      "longitude": 8.403634,
+      "lineIds": ["S1", "S11", "S8", "S4", "S7", "S51", "S5"]
+    },
+    {
+      "id": "august-bebel-strasse--71ptog",
+      "name": "August-Bebel-Straße",
+      "placeName": "Karlsruhe",
+      "latitude": 49.02404,
+      "longitude": 8.375743499999999,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "bach-west--reuxgz",
+      "name": "Bach-West",
+      "placeName": "Mörsch",
+      "latitude": 48.959021,
+      "longitude": 8.283985,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "bad-herrenalb--w9fh80",
+      "name": "Bad Herrenalb",
+      "placeName": "Bad Herrenalb",
+      "latitude": 48.802559,
+      "longitude": 8.43916,
+      "lineIds": ["S1", "FEX"]
+    },
+    {
+      "id": "bad-herrenalb-kullenmuehle--x3eaax",
+      "name": "Bad Herrenalb Kullenmühle",
+      "placeName": "Bad Herrenalb",
+      "latitude": 48.8090555,
+      "longitude": 8.444096,
+      "lineIds": ["S1", "FEX"]
+    },
+    {
+      "id": "bad-rotenfels-bahnhof-rotherma--1b0qexi",
+      "name": "Bad Rotenfels Bahnhof/Rotherma",
+      "placeName": "Bad Rotenfels",
+      "latitude": 48.815754999999996,
+      "longitude": 8.303253999999999,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "bad-rotenfels-schloss--1ur3i6c",
+      "name": "Bad Rotenfels Schloss",
+      "placeName": "Bad Rotenfels",
+      "latitude": 48.8200075,
+      "longitude": 8.2970465,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "bad-rotenfels-weinbrennerstrasse--1vl2b99",
+      "name": "Bad Rotenfels Weinbrennerstraße",
+      "placeName": "Bad Rotenfels",
+      "latitude": 48.811528,
+      "longitude": 8.312057,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "badallee--1op7cly",
+      "name": "Badallee",
+      "placeName": "Wörth",
+      "latitude": 49.05599,
+      "longitude": 8.249876,
+      "lineIds": ["S5"]
+    },
+    {
+      "id": "baden-baden--zdzqkq",
+      "name": "Baden-Baden",
+      "placeName": "Baden-Baden",
+      "latitude": 48.7901535,
+      "longitude": 8.1907985,
+      "lineIds": ["S7"]
+    },
+    {
+      "id": "baden-baden-haueneberstein--1l3hs7s",
+      "name": "Baden-Baden Haueneberstein",
+      "placeName": "Haueneberstein",
+      "latitude": 48.8118595,
+      "longitude": 8.209020500000001,
+      "lineIds": ["S7"]
+    },
+    {
+      "id": "baden-baden-rebland--1lxglap",
+      "name": "Baden-Baden Rebland",
+      "placeName": "Steinbach",
+      "latitude": 48.7338625,
+      "longitude": 8.146606,
+      "lineIds": ["S7"]
+    },
+    {
+      "id": "badeniaplatz--krn9ma",
+      "name": "Badeniaplatz",
+      "placeName": "Oberreut",
+      "latitude": 48.982255,
+      "longitude": 8.368067,
+      "lineIds": ["4"]
+    },
+    {
+      "id": "badepark--1oz6yax",
+      "name": "Badepark",
+      "placeName": "Wörth",
+      "latitude": 49.0585265,
+      "longitude": 8.244126999999999,
+      "lineIds": ["S5"]
+    },
+    {
+      "id": "bahnbruecken--haqax",
+      "name": "Bahnbrücken",
+      "placeName": "Bahnbrücken",
+      "latitude": 49.119415,
+      "longitude": 8.764907,
+      "lineIds": ["FEX", "S32"]
+    },
+    {
+      "id": "bahnhof--106kz7n",
+      "name": "Bahnhof",
+      "placeName": "Wörth",
+      "latitude": 49.04561,
+      "longitude": 8.273196,
+      "lineIds": ["S51", "S5"]
+    },
+    {
+      "id": "bahnhof--110jsak",
+      "name": "Bahnhof",
+      "placeName": "Sondernheim",
+      "latitude": 49.195192,
+      "longitude": 8.3603105,
+      "lineIds": ["S51"]
+    },
+    {
+      "id": "bahnhof--11ajdzj",
+      "name": "Bahnhof",
+      "placeName": "Bellheim",
+      "latitude": 49.18857,
+      "longitude": 8.294531,
+      "lineIds": ["S51"]
+    },
+    {
+      "id": "bahnhof--11kizoi",
+      "name": "Bahnhof",
+      "placeName": "Rülzheim",
+      "latitude": 49.1607945,
+      "longitude": 8.290269,
+      "lineIds": ["S51"]
+    },
+    {
+      "id": "bahnhof--11uildh",
+      "name": "Bahnhof",
+      "placeName": "Rheinzabern",
+      "latitude": 49.119665,
+      "longitude": 8.2742025,
+      "lineIds": ["S51"]
+    },
+    {
+      "id": "bahnhof--14aybes",
+      "name": "Bahnhof",
+      "placeName": "Hagsfeld",
+      "latitude": 49.0274745,
+      "longitude": 8.4538385,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "bahnhof--1gdkz7r",
+      "name": "Bahnhof",
+      "placeName": "Ispringen",
+      "latitude": 48.914286000000004,
+      "longitude": 8.672484,
+      "lineIds": ["S5"]
+    },
+    {
+      "id": "bahnhof--1rtv3a9",
+      "name": "Bahnhof",
+      "placeName": "Schönmünzach",
+      "latitude": 48.604777,
+      "longitude": 8.369765000000001,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "bahnhof--1ved4wj",
+      "name": "Bahnhof",
+      "placeName": "Friedrichstal",
+      "latitude": 48.481533,
+      "longitude": 8.376889,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "bahnhof--b0gr9c",
+      "name": "Bahnhof",
+      "placeName": "Bilfingen",
+      "latitude": 48.948636,
+      "longitude": 8.6205255,
+      "lineIds": ["S5"]
+    },
+    {
+      "id": "bahnhof--bagcyb",
+      "name": "Bahnhof",
+      "placeName": "Königsbach",
+      "latitude": 48.9626455,
+      "longitude": 8.6086585,
+      "lineIds": ["S5"]
+    },
+    {
+      "id": "bahnhof--bufkc9",
+      "name": "Bahnhof",
+      "placeName": "Ersingen",
+      "latitude": 48.930459,
+      "longitude": 8.639125,
+      "lineIds": ["S5"]
+    },
+    {
+      "id": "bahnhof--gfpu1q",
+      "name": "Bahnhof",
+      "placeName": "Klosterreichenbach",
+      "latitude": 48.526596,
+      "longitude": 8.399149,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "bahnhof--jl6b30",
+      "name": "Bahnhof",
+      "placeName": "Achern",
+      "latitude": 48.634116,
+      "longitude": 8.065793,
+      "lineIds": ["S7"]
+    },
+    {
+      "id": "bahnhof--l3ouz3",
+      "name": "Bahnhof",
+      "placeName": "Germersheim",
+      "latitude": 49.225694,
+      "longitude": 8.364914,
+      "lineIds": ["S51"]
+    },
+    {
+      "id": "bahnhof--vf1yd1",
+      "name": "Bahnhof",
+      "placeName": "Huzenbach",
+      "latitude": 48.582518,
+      "longitude": 8.391199,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "bahnhof--wj3imw",
+      "name": "Bahnhof",
+      "placeName": "Schwarzenberg",
+      "latitude": 48.598715,
+      "longitude": 8.383797,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "bahnhof--z7vr1h",
+      "name": "Bahnhof",
+      "placeName": "Baiersbronn",
+      "latitude": 48.503465,
+      "longitude": 8.372047,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "bahnhof--zwldio",
+      "name": "Bahnhof",
+      "placeName": "Jockgrim",
+      "latitude": 49.091828,
+      "longitude": 8.272244,
+      "lineIds": ["S51"]
+    },
+    {
+      "id": "bahnhof-hesselbach--smzmfd",
+      "name": "Bahnhof Hesselbach",
+      "placeName": "Heselbach",
+      "latitude": 48.536595,
+      "longitude": 8.399068,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "bannwaldallee--itmw9i",
+      "name": "Bannwaldallee",
+      "placeName": "Karlsruhe",
+      "latitude": 48.995221,
+      "longitude": 8.3725725,
+      "lineIds": ["4"]
+    },
+    {
+      "id": "barbarossaplatz",
+      "name": "Barbarossaplatz",
+      "placeName": "Karlsruhe",
+      "latitude": 48.994952999999995,
+      "longitude": 8.389365999999999,
+      "lineIds": ["6"]
+    },
+    {
+      "id": "bauerbach-baden--1rkuvs7",
+      "name": "Bauerbach",
+      "placeName": "Bauerbach",
+      "latitude": 49.074003000000005,
+      "longitude": 8.748095,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "berghausen-am-stadion--1h5muym",
+      "name": "Berghausen Am Stadion",
+      "placeName": "Berghausen",
+      "latitude": 49.002591,
+      "longitude": 8.536016,
+      "lineIds": ["S5", "S51"]
+    },
+    {
+      "id": "berghausen-baden--1r12l8s",
+      "name": "Berghausen",
+      "placeName": "Berghausen",
+      "latitude": 49.005767,
+      "longitude": 8.53042,
+      "lineIds": ["S5", "S51"]
+    },
+    {
+      "id": "berghausen-hummelberg--ssz8xs",
+      "name": "Berghausen Hummelberg",
+      "placeName": "Berghausen",
+      "latitude": 49.009792,
+      "longitude": 8.526907,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "berghausen-pfinzbruecke--1gbkwdq",
+      "name": "Berghausen Pfinzbrücke",
+      "placeName": "Berghausen",
+      "latitude": 49.00651,
+      "longitude": 8.520862,
+      "lineIds": ["S5", "S51"]
+    },
+    {
+      "id": "berufsschulzentrum--hewkae",
+      "name": "Berufsschulzentrum",
+      "placeName": "Böckingen",
+      "latitude": 49.1403235,
+      "longitude": 9.1813255,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "bienwaldhalle--in203d",
+      "name": "Bienwaldhalle",
+      "placeName": "Wörth",
+      "latitude": 49.0497905,
+      "longitude": 8.260876,
+      "lineIds": ["S5"]
+    },
+    {
+      "id": "bietigheim-baden--1tkc8t",
+      "name": "Bietigheim",
+      "placeName": "Bietigheim",
+      "latitude": 48.910454,
+      "longitude": 8.257929,
+      "lineIds": ["S8", "S7"]
+    },
+    {
+      "id": "bischweier-baden--1bkpmbg",
+      "name": "Bischweier",
+      "placeName": "Bischweier",
+      "latitude": 48.832125500000004,
+      "longitude": 8.277588999999999,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "boeckingen-west--how5zd",
+      "name": "Böckingen West",
+      "placeName": "Böckingen",
+      "latitude": 49.139319,
+      "longitude": 9.1653715,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "bretten-baden--1ypkp6i",
+      "name": "Bretten",
+      "placeName": "Bretten",
+      "latitude": 49.037051000000005,
+      "longitude": 8.693536,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "bretten-kupferhaelde--1xbmopn",
+      "name": "Bretten Kupferhälde",
+      "placeName": "Bretten",
+      "latitude": 49.037101,
+      "longitude": 8.723692,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "bretten-rinklingen--1yzkavh",
+      "name": "Bretten-Rinklingen",
+      "placeName": "Rinklingen",
+      "latitude": 49.036665,
+      "longitude": 8.673459,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "bretten-schulzentrum--1xlmaem",
+      "name": "Bretten Schulzentrum",
+      "placeName": "Bretten",
+      "latitude": 49.031865,
+      "longitude": 8.718491,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "bretten-stadtmitte--1y5lhsk",
+      "name": "Bretten Stadtmitte",
+      "placeName": "Bretten",
+      "latitude": 49.033897,
+      "longitude": 8.702932,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "bretten-wannenweg--1xvlw3l",
+      "name": "Bretten Wannenweg",
+      "placeName": "Bretten",
+      "latitude": 49.030422,
+      "longitude": 8.709391,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "bruchsal--uo3ca8",
+      "name": "Bruchsal",
+      "placeName": "Bruchsal",
+      "latitude": 49.125041,
+      "longitude": 8.590356,
+      "lineIds": ["FEX", "S32", "S31"]
+    },
+    {
+      "id": "bruchsal-gew-bildungszentrum--vi25d5",
+      "name": "Bruchsal Gew. Bildungszentrum",
+      "placeName": "Bruchsal",
+      "latitude": 49.110478,
+      "longitude": 8.574653,
+      "lineIds": ["FEX", "S32", "S31"]
+    },
+    {
+      "id": "bruchsal-schlossgarten--uy2xz7",
+      "name": "Bruchsal Schlossgarten",
+      "placeName": "Bruchsal",
+      "latitude": 49.131202,
+      "longitude": 8.593958,
+      "lineIds": ["FEX", "S32", "S31"]
+    },
+    {
+      "id": "bruchsal-stegwiesen--yjxrzu",
+      "name": "Bruchsal Stegwiesen",
+      "placeName": "Bruchsal",
+      "latitude": 49.136656,
+      "longitude": 8.598324,
+      "lineIds": ["FEX", "S32", "S31"]
+    },
+    {
+      "id": "buechig--15m7mru",
+      "name": "Büchig",
+      "placeName": "Büchig",
+      "latitude": 49.0479385,
+      "longitude": 8.461061,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "buehl-baden--18tgv9o",
+      "name": "Bühl",
+      "placeName": "Bühl",
+      "latitude": 48.696688,
+      "longitude": 8.129461500000001,
+      "lineIds": ["S7"]
+    },
+    {
+      "id": "buergerpark--1of7qwz",
+      "name": "Bürgerpark",
+      "placeName": "Wörth",
+      "latitude": 49.0508385,
+      "longitude": 8.254681999999999,
+      "lineIds": ["S5"]
+    },
+    {
+      "id": "busenbach--qxkct2",
+      "name": "Busenbach",
+      "placeName": "Busenbach",
+      "latitude": 48.9292935,
+      "longitude": 8.4505735,
+      "lineIds": ["S1", "S11", "FEX"]
+    },
+    {
+      "id": "dornroeschenweg--140qt4y",
+      "name": "Dornröschenweg",
+      "placeName": "Daxlanden",
+      "latitude": 48.9928215,
+      "longitude": 8.335314499999999,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "duale-hochschule--v9eek5",
+      "name": "Duale Hochschule",
+      "placeName": "Karlsruhe",
+      "latitude": 49.0269115,
+      "longitude": 8.386092000000001,
+      "lineIds": ["1"]
+    },
+    {
+      "id": "duerrenbuechig--1v3mpnw",
+      "name": "Dürrenbüchig",
+      "placeName": "Dürrenbüchig",
+      "latitude": 49.023984,
+      "longitude": 8.64818,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "dunantstrasse--10n2d2q",
+      "name": "Dunantstraße",
+      "placeName": "Karlsruhe",
+      "latitude": 49.011459,
+      "longitude": 8.4360335,
+      "lineIds": ["3"]
+    },
+    {
+      "id": "durlach-bahnhof",
+      "name": "Bahnhof",
+      "placeName": "Durlach",
+      "latitude": 49.002564166666666,
+      "longitude": 8.463173499999998,
+      "lineIds": ["1", "S5", "S51", "S4", "FEX", "S32", "S31"]
+    },
+    {
+      "id": "durlach-hubstrasse--ssw3ft",
+      "name": "Durlach Hubstraße",
+      "placeName": "Durlach",
+      "latitude": 49.0071545,
+      "longitude": 8.4722495,
+      "lineIds": ["S5", "S51"]
+    },
+    {
+      "id": "durlacher-tor",
+      "name": "Durlacher Tor/KIT-Campus Süd",
+      "placeName": "Karlsruhe",
+      "latitude": 49.00907966666667,
+      "longitude": 8.417495500000001,
+      "lineIds": ["1", "S2", "S5", "4", "3", "S51", "S8", "S4", "S7"]
+    },
+    {
+      "id": "durmersheim--1w4yaxd",
+      "name": "Durmersheim",
+      "placeName": "Durmersheim",
+      "latitude": 48.9290485,
+      "longitude": 8.272791999999999,
+      "lineIds": ["S8", "S7"]
+    },
+    {
+      "id": "durmersheim-nord--kr37g6",
+      "name": "Durmersheim Nord",
+      "placeName": "Durmersheim",
+      "latitude": 48.937691,
+      "longitude": 8.280423500000001,
+      "lineIds": ["S8", "S7"]
+    },
+    {
+      "id": "ebertstrasse",
+      "name": "Ebertstraße",
+      "placeName": "Karlsruhe",
+      "latitude": 48.9945575,
+      "longitude": 8.3949135,
+      "lineIds": ["3", "6"]
+    },
+    {
+      "id": "eckenerstrasse--12msso3",
+      "name": "Eckenerstraße",
+      "placeName": "Karlsruhe",
+      "latitude": 49.006040999999996,
+      "longitude": 8.350833,
+      "lineIds": ["S2", "3"]
+    },
+    {
+      "id": "eggenstein--1b0awke",
+      "name": "Eggenstein",
+      "placeName": "Eggenstein",
+      "latitude": 49.075697500000004,
+      "longitude": 8.397950000000002,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "eggenstein-schweriner-strasse--1aqbavf",
+      "name": "Eggenstein Schweriner Straße",
+      "placeName": "Eggenstein",
+      "latitude": 49.085859,
+      "longitude": 8.402199,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "eggenstein-spoecker-weg--1agbp6g",
+      "name": "Eggenstein Spöcker Weg",
+      "placeName": "Eggenstein",
+      "latitude": 49.079884500000006,
+      "longitude": 8.399715,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "eggenstein-sued--1c49bca",
+      "name": "Eggenstein Süd",
+      "placeName": "Eggenstein",
+      "latitude": 49.071134,
+      "longitude": 8.3960635,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "eggensteiner-strasse--1spv51z",
+      "name": "Eggensteiner Straße",
+      "placeName": "Knielingen",
+      "latitude": 49.0333495,
+      "longitude": 8.338342,
+      "lineIds": ["S5", "S51"]
+    },
+    {
+      "id": "egon-eiermann-allee--14uz2ps",
+      "name": "Egon-Eiermann-Allee",
+      "placeName": "Knielingen",
+      "latitude": 49.035835,
+      "longitude": 8.350316500000002,
+      "lineIds": ["2"]
+    },
+    {
+      "id": "eisenbahnstrasse--axugvm",
+      "name": "Eisenbahnstraße",
+      "placeName": "Maximiliansau",
+      "latitude": 49.0372185,
+      "longitude": 8.298398500000001,
+      "lineIds": ["S51", "S5"]
+    },
+    {
+      "id": "entenfang",
+      "name": "Entenfang",
+      "placeName": "Karlsruhe",
+      "latitude": 49.010613,
+      "longitude": 8.3590214,
+      "lineIds": ["S2", "S5", "3", "S51", "2"]
+    },
+    {
+      "id": "eppingen--1bob8ox",
+      "name": "Eppingen",
+      "placeName": "Eppingen",
+      "latitude": 49.136013,
+      "longitude": 8.9145125,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "eppingen-west--1p1pyrn",
+      "name": "Eppingen West",
+      "placeName": "Eppingen",
+      "latitude": 49.1326565,
+      "longitude": 8.9046985,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "essenweinstrasse--1ms7z5g",
+      "name": "Essenweinstraße",
+      "placeName": "Karlsruhe",
+      "latitude": 49.009721,
+      "longitude": 8.431884,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "ettlingen-albgaubad--s20qol",
+      "name": "Ettlingen Albgaubad",
+      "placeName": "Ettlingen",
+      "latitude": 48.9368535,
+      "longitude": 8.415139,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "ettlingen-erbprinz-schloss--sm33ki",
+      "name": "Ettlingen Erbprinz/Schloss",
+      "placeName": "Ettlingen",
+      "latitude": 48.9409835,
+      "longitude": 8.404036,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "ettlingen-neuwiesenreben--sc3hvj",
+      "name": "Ettlingen Neuwiesenreben",
+      "placeName": "Ettlingen",
+      "latitude": 48.952984,
+      "longitude": 8.4004425,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "ettlingen-spinnerei--ri1jan",
+      "name": "Ettlingen Spinnerei",
+      "placeName": "Ettlingen",
+      "latitude": 48.934569499999995,
+      "longitude": 8.44212,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "ettlingen-stadt--qy2bwp",
+      "name": "Ettlingen Stadt",
+      "placeName": "Ettlingen",
+      "latitude": 48.93866,
+      "longitude": 8.409075666666666,
+      "lineIds": ["S1", "S11", "FEX"]
+    },
+    {
+      "id": "ettlingen-wasen--s23w6k",
+      "name": "Ettlingen Wasen",
+      "placeName": "Ettlingen",
+      "latitude": 48.9453055,
+      "longitude": 8.398745000000002,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "ettlingen-west--y01q3v",
+      "name": "Ettlingen West",
+      "placeName": "Ettlingen",
+      "latitude": 48.946987,
+      "longitude": 8.387812,
+      "lineIds": ["FEX"]
+    },
+    {
+      "id": "ettlinger-tor",
+      "name": "Ettlinger Tor/Staatstheater",
+      "placeName": "Karlsruhe",
+      "latitude": 49.005447,
+      "longitude": 8.403197500000001,
+      "lineIds": ["S1", "4", "5", "S11", "S8", "S4", "S7", "S51", "S5"]
+    },
+    {
+      "id": "etzenrot--y7cp2t",
+      "name": "Etzenrot",
+      "placeName": "Etzenrot",
+      "latitude": 48.9139375,
+      "longitude": 8.4575485,
+      "lineIds": ["S1", "FEX"]
+    },
+    {
+      "id": "europahalle-europabad--ijnakj",
+      "name": "Europahalle/Europabad",
+      "placeName": "Karlsruhe",
+      "latitude": 48.9987805,
+      "longitude": 8.376327499999999,
+      "lineIds": ["4"]
+    },
+    {
+      "id": "europaplatz",
+      "name": "Europaplatz",
+      "placeName": "Karlsruhe",
+      "latitude": 49.009919000000004,
+      "longitude": 8.394388,
+      "lineIds": ["1", "S2", "S1", "S5", "4", "3", "S51", "5", "S11"]
+    },
+    {
+      "id": "europaplatz-muehlburger-tor-wende--1xjn1ol",
+      "name": "Europaplatz/Mühlburger Tor",
+      "placeName": "Karlsruhe",
+      "latitude": 49.010181,
+      "longitude": 8.388351,
+      "lineIds": ["5"]
+    },
+    {
+      "id": "feierabendweg--13u0yrm",
+      "name": "Feierabendweg",
+      "placeName": "Karlsruhe",
+      "latitude": 49.022008,
+      "longitude": 8.3604945,
+      "lineIds": ["2"]
+    },
+    {
+      "id": "finanzamt--1r03ao5",
+      "name": "Finanzamt",
+      "placeName": "Heilbronn",
+      "latitude": 49.140059,
+      "longitude": 9.236487,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "fischweier--xddvzw",
+      "name": "Fischweier",
+      "placeName": "Fischweier",
+      "latitude": 48.888238,
+      "longitude": 8.451314,
+      "lineIds": ["S1", "FEX"]
+    },
+    {
+      "id": "flehingen--1w5oyuu",
+      "name": "Flehingen",
+      "placeName": "Flehingen",
+      "latitude": 49.084711999999996,
+      "longitude": 8.7835745,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "forbach-schwarzwald--8xxf5g",
+      "name": "Forbach",
+      "placeName": "Forbach",
+      "latitude": 48.680418,
+      "longitude": 8.361537,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "forchheim-b-karlsruhe--1vuyp8e",
+      "name": "Forchheim",
+      "placeName": "Forchheim",
+      "latitude": 48.9645915,
+      "longitude": 8.338477000000001,
+      "lineIds": ["S8", "S7"]
+    },
+    {
+      "id": "forststrasse--10d2rdr",
+      "name": "Forststraße",
+      "placeName": "Rintheim",
+      "latitude": 49.014078,
+      "longitude": 8.442138,
+      "lineIds": ["3"]
+    },
+    {
+      "id": "frauenalb-schielberg--wteoly",
+      "name": "Frauenalb - Schielberg",
+      "placeName": "Frauenalb",
+      "latitude": 48.837507,
+      "longitude": 8.440427,
+      "lineIds": ["S1", "FEX"]
+    },
+    {
+      "id": "freizeitzentrum--w6ek0h",
+      "name": "Freizeitzentrum",
+      "placeName": "Rülzheim",
+      "latitude": 49.1515795,
+      "longitude": 8.279345,
+      "lineIds": ["S51"]
+    },
+    {
+      "id": "friedensplatz--1qq3oz6",
+      "name": "Friedensplatz",
+      "placeName": "Heilbronn",
+      "latitude": 49.141311,
+      "longitude": 9.2286265,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "gaggenau--11hakao",
+      "name": "Gaggenau",
+      "placeName": "Gaggenau",
+      "latitude": 48.805577,
+      "longitude": 8.320111,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "gaggenau-mercedes-benz-werk--4qx4jn",
+      "name": "Gaggenau Mercedes-Benz Werk",
+      "placeName": "Gaggenau",
+      "latitude": 48.79805,
+      "longitude": 8.32741,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "gausbach--1z0ur47",
+      "name": "Gausbach",
+      "placeName": "Gausbach",
+      "latitude": 48.686652,
+      "longitude": 8.362381,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "gemmingen--tfqk5w",
+      "name": "Gemmingen",
+      "placeName": "Gemmingen",
+      "latitude": 49.151377,
+      "longitude": 8.984339,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "gemmingen-west--1wysu2r",
+      "name": "Gemmingen West",
+      "placeName": "Gemmingen",
+      "latitude": 49.154414,
+      "longitude": 8.977583,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "gernsbach--4qtz1o",
+      "name": "Gernsbach",
+      "placeName": "Gernsbach",
+      "latitude": 48.7682685,
+      "longitude": 8.3366755,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "gernsbach-mitte--1rf89uo",
+      "name": "Gernsbach Mitte",
+      "placeName": "Gernsbach",
+      "latitude": 48.762735,
+      "longitude": 8.339133,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "geroldsaecker--17mv3ni",
+      "name": "Geroldsäcker",
+      "placeName": "Hagsfeld",
+      "latitude": 49.03284,
+      "longitude": 8.455361499999999,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "gochsheim-baden--2z75jo",
+      "name": "Gochsheim",
+      "placeName": "Gochsheim",
+      "latitude": 49.109549,
+      "longitude": 8.744273,
+      "lineIds": ["FEX", "S32"]
+    },
+    {
+      "id": "goelshausen--1x1n30o",
+      "name": "Gölshausen",
+      "placeName": "Gölshausen",
+      "latitude": 49.044915,
+      "longitude": 8.724788499999999,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "goelshausen-industrie--1sj3j4l",
+      "name": "Gölshausen Industrie",
+      "placeName": "Gölshausen",
+      "latitude": 49.051833,
+      "longitude": 8.7398445,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "gottesauer-platz",
+      "name": "Gottesauer Platz/BGV",
+      "placeName": "Karlsruhe",
+      "latitude": 49.00748475,
+      "longitude": 8.424942,
+      "lineIds": ["1", "S2", "S5", "S51", "S8", "S4", "S7"]
+    },
+    {
+      "id": "groetzingen--uqwgsl",
+      "name": "Grötzingen",
+      "placeName": "Grötzingen",
+      "latitude": 49.006068,
+      "longitude": 8.4928655,
+      "lineIds": ["S5", "S51", "S4"]
+    },
+    {
+      "id": "groetzingen-krappmuehlenweg--1glki2p",
+      "name": "Grötzingen Krappmühlenweg",
+      "placeName": "Grötzingen",
+      "latitude": 49.00587,
+      "longitude": 8.5123725,
+      "lineIds": ["S5", "S51"]
+    },
+    {
+      "id": "groetzingen-oberausstrasse--tmy20p",
+      "name": "Grötzingen Oberausstraße",
+      "placeName": "Grötzingen",
+      "latitude": 49.005184,
+      "longitude": 8.503911,
+      "lineIds": ["S5", "S51", "S4"]
+    },
+    {
+      "id": "haendelstrasse--1tnj5h2",
+      "name": "Händelstraße",
+      "placeName": "Karlsruhe",
+      "latitude": 49.0112235,
+      "longitude": 8.369303,
+      "lineIds": ["S2", "S5", "3", "S51"]
+    },
+    {
+      "id": "hagsfeld-sued--172vw9k",
+      "name": "Hagsfeld Süd",
+      "placeName": "Hagsfeld",
+      "latitude": 49.024438,
+      "longitude": 8.449517499999999,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "hallenbad--13gur8z",
+      "name": "Hallenbad",
+      "placeName": "Forchheim",
+      "latitude": 48.978597,
+      "longitude": 8.317254,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "hammweg--3mj0ms",
+      "name": "Hammweg",
+      "placeName": "Daxlanden",
+      "latitude": 49.0035425,
+      "longitude": 8.328528,
+      "lineIds": ["3"]
+    },
+    {
+      "id": "hardecksiedlung--j3mhyh",
+      "name": "Hardecksiedlung",
+      "placeName": "Karlsruhe",
+      "latitude": 48.992636000000005,
+      "longitude": 8.368777,
+      "lineIds": ["4"]
+    },
+    {
+      "id": "harmonie-stadtbahn--u8om9t",
+      "name": "Harmonie",
+      "placeName": "Heilbronn",
+      "latitude": 49.141607500000006,
+      "longitude": 9.2230435,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "hauptbahnhof",
+      "name": "Hauptbahnhof",
+      "placeName": "Karlsruhe",
+      "latitude": 48.99407171428572,
+      "longitude": 8.400096142857143,
+      "lineIds": ["S1", "3", "S11", "6", "S8", "S4", "FEX", "S7", "S32", "S31", "S51", "S5"]
+    },
+    {
+      "id": "hauptbahnhof--1c7xmf5",
+      "name": "Hauptbahnhof",
+      "placeName": "Freudenstadt",
+      "latitude": 48.460462,
+      "longitude": 8.428937,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "hauptbahnhof--70ndp6",
+      "name": "Hauptbahnhof",
+      "placeName": "Pforzheim",
+      "latitude": 48.894032,
+      "longitude": 8.703399,
+      "lineIds": ["S5"]
+    },
+    {
+      "id": "hauptbahnhof-willy-brandt-pl--1q5odjj",
+      "name": "Hauptbahnhof/Willy-Brandt-Pl.",
+      "placeName": "Heilbronn",
+      "latitude": 49.142579999999995,
+      "longitude": 9.2084185,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "hauptfriedhof--18xpbl8",
+      "name": "Hauptfriedhof",
+      "placeName": "Karlsruhe",
+      "latitude": 49.01352,
+      "longitude": 8.430334250000001,
+      "lineIds": ["S2", "4", "3"]
+    },
+    {
+      "id": "hauptstrasse--136v5k0",
+      "name": "Hauptstraße",
+      "placeName": "Forchheim",
+      "latitude": 48.9748615,
+      "longitude": 8.3123,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "haus-bethlehem--7lp12e",
+      "name": "Haus Bethlehem",
+      "placeName": "Karlsruhe",
+      "latitude": 49.0331785,
+      "longitude": 8.376601,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "heidehof--2fo692",
+      "name": "Heidehof",
+      "placeName": "Karlsruhe",
+      "latitude": 49.031359,
+      "longitude": 8.387026500000001,
+      "lineIds": ["1"]
+    },
+    {
+      "id": "hertzstrasse--1440kgl",
+      "name": "Hertzstraße",
+      "placeName": "Karlsruhe",
+      "latitude": 49.019958,
+      "longitude": 8.36429,
+      "lineIds": ["2"]
+    },
+    {
+      "id": "herweghstrasse--1szuqqy",
+      "name": "Herweghstraße",
+      "placeName": "Knielingen",
+      "latitude": 49.030401999999995,
+      "longitude": 8.3412075,
+      "lineIds": ["S5", "S51"]
+    },
+    {
+      "id": "hilpertsau--1c4otpe",
+      "name": "Hilpertsau",
+      "placeName": "Hilpertsau",
+      "latitude": 48.7399615,
+      "longitude": 8.348655,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "hirtenweg-technologiepark--197oxa7",
+      "name": "Hirtenweg/Technologiepark",
+      "placeName": "Karlsruhe",
+      "latitude": 49.01742766666667,
+      "longitude": 8.43916,
+      "lineIds": ["S2", "4"]
+    },
+    {
+      "id": "hochhaus--yw6wte",
+      "name": "Hochhaus",
+      "placeName": "Spöck",
+      "latitude": 49.111501000000004,
+      "longitude": 8.5005555,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "hochstetten--1btrqjo",
+      "name": "Hochstetten",
+      "placeName": "Hochstetten",
+      "latitude": 49.133665,
+      "longitude": 8.415328,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "hochstetten-altenheim--1c3rc8n",
+      "name": "Hochstetten Altenheim",
+      "placeName": "Hochstetten",
+      "latitude": 49.132595,
+      "longitude": 8.418189,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "hochstetten-grenzstrasse--1cdqxxm",
+      "name": "Hochstetten Grenzstraße",
+      "placeName": "Hochstetten",
+      "latitude": 49.129518000000004,
+      "longitude": 8.415696,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "hoerden--1rp7vjn",
+      "name": "Hörden",
+      "placeName": "Hörden",
+      "latitude": 48.781615,
+      "longitude": 8.345151,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "huebschstrasse--873you",
+      "name": "Hübschstraße",
+      "placeName": "Karlsruhe",
+      "latitude": 49.0055665,
+      "longitude": 8.3725185,
+      "lineIds": ["2"]
+    },
+    {
+      "id": "industriegebiet-schmid--18c017k",
+      "name": "Industriegebiet/Schmid",
+      "placeName": "Freudenstadt",
+      "latitude": 48.464715,
+      "longitude": 8.4351,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "ittersbach--1nrgeow",
+      "name": "Ittersbach",
+      "placeName": "Ittersbach",
+      "latitude": 48.869206500000004,
+      "longitude": 8.511078999999999,
+      "lineIds": ["S11"]
+    },
+    {
+      "id": "ittersbach-industrie--1o1g0dv",
+      "name": "Ittersbach Industrie",
+      "placeName": "Ittersbach",
+      "latitude": 48.8847795,
+      "longitude": 8.508492,
+      "lineIds": ["S11"]
+    },
+    {
+      "id": "ittersbach-rathaus--1olc29u",
+      "name": "Ittersbach Rathaus",
+      "placeName": "Ittersbach",
+      "latitude": 48.866054,
+      "longitude": 8.510477,
+      "lineIds": ["S11"]
+    },
+    {
+      "id": "jenaer-strasse--1egbvyf",
+      "name": "Jenaer Straße",
+      "placeName": "Hagsfeld",
+      "latitude": 49.035938,
+      "longitude": 8.4562055,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "joehlingen--1vdj5uw",
+      "name": "Jöhlingen",
+      "placeName": "Jöhlingen",
+      "latitude": 49.0281045,
+      "longitude": 8.5753715,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "joehlingen-west--1vnirjv",
+      "name": "Jöhlingen West",
+      "placeName": "Jöhlingen",
+      "latitude": 49.0308785,
+      "longitude": 8.56991,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "karl-delisle-strasse--13qr7fz",
+      "name": "Karl-Delisle-Straße",
+      "placeName": "Daxlanden",
+      "latitude": 48.996031,
+      "longitude": 8.338081500000001,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "karl-wilhelm-platz",
+      "name": "Karl-Wilhelm-Platz",
+      "placeName": "Karlsruhe",
+      "latitude": 49.0113145,
+      "longitude": 8.4231835,
+      "lineIds": ["4", "3"]
+    },
+    {
+      "id": "karlsruhe-dammerstock--1vqajrv",
+      "name": "Karlsruhe Dammerstock",
+      "placeName": "Karlsruhe",
+      "latitude": 48.984448,
+      "longitude": 8.403627499999999,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "karlsruhe-schloss-rueppurr--1vgay2w",
+      "name": "Karlsruhe Schloss Rüppurr",
+      "placeName": "Karlsruhe",
+      "latitude": 48.9811735,
+      "longitude": 8.403801999999999,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "karlstor",
+      "name": "Karlstor/Bundesgerichtshof",
+      "placeName": "Karlsruhe",
+      "latitude": 49.0051872,
+      "longitude": 8.395081600000001,
+      "lineIds": ["4", "3", "5"]
+    },
+    {
+      "id": "kirche--4n7x7h",
+      "name": "Kirche",
+      "placeName": "Blankenloch",
+      "latitude": 49.0648075,
+      "longitude": 8.471432,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "kirchfeld--17yc4fq",
+      "name": "Kirchfeld",
+      "placeName": "Neureut",
+      "latitude": 49.0528195,
+      "longitude": 8.388697,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "kirchplatz--3wimbr",
+      "name": "Kirchplatz",
+      "placeName": "Daxlanden",
+      "latitude": 49.005142500000005,
+      "longitude": 8.3321795,
+      "lineIds": ["3"]
+    },
+    {
+      "id": "kirschbaumwasen--17wdzg7",
+      "name": "Kirschbaumwasen",
+      "placeName": "Kirschbaumwasen",
+      "latitude": 48.622983,
+      "longitude": 8.355716,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "kleinsteinbach--1czmik3",
+      "name": "Kleinsteinbach",
+      "placeName": "Kleinsteinbach/Baden",
+      "latitude": 48.9666855,
+      "longitude": 8.554921499999999,
+      "lineIds": ["S5"]
+    },
+    {
+      "id": "knielinger-allee-staedt-klinikum--8zn1j9",
+      "name": "Knielinger Allee/Städt. Klinikum",
+      "placeName": "Karlsruhe",
+      "latitude": 49.0188735,
+      "longitude": 8.375361999999999,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "kolpingplatz",
+      "name": "Kolpingplatz",
+      "placeName": "Karlsruhe",
+      "latitude": 48.997561000000005,
+      "longitude": 8.393759,
+      "lineIds": ["3"]
+    },
+    {
+      "id": "kongresszentrum",
+      "name": "Kongresszentrum",
+      "placeName": "Karlsruhe",
+      "latitude": 49.002531499999996,
+      "longitude": 8.403162250000001,
+      "lineIds": ["S1", "S11", "S8", "S4", "S7", "S51", "S5"]
+    },
+    {
+      "id": "kronenplatz",
+      "name": "Kronenplatz",
+      "placeName": "Karlsruhe",
+      "latitude": 49.009322000000004,
+      "longitude": 8.41043875,
+      "lineIds": ["1", "S2", "S5", "S51", "S8", "S4", "S7"]
+    },
+    {
+      "id": "kuehler-krug--8h3kdt",
+      "name": "Kühler Krug",
+      "placeName": "Karlsruhe",
+      "latitude": 49.0060765,
+      "longitude": 8.3668815,
+      "lineIds": ["2"]
+    },
+    {
+      "id": "kunstakademie-hochschule--43lsew",
+      "name": "Kunstakademie/Hochschule",
+      "placeName": "Karlsruhe",
+      "latitude": 49.0143725,
+      "longitude": 8.385656,
+      "lineIds": ["1"]
+    },
+    {
+      "id": "kuppenheim--1baq0mh",
+      "name": "Kuppenheim",
+      "placeName": "Kuppenheim",
+      "latitude": 48.834086,
+      "longitude": 8.2562495,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "kurt-schumacher-strasse--7bpfdf",
+      "name": "Kurt-Schumacher-Straße",
+      "placeName": "Karlsruhe",
+      "latitude": 49.030128000000005,
+      "longitude": 8.376269,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "kussmaulstrasse-staedt-klinikum--13a1rdo",
+      "name": "Kußmaulstraße/Städt. Klinikum",
+      "placeName": "Karlsruhe",
+      "latitude": 49.016821,
+      "longitude": 8.3694235,
+      "lineIds": ["2"]
+    },
+    {
+      "id": "lameyplatz--1u7licz",
+      "name": "Lameyplatz",
+      "placeName": "Karlsruhe",
+      "latitude": 49.013179666666666,
+      "longitude": 8.354661666666665,
+      "lineIds": ["S5", "S51", "2"]
+    },
+    {
+      "id": "landesbausparkasse--i9novk",
+      "name": "Landesbausparkasse",
+      "placeName": "Karlsruhe",
+      "latitude": 49.0016685,
+      "longitude": 8.377566999999999,
+      "lineIds": ["4"]
+    },
+    {
+      "id": "langenbrand--1anpvzy",
+      "name": "Langenbrand",
+      "placeName": "Langenbrand",
+      "latitude": 48.702572,
+      "longitude": 8.355796,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "langensteinbach--1qjcfmm",
+      "name": "Langensteinbach",
+      "placeName": "Langensteinbach",
+      "latitude": 48.915216,
+      "longitude": 8.503106500000001,
+      "lineIds": ["S11"]
+    },
+    {
+      "id": "langensteinbach-schiesshuettenaecker--1ovbnyt",
+      "name": "Langensteinbach Schießhüttenäcker",
+      "placeName": "Langensteinbach",
+      "latitude": 48.9200565,
+      "longitude": 8.499445999999999,
+      "lineIds": ["S11"]
+    },
+    {
+      "id": "langensteinbach-st-barbara--1rdb8pj",
+      "name": "Langensteinbach St. Barbara",
+      "placeName": "Langensteinbach",
+      "latitude": 48.909730999999994,
+      "longitude": 8.499545000000001,
+      "lineIds": ["S11"]
+    },
+    {
+      "id": "leichtsandstrasse-messe-karlsruhe--140tymx",
+      "name": "Leichtsandstraße/Messe Karlsruhe",
+      "placeName": "Forchheim",
+      "latitude": 48.982116500000004,
+      "longitude": 8.3233985,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "leingarten--k4jjgc",
+      "name": "Leingarten",
+      "placeName": "Leingarten",
+      "latitude": 49.145037,
+      "longitude": 9.1211835,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "leingarten-mitte--koiqua",
+      "name": "Leingarten Mitte",
+      "placeName": "Leingarten",
+      "latitude": 49.1455685,
+      "longitude": 9.113085,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "leingarten-ost--r61li",
+      "name": "Leingarten Ost",
+      "placeName": "Leingarten",
+      "latitude": 49.144023000000004,
+      "longitude": 9.131352,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "leingarten-west--jakqdf",
+      "name": "Leingarten West",
+      "placeName": "Leingarten",
+      "latitude": 49.145923999999994,
+      "longitude": 9.105584,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "leopoldshafen-frankfurter-strasse--1cyb9x6",
+      "name": "Leopoldshafen Frankfurter Straße",
+      "placeName": "Leopoldshafen",
+      "latitude": 49.1009625,
+      "longitude": 8.4039195,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "leopoldshafen-leopoldstrasse--1d8avm5",
+      "name": "Leopoldshafen Leopoldstraße",
+      "placeName": "Leopoldshafen",
+      "latitude": 49.0971685,
+      "longitude": 8.4011075,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "leopoldshafen-viermorgen--1cec2j8",
+      "name": "Leopoldshafen Viermorgen",
+      "placeName": "Leopoldshafen",
+      "latitude": 49.090360000000004,
+      "longitude": 8.4006985,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "lilienthalstrasse--v9b926",
+      "name": "Lilienthalstraße",
+      "placeName": "Karlsruhe",
+      "latitude": 49.0224025,
+      "longitude": 8.38514,
+      "lineIds": ["1"]
+    },
+    {
+      "id": "linkenheim-friedrichstrasse--1azsxgr",
+      "name": "Linkenheim Friedrichstraße",
+      "placeName": "Linkenheim",
+      "latitude": 49.119688499999995,
+      "longitude": 8.409354,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "linkenheim-rathaus--1aptbrs",
+      "name": "Linkenheim Rathaus",
+      "placeName": "Linkenheim",
+      "latitude": 49.123081,
+      "longitude": 8.408213,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "linkenheim-schulzentrum--1cnqjml",
+      "name": "Linkenheim Schulzentrum",
+      "placeName": "Linkenheim",
+      "latitude": 49.127469500000004,
+      "longitude": 8.413329000000001,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "linkenheim-sued--1b9sj5q",
+      "name": "Linkenheim Süd",
+      "placeName": "Linkenheim",
+      "latitude": 49.116575499999996,
+      "longitude": 8.411663,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "marktplatz",
+      "name": "Marktplatz",
+      "placeName": "Karlsruhe",
+      "latitude": 49.009162,
+      "longitude": 8.403047625,
+      "lineIds": ["1", "S2", "S1", "S5", "S51", "S11", "S8", "S4", "S7"]
+    },
+    {
+      "id": "martin-luther-strasse--258cgr",
+      "name": "Martin-Luther-Straße",
+      "placeName": "Unteröwisheim",
+      "latitude": 49.146476,
+      "longitude": 8.662185,
+      "lineIds": ["FEX", "S32"]
+    },
+    {
+      "id": "marxzell--xndhov",
+      "name": "Marxzell",
+      "placeName": "Marxzell",
+      "latitude": 48.8634775,
+      "longitude": 8.447344000000001,
+      "lineIds": ["S1", "FEX"]
+    },
+    {
+      "id": "mathystrasse",
+      "name": "Mathystraße",
+      "placeName": "Karlsruhe",
+      "latitude": 49.002027999999996,
+      "longitude": 8.394284500000001,
+      "lineIds": ["3"]
+    },
+    {
+      "id": "mauerweg--3cjext",
+      "name": "Mauerweg",
+      "placeName": "Daxlanden",
+      "latitude": 49.0077675,
+      "longitude": 8.339227000000001,
+      "lineIds": ["3"]
+    },
+    {
+      "id": "maxau--hh2zx2",
+      "name": "Maxau",
+      "placeName": "Karlsruhe",
+      "latitude": 49.0359995,
+      "longitude": 8.3074625,
+      "lineIds": ["S5", "S51"]
+    },
+    {
+      "id": "menzingen-baden--7b4ly",
+      "name": "Menzingen",
+      "placeName": "Menzingen",
+      "latitude": 49.1361715,
+      "longitude": 8.775193,
+      "lineIds": ["FEX", "S32"]
+    },
+    {
+      "id": "merkurstrasse--15ouqaq",
+      "name": "Merkurstraße",
+      "placeName": "Mörsch",
+      "latitude": 48.953092999999996,
+      "longitude": 8.291184999999999,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "mitte--1vuha0x",
+      "name": "Mitte",
+      "placeName": "Friedrichstal",
+      "latitude": 49.104344,
+      "longitude": 8.475258499999999,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "mitte-rhein--t49gvv",
+      "name": "Mitte/Rhein",
+      "placeName": "Germersheim",
+      "latitude": 49.219938,
+      "longitude": 8.37931,
+      "lineIds": ["S51"]
+    },
+    {
+      "id": "moltkestrasse-staedt-klinikum--8fnu5b",
+      "name": "Moltkestraße/Städt. Klinikum",
+      "placeName": "Karlsruhe",
+      "latitude": 49.015375750000004,
+      "longitude": 8.3747935,
+      "lineIds": ["S1", "S11", "2"]
+    },
+    {
+      "id": "muehlburg-west--1rbx4l4",
+      "name": "Mühlburg West",
+      "placeName": "Karlsruhe",
+      "latitude": 49.020323000000005,
+      "longitude": 8.3507075,
+      "lineIds": ["S5", "S51"]
+    },
+    {
+      "id": "muehlburger-feld--8r362s",
+      "name": "Mühlburger Feld",
+      "placeName": "Karlsruhe",
+      "latitude": 49.007684999999995,
+      "longitude": 8.364146,
+      "lineIds": ["2"]
+    },
+    {
+      "id": "muehlburger-tor",
+      "name": "Mühlburger Tor",
+      "placeName": "Karlsruhe",
+      "latitude": 49.01078266666667,
+      "longitude": 8.383314833333335,
+      "lineIds": ["1", "S2", "S1", "S5", "4", "3", "S51", "S11"]
+    },
+    {
+      "id": "muehlenweg--14i97zy",
+      "name": "Mühlenweg",
+      "placeName": "Blankenloch",
+      "latitude": 49.068718000000004,
+      "longitude": 8.474562500000001,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "muenzesheim--3j6cxm",
+      "name": "Münzesheim",
+      "placeName": "Münzesheim",
+      "latitude": 49.1259965,
+      "longitude": 8.7160885,
+      "lineIds": ["FEX", "S32"]
+    },
+    {
+      "id": "muenzesheim-ost--396r8n",
+      "name": "Münzesheim Ost",
+      "placeName": "Münzesheim",
+      "latitude": 49.121408,
+      "longitude": 8.726378,
+      "lineIds": ["FEX", "S32"]
+    },
+    {
+      "id": "narzissenstrasse--14atkbw",
+      "name": "Narzissenstraße",
+      "placeName": "Mörsch",
+      "latitude": 48.966028,
+      "longitude": 8.302468000000001,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "neckarturm--1byc09d",
+      "name": "Neckarturm",
+      "placeName": "Heilbronn",
+      "latitude": 49.1426655,
+      "longitude": 9.2137455,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "neureut-adolf-ehrmann-bad--188bq4p",
+      "name": "Neureut Adolf-Ehrmann-Bad",
+      "placeName": "Neureut",
+      "latitude": 49.0506265,
+      "longitude": 8.384857,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "neureut-baerenweg--192aj7m",
+      "name": "Neureut Bärenweg",
+      "placeName": "Neureut",
+      "latitude": 49.0471025,
+      "longitude": 8.378676500000001,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "neureut-heide--uzesv6",
+      "name": "Neureut-Heide",
+      "placeName": "Neureut",
+      "latitude": 49.0364855,
+      "longitude": 8.3880955,
+      "lineIds": ["1"]
+    },
+    {
+      "id": "neureut-welschneureuter-strasse--19ca4wl",
+      "name": "Neureut Welschneureuter Straße",
+      "placeName": "Neureut",
+      "latitude": 49.0446205,
+      "longitude": 8.374324,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "neureuter-strasse--12g2yar",
+      "name": "Neureuter Straße",
+      "placeName": "Karlsruhe",
+      "latitude": 49.023619,
+      "longitude": 8.357508,
+      "lineIds": ["2"]
+    },
+    {
+      "id": "nord--1s81tmc",
+      "name": "Nord",
+      "placeName": "Friedrichstal",
+      "latitude": 49.1089195,
+      "longitude": 8.47653,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "nord--438ptj",
+      "name": "Nord",
+      "placeName": "Blankenloch",
+      "latitude": 49.073837,
+      "longitude": 8.467591666666666,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "nord--9idcfo",
+      "name": "Nord",
+      "placeName": "Knielingen",
+      "latitude": 49.037743,
+      "longitude": 8.347783,
+      "lineIds": ["2"]
+    },
+    {
+      "id": "nussbaumweg--14upm7v",
+      "name": "Nussbaumweg",
+      "placeName": "Daxlanden",
+      "latitude": 48.9893795,
+      "longitude": 8.333189999999998,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "oberderdingen-flehingen--sjeguh",
+      "name": "Oberderdingen-Flehingen",
+      "placeName": "Oberderdingen",
+      "latitude": 49.083944,
+      "longitude": 8.77504,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "oberfeldstrasse--154sdet",
+      "name": "Oberfeldstraße",
+      "placeName": "Forchheim",
+      "latitude": 48.970226999999994,
+      "longitude": 8.3077905,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "oberoewisheim--3t5yml",
+      "name": "Oberöwisheim",
+      "placeName": "Oberöwisheim",
+      "latitude": 49.140089,
+      "longitude": 8.686412,
+      "lineIds": ["FEX", "S32"]
+    },
+    {
+      "id": "obertsrot--78tjse",
+      "name": "Obertsrot",
+      "placeName": "Obertsrot",
+      "latitude": 48.746117,
+      "longitude": 8.347469,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "odenheim--716bre",
+      "name": "Odenheim",
+      "placeName": "Odenheim",
+      "latitude": 49.179125,
+      "longitude": 8.745944,
+      "lineIds": ["S31", "FEX"]
+    },
+    {
+      "id": "odenheim-west--3fbhqr",
+      "name": "Odenheim West",
+      "placeName": "Odenheim",
+      "latitude": 49.182272,
+      "longitude": 8.73644,
+      "lineIds": ["S31", "FEX"]
+    },
+    {
+      "id": "oetigheim--1jkqju",
+      "name": "Ötigheim",
+      "placeName": "Ötigheim",
+      "latitude": 48.888265000000004,
+      "longitude": 8.2402865,
+      "lineIds": ["S8", "S7"]
+    },
+    {
+      "id": "ostendstrasse",
+      "name": "Ostendstraße",
+      "placeName": "Karlsruhe",
+      "latitude": 49.0050545,
+      "longitude": 8.4162795,
+      "lineIds": ["5"]
+    },
+    {
+      "id": "ottenau--1vb2pka",
+      "name": "Ottenau",
+      "placeName": "Ottenau",
+      "latitude": 48.792944,
+      "longitude": 8.338136,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "pfuehlpark--6vm7ll",
+      "name": "Pfühlpark",
+      "placeName": "Heilbronn",
+      "latitude": 49.1396595,
+      "longitude": 9.24317,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "philippstrasse--1txir61",
+      "name": "Philippstraße",
+      "placeName": "Karlsruhe",
+      "latitude": 49.01141749999999,
+      "longitude": 8.3645235,
+      "lineIds": ["S2", "S5", "3", "S51"]
+    },
+    {
+      "id": "pionierstrasse--154yoer",
+      "name": "Pionierstraße",
+      "placeName": "Knielingen",
+      "latitude": 49.0333435,
+      "longitude": 8.347900500000002,
+      "lineIds": ["2"]
+    },
+    {
+      "id": "poststrasse",
+      "name": "Poststraße",
+      "placeName": "Karlsruhe",
+      "latitude": 48.995143999999996,
+      "longitude": 8.403515,
+      "lineIds": ["S1", "3", "S11", "6", "S8", "S4", "S7", "S51", "S5"]
+    },
+    {
+      "id": "rappengasse--rqbgf0",
+      "name": "Rappengasse",
+      "placeName": "Rheinzabern",
+      "latitude": 49.1145,
+      "longitude": 8.2732365,
+      "lineIds": ["S51"]
+    },
+    {
+      "id": "rappenwoert--kne03",
+      "name": "Rappenwört",
+      "placeName": "Daxlanden",
+      "latitude": 48.998913,
+      "longitude": 8.295421,
+      "lineIds": ["3"]
+    },
+    {
+      "id": "rastatt--z404vr",
+      "name": "Rastatt",
+      "placeName": "Rastatt",
+      "latitude": 48.860782,
+      "longitude": 8.216063,
+      "lineIds": ["S8", "S7"]
+    },
+    {
+      "id": "rastatt-beinle--u69rdk",
+      "name": "Rastatt Beinle",
+      "placeName": "Rastatt",
+      "latitude": 48.852041,
+      "longitude": 8.225208,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "rathaus--dxswvm",
+      "name": "Rathaus",
+      "placeName": "Heilbronn",
+      "latitude": 49.142022,
+      "longitude": 9.2185925,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "rathaus--i0tth0",
+      "name": "Rathaus",
+      "placeName": "Wörth",
+      "latitude": 49.052351,
+      "longitude": 8.249804,
+      "lineIds": ["S5"]
+    },
+    {
+      "id": "raumuenzach--186dl56",
+      "name": "Raumünzach",
+      "placeName": "Raumünzach",
+      "latitude": 48.644979,
+      "longitude": 8.351493,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "reichenbach-b-ettlingen--1qtc1bl",
+      "name": "Reichenbach",
+      "placeName": "Reichenbach",
+      "latitude": 48.920375,
+      "longitude": 8.479467499999998,
+      "lineIds": ["S11"]
+    },
+    {
+      "id": "reichenbach-kurpark--1pzd88o",
+      "name": "Reichenbach Kurpark",
+      "placeName": "Reichenbach",
+      "latitude": 48.91892,
+      "longitude": 8.4728735,
+      "lineIds": ["S11"]
+    },
+    {
+      "id": "reitschulschlag--1u9ps6d",
+      "name": "Reitschulschlag",
+      "placeName": "Hagsfeld",
+      "latitude": 49.04328833333333,
+      "longitude": 8.460914,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "rheinaustrasse--15yr6hq",
+      "name": "Rheinaustraße",
+      "placeName": "Mörsch",
+      "latitude": 48.9584315,
+      "longitude": 8.2942885,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "rheinbergstrasse",
+      "name": "Rheinbergstraße",
+      "placeName": "Knielingen",
+      "latitude": 49.035132,
+      "longitude": 8.336434666666667,
+      "lineIds": ["S5", "S51"]
+    },
+    {
+      "id": "rheinhafen--9b2dgq",
+      "name": "Rheinhafen",
+      "placeName": "Karlsruhe",
+      "latitude": 49.015589000000006,
+      "longitude": 8.3474375,
+      "lineIds": ["S5", "2"]
+    },
+    {
+      "id": "rheinhafenstrasse--136s021",
+      "name": "Rheinhafenstraße",
+      "placeName": "Karlsruhe",
+      "latitude": 49.001533,
+      "longitude": 8.3450615,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "richard-hecht-schule--dhmkl4",
+      "name": "Richard-Hecht-Schule",
+      "placeName": "Spöck",
+      "latitude": 49.112812,
+      "longitude": 8.505114,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "rintheim--zj3yau",
+      "name": "Rintheim",
+      "placeName": "Rintheim",
+      "latitude": 49.01629,
+      "longitude": 8.443768,
+      "lineIds": ["3"]
+    },
+    {
+      "id": "roemerstrasse--168qs6p",
+      "name": "Römerstraße",
+      "placeName": "Mörsch",
+      "latitude": 48.9614955,
+      "longitude": 8.297446,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "roesselsbruennle--14usrpu",
+      "name": "Rösselsbrünnle",
+      "placeName": "Mörsch",
+      "latitude": 48.967741000000004,
+      "longitude": 8.305208,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "roet-bahnhof--gppfqp",
+      "name": "Röt Bahnhof",
+      "placeName": "Röt",
+      "latitude": 48.555602,
+      "longitude": 8.397326,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "rueppurr-battstrasse--1vq7e9w",
+      "name": "Rüppurr Battstraße",
+      "placeName": "Rüppurr",
+      "latitude": 48.965314500000005,
+      "longitude": 8.4047995,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "rueppurr-ostendorfplatz--1v6bcdx",
+      "name": "Rüppurr Ostendorfplatz",
+      "placeName": "Rüppurr",
+      "latitude": 48.975716500000004,
+      "longitude": 8.406582499999999,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "rueppurr-tulpenstrasse--1uwbqoy",
+      "name": "Rüppurr Tulpenstraße",
+      "placeName": "Rüppurr",
+      "latitude": 48.971111,
+      "longitude": 8.4040495,
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "rueppurrer-tor",
+      "name": "Rüppurrer Tor",
+      "placeName": "Karlsruhe",
+      "latitude": 49.005554749999995,
+      "longitude": 8.4097895,
+      "lineIds": ["4", "3", "5"]
+    },
+    {
+      "id": "saint-riquier-platz--s6gxfk",
+      "name": "Saint-Riquier-Platz",
+      "placeName": "Friedrichstal",
+      "latitude": 49.101015000000004,
+      "longitude": 8.4744055,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "schillerstrasse--1urhk8y",
+      "name": "Schillerstraße",
+      "placeName": "Karlsruhe",
+      "latitude": 49.010092,
+      "longitude": 8.379732,
+      "lineIds": ["4", "2"]
+    },
+    {
+      "id": "schloss-gottesaue--1nc76je",
+      "name": "Schloss Gottesaue",
+      "placeName": "Karlsruhe",
+      "latitude": 49.003643,
+      "longitude": 8.427437000000001,
+      "lineIds": ["5"]
+    },
+    {
+      "id": "schule--ydwxyk",
+      "name": "Schule",
+      "placeName": "Baiersbronn",
+      "latitude": 48.510667,
+      "longitude": 8.375892,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "schulzentrum-panoramabad--kkl86w",
+      "name": "Schulzentrum/Panoramabad",
+      "placeName": "Freudenstadt",
+      "latitude": 48.467407,
+      "longitude": 8.421275,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "schwaigern-wuertt--ozuewi",
+      "name": "Schwaigern",
+      "placeName": "Schwaigern",
+      "latitude": 49.1383845,
+      "longitude": 9.0565905,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "schwaigern-wuertt-ost--26q1qr",
+      "name": "Schwaigern",
+      "placeName": "Schwaigern",
+      "latitude": 49.1405825,
+      "longitude": 9.0692155,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "schwaigern-wuertt-west--qzu0zb",
+      "name": "Schwaigern",
+      "placeName": "Schwaigern",
+      "latitude": 49.1388925,
+      "longitude": 9.0419075,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "siemens--1t9ucfx",
+      "name": "Siemens",
+      "placeName": "Knielingen",
+      "latitude": 49.025227,
+      "longitude": 8.346296500000001,
+      "lineIds": ["S5", "S51"]
+    },
+    {
+      "id": "siemensallee--1263cls",
+      "name": "Siemensallee",
+      "placeName": "Knielingen",
+      "latitude": 49.0277335,
+      "longitude": 8.3500115,
+      "lineIds": ["2"]
+    },
+    {
+      "id": "sinsheimer-strasse--18dq47a",
+      "name": "Sinsheimer Straße",
+      "placeName": "Rintheim",
+      "latitude": 49.021035999999995,
+      "longitude": 8.4450575,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "sinzheim-b-buehl--1lngzlq",
+      "name": "Sinzheim",
+      "placeName": "Sinzheim",
+      "latitude": 48.759757,
+      "longitude": 8.158351,
+      "lineIds": ["S7"]
+    },
+    {
+      "id": "sinzheim-b-buehl-nord--1ldhdwr",
+      "name": "Sinzheim",
+      "placeName": "Sinzheim",
+      "latitude": 48.7705245,
+      "longitude": 8.169535,
+      "lineIds": ["S7"]
+    },
+    {
+      "id": "soellingen-b-karlsruhe--1gvgy9p",
+      "name": "Söllingen",
+      "placeName": "Söllingen",
+      "latitude": 48.98773933333334,
+      "longitude": 8.543667,
+      "lineIds": ["S5", "S51"]
+    },
+    {
+      "id": "soellingen-kapellenstrasse--cxduhe",
+      "name": "Söllingen Kapellenstraße",
+      "placeName": "Söllingen",
+      "latitude": 48.9839,
+      "longitude": 8.549666,
+      "lineIds": ["S5"]
+    },
+    {
+      "id": "soellingen-reetzstrasse--1glhckq",
+      "name": "Söllingen Reetzstraße",
+      "placeName": "Söllingen",
+      "latitude": 48.99085,
+      "longitude": 8.540921333333335,
+      "lineIds": ["S5", "S51"]
+    },
+    {
+      "id": "sonnenbrunnen--1hcesdm",
+      "name": "Sonnenbrunnen",
+      "placeName": "Böckingen",
+      "latitude": 49.140741000000006,
+      "longitude": 9.190825499999999,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "sophienstrasse--jxlb1e",
+      "name": "Sophienstraße",
+      "placeName": "Karlsruhe",
+      "latitude": 49.007629,
+      "longitude": 8.3791705,
+      "lineIds": ["4", "2"]
+    },
+    {
+      "id": "spielberg-baden--1rxag3h",
+      "name": "Spielberg",
+      "placeName": "Spielberg",
+      "latitude": 48.897478500000005,
+      "longitude": 8.474693,
+      "lineIds": ["S11"]
+    },
+    {
+      "id": "stadtbahnhof--9dsxeq",
+      "name": "Stadtbahnhof",
+      "placeName": "Freudenstadt",
+      "latitude": 48.4676125,
+      "longitude": 8.411101500000001,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "stadtwerke--zt3jzt",
+      "name": "Stadtwerke",
+      "placeName": "Karlsruhe",
+      "latitude": 49.007167,
+      "longitude": 8.343548,
+      "lineIds": ["3"]
+    },
+    {
+      "id": "starckstrasse--1rvwbz2",
+      "name": "Starckstraße",
+      "placeName": "Karlsruhe",
+      "latitude": 49.0168235,
+      "longitude": 8.3528545,
+      "lineIds": ["S5", "S51"]
+    },
+    {
+      "id": "stetten-am-heuchelb--plw0ig",
+      "name": "Stetten am Heuchelb",
+      "placeName": "Stetten am Heuchelb",
+      "latitude": 49.136788499999994,
+      "longitude": 9.014437000000001,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "stettfeld--3pb3fq",
+      "name": "Stettfeld",
+      "placeName": "Stettfeld",
+      "latitude": 49.1790165,
+      "longitude": 8.643918,
+      "lineIds": ["S31", "FEX"]
+    },
+    {
+      "id": "sudetenstrasse--18qtife",
+      "name": "Sudetenstraße",
+      "placeName": "Knielingen",
+      "latitude": 49.0304135,
+      "longitude": 8.345331,
+      "lineIds": ["2"]
+    },
+    {
+      "id": "sued--15w78gt",
+      "name": "Süd",
+      "placeName": "Blankenloch",
+      "latitude": 49.057335,
+      "longitude": 8.4670165,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "sued-nolte--blcz70",
+      "name": "Süd/Nolte",
+      "placeName": "Germersheim",
+      "latitude": 49.208319,
+      "longitude": 8.3736595,
+      "lineIds": ["S51"]
+    },
+    {
+      "id": "sulzfeld-baden--1wfokjt",
+      "name": "Sulzfeld",
+      "placeName": "Sulzfeld",
+      "latitude": 49.107943,
+      "longitude": 8.853346,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "synagoge--ufcfz9",
+      "name": "Synagoge",
+      "placeName": "Karlsruhe",
+      "latitude": 49.0179105,
+      "longitude": 8.384884,
+      "lineIds": ["1"]
+    },
+    {
+      "id": "thomas-mann-strasse--13grlr0",
+      "name": "Thomas-Mann-Straße",
+      "placeName": "Daxlanden",
+      "latitude": 48.9991345,
+      "longitude": 8.341459,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "tivoli",
+      "name": "Tivoli",
+      "placeName": "Karlsruhe",
+      "latitude": 48.99679333333333,
+      "longitude": 8.410596333333332,
+      "lineIds": ["3", "6"]
+    },
+    {
+      "id": "tolna-platz--4d8bii",
+      "name": "Tolna-Platz",
+      "placeName": "Blankenloch",
+      "latitude": 49.0603605,
+      "longitude": 8.4694155,
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "tullastrasse-22--jgzpk7",
+      "name": "Tullastraße",
+      "placeName": "Karlsruhe",
+      "latitude": 49.007812,
+      "longitude": 8.433123,
+      "lineIds": ["5"]
+    },
+    {
+      "id": "tullastrasse-alter-schlachthof--tvd8lb",
+      "name": "Tullastraße/Alter Schlachthof",
+      "placeName": "Karlsruhe",
+      "latitude": 49.0064125,
+      "longitude": 8.432178666666667,
+      "lineIds": ["1", "S2", "S5", "S51", "5", "S8", "S4", "S7"]
+    },
+    {
+      "id": "tullastrasse-e43--gywzbi",
+      "name": "Tullastraße",
+      "placeName": "Karlsruhe",
+      "latitude": 49.007005,
+      "longitude": 8.434255,
+      "lineIds": ["5"]
+    },
+    {
+      "id": "ubstadt-ort--49aato",
+      "name": "Ubstadt Ort",
+      "placeName": "Ubstadt",
+      "latitude": 49.156602500000005,
+      "longitude": 8.6253,
+      "lineIds": ["FEX", "S32", "S31"]
+    },
+    {
+      "id": "ubstadt-salzbrunnenstrasse--2f7y5q",
+      "name": "Ubstadt Salzbrunnenstraße",
+      "placeName": "Ubstadt",
+      "latitude": 49.155014,
+      "longitude": 8.63334,
+      "lineIds": ["FEX", "S32"]
+    },
+    {
+      "id": "ubstadt-uhlandstrasse--1sowg22",
+      "name": "Ubstadt Uhlandstraße",
+      "placeName": "Ubstadt",
+      "latitude": 49.162762,
+      "longitude": 8.628839,
+      "lineIds": ["S31", "FEX"]
+    },
+    {
+      "id": "untergrombach--v82jo6",
+      "name": "Untergrombach",
+      "placeName": "Untergrombach",
+      "latitude": 49.0875595,
+      "longitude": 8.548210999999998,
+      "lineIds": ["FEX", "S32", "S31"]
+    },
+    {
+      "id": "untermuehlstrasse--upf767",
+      "name": "Untermühlstraße",
+      "placeName": "Durlach",
+      "latitude": 49.00199125,
+      "longitude": 8.45539025,
+      "lineIds": ["1", "S5", "S51", "S4"]
+    },
+    {
+      "id": "unteroewisheim--1v8qrs",
+      "name": "Unteröwisheim",
+      "placeName": "Unteröwisheim",
+      "latitude": 49.146364500000004,
+      "longitude": 8.6689225,
+      "lineIds": ["FEX", "S32"]
+    },
+    {
+      "id": "waidweg--4ghtpp",
+      "name": "Waidweg",
+      "placeName": "Daxlanden",
+      "latitude": 49.004288,
+      "longitude": 8.3228955,
+      "lineIds": ["3"]
+    },
+    {
+      "id": "weinbrennerplatz--k7kwqd",
+      "name": "Weinbrennerplatz",
+      "placeName": "Karlsruhe",
+      "latitude": 49.00546799999999,
+      "longitude": 8.37725925,
+      "lineIds": ["4", "2"]
+    },
+    {
+      "id": "weingarten-baden--w21cr3",
+      "name": "Weingarten",
+      "placeName": "Weingarten",
+      "latitude": 49.059224,
+      "longitude": 8.521329,
+      "lineIds": ["FEX", "S32", "S31"]
+    },
+    {
+      "id": "weinweg--vjaur5",
+      "name": "Weinweg",
+      "placeName": "Karlsruhe",
+      "latitude": 49.00441175,
+      "longitude": 8.4415115,
+      "lineIds": ["1", "S5", "S51", "S4"]
+    },
+    {
+      "id": "weisenbach--1coo13c",
+      "name": "Weisenbach",
+      "placeName": "Weisenbach",
+      "latitude": 48.72749,
+      "longitude": 8.355325,
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "welfenstrasse",
+      "name": "Welfenstraße",
+      "placeName": "Karlsruhe",
+      "latitude": 48.995283,
+      "longitude": 8.3852345,
+      "lineIds": ["6"]
+    },
+    {
+      "id": "werderstrasse",
+      "name": "Werderstraße",
+      "placeName": "Karlsruhe",
+      "latitude": 49.000484,
+      "longitude": 8.410612,
+      "lineIds": ["3"]
+    },
+    {
+      "id": "west--brt9yj",
+      "name": "West",
+      "placeName": "Maximiliansau",
+      "latitude": 49.038906,
+      "longitude": 8.2919215,
+      "lineIds": ["S51", "S5"]
+    },
+    {
+      "id": "west--cydz45",
+      "name": "West",
+      "placeName": "Ersingen",
+      "latitude": 48.9314445,
+      "longitude": 8.633874500000001,
+      "lineIds": ["S5"]
+    },
+    {
+      "id": "wilferdingen-singen-bahnhof--coedf6",
+      "name": "Wilferdingen-Singen Bahnhof",
+      "placeName": "Remchingen",
+      "latitude": 48.953747500000006,
+      "longitude": 8.5729235,
+      "lineIds": ["S5"]
+    },
+    {
+      "id": "wilhelm-leuschner-strasse--l1mvb9",
+      "name": "Wilhelm-Leuschner-Straße",
+      "placeName": "Oberreut",
+      "latitude": 48.983492999999996,
+      "longitude": 8.364865,
+      "lineIds": ["4"]
+    },
+    {
+      "id": "woessingen--1xlj4wn",
+      "name": "Wössingen",
+      "placeName": "Wössingen",
+      "latitude": 49.015554,
+      "longitude": 8.6044365,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "woessingen-ost--1y5ical",
+      "name": "Wössingen Ost",
+      "placeName": "Wössingen",
+      "latitude": 49.0158955,
+      "longitude": 8.6101405,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "wolfartsweierer-strasse--1ly962j",
+      "name": "Wolfartsweierer Straße",
+      "placeName": "Karlsruhe",
+      "latitude": 49.003480499999995,
+      "longitude": 8.4233495,
+      "lineIds": ["5"]
+    },
+    {
+      "id": "yorckstrasse--1v1h5xx",
+      "name": "Yorckstraße",
+      "placeName": "Karlsruhe",
+      "latitude": 49.010940600000005,
+      "longitude": 8.375652800000001,
+      "lineIds": ["S2", "S1", "S5", "3", "S51", "S11", "2"]
+    },
+    {
+      "id": "zaisenhausen-baden--1oiz95i",
+      "name": "Zaisenhausen",
+      "placeName": "Zaisenhausen",
+      "latitude": 49.104262,
+      "longitude": 8.815824,
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "zentrum--lviiw7",
+      "name": "Zentrum",
+      "placeName": "Oberreut",
+      "latitude": 48.985751,
+      "longitude": 8.3622955,
+      "lineIds": ["4"]
+    },
+    {
+      "id": "zeutern--3zap4p",
+      "name": "Zeutern",
+      "placeName": "Zeutern",
+      "latitude": 49.1781675,
+      "longitude": 8.6776,
+      "lineIds": ["S31", "FEX"]
+    },
+    {
+      "id": "zeutern-ost--zkdn0p",
+      "name": "Zeutern Ost",
+      "placeName": "Zeutern",
+      "latitude": 49.179031,
+      "longitude": 8.703193,
+      "lineIds": ["S31", "FEX"]
+    },
+    {
+      "id": "zeutern-sportplatz--1heok2r",
+      "name": "Zeutern Sportplatz",
+      "placeName": "Zeutern",
+      "latitude": 49.177951,
+      "longitude": 8.670889,
+      "lineIds": ["S31", "FEX"]
+    },
+    {
+      "id": "zkm",
+      "name": "ZKM",
+      "placeName": "Karlsruhe",
+      "latitude": 48.9993935,
+      "longitude": 8.3860115,
+      "lineIds": ["6"]
+    },
+    {
+      "id": "zuegelstr--1r3o3k",
+      "name": "Zügelstr.",
+      "placeName": "Wörth",
+      "latitude": 49.0528075,
+      "longitude": 8.2619895,
+      "lineIds": ["S51"]
+    }
+  ],
+  "links": [
+    {
+      "id": "albert-braun-strasse--llix78\u0000hardecksiedlung--j3mhyh",
+      "fromId": "albert-braun-strasse--llix78",
+      "toId": "hardecksiedlung--j3mhyh",
+      "lineIds": ["4"]
+    },
+    {
+      "id": "albert-braun-strasse--llix78\u0000zentrum--lviiw7",
+      "fromId": "albert-braun-strasse--llix78",
+      "toId": "zentrum--lviiw7",
+      "lineIds": ["4"]
+    },
+    {
+      "id": "albtalbahnhof\u0000forchheim-b-karlsruhe--1vuyp8e",
+      "fromId": "albtalbahnhof",
+      "toId": "forchheim-b-karlsruhe--1vuyp8e",
+      "lineIds": ["S8", "S7"]
+    },
+    {
+      "id": "albtalbahnhof\u0000hauptbahnhof",
+      "fromId": "albtalbahnhof",
+      "toId": "hauptbahnhof",
+      "lineIds": ["S1", "S11", "S8", "S4", "S7", "S51", "S5"]
+    },
+    {
+      "id": "albtalbahnhof\u0000karlsruhe-dammerstock--1vqajrv",
+      "fromId": "albtalbahnhof",
+      "toId": "karlsruhe-dammerstock--1vqajrv",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "alte-bahnmeisterei--1p96jzw\u0000bahnhof--106kz7n",
+      "fromId": "alte-bahnmeisterei--1p96jzw",
+      "toId": "bahnhof--106kz7n",
+      "lineIds": ["S5"]
+    },
+    {
+      "id": "alte-bahnmeisterei--1p96jzw\u0000bienwaldhalle--in203d",
+      "fromId": "alte-bahnmeisterei--1p96jzw",
+      "toId": "bienwaldhalle--in203d",
+      "lineIds": ["S5"]
+    },
+    {
+      "id": "alte-roemerstrasse--rgbuq1\u0000bahnhof--zwldio",
+      "fromId": "alte-roemerstrasse--rgbuq1",
+      "toId": "bahnhof--zwldio",
+      "lineIds": ["S51"]
+    },
+    {
+      "id": "alte-roemerstrasse--rgbuq1\u0000rappengasse--rqbgf0",
+      "fromId": "alte-roemerstrasse--rgbuq1",
+      "toId": "rappengasse--rqbgf0",
+      "lineIds": ["S51"]
+    },
+    {
+      "id": "altrheinbruecke--46i80q\u0000rappenwoert--kne03",
+      "fromId": "altrheinbruecke--46i80q",
+      "toId": "rappenwoert--kne03",
+      "lineIds": ["3"]
+    },
+    {
+      "id": "altrheinbruecke--46i80q\u0000waidweg--4ghtpp",
+      "fromId": "altrheinbruecke--46i80q",
+      "toId": "waidweg--4ghtpp",
+      "lineIds": ["3"]
+    },
+    {
+      "id": "am-hang--r4vbs0\u0000bach-west--reuxgz",
+      "fromId": "am-hang--r4vbs0",
+      "toId": "bach-west--reuxgz",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "am-hang--r4vbs0\u0000merkurstrasse--15ouqaq",
+      "fromId": "am-hang--r4vbs0",
+      "toId": "merkurstrasse--15ouqaq",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "am-muehlbuckel--s0b23z\u0000bahnhof--110jsak",
+      "fromId": "am-muehlbuckel--s0b23z",
+      "toId": "bahnhof--110jsak",
+      "lineIds": ["S51"]
+    },
+    {
+      "id": "am-muehlbuckel--s0b23z\u0000bahnhof--11ajdzj",
+      "fromId": "am-muehlbuckel--s0b23z",
+      "toId": "bahnhof--11ajdzj",
+      "lineIds": ["S51"]
+    },
+    {
+      "id": "ankerstrasse--32jt8u\u0000kirchplatz--3wimbr",
+      "fromId": "ankerstrasse--32jt8u",
+      "toId": "kirchplatz--3wimbr",
+      "lineIds": ["3"]
+    },
+    {
+      "id": "ankerstrasse--32jt8u\u0000mauerweg--3cjext",
+      "fromId": "ankerstrasse--32jt8u",
+      "toId": "mauerweg--3cjext",
+      "lineIds": ["3"]
+    },
+    {
+      "id": "arbeitsagentur\u0000zkm",
+      "fromId": "arbeitsagentur",
+      "toId": "zkm",
+      "lineIds": ["6"]
+    },
+    {
+      "id": "au-im-murgtal--1s93xfm\u0000langenbrand--1anpvzy",
+      "fromId": "au-im-murgtal--1s93xfm",
+      "toId": "langenbrand--1anpvzy",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "au-im-murgtal--1s93xfm\u0000weisenbach--1coo13c",
+      "fromId": "au-im-murgtal--1s93xfm",
+      "toId": "weisenbach--1coo13c",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "augartenstrasse\u0000kongresszentrum",
+      "fromId": "augartenstrasse",
+      "toId": "kongresszentrum",
+      "lineIds": ["S1", "S11", "S8", "S4", "S7", "S51", "S5"]
+    },
+    {
+      "id": "augartenstrasse\u0000poststrasse",
+      "fromId": "augartenstrasse",
+      "toId": "poststrasse",
+      "lineIds": ["S1", "S11", "S8", "S4", "S7", "S51", "S5"]
+    },
+    {
+      "id": "august-bebel-strasse--71ptog\u0000knielinger-allee-staedt-klinikum--8zn1j9",
+      "fromId": "august-bebel-strasse--71ptog",
+      "toId": "knielinger-allee-staedt-klinikum--8zn1j9",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "august-bebel-strasse--71ptog\u0000kurt-schumacher-strasse--7bpfdf",
+      "fromId": "august-bebel-strasse--71ptog",
+      "toId": "kurt-schumacher-strasse--7bpfdf",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "bad-herrenalb--w9fh80\u0000bad-herrenalb-kullenmuehle--x3eaax",
+      "fromId": "bad-herrenalb--w9fh80",
+      "toId": "bad-herrenalb-kullenmuehle--x3eaax",
+      "lineIds": ["S1", "FEX"]
+    },
+    {
+      "id": "bad-herrenalb-kullenmuehle--x3eaax\u0000frauenalb-schielberg--wteoly",
+      "fromId": "bad-herrenalb-kullenmuehle--x3eaax",
+      "toId": "frauenalb-schielberg--wteoly",
+      "lineIds": ["S1", "FEX"]
+    },
+    {
+      "id": "bad-rotenfels-bahnhof-rotherma--1b0qexi\u0000bad-rotenfels-schloss--1ur3i6c",
+      "fromId": "bad-rotenfels-bahnhof-rotherma--1b0qexi",
+      "toId": "bad-rotenfels-schloss--1ur3i6c",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "bad-rotenfels-bahnhof-rotherma--1b0qexi\u0000bad-rotenfels-weinbrennerstrasse--1vl2b99",
+      "fromId": "bad-rotenfels-bahnhof-rotherma--1b0qexi",
+      "toId": "bad-rotenfels-weinbrennerstrasse--1vl2b99",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "bad-rotenfels-schloss--1ur3i6c\u0000bischweier-baden--1bkpmbg",
+      "fromId": "bad-rotenfels-schloss--1ur3i6c",
+      "toId": "bischweier-baden--1bkpmbg",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "bad-rotenfels-weinbrennerstrasse--1vl2b99\u0000gaggenau--11hakao",
+      "fromId": "bad-rotenfels-weinbrennerstrasse--1vl2b99",
+      "toId": "gaggenau--11hakao",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "badallee--1op7cly\u0000badepark--1oz6yax",
+      "fromId": "badallee--1op7cly",
+      "toId": "badepark--1oz6yax",
+      "lineIds": ["S5"]
+    },
+    {
+      "id": "badallee--1op7cly\u0000rathaus--i0tth0",
+      "fromId": "badallee--1op7cly",
+      "toId": "rathaus--i0tth0",
+      "lineIds": ["S5"]
+    },
+    {
+      "id": "baden-baden--zdzqkq\u0000baden-baden-haueneberstein--1l3hs7s",
+      "fromId": "baden-baden--zdzqkq",
+      "toId": "baden-baden-haueneberstein--1l3hs7s",
+      "lineIds": ["S7"]
+    },
+    {
+      "id": "baden-baden--zdzqkq\u0000sinzheim-b-buehl-nord--1ldhdwr",
+      "fromId": "baden-baden--zdzqkq",
+      "toId": "sinzheim-b-buehl-nord--1ldhdwr",
+      "lineIds": ["S7"]
+    },
+    {
+      "id": "baden-baden-haueneberstein--1l3hs7s\u0000rastatt--z404vr",
+      "fromId": "baden-baden-haueneberstein--1l3hs7s",
+      "toId": "rastatt--z404vr",
+      "lineIds": ["S7"]
+    },
+    {
+      "id": "baden-baden-rebland--1lxglap\u0000buehl-baden--18tgv9o",
+      "fromId": "baden-baden-rebland--1lxglap",
+      "toId": "buehl-baden--18tgv9o",
+      "lineIds": ["S7"]
+    },
+    {
+      "id": "baden-baden-rebland--1lxglap\u0000sinzheim-b-buehl--1lngzlq",
+      "fromId": "baden-baden-rebland--1lxglap",
+      "toId": "sinzheim-b-buehl--1lngzlq",
+      "lineIds": ["S7"]
+    },
+    {
+      "id": "badeniaplatz--krn9ma\u0000wilhelm-leuschner-strasse--l1mvb9",
+      "fromId": "badeniaplatz--krn9ma",
+      "toId": "wilhelm-leuschner-strasse--l1mvb9",
+      "lineIds": ["4"]
+    },
+    {
+      "id": "bahnbruecken--haqax\u0000gochsheim-baden--2z75jo",
+      "fromId": "bahnbruecken--haqax",
+      "toId": "gochsheim-baden--2z75jo",
+      "lineIds": ["FEX", "S32"]
+    },
+    {
+      "id": "bahnbruecken--haqax\u0000menzingen-baden--7b4ly",
+      "fromId": "bahnbruecken--haqax",
+      "toId": "menzingen-baden--7b4ly",
+      "lineIds": ["FEX", "S32"]
+    },
+    {
+      "id": "bahnhof--106kz7n\u0000west--brt9yj",
+      "fromId": "bahnhof--106kz7n",
+      "toId": "west--brt9yj",
+      "lineIds": ["S51", "S5"]
+    },
+    {
+      "id": "bahnhof--106kz7n\u0000zuegelstr--1r3o3k",
+      "fromId": "bahnhof--106kz7n",
+      "toId": "zuegelstr--1r3o3k",
+      "lineIds": ["S51"]
+    },
+    {
+      "id": "bahnhof--110jsak\u0000sued-nolte--blcz70",
+      "fromId": "bahnhof--110jsak",
+      "toId": "sued-nolte--blcz70",
+      "lineIds": ["S51"]
+    },
+    {
+      "id": "bahnhof--11ajdzj\u0000bahnhof--11kizoi",
+      "fromId": "bahnhof--11ajdzj",
+      "toId": "bahnhof--11kizoi",
+      "lineIds": ["S51"]
+    },
+    {
+      "id": "bahnhof--11kizoi\u0000freizeitzentrum--w6ek0h",
+      "fromId": "bahnhof--11kizoi",
+      "toId": "freizeitzentrum--w6ek0h",
+      "lineIds": ["S51"]
+    },
+    {
+      "id": "bahnhof--11uildh\u0000freizeitzentrum--w6ek0h",
+      "fromId": "bahnhof--11uildh",
+      "toId": "freizeitzentrum--w6ek0h",
+      "lineIds": ["S51"]
+    },
+    {
+      "id": "bahnhof--11uildh\u0000rappengasse--rqbgf0",
+      "fromId": "bahnhof--11uildh",
+      "toId": "rappengasse--rqbgf0",
+      "lineIds": ["S51"]
+    },
+    {
+      "id": "bahnhof--14aybes\u0000geroldsaecker--17mv3ni",
+      "fromId": "bahnhof--14aybes",
+      "toId": "geroldsaecker--17mv3ni",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "bahnhof--14aybes\u0000hagsfeld-sued--172vw9k",
+      "fromId": "bahnhof--14aybes",
+      "toId": "hagsfeld-sued--172vw9k",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "bahnhof--1gdkz7r\u0000bahnhof--bufkc9",
+      "fromId": "bahnhof--1gdkz7r",
+      "toId": "bahnhof--bufkc9",
+      "lineIds": ["S5"]
+    },
+    {
+      "id": "bahnhof--1gdkz7r\u0000hauptbahnhof--70ndp6",
+      "fromId": "bahnhof--1gdkz7r",
+      "toId": "hauptbahnhof--70ndp6",
+      "lineIds": ["S5"]
+    },
+    {
+      "id": "bahnhof--1rtv3a9\u0000bahnhof--wj3imw",
+      "fromId": "bahnhof--1rtv3a9",
+      "toId": "bahnhof--wj3imw",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "bahnhof--1rtv3a9\u0000kirschbaumwasen--17wdzg7",
+      "fromId": "bahnhof--1rtv3a9",
+      "toId": "kirschbaumwasen--17wdzg7",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "bahnhof--1ved4wj\u0000bahnhof--z7vr1h",
+      "fromId": "bahnhof--1ved4wj",
+      "toId": "bahnhof--z7vr1h",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "bahnhof--1ved4wj\u0000stadtbahnhof--9dsxeq",
+      "fromId": "bahnhof--1ved4wj",
+      "toId": "stadtbahnhof--9dsxeq",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "bahnhof--b0gr9c\u0000bahnhof--bagcyb",
+      "fromId": "bahnhof--b0gr9c",
+      "toId": "bahnhof--bagcyb",
+      "lineIds": ["S5"]
+    },
+    {
+      "id": "bahnhof--b0gr9c\u0000west--cydz45",
+      "fromId": "bahnhof--b0gr9c",
+      "toId": "west--cydz45",
+      "lineIds": ["S5"]
+    },
+    {
+      "id": "bahnhof--bagcyb\u0000wilferdingen-singen-bahnhof--coedf6",
+      "fromId": "bahnhof--bagcyb",
+      "toId": "wilferdingen-singen-bahnhof--coedf6",
+      "lineIds": ["S5"]
+    },
+    {
+      "id": "bahnhof--bufkc9\u0000west--cydz45",
+      "fromId": "bahnhof--bufkc9",
+      "toId": "west--cydz45",
+      "lineIds": ["S5"]
+    },
+    {
+      "id": "bahnhof--gfpu1q\u0000bahnhof-hesselbach--smzmfd",
+      "fromId": "bahnhof--gfpu1q",
+      "toId": "bahnhof-hesselbach--smzmfd",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "bahnhof--gfpu1q\u0000schule--ydwxyk",
+      "fromId": "bahnhof--gfpu1q",
+      "toId": "schule--ydwxyk",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "bahnhof--jl6b30\u0000buehl-baden--18tgv9o",
+      "fromId": "bahnhof--jl6b30",
+      "toId": "buehl-baden--18tgv9o",
+      "lineIds": ["S7"]
+    },
+    {
+      "id": "bahnhof--l3ouz3\u0000mitte-rhein--t49gvv",
+      "fromId": "bahnhof--l3ouz3",
+      "toId": "mitte-rhein--t49gvv",
+      "lineIds": ["S51"]
+    },
+    {
+      "id": "bahnhof--vf1yd1\u0000bahnhof--wj3imw",
+      "fromId": "bahnhof--vf1yd1",
+      "toId": "bahnhof--wj3imw",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "bahnhof--vf1yd1\u0000roet-bahnhof--gppfqp",
+      "fromId": "bahnhof--vf1yd1",
+      "toId": "roet-bahnhof--gppfqp",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "bahnhof--z7vr1h\u0000schule--ydwxyk",
+      "fromId": "bahnhof--z7vr1h",
+      "toId": "schule--ydwxyk",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "bahnhof--zwldio\u0000zuegelstr--1r3o3k",
+      "fromId": "bahnhof--zwldio",
+      "toId": "zuegelstr--1r3o3k",
+      "lineIds": ["S51"]
+    },
+    {
+      "id": "bahnhof-hesselbach--smzmfd\u0000roet-bahnhof--gppfqp",
+      "fromId": "bahnhof-hesselbach--smzmfd",
+      "toId": "roet-bahnhof--gppfqp",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "bannwaldallee--itmw9i\u0000europahalle-europabad--ijnakj",
+      "fromId": "bannwaldallee--itmw9i",
+      "toId": "europahalle-europabad--ijnakj",
+      "lineIds": ["4"]
+    },
+    {
+      "id": "bannwaldallee--itmw9i\u0000hardecksiedlung--j3mhyh",
+      "fromId": "bannwaldallee--itmw9i",
+      "toId": "hardecksiedlung--j3mhyh",
+      "lineIds": ["4"]
+    },
+    {
+      "id": "barbarossaplatz\u0000ebertstrasse",
+      "fromId": "barbarossaplatz",
+      "toId": "ebertstrasse",
+      "lineIds": ["6"]
+    },
+    {
+      "id": "barbarossaplatz\u0000welfenstrasse",
+      "fromId": "barbarossaplatz",
+      "toId": "welfenstrasse",
+      "lineIds": ["6"]
+    },
+    {
+      "id": "bauerbach-baden--1rkuvs7\u0000goelshausen-industrie--1sj3j4l",
+      "fromId": "bauerbach-baden--1rkuvs7",
+      "toId": "goelshausen-industrie--1sj3j4l",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "bauerbach-baden--1rkuvs7\u0000oberderdingen-flehingen--sjeguh",
+      "fromId": "bauerbach-baden--1rkuvs7",
+      "toId": "oberderdingen-flehingen--sjeguh",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "berghausen-am-stadion--1h5muym\u0000berghausen-baden--1r12l8s",
+      "fromId": "berghausen-am-stadion--1h5muym",
+      "toId": "berghausen-baden--1r12l8s",
+      "lineIds": ["S5", "S51"]
+    },
+    {
+      "id": "berghausen-am-stadion--1h5muym\u0000soellingen-reetzstrasse--1glhckq",
+      "fromId": "berghausen-am-stadion--1h5muym",
+      "toId": "soellingen-reetzstrasse--1glhckq",
+      "lineIds": ["S5", "S51"]
+    },
+    {
+      "id": "berghausen-baden--1r12l8s\u0000berghausen-pfinzbruecke--1gbkwdq",
+      "fromId": "berghausen-baden--1r12l8s",
+      "toId": "berghausen-pfinzbruecke--1gbkwdq",
+      "lineIds": ["S5", "S51"]
+    },
+    {
+      "id": "berghausen-hummelberg--ssz8xs\u0000groetzingen--uqwgsl",
+      "fromId": "berghausen-hummelberg--ssz8xs",
+      "toId": "groetzingen--uqwgsl",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "berghausen-hummelberg--ssz8xs\u0000groetzingen-oberausstrasse--tmy20p",
+      "fromId": "berghausen-hummelberg--ssz8xs",
+      "toId": "groetzingen-oberausstrasse--tmy20p",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "berghausen-hummelberg--ssz8xs\u0000joehlingen-west--1vnirjv",
+      "fromId": "berghausen-hummelberg--ssz8xs",
+      "toId": "joehlingen-west--1vnirjv",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "berghausen-pfinzbruecke--1gbkwdq\u0000groetzingen-krappmuehlenweg--1glki2p",
+      "fromId": "berghausen-pfinzbruecke--1gbkwdq",
+      "toId": "groetzingen-krappmuehlenweg--1glki2p",
+      "lineIds": ["S5", "S51"]
+    },
+    {
+      "id": "berufsschulzentrum--hewkae\u0000boeckingen-west--how5zd",
+      "fromId": "berufsschulzentrum--hewkae",
+      "toId": "boeckingen-west--how5zd",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "berufsschulzentrum--hewkae\u0000sonnenbrunnen--1hcesdm",
+      "fromId": "berufsschulzentrum--hewkae",
+      "toId": "sonnenbrunnen--1hcesdm",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "bienwaldhalle--in203d\u0000buergerpark--1of7qwz",
+      "fromId": "bienwaldhalle--in203d",
+      "toId": "buergerpark--1of7qwz",
+      "lineIds": ["S5"]
+    },
+    {
+      "id": "bietigheim-baden--1tkc8t\u0000durmersheim--1w4yaxd",
+      "fromId": "bietigheim-baden--1tkc8t",
+      "toId": "durmersheim--1w4yaxd",
+      "lineIds": ["S8", "S7"]
+    },
+    {
+      "id": "bietigheim-baden--1tkc8t\u0000oetigheim--1jkqju",
+      "fromId": "bietigheim-baden--1tkc8t",
+      "toId": "oetigheim--1jkqju",
+      "lineIds": ["S8", "S7"]
+    },
+    {
+      "id": "bischweier-baden--1bkpmbg\u0000kuppenheim--1baq0mh",
+      "fromId": "bischweier-baden--1bkpmbg",
+      "toId": "kuppenheim--1baq0mh",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "boeckingen-west--how5zd\u0000leingarten-ost--r61li",
+      "fromId": "boeckingen-west--how5zd",
+      "toId": "leingarten-ost--r61li",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "bretten-baden--1ypkp6i\u0000bretten-rinklingen--1yzkavh",
+      "fromId": "bretten-baden--1ypkp6i",
+      "toId": "bretten-rinklingen--1yzkavh",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "bretten-baden--1ypkp6i\u0000bretten-stadtmitte--1y5lhsk",
+      "fromId": "bretten-baden--1ypkp6i",
+      "toId": "bretten-stadtmitte--1y5lhsk",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "bretten-kupferhaelde--1xbmopn\u0000bretten-schulzentrum--1xlmaem",
+      "fromId": "bretten-kupferhaelde--1xbmopn",
+      "toId": "bretten-schulzentrum--1xlmaem",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "bretten-kupferhaelde--1xbmopn\u0000goelshausen--1x1n30o",
+      "fromId": "bretten-kupferhaelde--1xbmopn",
+      "toId": "goelshausen--1x1n30o",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "bretten-rinklingen--1yzkavh\u0000duerrenbuechig--1v3mpnw",
+      "fromId": "bretten-rinklingen--1yzkavh",
+      "toId": "duerrenbuechig--1v3mpnw",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "bretten-schulzentrum--1xlmaem\u0000bretten-wannenweg--1xvlw3l",
+      "fromId": "bretten-schulzentrum--1xlmaem",
+      "toId": "bretten-wannenweg--1xvlw3l",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "bretten-stadtmitte--1y5lhsk\u0000bretten-wannenweg--1xvlw3l",
+      "fromId": "bretten-stadtmitte--1y5lhsk",
+      "toId": "bretten-wannenweg--1xvlw3l",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "bruchsal--uo3ca8\u0000bruchsal-gew-bildungszentrum--vi25d5",
+      "fromId": "bruchsal--uo3ca8",
+      "toId": "bruchsal-gew-bildungszentrum--vi25d5",
+      "lineIds": ["FEX", "S32", "S31"]
+    },
+    {
+      "id": "bruchsal--uo3ca8\u0000bruchsal-schlossgarten--uy2xz7",
+      "fromId": "bruchsal--uo3ca8",
+      "toId": "bruchsal-schlossgarten--uy2xz7",
+      "lineIds": ["FEX", "S32", "S31"]
+    },
+    {
+      "id": "bruchsal-gew-bildungszentrum--vi25d5\u0000untergrombach--v82jo6",
+      "fromId": "bruchsal-gew-bildungszentrum--vi25d5",
+      "toId": "untergrombach--v82jo6",
+      "lineIds": ["FEX", "S32", "S31"]
+    },
+    {
+      "id": "bruchsal-schlossgarten--uy2xz7\u0000bruchsal-stegwiesen--yjxrzu",
+      "fromId": "bruchsal-schlossgarten--uy2xz7",
+      "toId": "bruchsal-stegwiesen--yjxrzu",
+      "lineIds": ["FEX", "S32", "S31"]
+    },
+    {
+      "id": "bruchsal-stegwiesen--yjxrzu\u0000ubstadt-ort--49aato",
+      "fromId": "bruchsal-stegwiesen--yjxrzu",
+      "toId": "ubstadt-ort--49aato",
+      "lineIds": ["FEX", "S32", "S31"]
+    },
+    {
+      "id": "buechig--15m7mru\u0000reitschulschlag--1u9ps6d",
+      "fromId": "buechig--15m7mru",
+      "toId": "reitschulschlag--1u9ps6d",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "buechig--15m7mru\u0000sued--15w78gt",
+      "fromId": "buechig--15m7mru",
+      "toId": "sued--15w78gt",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "buergerpark--1of7qwz\u0000rathaus--i0tth0",
+      "fromId": "buergerpark--1of7qwz",
+      "toId": "rathaus--i0tth0",
+      "lineIds": ["S5"]
+    },
+    {
+      "id": "busenbach--qxkct2\u0000ettlingen-spinnerei--ri1jan",
+      "fromId": "busenbach--qxkct2",
+      "toId": "ettlingen-spinnerei--ri1jan",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "busenbach--qxkct2\u0000ettlingen-stadt--qy2bwp",
+      "fromId": "busenbach--qxkct2",
+      "toId": "ettlingen-stadt--qy2bwp",
+      "lineIds": ["FEX"]
+    },
+    {
+      "id": "busenbach--qxkct2\u0000etzenrot--y7cp2t",
+      "fromId": "busenbach--qxkct2",
+      "toId": "etzenrot--y7cp2t",
+      "lineIds": ["S1", "FEX"]
+    },
+    {
+      "id": "busenbach--qxkct2\u0000reichenbach-kurpark--1pzd88o",
+      "fromId": "busenbach--qxkct2",
+      "toId": "reichenbach-kurpark--1pzd88o",
+      "lineIds": ["S11"]
+    },
+    {
+      "id": "dornroeschenweg--140qt4y\u0000karl-delisle-strasse--13qr7fz",
+      "fromId": "dornroeschenweg--140qt4y",
+      "toId": "karl-delisle-strasse--13qr7fz",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "dornroeschenweg--140qt4y\u0000nussbaumweg--14upm7v",
+      "fromId": "dornroeschenweg--140qt4y",
+      "toId": "nussbaumweg--14upm7v",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "duale-hochschule--v9eek5\u0000heidehof--2fo692",
+      "fromId": "duale-hochschule--v9eek5",
+      "toId": "heidehof--2fo692",
+      "lineIds": ["1"]
+    },
+    {
+      "id": "duale-hochschule--v9eek5\u0000lilienthalstrasse--v9b926",
+      "fromId": "duale-hochschule--v9eek5",
+      "toId": "lilienthalstrasse--v9b926",
+      "lineIds": ["1"]
+    },
+    {
+      "id": "duerrenbuechig--1v3mpnw\u0000woessingen-ost--1y5ical",
+      "fromId": "duerrenbuechig--1v3mpnw",
+      "toId": "woessingen-ost--1y5ical",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "dunantstrasse--10n2d2q\u0000forststrasse--10d2rdr",
+      "fromId": "dunantstrasse--10n2d2q",
+      "toId": "forststrasse--10d2rdr",
+      "lineIds": ["3"]
+    },
+    {
+      "id": "dunantstrasse--10n2d2q\u0000hauptfriedhof--18xpbl8",
+      "fromId": "dunantstrasse--10n2d2q",
+      "toId": "hauptfriedhof--18xpbl8",
+      "lineIds": ["3"]
+    },
+    {
+      "id": "durlach-bahnhof\u0000durlach-hubstrasse--ssw3ft",
+      "fromId": "durlach-bahnhof",
+      "toId": "durlach-hubstrasse--ssw3ft",
+      "lineIds": ["S5", "S51"]
+    },
+    {
+      "id": "durlach-bahnhof\u0000groetzingen--uqwgsl",
+      "fromId": "durlach-bahnhof",
+      "toId": "groetzingen--uqwgsl",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "durlach-bahnhof\u0000hauptbahnhof",
+      "fromId": "durlach-bahnhof",
+      "toId": "hauptbahnhof",
+      "lineIds": ["FEX", "S32", "S31"]
+    },
+    {
+      "id": "durlach-bahnhof\u0000untermuehlstrasse--upf767",
+      "fromId": "durlach-bahnhof",
+      "toId": "untermuehlstrasse--upf767",
+      "lineIds": ["1", "S5", "S51", "S4"]
+    },
+    {
+      "id": "durlach-bahnhof\u0000weingarten-baden--w21cr3",
+      "fromId": "durlach-bahnhof",
+      "toId": "weingarten-baden--w21cr3",
+      "lineIds": ["FEX", "S32", "S31"]
+    },
+    {
+      "id": "durlach-hubstrasse--ssw3ft\u0000groetzingen--uqwgsl",
+      "fromId": "durlach-hubstrasse--ssw3ft",
+      "toId": "groetzingen--uqwgsl",
+      "lineIds": ["S5", "S51"]
+    },
+    {
+      "id": "durlacher-tor\u0000gottesauer-platz",
+      "fromId": "durlacher-tor",
+      "toId": "gottesauer-platz",
+      "lineIds": ["1", "S2", "S5", "S51", "S8", "S4", "S7"]
+    },
+    {
+      "id": "durlacher-tor\u0000karl-wilhelm-platz",
+      "fromId": "durlacher-tor",
+      "toId": "karl-wilhelm-platz",
+      "lineIds": ["4", "3"]
+    },
+    {
+      "id": "durlacher-tor\u0000kronenplatz",
+      "fromId": "durlacher-tor",
+      "toId": "kronenplatz",
+      "lineIds": ["1", "S2", "S5", "S51", "S8", "S4", "S7"]
+    },
+    {
+      "id": "durlacher-tor\u0000rueppurrer-tor",
+      "fromId": "durlacher-tor",
+      "toId": "rueppurrer-tor",
+      "lineIds": ["4", "3"]
+    },
+    {
+      "id": "durmersheim--1w4yaxd\u0000durmersheim-nord--kr37g6",
+      "fromId": "durmersheim--1w4yaxd",
+      "toId": "durmersheim-nord--kr37g6",
+      "lineIds": ["S8", "S7"]
+    },
+    {
+      "id": "durmersheim-nord--kr37g6\u0000forchheim-b-karlsruhe--1vuyp8e",
+      "fromId": "durmersheim-nord--kr37g6",
+      "toId": "forchheim-b-karlsruhe--1vuyp8e",
+      "lineIds": ["S8", "S7"]
+    },
+    {
+      "id": "ebertstrasse\u0000hauptbahnhof",
+      "fromId": "ebertstrasse",
+      "toId": "hauptbahnhof",
+      "lineIds": ["3", "6"]
+    },
+    {
+      "id": "ebertstrasse\u0000kolpingplatz",
+      "fromId": "ebertstrasse",
+      "toId": "kolpingplatz",
+      "lineIds": ["3"]
+    },
+    {
+      "id": "eckenerstrasse--12msso3\u0000entenfang",
+      "fromId": "eckenerstrasse--12msso3",
+      "toId": "entenfang",
+      "lineIds": ["S2", "3"]
+    },
+    {
+      "id": "eckenerstrasse--12msso3\u0000rheinhafenstrasse--136s021",
+      "fromId": "eckenerstrasse--12msso3",
+      "toId": "rheinhafenstrasse--136s021",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "eckenerstrasse--12msso3\u0000stadtwerke--zt3jzt",
+      "fromId": "eckenerstrasse--12msso3",
+      "toId": "stadtwerke--zt3jzt",
+      "lineIds": ["3"]
+    },
+    {
+      "id": "eggenstein--1b0awke\u0000eggenstein-spoecker-weg--1agbp6g",
+      "fromId": "eggenstein--1b0awke",
+      "toId": "eggenstein-spoecker-weg--1agbp6g",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "eggenstein--1b0awke\u0000eggenstein-sued--1c49bca",
+      "fromId": "eggenstein--1b0awke",
+      "toId": "eggenstein-sued--1c49bca",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "eggenstein-schweriner-strasse--1aqbavf\u0000eggenstein-spoecker-weg--1agbp6g",
+      "fromId": "eggenstein-schweriner-strasse--1aqbavf",
+      "toId": "eggenstein-spoecker-weg--1agbp6g",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "eggenstein-schweriner-strasse--1aqbavf\u0000leopoldshafen-viermorgen--1cec2j8",
+      "fromId": "eggenstein-schweriner-strasse--1aqbavf",
+      "toId": "leopoldshafen-viermorgen--1cec2j8",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "eggenstein-sued--1c49bca\u0000kirchfeld--17yc4fq",
+      "fromId": "eggenstein-sued--1c49bca",
+      "toId": "kirchfeld--17yc4fq",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "eggensteiner-strasse--1spv51z\u0000herweghstrasse--1szuqqy",
+      "fromId": "eggensteiner-strasse--1spv51z",
+      "toId": "herweghstrasse--1szuqqy",
+      "lineIds": ["S5", "S51"]
+    },
+    {
+      "id": "eggensteiner-strasse--1spv51z\u0000rheinbergstrasse",
+      "fromId": "eggensteiner-strasse--1spv51z",
+      "toId": "rheinbergstrasse",
+      "lineIds": ["S5", "S51"]
+    },
+    {
+      "id": "egon-eiermann-allee--14uz2ps\u0000nord--9idcfo",
+      "fromId": "egon-eiermann-allee--14uz2ps",
+      "toId": "nord--9idcfo",
+      "lineIds": ["2"]
+    },
+    {
+      "id": "egon-eiermann-allee--14uz2ps\u0000pionierstrasse--154yoer",
+      "fromId": "egon-eiermann-allee--14uz2ps",
+      "toId": "pionierstrasse--154yoer",
+      "lineIds": ["2"]
+    },
+    {
+      "id": "eisenbahnstrasse--axugvm\u0000maxau--hh2zx2",
+      "fromId": "eisenbahnstrasse--axugvm",
+      "toId": "maxau--hh2zx2",
+      "lineIds": ["S5", "S51"]
+    },
+    {
+      "id": "eisenbahnstrasse--axugvm\u0000rheinbergstrasse",
+      "fromId": "eisenbahnstrasse--axugvm",
+      "toId": "rheinbergstrasse",
+      "lineIds": ["S51"]
+    },
+    {
+      "id": "eisenbahnstrasse--axugvm\u0000west--brt9yj",
+      "fromId": "eisenbahnstrasse--axugvm",
+      "toId": "west--brt9yj",
+      "lineIds": ["S51", "S5"]
+    },
+    {
+      "id": "entenfang\u0000lameyplatz--1u7licz",
+      "fromId": "entenfang",
+      "toId": "lameyplatz--1u7licz",
+      "lineIds": ["S5", "S51", "2"]
+    },
+    {
+      "id": "entenfang\u0000muehlburger-feld--8r362s",
+      "fromId": "entenfang",
+      "toId": "muehlburger-feld--8r362s",
+      "lineIds": ["2"]
+    },
+    {
+      "id": "entenfang\u0000philippstrasse--1txir61",
+      "fromId": "entenfang",
+      "toId": "philippstrasse--1txir61",
+      "lineIds": ["S2", "S5", "3", "S51"]
+    },
+    {
+      "id": "eppingen--1bob8ox\u0000eppingen-west--1p1pyrn",
+      "fromId": "eppingen--1bob8ox",
+      "toId": "eppingen-west--1p1pyrn",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "eppingen--1bob8ox\u0000gemmingen-west--1wysu2r",
+      "fromId": "eppingen--1bob8ox",
+      "toId": "gemmingen-west--1wysu2r",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "eppingen-west--1p1pyrn\u0000sulzfeld-baden--1wfokjt",
+      "fromId": "eppingen-west--1p1pyrn",
+      "toId": "sulzfeld-baden--1wfokjt",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "essenweinstrasse--1ms7z5g\u0000hauptfriedhof--18xpbl8",
+      "fromId": "essenweinstrasse--1ms7z5g",
+      "toId": "hauptfriedhof--18xpbl8",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "essenweinstrasse--1ms7z5g\u0000tullastrasse-alter-schlachthof--tvd8lb",
+      "fromId": "essenweinstrasse--1ms7z5g",
+      "toId": "tullastrasse-alter-schlachthof--tvd8lb",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "ettlingen-albgaubad--s20qol\u0000ettlingen-spinnerei--ri1jan",
+      "fromId": "ettlingen-albgaubad--s20qol",
+      "toId": "ettlingen-spinnerei--ri1jan",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "ettlingen-albgaubad--s20qol\u0000ettlingen-stadt--qy2bwp",
+      "fromId": "ettlingen-albgaubad--s20qol",
+      "toId": "ettlingen-stadt--qy2bwp",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "ettlingen-erbprinz-schloss--sm33ki\u0000ettlingen-stadt--qy2bwp",
+      "fromId": "ettlingen-erbprinz-schloss--sm33ki",
+      "toId": "ettlingen-stadt--qy2bwp",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "ettlingen-erbprinz-schloss--sm33ki\u0000ettlingen-wasen--s23w6k",
+      "fromId": "ettlingen-erbprinz-schloss--sm33ki",
+      "toId": "ettlingen-wasen--s23w6k",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "ettlingen-neuwiesenreben--sc3hvj\u0000ettlingen-wasen--s23w6k",
+      "fromId": "ettlingen-neuwiesenreben--sc3hvj",
+      "toId": "ettlingen-wasen--s23w6k",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "ettlingen-neuwiesenreben--sc3hvj\u0000rueppurr-battstrasse--1vq7e9w",
+      "fromId": "ettlingen-neuwiesenreben--sc3hvj",
+      "toId": "rueppurr-battstrasse--1vq7e9w",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "ettlingen-stadt--qy2bwp\u0000ettlingen-west--y01q3v",
+      "fromId": "ettlingen-stadt--qy2bwp",
+      "toId": "ettlingen-west--y01q3v",
+      "lineIds": ["FEX"]
+    },
+    {
+      "id": "ettlingen-west--y01q3v\u0000hauptbahnhof",
+      "fromId": "ettlingen-west--y01q3v",
+      "toId": "hauptbahnhof",
+      "lineIds": ["FEX"]
+    },
+    {
+      "id": "ettlinger-tor\u0000karlstor",
+      "fromId": "ettlinger-tor",
+      "toId": "karlstor",
+      "lineIds": ["4", "5"]
+    },
+    {
+      "id": "ettlinger-tor\u0000kongresszentrum",
+      "fromId": "ettlinger-tor",
+      "toId": "kongresszentrum",
+      "lineIds": ["S1", "S11", "S8", "S4", "S7", "S51", "S5"]
+    },
+    {
+      "id": "ettlinger-tor\u0000marktplatz",
+      "fromId": "ettlinger-tor",
+      "toId": "marktplatz",
+      "lineIds": ["S1", "S11", "S8", "S4", "S7", "S51", "S5"]
+    },
+    {
+      "id": "ettlinger-tor\u0000rueppurrer-tor",
+      "fromId": "ettlinger-tor",
+      "toId": "rueppurrer-tor",
+      "lineIds": ["4", "5"]
+    },
+    {
+      "id": "etzenrot--y7cp2t\u0000fischweier--xddvzw",
+      "fromId": "etzenrot--y7cp2t",
+      "toId": "fischweier--xddvzw",
+      "lineIds": ["S1", "FEX"]
+    },
+    {
+      "id": "europahalle-europabad--ijnakj\u0000landesbausparkasse--i9novk",
+      "fromId": "europahalle-europabad--ijnakj",
+      "toId": "landesbausparkasse--i9novk",
+      "lineIds": ["4"]
+    },
+    {
+      "id": "europaplatz\u0000europaplatz-muehlburger-tor-wende--1xjn1ol",
+      "fromId": "europaplatz",
+      "toId": "europaplatz-muehlburger-tor-wende--1xjn1ol",
+      "lineIds": ["5"]
+    },
+    {
+      "id": "europaplatz\u0000karlstor",
+      "fromId": "europaplatz",
+      "toId": "karlstor",
+      "lineIds": ["4", "3", "5"]
+    },
+    {
+      "id": "europaplatz\u0000marktplatz",
+      "fromId": "europaplatz",
+      "toId": "marktplatz",
+      "lineIds": ["1", "S2", "S1", "S5", "S51", "S11"]
+    },
+    {
+      "id": "europaplatz\u0000muehlburger-tor",
+      "fromId": "europaplatz",
+      "toId": "muehlburger-tor",
+      "lineIds": ["1", "S2", "S1", "S5", "4", "3", "S51", "S11"]
+    },
+    {
+      "id": "feierabendweg--13u0yrm\u0000hertzstrasse--1440kgl",
+      "fromId": "feierabendweg--13u0yrm",
+      "toId": "hertzstrasse--1440kgl",
+      "lineIds": ["2"]
+    },
+    {
+      "id": "feierabendweg--13u0yrm\u0000neureuter-strasse--12g2yar",
+      "fromId": "feierabendweg--13u0yrm",
+      "toId": "neureuter-strasse--12g2yar",
+      "lineIds": ["2"]
+    },
+    {
+      "id": "finanzamt--1r03ao5\u0000friedensplatz--1qq3oz6",
+      "fromId": "finanzamt--1r03ao5",
+      "toId": "friedensplatz--1qq3oz6",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "finanzamt--1r03ao5\u0000pfuehlpark--6vm7ll",
+      "fromId": "finanzamt--1r03ao5",
+      "toId": "pfuehlpark--6vm7ll",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "fischweier--xddvzw\u0000marxzell--xndhov",
+      "fromId": "fischweier--xddvzw",
+      "toId": "marxzell--xndhov",
+      "lineIds": ["S1", "FEX"]
+    },
+    {
+      "id": "flehingen--1w5oyuu\u0000oberderdingen-flehingen--sjeguh",
+      "fromId": "flehingen--1w5oyuu",
+      "toId": "oberderdingen-flehingen--sjeguh",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "flehingen--1w5oyuu\u0000zaisenhausen-baden--1oiz95i",
+      "fromId": "flehingen--1w5oyuu",
+      "toId": "zaisenhausen-baden--1oiz95i",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "forbach-schwarzwald--8xxf5g\u0000gausbach--1z0ur47",
+      "fromId": "forbach-schwarzwald--8xxf5g",
+      "toId": "gausbach--1z0ur47",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "forbach-schwarzwald--8xxf5g\u0000raumuenzach--186dl56",
+      "fromId": "forbach-schwarzwald--8xxf5g",
+      "toId": "raumuenzach--186dl56",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "forststrasse--10d2rdr\u0000rintheim--zj3yau",
+      "fromId": "forststrasse--10d2rdr",
+      "toId": "rintheim--zj3yau",
+      "lineIds": ["3"]
+    },
+    {
+      "id": "frauenalb-schielberg--wteoly\u0000marxzell--xndhov",
+      "fromId": "frauenalb-schielberg--wteoly",
+      "toId": "marxzell--xndhov",
+      "lineIds": ["S1", "FEX"]
+    },
+    {
+      "id": "friedensplatz--1qq3oz6\u0000harmonie-stadtbahn--u8om9t",
+      "fromId": "friedensplatz--1qq3oz6",
+      "toId": "harmonie-stadtbahn--u8om9t",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "gaggenau--11hakao\u0000gaggenau-mercedes-benz-werk--4qx4jn",
+      "fromId": "gaggenau--11hakao",
+      "toId": "gaggenau-mercedes-benz-werk--4qx4jn",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "gaggenau-mercedes-benz-werk--4qx4jn\u0000ottenau--1vb2pka",
+      "fromId": "gaggenau-mercedes-benz-werk--4qx4jn",
+      "toId": "ottenau--1vb2pka",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "gausbach--1z0ur47\u0000langenbrand--1anpvzy",
+      "fromId": "gausbach--1z0ur47",
+      "toId": "langenbrand--1anpvzy",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "gemmingen--tfqk5w\u0000gemmingen-west--1wysu2r",
+      "fromId": "gemmingen--tfqk5w",
+      "toId": "gemmingen-west--1wysu2r",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "gemmingen--tfqk5w\u0000stetten-am-heuchelb--plw0ig",
+      "fromId": "gemmingen--tfqk5w",
+      "toId": "stetten-am-heuchelb--plw0ig",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "gernsbach--4qtz1o\u0000gernsbach-mitte--1rf89uo",
+      "fromId": "gernsbach--4qtz1o",
+      "toId": "gernsbach-mitte--1rf89uo",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "gernsbach--4qtz1o\u0000hoerden--1rp7vjn",
+      "fromId": "gernsbach--4qtz1o",
+      "toId": "hoerden--1rp7vjn",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "gernsbach-mitte--1rf89uo\u0000obertsrot--78tjse",
+      "fromId": "gernsbach-mitte--1rf89uo",
+      "toId": "obertsrot--78tjse",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "geroldsaecker--17mv3ni\u0000jenaer-strasse--1egbvyf",
+      "fromId": "geroldsaecker--17mv3ni",
+      "toId": "jenaer-strasse--1egbvyf",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "gochsheim-baden--2z75jo\u0000muenzesheim-ost--396r8n",
+      "fromId": "gochsheim-baden--2z75jo",
+      "toId": "muenzesheim-ost--396r8n",
+      "lineIds": ["FEX", "S32"]
+    },
+    {
+      "id": "goelshausen--1x1n30o\u0000goelshausen-industrie--1sj3j4l",
+      "fromId": "goelshausen--1x1n30o",
+      "toId": "goelshausen-industrie--1sj3j4l",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "gottesauer-platz\u0000tullastrasse-alter-schlachthof--tvd8lb",
+      "fromId": "gottesauer-platz",
+      "toId": "tullastrasse-alter-schlachthof--tvd8lb",
+      "lineIds": ["1", "S2", "S5", "S51", "S8", "S4", "S7"]
+    },
+    {
+      "id": "groetzingen--uqwgsl\u0000groetzingen-oberausstrasse--tmy20p",
+      "fromId": "groetzingen--uqwgsl",
+      "toId": "groetzingen-oberausstrasse--tmy20p",
+      "lineIds": ["S5", "S51", "S4"]
+    },
+    {
+      "id": "groetzingen-krappmuehlenweg--1glki2p\u0000groetzingen-oberausstrasse--tmy20p",
+      "fromId": "groetzingen-krappmuehlenweg--1glki2p",
+      "toId": "groetzingen-oberausstrasse--tmy20p",
+      "lineIds": ["S5", "S51"]
+    },
+    {
+      "id": "haendelstrasse--1tnj5h2\u0000philippstrasse--1txir61",
+      "fromId": "haendelstrasse--1tnj5h2",
+      "toId": "philippstrasse--1txir61",
+      "lineIds": ["S2", "S5", "3", "S51"]
+    },
+    {
+      "id": "haendelstrasse--1tnj5h2\u0000yorckstrasse--1v1h5xx",
+      "fromId": "haendelstrasse--1tnj5h2",
+      "toId": "yorckstrasse--1v1h5xx",
+      "lineIds": ["S2", "S5", "3", "S51"]
+    },
+    {
+      "id": "hagsfeld-sued--172vw9k\u0000sinsheimer-strasse--18dq47a",
+      "fromId": "hagsfeld-sued--172vw9k",
+      "toId": "sinsheimer-strasse--18dq47a",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "hallenbad--13gur8z\u0000hauptstrasse--136v5k0",
+      "fromId": "hallenbad--13gur8z",
+      "toId": "hauptstrasse--136v5k0",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "hallenbad--13gur8z\u0000leichtsandstrasse-messe-karlsruhe--140tymx",
+      "fromId": "hallenbad--13gur8z",
+      "toId": "leichtsandstrasse-messe-karlsruhe--140tymx",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "hammweg--3mj0ms\u0000kirchplatz--3wimbr",
+      "fromId": "hammweg--3mj0ms",
+      "toId": "kirchplatz--3wimbr",
+      "lineIds": ["3"]
+    },
+    {
+      "id": "hammweg--3mj0ms\u0000waidweg--4ghtpp",
+      "fromId": "hammweg--3mj0ms",
+      "toId": "waidweg--4ghtpp",
+      "lineIds": ["3"]
+    },
+    {
+      "id": "harmonie-stadtbahn--u8om9t\u0000rathaus--dxswvm",
+      "fromId": "harmonie-stadtbahn--u8om9t",
+      "toId": "rathaus--dxswvm",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "hauptbahnhof--1c7xmf5\u0000industriegebiet-schmid--18c017k",
+      "fromId": "hauptbahnhof--1c7xmf5",
+      "toId": "industriegebiet-schmid--18c017k",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "hauptbahnhof-willy-brandt-pl--1q5odjj\u0000neckarturm--1byc09d",
+      "fromId": "hauptbahnhof-willy-brandt-pl--1q5odjj",
+      "toId": "neckarturm--1byc09d",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "hauptbahnhof-willy-brandt-pl--1q5odjj\u0000sonnenbrunnen--1hcesdm",
+      "fromId": "hauptbahnhof-willy-brandt-pl--1q5odjj",
+      "toId": "sonnenbrunnen--1hcesdm",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "hauptbahnhof\u0000poststrasse",
+      "fromId": "hauptbahnhof",
+      "toId": "poststrasse",
+      "lineIds": ["S1", "3", "S11", "6", "S8", "S4", "S7", "S51", "S5"]
+    },
+    {
+      "id": "hauptfriedhof--18xpbl8\u0000hirtenweg-technologiepark--197oxa7",
+      "fromId": "hauptfriedhof--18xpbl8",
+      "toId": "hirtenweg-technologiepark--197oxa7",
+      "lineIds": ["S2", "4"]
+    },
+    {
+      "id": "hauptfriedhof--18xpbl8\u0000karl-wilhelm-platz",
+      "fromId": "hauptfriedhof--18xpbl8",
+      "toId": "karl-wilhelm-platz",
+      "lineIds": ["4", "3"]
+    },
+    {
+      "id": "hauptstrasse--136v5k0\u0000oberfeldstrasse--154sdet",
+      "fromId": "hauptstrasse--136v5k0",
+      "toId": "oberfeldstrasse--154sdet",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "haus-bethlehem--7lp12e\u0000kurt-schumacher-strasse--7bpfdf",
+      "fromId": "haus-bethlehem--7lp12e",
+      "toId": "kurt-schumacher-strasse--7bpfdf",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "haus-bethlehem--7lp12e\u0000neureut-welschneureuter-strasse--19ca4wl",
+      "fromId": "haus-bethlehem--7lp12e",
+      "toId": "neureut-welschneureuter-strasse--19ca4wl",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "heidehof--2fo692\u0000neureut-heide--uzesv6",
+      "fromId": "heidehof--2fo692",
+      "toId": "neureut-heide--uzesv6",
+      "lineIds": ["1"]
+    },
+    {
+      "id": "hertzstrasse--1440kgl\u0000kussmaulstrasse-staedt-klinikum--13a1rdo",
+      "fromId": "hertzstrasse--1440kgl",
+      "toId": "kussmaulstrasse-staedt-klinikum--13a1rdo",
+      "lineIds": ["2"]
+    },
+    {
+      "id": "herweghstrasse--1szuqqy\u0000siemens--1t9ucfx",
+      "fromId": "herweghstrasse--1szuqqy",
+      "toId": "siemens--1t9ucfx",
+      "lineIds": ["S5", "S51"]
+    },
+    {
+      "id": "hilpertsau--1c4otpe\u0000obertsrot--78tjse",
+      "fromId": "hilpertsau--1c4otpe",
+      "toId": "obertsrot--78tjse",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "hilpertsau--1c4otpe\u0000weisenbach--1coo13c",
+      "fromId": "hilpertsau--1c4otpe",
+      "toId": "weisenbach--1coo13c",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "hirtenweg-technologiepark--197oxa7\u0000sinsheimer-strasse--18dq47a",
+      "fromId": "hirtenweg-technologiepark--197oxa7",
+      "toId": "sinsheimer-strasse--18dq47a",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "hochhaus--yw6wte\u0000nord--1s81tmc",
+      "fromId": "hochhaus--yw6wte",
+      "toId": "nord--1s81tmc",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "hochhaus--yw6wte\u0000richard-hecht-schule--dhmkl4",
+      "fromId": "hochhaus--yw6wte",
+      "toId": "richard-hecht-schule--dhmkl4",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "hochstetten--1btrqjo\u0000hochstetten-altenheim--1c3rc8n",
+      "fromId": "hochstetten--1btrqjo",
+      "toId": "hochstetten-altenheim--1c3rc8n",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "hochstetten-altenheim--1c3rc8n\u0000hochstetten-grenzstrasse--1cdqxxm",
+      "fromId": "hochstetten-altenheim--1c3rc8n",
+      "toId": "hochstetten-grenzstrasse--1cdqxxm",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "hochstetten-grenzstrasse--1cdqxxm\u0000linkenheim-schulzentrum--1cnqjml",
+      "fromId": "hochstetten-grenzstrasse--1cdqxxm",
+      "toId": "linkenheim-schulzentrum--1cnqjml",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "hoerden--1rp7vjn\u0000ottenau--1vb2pka",
+      "fromId": "hoerden--1rp7vjn",
+      "toId": "ottenau--1vb2pka",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "huebschstrasse--873you\u0000kuehler-krug--8h3kdt",
+      "fromId": "huebschstrasse--873you",
+      "toId": "kuehler-krug--8h3kdt",
+      "lineIds": ["2"]
+    },
+    {
+      "id": "huebschstrasse--873you\u0000weinbrennerplatz--k7kwqd",
+      "fromId": "huebschstrasse--873you",
+      "toId": "weinbrennerplatz--k7kwqd",
+      "lineIds": ["2"]
+    },
+    {
+      "id": "industriegebiet-schmid--18c017k\u0000schulzentrum-panoramabad--kkl86w",
+      "fromId": "industriegebiet-schmid--18c017k",
+      "toId": "schulzentrum-panoramabad--kkl86w",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "ittersbach--1nrgeow\u0000ittersbach-industrie--1o1g0dv",
+      "fromId": "ittersbach--1nrgeow",
+      "toId": "ittersbach-industrie--1o1g0dv",
+      "lineIds": ["S11"]
+    },
+    {
+      "id": "ittersbach--1nrgeow\u0000ittersbach-rathaus--1olc29u",
+      "fromId": "ittersbach--1nrgeow",
+      "toId": "ittersbach-rathaus--1olc29u",
+      "lineIds": ["S11"]
+    },
+    {
+      "id": "ittersbach-industrie--1o1g0dv\u0000spielberg-baden--1rxag3h",
+      "fromId": "ittersbach-industrie--1o1g0dv",
+      "toId": "spielberg-baden--1rxag3h",
+      "lineIds": ["S11"]
+    },
+    {
+      "id": "jenaer-strasse--1egbvyf\u0000reitschulschlag--1u9ps6d",
+      "fromId": "jenaer-strasse--1egbvyf",
+      "toId": "reitschulschlag--1u9ps6d",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "joehlingen--1vdj5uw\u0000joehlingen-west--1vnirjv",
+      "fromId": "joehlingen--1vdj5uw",
+      "toId": "joehlingen-west--1vnirjv",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "joehlingen--1vdj5uw\u0000woessingen--1xlj4wn",
+      "fromId": "joehlingen--1vdj5uw",
+      "toId": "woessingen--1xlj4wn",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "karl-delisle-strasse--13qr7fz\u0000thomas-mann-strasse--13grlr0",
+      "fromId": "karl-delisle-strasse--13qr7fz",
+      "toId": "thomas-mann-strasse--13grlr0",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "karlsruhe-dammerstock--1vqajrv\u0000karlsruhe-schloss-rueppurr--1vgay2w",
+      "fromId": "karlsruhe-dammerstock--1vqajrv",
+      "toId": "karlsruhe-schloss-rueppurr--1vgay2w",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "karlsruhe-schloss-rueppurr--1vgay2w\u0000rueppurr-ostendorfplatz--1v6bcdx",
+      "fromId": "karlsruhe-schloss-rueppurr--1vgay2w",
+      "toId": "rueppurr-ostendorfplatz--1v6bcdx",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "karlstor\u0000mathystrasse",
+      "fromId": "karlstor",
+      "toId": "mathystrasse",
+      "lineIds": ["3"]
+    },
+    {
+      "id": "kirche--4n7x7h\u0000muehlenweg--14i97zy",
+      "fromId": "kirche--4n7x7h",
+      "toId": "muehlenweg--14i97zy",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "kirche--4n7x7h\u0000tolna-platz--4d8bii",
+      "fromId": "kirche--4n7x7h",
+      "toId": "tolna-platz--4d8bii",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "kirchfeld--17yc4fq\u0000neureut-adolf-ehrmann-bad--188bq4p",
+      "fromId": "kirchfeld--17yc4fq",
+      "toId": "neureut-adolf-ehrmann-bad--188bq4p",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "kirschbaumwasen--17wdzg7\u0000raumuenzach--186dl56",
+      "fromId": "kirschbaumwasen--17wdzg7",
+      "toId": "raumuenzach--186dl56",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "kleinsteinbach--1czmik3\u0000soellingen-kapellenstrasse--cxduhe",
+      "fromId": "kleinsteinbach--1czmik3",
+      "toId": "soellingen-kapellenstrasse--cxduhe",
+      "lineIds": ["S5"]
+    },
+    {
+      "id": "kleinsteinbach--1czmik3\u0000wilferdingen-singen-bahnhof--coedf6",
+      "fromId": "kleinsteinbach--1czmik3",
+      "toId": "wilferdingen-singen-bahnhof--coedf6",
+      "lineIds": ["S5"]
+    },
+    {
+      "id": "knielinger-allee-staedt-klinikum--8zn1j9\u0000moltkestrasse-staedt-klinikum--8fnu5b",
+      "fromId": "knielinger-allee-staedt-klinikum--8zn1j9",
+      "toId": "moltkestrasse-staedt-klinikum--8fnu5b",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "kolpingplatz\u0000mathystrasse",
+      "fromId": "kolpingplatz",
+      "toId": "mathystrasse",
+      "lineIds": ["3"]
+    },
+    {
+      "id": "kronenplatz\u0000marktplatz",
+      "fromId": "kronenplatz",
+      "toId": "marktplatz",
+      "lineIds": ["1", "S2", "S5", "S51", "S8", "S4", "S7"]
+    },
+    {
+      "id": "kuehler-krug--8h3kdt\u0000muehlburger-feld--8r362s",
+      "fromId": "kuehler-krug--8h3kdt",
+      "toId": "muehlburger-feld--8r362s",
+      "lineIds": ["2"]
+    },
+    {
+      "id": "kunstakademie-hochschule--43lsew\u0000muehlburger-tor",
+      "fromId": "kunstakademie-hochschule--43lsew",
+      "toId": "muehlburger-tor",
+      "lineIds": ["1"]
+    },
+    {
+      "id": "kunstakademie-hochschule--43lsew\u0000synagoge--ufcfz9",
+      "fromId": "kunstakademie-hochschule--43lsew",
+      "toId": "synagoge--ufcfz9",
+      "lineIds": ["1"]
+    },
+    {
+      "id": "kuppenheim--1baq0mh\u0000rastatt-beinle--u69rdk",
+      "fromId": "kuppenheim--1baq0mh",
+      "toId": "rastatt-beinle--u69rdk",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "kussmaulstrasse-staedt-klinikum--13a1rdo\u0000moltkestrasse-staedt-klinikum--8fnu5b",
+      "fromId": "kussmaulstrasse-staedt-klinikum--13a1rdo",
+      "toId": "moltkestrasse-staedt-klinikum--8fnu5b",
+      "lineIds": ["2"]
+    },
+    {
+      "id": "lameyplatz--1u7licz\u0000rheinhafen--9b2dgq",
+      "fromId": "lameyplatz--1u7licz",
+      "toId": "rheinhafen--9b2dgq",
+      "lineIds": ["2"]
+    },
+    {
+      "id": "lameyplatz--1u7licz\u0000starckstrasse--1rvwbz2",
+      "fromId": "lameyplatz--1u7licz",
+      "toId": "starckstrasse--1rvwbz2",
+      "lineIds": ["S5", "S51"]
+    },
+    {
+      "id": "landesbausparkasse--i9novk\u0000weinbrennerplatz--k7kwqd",
+      "fromId": "landesbausparkasse--i9novk",
+      "toId": "weinbrennerplatz--k7kwqd",
+      "lineIds": ["4"]
+    },
+    {
+      "id": "langensteinbach--1qjcfmm\u0000langensteinbach-schiesshuettenaecker--1ovbnyt",
+      "fromId": "langensteinbach--1qjcfmm",
+      "toId": "langensteinbach-schiesshuettenaecker--1ovbnyt",
+      "lineIds": ["S11"]
+    },
+    {
+      "id": "langensteinbach--1qjcfmm\u0000langensteinbach-st-barbara--1rdb8pj",
+      "fromId": "langensteinbach--1qjcfmm",
+      "toId": "langensteinbach-st-barbara--1rdb8pj",
+      "lineIds": ["S11"]
+    },
+    {
+      "id": "langensteinbach-schiesshuettenaecker--1ovbnyt\u0000reichenbach-b-ettlingen--1qtc1bl",
+      "fromId": "langensteinbach-schiesshuettenaecker--1ovbnyt",
+      "toId": "reichenbach-b-ettlingen--1qtc1bl",
+      "lineIds": ["S11"]
+    },
+    {
+      "id": "langensteinbach-st-barbara--1rdb8pj\u0000spielberg-baden--1rxag3h",
+      "fromId": "langensteinbach-st-barbara--1rdb8pj",
+      "toId": "spielberg-baden--1rxag3h",
+      "lineIds": ["S11"]
+    },
+    {
+      "id": "leichtsandstrasse-messe-karlsruhe--140tymx\u0000nussbaumweg--14upm7v",
+      "fromId": "leichtsandstrasse-messe-karlsruhe--140tymx",
+      "toId": "nussbaumweg--14upm7v",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "leingarten--k4jjgc\u0000leingarten-mitte--koiqua",
+      "fromId": "leingarten--k4jjgc",
+      "toId": "leingarten-mitte--koiqua",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "leingarten--k4jjgc\u0000leingarten-ost--r61li",
+      "fromId": "leingarten--k4jjgc",
+      "toId": "leingarten-ost--r61li",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "leingarten-mitte--koiqua\u0000leingarten-west--jakqdf",
+      "fromId": "leingarten-mitte--koiqua",
+      "toId": "leingarten-west--jakqdf",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "leingarten-west--jakqdf\u0000schwaigern-wuertt-ost--26q1qr",
+      "fromId": "leingarten-west--jakqdf",
+      "toId": "schwaigern-wuertt-ost--26q1qr",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "leopoldshafen-frankfurter-strasse--1cyb9x6\u0000leopoldshafen-leopoldstrasse--1d8avm5",
+      "fromId": "leopoldshafen-frankfurter-strasse--1cyb9x6",
+      "toId": "leopoldshafen-leopoldstrasse--1d8avm5",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "leopoldshafen-frankfurter-strasse--1cyb9x6\u0000linkenheim-sued--1b9sj5q",
+      "fromId": "leopoldshafen-frankfurter-strasse--1cyb9x6",
+      "toId": "linkenheim-sued--1b9sj5q",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "leopoldshafen-leopoldstrasse--1d8avm5\u0000leopoldshafen-viermorgen--1cec2j8",
+      "fromId": "leopoldshafen-leopoldstrasse--1d8avm5",
+      "toId": "leopoldshafen-viermorgen--1cec2j8",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "lilienthalstrasse--v9b926\u0000synagoge--ufcfz9",
+      "fromId": "lilienthalstrasse--v9b926",
+      "toId": "synagoge--ufcfz9",
+      "lineIds": ["1"]
+    },
+    {
+      "id": "linkenheim-friedrichstrasse--1azsxgr\u0000linkenheim-rathaus--1aptbrs",
+      "fromId": "linkenheim-friedrichstrasse--1azsxgr",
+      "toId": "linkenheim-rathaus--1aptbrs",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "linkenheim-friedrichstrasse--1azsxgr\u0000linkenheim-sued--1b9sj5q",
+      "fromId": "linkenheim-friedrichstrasse--1azsxgr",
+      "toId": "linkenheim-sued--1b9sj5q",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "linkenheim-rathaus--1aptbrs\u0000linkenheim-schulzentrum--1cnqjml",
+      "fromId": "linkenheim-rathaus--1aptbrs",
+      "toId": "linkenheim-schulzentrum--1cnqjml",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "martin-luther-strasse--258cgr\u0000ubstadt-salzbrunnenstrasse--2f7y5q",
+      "fromId": "martin-luther-strasse--258cgr",
+      "toId": "ubstadt-salzbrunnenstrasse--2f7y5q",
+      "lineIds": ["FEX", "S32"]
+    },
+    {
+      "id": "martin-luther-strasse--258cgr\u0000unteroewisheim--1v8qrs",
+      "fromId": "martin-luther-strasse--258cgr",
+      "toId": "unteroewisheim--1v8qrs",
+      "lineIds": ["FEX", "S32"]
+    },
+    {
+      "id": "mauerweg--3cjext\u0000stadtwerke--zt3jzt",
+      "fromId": "mauerweg--3cjext",
+      "toId": "stadtwerke--zt3jzt",
+      "lineIds": ["3"]
+    },
+    {
+      "id": "maxau--hh2zx2\u0000rheinbergstrasse",
+      "fromId": "maxau--hh2zx2",
+      "toId": "rheinbergstrasse",
+      "lineIds": ["S5", "S51"]
+    },
+    {
+      "id": "merkurstrasse--15ouqaq\u0000rheinaustrasse--15yr6hq",
+      "fromId": "merkurstrasse--15ouqaq",
+      "toId": "rheinaustrasse--15yr6hq",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "mitte--1vuha0x\u0000nord--1s81tmc",
+      "fromId": "mitte--1vuha0x",
+      "toId": "nord--1s81tmc",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "mitte--1vuha0x\u0000saint-riquier-platz--s6gxfk",
+      "fromId": "mitte--1vuha0x",
+      "toId": "saint-riquier-platz--s6gxfk",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "mitte-rhein--t49gvv\u0000sued-nolte--blcz70",
+      "fromId": "mitte-rhein--t49gvv",
+      "toId": "sued-nolte--blcz70",
+      "lineIds": ["S51"]
+    },
+    {
+      "id": "moltkestrasse-staedt-klinikum--8fnu5b\u0000yorckstrasse--1v1h5xx",
+      "fromId": "moltkestrasse-staedt-klinikum--8fnu5b",
+      "toId": "yorckstrasse--1v1h5xx",
+      "lineIds": ["S1", "S11", "2"]
+    },
+    {
+      "id": "muehlburg-west--1rbx4l4\u0000siemens--1t9ucfx",
+      "fromId": "muehlburg-west--1rbx4l4",
+      "toId": "siemens--1t9ucfx",
+      "lineIds": ["S5", "S51"]
+    },
+    {
+      "id": "muehlburg-west--1rbx4l4\u0000starckstrasse--1rvwbz2",
+      "fromId": "muehlburg-west--1rbx4l4",
+      "toId": "starckstrasse--1rvwbz2",
+      "lineIds": ["S5", "S51"]
+    },
+    {
+      "id": "muehlburger-tor\u0000schillerstrasse--1urhk8y",
+      "fromId": "muehlburger-tor",
+      "toId": "schillerstrasse--1urhk8y",
+      "lineIds": ["4"]
+    },
+    {
+      "id": "muehlburger-tor\u0000yorckstrasse--1v1h5xx",
+      "fromId": "muehlburger-tor",
+      "toId": "yorckstrasse--1v1h5xx",
+      "lineIds": ["S2", "S1", "S5", "3", "S51", "S11"]
+    },
+    {
+      "id": "muehlenweg--14i97zy\u0000nord--438ptj",
+      "fromId": "muehlenweg--14i97zy",
+      "toId": "nord--438ptj",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "muenzesheim--3j6cxm\u0000muenzesheim-ost--396r8n",
+      "fromId": "muenzesheim--3j6cxm",
+      "toId": "muenzesheim-ost--396r8n",
+      "lineIds": ["FEX", "S32"]
+    },
+    {
+      "id": "muenzesheim--3j6cxm\u0000oberoewisheim--3t5yml",
+      "fromId": "muenzesheim--3j6cxm",
+      "toId": "oberoewisheim--3t5yml",
+      "lineIds": ["FEX", "S32"]
+    },
+    {
+      "id": "narzissenstrasse--14atkbw\u0000roemerstrasse--168qs6p",
+      "fromId": "narzissenstrasse--14atkbw",
+      "toId": "roemerstrasse--168qs6p",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "narzissenstrasse--14atkbw\u0000roesselsbruennle--14usrpu",
+      "fromId": "narzissenstrasse--14atkbw",
+      "toId": "roesselsbruennle--14usrpu",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "neckarturm--1byc09d\u0000rathaus--dxswvm",
+      "fromId": "neckarturm--1byc09d",
+      "toId": "rathaus--dxswvm",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "neureut-adolf-ehrmann-bad--188bq4p\u0000neureut-baerenweg--192aj7m",
+      "fromId": "neureut-adolf-ehrmann-bad--188bq4p",
+      "toId": "neureut-baerenweg--192aj7m",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "neureut-baerenweg--192aj7m\u0000neureut-welschneureuter-strasse--19ca4wl",
+      "fromId": "neureut-baerenweg--192aj7m",
+      "toId": "neureut-welschneureuter-strasse--19ca4wl",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "neureuter-strasse--12g2yar\u0000siemensallee--1263cls",
+      "fromId": "neureuter-strasse--12g2yar",
+      "toId": "siemensallee--1263cls",
+      "lineIds": ["2"]
+    },
+    {
+      "id": "nord--438ptj\u0000saint-riquier-platz--s6gxfk",
+      "fromId": "nord--438ptj",
+      "toId": "saint-riquier-platz--s6gxfk",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "oberfeldstrasse--154sdet\u0000roesselsbruennle--14usrpu",
+      "fromId": "oberfeldstrasse--154sdet",
+      "toId": "roesselsbruennle--14usrpu",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "oberoewisheim--3t5yml\u0000unteroewisheim--1v8qrs",
+      "fromId": "oberoewisheim--3t5yml",
+      "toId": "unteroewisheim--1v8qrs",
+      "lineIds": ["FEX", "S32"]
+    },
+    {
+      "id": "odenheim--716bre\u0000odenheim-west--3fbhqr",
+      "fromId": "odenheim--716bre",
+      "toId": "odenheim-west--3fbhqr",
+      "lineIds": ["S31", "FEX"]
+    },
+    {
+      "id": "odenheim-west--3fbhqr\u0000zeutern-ost--zkdn0p",
+      "fromId": "odenheim-west--3fbhqr",
+      "toId": "zeutern-ost--zkdn0p",
+      "lineIds": ["S31", "FEX"]
+    },
+    {
+      "id": "oetigheim--1jkqju\u0000rastatt--z404vr",
+      "fromId": "oetigheim--1jkqju",
+      "toId": "rastatt--z404vr",
+      "lineIds": ["S8", "S7"]
+    },
+    {
+      "id": "ostendstrasse\u0000rueppurrer-tor",
+      "fromId": "ostendstrasse",
+      "toId": "rueppurrer-tor",
+      "lineIds": ["5"]
+    },
+    {
+      "id": "ostendstrasse\u0000wolfartsweierer-strasse--1ly962j",
+      "fromId": "ostendstrasse",
+      "toId": "wolfartsweierer-strasse--1ly962j",
+      "lineIds": ["5"]
+    },
+    {
+      "id": "pionierstrasse--154yoer\u0000sudetenstrasse--18qtife",
+      "fromId": "pionierstrasse--154yoer",
+      "toId": "sudetenstrasse--18qtife",
+      "lineIds": ["2"]
+    },
+    {
+      "id": "poststrasse\u0000tivoli",
+      "fromId": "poststrasse",
+      "toId": "tivoli",
+      "lineIds": ["3", "6"]
+    },
+    {
+      "id": "rastatt--z404vr\u0000rastatt-beinle--u69rdk",
+      "fromId": "rastatt--z404vr",
+      "toId": "rastatt-beinle--u69rdk",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "reichenbach-b-ettlingen--1qtc1bl\u0000reichenbach-kurpark--1pzd88o",
+      "fromId": "reichenbach-b-ettlingen--1qtc1bl",
+      "toId": "reichenbach-kurpark--1pzd88o",
+      "lineIds": ["S11"]
+    },
+    {
+      "id": "rheinaustrasse--15yr6hq\u0000roemerstrasse--168qs6p",
+      "fromId": "rheinaustrasse--15yr6hq",
+      "toId": "roemerstrasse--168qs6p",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "rheinhafen--9b2dgq\u0000starckstrasse--1rvwbz2",
+      "fromId": "rheinhafen--9b2dgq",
+      "toId": "starckstrasse--1rvwbz2",
+      "lineIds": ["S5"]
+    },
+    {
+      "id": "rheinhafenstrasse--136s021\u0000thomas-mann-strasse--13grlr0",
+      "fromId": "rheinhafenstrasse--136s021",
+      "toId": "thomas-mann-strasse--13grlr0",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "rueppurr-battstrasse--1vq7e9w\u0000rueppurr-tulpenstrasse--1uwbqoy",
+      "fromId": "rueppurr-battstrasse--1vq7e9w",
+      "toId": "rueppurr-tulpenstrasse--1uwbqoy",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "rueppurr-ostendorfplatz--1v6bcdx\u0000rueppurr-tulpenstrasse--1uwbqoy",
+      "fromId": "rueppurr-ostendorfplatz--1v6bcdx",
+      "toId": "rueppurr-tulpenstrasse--1uwbqoy",
+      "lineIds": ["S1", "S11"]
+    },
+    {
+      "id": "rueppurrer-tor\u0000werderstrasse",
+      "fromId": "rueppurrer-tor",
+      "toId": "werderstrasse",
+      "lineIds": ["3"]
+    },
+    {
+      "id": "schillerstrasse--1urhk8y\u0000sophienstrasse--jxlb1e",
+      "fromId": "schillerstrasse--1urhk8y",
+      "toId": "sophienstrasse--jxlb1e",
+      "lineIds": ["4", "2"]
+    },
+    {
+      "id": "schillerstrasse--1urhk8y\u0000yorckstrasse--1v1h5xx",
+      "fromId": "schillerstrasse--1urhk8y",
+      "toId": "yorckstrasse--1v1h5xx",
+      "lineIds": ["2"]
+    },
+    {
+      "id": "schloss-gottesaue--1nc76je\u0000tullastrasse-alter-schlachthof--tvd8lb",
+      "fromId": "schloss-gottesaue--1nc76je",
+      "toId": "tullastrasse-alter-schlachthof--tvd8lb",
+      "lineIds": ["5"]
+    },
+    {
+      "id": "schloss-gottesaue--1nc76je\u0000wolfartsweierer-strasse--1ly962j",
+      "fromId": "schloss-gottesaue--1nc76je",
+      "toId": "wolfartsweierer-strasse--1ly962j",
+      "lineIds": ["5"]
+    },
+    {
+      "id": "schulzentrum-panoramabad--kkl86w\u0000stadtbahnhof--9dsxeq",
+      "fromId": "schulzentrum-panoramabad--kkl86w",
+      "toId": "stadtbahnhof--9dsxeq",
+      "lineIds": ["S8"]
+    },
+    {
+      "id": "schwaigern-wuertt--ozuewi\u0000schwaigern-wuertt-ost--26q1qr",
+      "fromId": "schwaigern-wuertt--ozuewi",
+      "toId": "schwaigern-wuertt-ost--26q1qr",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "schwaigern-wuertt--ozuewi\u0000schwaigern-wuertt-west--qzu0zb",
+      "fromId": "schwaigern-wuertt--ozuewi",
+      "toId": "schwaigern-wuertt-west--qzu0zb",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "schwaigern-wuertt-west--qzu0zb\u0000stetten-am-heuchelb--plw0ig",
+      "fromId": "schwaigern-wuertt-west--qzu0zb",
+      "toId": "stetten-am-heuchelb--plw0ig",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "siemensallee--1263cls\u0000sudetenstrasse--18qtife",
+      "fromId": "siemensallee--1263cls",
+      "toId": "sudetenstrasse--18qtife",
+      "lineIds": ["2"]
+    },
+    {
+      "id": "sinzheim-b-buehl--1lngzlq\u0000sinzheim-b-buehl-nord--1ldhdwr",
+      "fromId": "sinzheim-b-buehl--1lngzlq",
+      "toId": "sinzheim-b-buehl-nord--1ldhdwr",
+      "lineIds": ["S7"]
+    },
+    {
+      "id": "soellingen-b-karlsruhe--1gvgy9p\u0000soellingen-kapellenstrasse--cxduhe",
+      "fromId": "soellingen-b-karlsruhe--1gvgy9p",
+      "toId": "soellingen-kapellenstrasse--cxduhe",
+      "lineIds": ["S5"]
+    },
+    {
+      "id": "soellingen-b-karlsruhe--1gvgy9p\u0000soellingen-reetzstrasse--1glhckq",
+      "fromId": "soellingen-b-karlsruhe--1gvgy9p",
+      "toId": "soellingen-reetzstrasse--1glhckq",
+      "lineIds": ["S5", "S51"]
+    },
+    {
+      "id": "sophienstrasse--jxlb1e\u0000weinbrennerplatz--k7kwqd",
+      "fromId": "sophienstrasse--jxlb1e",
+      "toId": "weinbrennerplatz--k7kwqd",
+      "lineIds": ["4", "2"]
+    },
+    {
+      "id": "stettfeld--3pb3fq\u0000ubstadt-uhlandstrasse--1sowg22",
+      "fromId": "stettfeld--3pb3fq",
+      "toId": "ubstadt-uhlandstrasse--1sowg22",
+      "lineIds": ["S31", "FEX"]
+    },
+    {
+      "id": "stettfeld--3pb3fq\u0000zeutern-sportplatz--1heok2r",
+      "fromId": "stettfeld--3pb3fq",
+      "toId": "zeutern-sportplatz--1heok2r",
+      "lineIds": ["S31", "FEX"]
+    },
+    {
+      "id": "sued--15w78gt\u0000tolna-platz--4d8bii",
+      "fromId": "sued--15w78gt",
+      "toId": "tolna-platz--4d8bii",
+      "lineIds": ["S2"]
+    },
+    {
+      "id": "sulzfeld-baden--1wfokjt\u0000zaisenhausen-baden--1oiz95i",
+      "fromId": "sulzfeld-baden--1wfokjt",
+      "toId": "zaisenhausen-baden--1oiz95i",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "tivoli\u0000werderstrasse",
+      "fromId": "tivoli",
+      "toId": "werderstrasse",
+      "lineIds": ["3"]
+    },
+    {
+      "id": "tullastrasse-22--jgzpk7\u0000tullastrasse-alter-schlachthof--tvd8lb",
+      "fromId": "tullastrasse-22--jgzpk7",
+      "toId": "tullastrasse-alter-schlachthof--tvd8lb",
+      "lineIds": ["5"]
+    },
+    {
+      "id": "tullastrasse-22--jgzpk7\u0000tullastrasse-e43--gywzbi",
+      "fromId": "tullastrasse-22--jgzpk7",
+      "toId": "tullastrasse-e43--gywzbi",
+      "lineIds": ["5"]
+    },
+    {
+      "id": "tullastrasse-alter-schlachthof--tvd8lb\u0000tullastrasse-e43--gywzbi",
+      "fromId": "tullastrasse-alter-schlachthof--tvd8lb",
+      "toId": "tullastrasse-e43--gywzbi",
+      "lineIds": ["5"]
+    },
+    {
+      "id": "tullastrasse-alter-schlachthof--tvd8lb\u0000weinweg--vjaur5",
+      "fromId": "tullastrasse-alter-schlachthof--tvd8lb",
+      "toId": "weinweg--vjaur5",
+      "lineIds": ["1", "S5", "S51", "S4"]
+    },
+    {
+      "id": "ubstadt-ort--49aato\u0000ubstadt-salzbrunnenstrasse--2f7y5q",
+      "fromId": "ubstadt-ort--49aato",
+      "toId": "ubstadt-salzbrunnenstrasse--2f7y5q",
+      "lineIds": ["FEX", "S32"]
+    },
+    {
+      "id": "ubstadt-ort--49aato\u0000ubstadt-uhlandstrasse--1sowg22",
+      "fromId": "ubstadt-ort--49aato",
+      "toId": "ubstadt-uhlandstrasse--1sowg22",
+      "lineIds": ["S31", "FEX"]
+    },
+    {
+      "id": "untergrombach--v82jo6\u0000weingarten-baden--w21cr3",
+      "fromId": "untergrombach--v82jo6",
+      "toId": "weingarten-baden--w21cr3",
+      "lineIds": ["FEX", "S32", "S31"]
+    },
+    {
+      "id": "untermuehlstrasse--upf767\u0000weinweg--vjaur5",
+      "fromId": "untermuehlstrasse--upf767",
+      "toId": "weinweg--vjaur5",
+      "lineIds": ["1", "S5", "S51", "S4"]
+    },
+    {
+      "id": "welfenstrasse\u0000zkm",
+      "fromId": "welfenstrasse",
+      "toId": "zkm",
+      "lineIds": ["6"]
+    },
+    {
+      "id": "wilhelm-leuschner-strasse--l1mvb9\u0000zentrum--lviiw7",
+      "fromId": "wilhelm-leuschner-strasse--l1mvb9",
+      "toId": "zentrum--lviiw7",
+      "lineIds": ["4"]
+    },
+    {
+      "id": "woessingen--1xlj4wn\u0000woessingen-ost--1y5ical",
+      "fromId": "woessingen--1xlj4wn",
+      "toId": "woessingen-ost--1y5ical",
+      "lineIds": ["S4"]
+    },
+    {
+      "id": "zeutern--3zap4p\u0000zeutern-ost--zkdn0p",
+      "fromId": "zeutern--3zap4p",
+      "toId": "zeutern-ost--zkdn0p",
+      "lineIds": ["S31", "FEX"]
+    },
+    {
+      "id": "zeutern--3zap4p\u0000zeutern-sportplatz--1heok2r",
+      "fromId": "zeutern--3zap4p",
+      "toId": "zeutern-sportplatz--1heok2r",
+      "lineIds": ["S31", "FEX"]
+    }
+  ]
+}
