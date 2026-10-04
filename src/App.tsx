@@ -194,7 +194,7 @@ export default function App() {
         isStationBoardMode && "station-board-mode",
         isRideInView && "ride-mode",
         /* Fullscreen plan: the middle row takes the bar's height; nothing overlays the footer. */
-        route.view === "zentrum" && route.isZentrumFullscreen && "zentrum-fullscreen",
+        route.view === "experiment" && route.isZentrumFullscreen && "zentrum-fullscreen",
       )}
       style={shellThemeStyle}
     >
@@ -236,7 +236,7 @@ export default function App() {
                   />
                 )}
                 {activeView === "nearby" && <NearbyStopsView controller={nearbyStopsController} />}
-                {activeView === "zentrum" && (
+                {activeView === "experiment" && (
                   <ZentrumView
                     network={observedNetwork}
                     coverage={zentrumCoverage}

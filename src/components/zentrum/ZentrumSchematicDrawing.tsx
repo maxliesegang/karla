@@ -6,7 +6,7 @@ import {
   type ZentrumSchematicLinePathSegment,
   getZentrumSchematicVehiclePathData,
 } from "../../lib/zentrum-schematic-paths";
-import type { ZentrumExperiments } from "../../lib/zentrum-experiments";
+import type { ZentrumPlanOptions } from "../../lib/zentrum-plan-options";
 import type { ZentrumSchematicOverlay } from "../../lib/zentrum-schematic-overlays";
 import {
   ZENTRUM_SCHEMATIC_STOP_CAPSULE_FILL,
@@ -112,7 +112,7 @@ export function ZentrumSchematicDrawing({
   /** What is lit over the traces; nothing draws every line whole. */
   overlay?: ZentrumSchematicOverlay;
   /** How highlighted lines are drawn where the overlay does not light them. */
-  unlitLineStyle?: ZentrumExperiments["unlitLineStyle"];
+  unlitLineStyle?: ZentrumPlanOptions["unlitLineStyle"];
   /** The lane width, which is also the lane pitch. */
   trackWidth: number;
 }) {
@@ -163,7 +163,7 @@ const ZentrumSchematicTracks = memo(function ZentrumSchematicTracks({
   drawnLinePaths: readonly ZentrumSchematicDrawnLinePath[];
   highlightedLineIds?: ReadonlySet<string>;
   hasOverlay: boolean;
-  unlitLineStyle: ZentrumExperiments["unlitLineStyle"];
+  unlitLineStyle: ZentrumPlanOptions["unlitLineStyle"];
 }) {
   return (
     <g>

@@ -96,7 +96,7 @@ test("walking to another stop changes only the board beside the diagram", () => 
 });
 
 test("arriving from elsewhere changes both halves, and a refresh changes neither", () => {
-  const home = layoutFor("#/center");
+  const home = layoutFor("#/experiment/center");
   const line = layoutFor("#/stop/marktplatz/line/2");
   assert.equal(describePanelChange(home, line), "both");
   assert.equal(describePanelChange(line, layoutFor("#/stop/marktplatz/line/2")), "none");
@@ -111,7 +111,7 @@ test("the home is its own page, and the three pages it names stand on their own"
   assert.equal(home.hasDepartureBoard, false);
   assert.equal(home.isSinglePanel, true);
 
-  for (const hash of ["#/center", "#/network/city"]) {
+  for (const hash of ["#/experiment/center", "#/network/city"]) {
     const page = layoutFor(hash);
     assert.equal(page.isHomeView, false, hash);
     assert.equal(page.isStandaloneView, true, hash);
@@ -119,7 +119,10 @@ test("the home is its own page, and the three pages it names stand on their own"
     assert.equal(page.hasPrimaryPanel, true, hash);
   }
   // Separate pages are separate things in the panel: each re-enters on its own.
-  assert.notEqual(layoutFor("#/center").primaryKey, layoutFor("#/network/city").primaryKey);
+  assert.notEqual(
+    layoutFor("#/experiment/center").primaryKey,
+    layoutFor("#/network/city").primaryKey,
+  );
 });
 
 test("the settings stand on their own, read no network, and step back up to the home", () => {
@@ -135,9 +138,9 @@ test("the settings stand on their own, read no network, and step back up to the 
 test("step up drops one level, and the nearby list returns to the page it corrected", () => {
   assert.equal(layoutFor("#/stop/marktplatz/line/2").backPath, "/stop/marktplatz");
   assert.equal(layoutFor("#/stop/marktplatz").backPath, "/");
-  assert.equal(layoutFor("#/center").backPath, "/");
-  assert.equal(layoutFor("#/center/stop/marktplatz").backPath, "/center");
-  assert.equal(layoutFor("#/center/full/line/2").backPath, "/center/full");
+  assert.equal(layoutFor("#/experiment/center").backPath, "/");
+  assert.equal(layoutFor("#/experiment/center/stop/marktplatz").backPath, "/experiment/center");
+  assert.equal(layoutFor("#/experiment/center/full/line/2").backPath, "/experiment/center/full");
   assert.equal(
     layoutFor("#/nearby", {}, { nearbyReturnStopId: "marktplatz" }).backPath,
     "/stop/marktplatz",
@@ -150,13 +153,13 @@ test("an unattended station board is the stop view alone, and reads nothing else
   assert.equal(board.isStationBoardView, true);
   assert.equal(board.hasPrimaryPanel, false);
   assert.equal(board.hasDepartureBoard, false);
-  assert.equal(isStationBoardStopView("zentrum", true), false);
+  assert.equal(isStationBoardStopView("experiment", true), false);
   assert.equal(isStationBoardStopView("stop", false), false);
 });
 
 test("the observation cycle is only read from where a view actually shows it", () => {
   assert.equal(readsObservedNetwork("home"), false);
-  assert.equal(readsObservedNetwork("zentrum"), true);
+  assert.equal(readsObservedNetwork("experiment"), true);
   assert.equal(readsObservedNetwork("network"), true);
   assert.equal(readsObservedNetwork("nearby"), true);
   assert.equal(readsObservedNetwork("line"), false);
@@ -164,11 +167,27 @@ test("the observation cycle is only read from where a view actually shows it", (
 });
 
 test("the plan is lit by a followed line or by an opened stop, and the address says which", () => {
-  const opened = parseRoute("#/center/full/stop/marktplatz");
+  const opened = parseRoute("#/experiment/center/full/stop/marktplatz");
+  assert.equal(opened.view, "experiment");
   assert.equal(opened.zentrumStopId, "marktplatz");
   assert.equal(opened.zentrumLineId, "");
   assert.equal(opened.isZentrumFullscreen, true);
-  assert.equal(routePaths.zentrum({ stopId: "marktplatz" }, true), "/center/full/stop/marktplatz");
-  assert.equal(routePaths.zentrum({ lineId: "S1" }), "/center/line/S1");
-  assert.equal(routePaths.zentrum(), "/center");
+  assert.equal(
+    routePaths.zentrum({ stopId: "marktplatz" }, true),
+    "/experiment/center/full/stop/marktplatz",
+  );
+  assert.equal(routePaths.zentrum({ lineId: "S1" }), "/experiment/center/line/S1");
+  assert.equal(routePaths.zentrum(), "/experiment/center");
+});
+
+test("the experiment page opens the Zentrum plan, and the plan's earlier addresses still resolve", () => {
+  assert.equal(routePaths.experiment(), "/experiment");
+  assert.deepEqual(parseRoute(routePaths.experiment()), parseRoute(routePaths.zentrum()));
+  assert.deepEqual(parseRoute("#/experiment"), parseRoute("#/experiment/center"));
+  assert.deepEqual(parseRoute("#/center"), parseRoute("#/experiment/center"));
+  assert.deepEqual(parseRoute("#/center/stops"), parseRoute("#/experiment/center"));
+  assert.deepEqual(
+    parseRoute("#/center/full/line/2"),
+    parseRoute("#/experiment/center/full/line/2"),
+  );
 });

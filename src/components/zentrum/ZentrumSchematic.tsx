@@ -21,7 +21,7 @@ import {
   getZentrumTravelTimes,
   type ZentrumTravelTime,
 } from "../../lib/zentrum-schematic-overlays";
-import { zentrumExperiments } from "../../lib/zentrum-experiments";
+import { zentrumPlanOptions } from "../../lib/zentrum-plan-options";
 import { type ZentrumPanelEntranceMotion, zentrumStopPanelState } from "../../lib/zentrum-panel";
 import {
   type ZentrumSchematicNode,
@@ -171,7 +171,7 @@ export function ZentrumSchematic({
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>();
   const [stopReading, setStopReading] = useState<ZentrumStopReading>("destinations");
   const plan = useZentrumPlanCanvas();
-  const experiments = useStoredPreference(zentrumExperiments);
+  const options = useStoredPreference(zentrumPlanOptions);
   const stopPanelState = useStoredPreference(zentrumStopPanelState);
   const [panelEntranceMotion, setPanelEntranceMotion] =
     useState<ZentrumPanelEntranceMotion>("slide");
@@ -212,20 +212,12 @@ export function ZentrumSchematic({
             vehicles,
             runDepartures,
             feedNow,
-            experiments.destinationTime,
+            options.travelMeasure,
           )
         : undefined,
-    [
-      stopReading,
-      selectedStop,
-      stopBoard,
-      vehicles,
-      runDepartures,
-      feedNow,
-      experiments.destinationTime,
-    ],
+    [stopReading, selectedStop, stopBoard, vehicles, runDepartures, feedNow, options.travelMeasure],
   );
-  const isShowingVehiclePaths = !selectedStop && experiments.overviewPaths === "ahead";
+  const isShowingVehiclePaths = !selectedStop && options.vehiclePathMode === "ahead";
   const overlay = useMemo(
     () =>
       stopView?.overlay ??
@@ -281,7 +273,7 @@ export function ZentrumSchematic({
       rows={stopView.rows}
       board={stopBoard}
       reachableStops={stopView.reachableStops}
-      travelMeasure={experiments.destinationTime}
+      travelMeasure={options.travelMeasure}
       selectedVehicleId={selectedVehicleId}
       onSelectVehicle={toggleVehicle}
       getSign={getSign}
@@ -316,7 +308,7 @@ export function ZentrumSchematic({
           selectedStopId={selectedStop?.id}
           vehicles={vehicles}
           overlay={overlay}
-          unlitLineStyle={experiments.unlitLineStyle}
+          unlitLineStyle={options.unlitLineStyle}
           vehicleMinutesById={stopView?.vehicleMinutesById}
           stopMinutesByNodeId={stopView?.stopMinutesByNodeId}
           selectedVehicleId={selectedVehicleId}
@@ -343,7 +335,7 @@ export function ZentrumSchematic({
             selectedLineId,
             followedVehicleCount,
             selectedStop ? stopReading : undefined,
-            experiments.destinationTime,
+            options.travelMeasure,
             isShowingVehiclePaths,
           )
         }

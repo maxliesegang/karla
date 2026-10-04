@@ -235,7 +235,7 @@ test("step up drops exactly one level of the address, and never reads live data 
   );
   assert.equal(getParentSelectionPath({ view: "stop", stopId: "europaplatz" }), "/");
   // Home is the top.
-  assert.equal(getParentSelectionPath({ view: "zentrum", stopId: "europaplatz" }), "/");
+  assert.equal(getParentSelectionPath({ view: "experiment", stopId: "europaplatz" }), "/");
   assert.equal(getParentSelectionPath({ view: "network", stopId: "europaplatz" }), "/");
   assert.equal(getParentSelectionPath({ view: "notices", stopId: "europaplatz" }), "/");
   assert.equal(getParentSelectionPath({ view: "nearby", stopId: "europaplatz" }), "/");

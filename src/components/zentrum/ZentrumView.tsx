@@ -11,8 +11,8 @@ import { ObservationEmptyState } from "../ObservationEmptyState";
 import { createZentrumLineSignReader } from "./line-sign";
 import { ZentrumSchematic } from "./ZentrumSchematic";
 
-/** The page name for screen readers only; printed, it would take room from the drawing. */
-const ZENTRUM_PAGE_NAME = <h1 className="visually-hidden">Zentrum live</h1>;
+/** The page heading for screen readers. */
+const zentrumPageHeading = <h1 className="visually-hidden">Experimente: Zentrum-Plan</h1>;
 
 /** Shown while nothing is on the plan yet. */
 const zentrumEmptyLabels = {
@@ -99,7 +99,7 @@ export function ZentrumView({
   if (network.stops.length === 0) {
     return (
       <>
-        {ZENTRUM_PAGE_NAME}
+        {zentrumPageHeading}
         <ObservationEmptyState coverage={coverage} labels={zentrumEmptyLabels} />
       </>
     );
@@ -107,7 +107,7 @@ export function ZentrumView({
 
   return (
     <>
-      {ZENTRUM_PAGE_NAME}
+      {zentrumPageHeading}
       <ZentrumSchematic
         layout={layout}
         getSign={getSign}

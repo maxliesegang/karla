@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { zentrumExperiments } from "../lib/zentrum-experiments";
+import { zentrumPlanOptions } from "../lib/zentrum-plan-options";
 import type { NearbyStopsController } from "./nearby-stops";
 import { useStoredPreference } from "./stored-preference";
 
@@ -10,27 +10,27 @@ import { useStoredPreference } from "./stored-preference";
 export function useNearestZentrumStopOpening(
   { status, stops, locate }: NearbyStopsController,
   lineIdsByNodeId: ReadonlyMap<string, readonly string[]>,
-  isAddressChosen: boolean,
+  hasRouteSelection: boolean,
   onOpenStop: (stopId: string) => void,
 ): string | undefined {
-  const { openAt } = useStoredPreference(zentrumExperiments);
-  const isWanted = openAt === "nearest";
-  const isDrawn = lineIdsByNodeId.size > 0;
-  const nearest =
+  const { initialView } = useStoredPreference(zentrumPlanOptions);
+  const shouldOpenNearestStop = initialView === "nearest";
+  const hasDrawnStops = lineIdsByNodeId.size > 0;
+  const nearestDrawnStop =
     status === "ready" ? stops.find(({ stop }) => lineIdsByNodeId.has(stop.id)) : undefined;
   // Asked once per visit; choosing the option again asks again.
   const phase = useRef<"idle" | "asked" | "done">("idle");
   useEffect(() => {
-    if (!isWanted) {
+    if (!shouldOpenNearestStop) {
       phase.current = "idle";
       return;
     }
     if (phase.current === "done") return;
-    if (isAddressChosen) {
+    if (hasRouteSelection) {
       phase.current = "done";
       return;
     }
-    if (!isDrawn) return;
+    if (!hasDrawnStops) return;
     if (phase.current === "idle") {
       phase.current = "asked";
       locate();
@@ -38,12 +38,22 @@ export function useNearestZentrumStopOpening(
     }
     if (status === "idle" || status === "locating") return;
     phase.current = "done";
-    if (nearest) onOpenStop(nearest.stop.id);
-  }, [isWanted, isAddressChosen, isDrawn, status, nearest, locate, onOpenStop]);
+    if (nearestDrawnStop) onOpenStop(nearestDrawnStop.stop.id);
+  }, [
+    shouldOpenNearestStop,
+    hasRouteSelection,
+    hasDrawnStops,
+    status,
+    nearestDrawnStop,
+    locate,
+    onOpenStop,
+  ]);
 
-  if (!isWanted || isAddressChosen) return undefined;
+  if (!shouldOpenNearestStop || hasRouteSelection) return undefined;
   if (status === "locating") return "Standort wird bestimmt …";
   if (status === "denied") return "Ohne Standortfreigabe: Haltestelle antippen";
   if (status === "unavailable") return "Standort nicht bestimmbar";
-  return status === "ready" && !nearest ? "Keine Haltestelle des Plans in der Nähe" : undefined;
+  return status === "ready" && !nearestDrawnStop
+    ? "Keine Haltestelle des Plans in der Nähe"
+    : undefined;
 }

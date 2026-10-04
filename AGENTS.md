@@ -68,7 +68,7 @@ These describe outcomes, not implementations. If a simpler design meets them, pr
 ## Code style
 
 - Identifiers use US spelling. Fields the provider names keep its spelling (`trainNum`,
-  `stopSeqCoords`). The Zentrum is `zentrum` in code, even though its URL segment is `/center`.
+  `stopSeqCoords`). The Zentrum is `zentrum` in code; its map on the experiment page is `center`.
 - Comments are rare and short. Most functions need none; a good name is the documentation. Add one
   only for what the code cannot say: a feed quirk, a measured constant, a non-obvious constraint.
   One line is the norm, three the most for a function, and a module header says its role in a

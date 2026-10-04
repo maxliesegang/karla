@@ -20,9 +20,10 @@ Routing is hash-based, so every view is a shareable deep link. Each level of the
 refines the one above it:
 
 - `#/` — the home: search, recent stops, and the other pages
-- `#/center` — the Zentrum's plan
-- `#/center/line/2` — the plan following one line
-- `#/center/full`, `#/center/full/line/2` — the plan at screen size
+- `#/experiment` — the experiment page, opening its first map, the Zentrum plan
+- `#/experiment/center/line/2` — the plan following one line
+- `#/experiment/center/stop/marktplatz` — the plan read from one stop
+- `#/experiment/center/full`, `#/experiment/center/full/line/2` — the plan at screen size
 - `#/network` — the line index
 - `#/nearby` — the six nearest observed stops after a location reading
 - `#/notices` — KVV's published notices relevant to the KARLA network
@@ -37,8 +38,8 @@ refines the one above it:
   either part may be left out
 
 `#/line/2` names no stop; it opens the first stop the line is seen calling at. Legacy links
-(`#/stop/…/lines`, `#/departure/…`, `#/ride/…`, `#/network/city`, `#/center/stops`) still resolve
-and are rewritten; `line/S1-S11` is read as the bundle `S1+S11`.
+(`#/stop/…/lines`, `#/departure/…`, `#/ride/…`, `#/network/city`) still resolve and are rewritten;
+`line/S1-S11` is read as the bundle `S1+S11`. The plan's earlier `#/center/…` addresses open it.
 
 With no address the app opens the stop last read, or the home for a reader with no history (the
 *Beim Öffnen* setting can always open the home). It never opens on a location prompt. The *Nähe*

@@ -90,8 +90,13 @@ URL.
 
 ## Zentrum
 
+**Experiment page**: a place to try experimental maps, including the Zentrum plan.
+
+**Plan options**: choices for how the Zentrum plan opens and displays paths, lines and travel times.
+_Avoid_: experiments (the page contains experimental maps; these choices configure one plan).
+
 **Zentrum**: the authored list of city-centre stops that the schematic covers. In code it is always
-`zentrum`, even though the URL segment is `/center`.
+`zentrum`; on the experiment page its map is `center`.
 
 **Schematic plan**: the authored drawing of that area (nodes, edges, lanes), solved offline and never
 read live.

@@ -588,17 +588,6 @@ button.brand:active .brand-mark,
   font-size: 15px;
   font-weight: 750;
 }
-.home-menu-progress {
-  margin-left: 8px;
-  padding: 2px 7px;
-  border-radius: 10px;
-  background: var(--warning-bg);
-  color: var(--warning-ink);
-  font-size: 11px;
-  font-style: normal;
-  font-weight: 700;
-  vertical-align: 2px;
-}
 .home-menu small {
   color: var(--ink-soft);
   font-size: 13px;
@@ -1386,21 +1375,12 @@ button.brand:active .brand-mark,
     calc(var(--zentrum-schematic-track-width) * 0.78);
   opacity: 0.9;
 }
-/* A line calling at the opened stop, where the reading does not light it (experiment variants:
-   pattern by colour strength). */
-.zentrum-schematic-network-track-color[data-unlit-style^="dashes"] {
-  stroke-width: calc(var(--zentrum-schematic-track-width) * 0.26);
-  stroke-dasharray: calc(var(--zentrum-schematic-track-width) * 1)
-    calc(var(--zentrum-schematic-track-width) * 1.1);
-  stroke-linecap: butt;
-}
-.zentrum-schematic-network-track-color[data-unlit-style^="dots"] {
+/* A line calling at the opened stop, where the reading does not light it (the default variant). */
+.zentrum-schematic-network-track-color[data-unlit-style="dots-muted"] {
+  stroke: color-mix(in srgb, var(--zentrum-line-color) 65%, var(--surface));
   stroke-width: calc(var(--zentrum-schematic-track-width) * 0.44);
   stroke-dasharray: 0 calc(var(--zentrum-schematic-track-width) * 0.66);
   stroke-linecap: round;
-}
-.zentrum-schematic-network-track-color[data-unlit-style$="-muted"] {
-  stroke: color-mix(in srgb, var(--zentrum-line-color) 65%, var(--surface));
 }
 /* Following a line recedes the rest of the band rather than removing it: what a rider is reading is
    one line's way *through* the Zentrum, and a plan emptied of everything else would no longer say
@@ -1935,24 +1915,22 @@ button.brand:active .brand-mark,
   cursor: pointer;
 }
 .zentrum-plan-expand,
-.zentrum-plan-experiments-toggle {
+.zentrum-plan-options-toggle {
   border: 1px solid var(--line-strong) !important;
   border-radius: var(--radius-m);
   box-shadow: 0 2px 8px #10201f1f;
 }
-.zentrum-plan-experiments {
-  position: relative;
-}
-.zentrum-plan-experiments-panel {
+/* Anchored to the control column's foot, so it rises no higher than the column itself. */
+.zentrum-plan-options-panel {
   position: absolute;
   right: calc(100% + 8px);
   bottom: 0;
   display: grid;
-  gap: 8px;
-  width: max-content;
-  max-width: min(260px, 70vw);
-  margin: 0;
-  padding: 10px 12px;
+  gap: 12px;
+  width: min(300px, calc(100vw - 96px));
+  max-height: min(70svh, 560px);
+  overflow-y: auto;
+  padding: 12px 14px 14px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius-m);
   background: var(--surface);
@@ -1960,17 +1938,61 @@ button.brand:active .brand-mark,
   box-shadow: 0 2px 8px #10201f1f;
   font-size: 0.85rem;
 }
-.zentrum-plan-experiments-panel legend {
-  float: left;
-  padding: 0;
-  font-weight: 600;
+.zentrum-plan-options-panel h2 {
+  margin: 0;
+  font-size: 1rem;
 }
-.zentrum-plan-experiments-panel label {
+.zentrum-plan-options-group {
   display: grid;
-  gap: 4px;
+  gap: 12px;
 }
-.zentrum-plan-experiments-panel label:has(select:disabled) {
+.zentrum-plan-options-group h3 {
+  margin: 0;
   color: var(--ink-soft);
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.zentrum-plan-options-panel fieldset {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.zentrum-plan-options-panel legend {
+  padding: 0;
+  margin-bottom: 6px;
+  font-weight: 650;
+}
+.zentrum-plan-options-panel p {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 0.78rem;
+  line-height: 1.35;
+}
+.zentrum-plan-options-panel fieldset:disabled {
+  color: var(--ink-soft);
+}
+.zentrum-plan-options-panel fieldset:disabled .segmented-control {
+  opacity: 0.5;
+}
+/* The panel sits in the control column; its choices are not the column's square buttons. */
+.zentrum-plan-options-panel .segmented-control button {
+  display: block;
+  width: auto;
+  height: auto;
+  min-height: 30px;
+  padding: 4px 6px;
+  background: transparent;
+  font-size: 0.8rem;
+  line-height: 1.2;
+}
+.zentrum-plan-options-panel .segmented-control button:hover:enabled,
+.zentrum-plan-options-panel .segmented-control button:focus-visible {
+  background: transparent;
 }
 .zentrum-plan-controls svg {
   width: 18px;

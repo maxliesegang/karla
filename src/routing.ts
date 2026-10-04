@@ -1,5 +1,5 @@
 /**
- * Hash routing, so deep links survive static hosting (`#/center`, `#/stop/europaplatz/line/2`).
+ * Hash routing, so deep links survive static hosting (`#/experiment`, `#/stop/europaplatz/line/2`).
  *
  * A home page plus one selection chain: stop, optional line, trip. Each level refines the one above
  * and drops back to it on its own, so a departed trip or a stopped line narrows the address
@@ -14,7 +14,14 @@ import {
 } from "./lib/line-bundles";
 import type { Departure } from "./data/transit-types";
 
-export type RouteView = "home" | "zentrum" | "stop" | "network" | "nearby" | "notices" | "settings";
+export type RouteView =
+  | "home"
+  | "experiment"
+  | "stop"
+  | "network"
+  | "nearby"
+  | "notices"
+  | "settings";
 
 /**
  * The panel shown. A stop with a line selected shows the line diagram, which has no address of its
@@ -54,13 +61,13 @@ export type AppRoute = {
   /** Sibling lines the rider chose to read with it (`line/S1+S11`). */
   bundledLineIds: readonly string[];
   /**
-   * The line the Zentrum plan follows (`#/center/line/2`). Separate from `lineId`, which is a line
-   * at a stop resolved against its board.
+   * The line the Zentrum plan follows (`#/experiment/center/line/2`). Separate from `lineId`, which
+   * is a line at a stop resolved against its board.
    */
   zentrumLineId: string;
-  /** The stop opened on the Zentrum plan (`#/center/stop/marktplatz`). Excludes `zentrumLineId`. */
+  /** The stop opened on the Zentrum plan (`…/center/stop/marktplatz`). Excludes `zentrumLineId`. */
   zentrumStopId: string;
-  /** The plan at screen size (`#/center/full`), addressed so the back gesture closes it. */
+  /** The plan at screen size (`…/center/full`), addressed so the back gesture closes it. */
   isZentrumFullscreen: boolean;
   /** Address of the selected run; undated and dated provider ids still resolve. */
   addressId?: string;
@@ -155,6 +162,20 @@ function parseTripQualifiers(segments: readonly string[]): { from?: string; to?:
   return qualifiers;
 }
 
+/** The Zentrum plan's two sizes, after its map name; the legacy `/center/stops` lands on the plan. */
+function parseZentrumRoute(segments: readonly string[]): AppRoute {
+  const [qualifier, ...tail] = segments;
+  const isZentrumFullscreen = qualifier === "full";
+  const selectionSegments = isZentrumFullscreen ? tail : segments;
+  return {
+    ...defaultRoute,
+    view: "experiment",
+    isZentrumFullscreen,
+    zentrumLineId: selectionSegments[0] === "line" ? decodePathSegment(selectionSegments[1]) : "",
+    zentrumStopId: selectionSegments[0] === "stop" ? decodePathSegment(selectionSegments[1]) : "",
+  };
+}
+
 export function parseRoute(hash: string): AppRoute {
   const [view, ...rest] = getRouteSegments(hash);
 
@@ -206,19 +227,12 @@ export function parseRoute(hash: string): AppRoute {
       return { ...defaultRoute, view: "notices" };
     case "settings":
       return { ...defaultRoute, view: "settings" };
-    case "center": {
-      // The plan's two sizes; the legacy `/center/stops` lands on the plan.
-      const [qualifier, ...tail] = rest;
-      const isZentrumFullscreen = qualifier === "full";
-      const lineSegments = isZentrumFullscreen ? tail : rest;
-      return {
-        ...defaultRoute,
-        view: "zentrum",
-        isZentrumFullscreen,
-        zentrumLineId: lineSegments[0] === "line" ? decodePathSegment(lineSegments[1]) : "",
-        zentrumStopId: lineSegments[0] === "stop" ? decodePathSegment(lineSegments[1]) : "",
-      };
-    }
+    case "experiment":
+      // The Zentrum plan is the page's only map so far, and opens for any map name.
+      return parseZentrumRoute(rest.slice(1));
+    case "center":
+      // The Zentrum plan's address before the experiment page.
+      return parseZentrumRoute(rest);
     case "stop":
       return parseStopRoute(rest);
     default:
@@ -229,14 +243,13 @@ export function parseRoute(hash: string): AppRoute {
 /** What the Zentrum's plan is lit by: a followed line, or an opened stop. Never both. */
 export type ZentrumSelection = { lineId?: string; stopId?: string };
 
-/**
- * The only place route paths are spelled out. `zentrum` maps to the published `/center` segment.
- */
+/** The only place route paths are spelled out. The Zentrum plan is the experiment page's `center` map. */
 export const routePaths = {
   home: () => "/",
+  experiment: () => "/experiment",
   /** The Zentrum plan with its followed line or opened stop, at either size. */
   zentrum: (selection: ZentrumSelection = {}, isFullscreen = false) =>
-    `/center${isFullscreen ? "/full" : ""}${
+    `/experiment/center${isFullscreen ? "/full" : ""}${
       selection.stopId
         ? `/stop/${encodePathSegment(selection.stopId)}`
         : selection.lineId

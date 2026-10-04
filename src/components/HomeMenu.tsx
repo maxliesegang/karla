@@ -1,15 +1,10 @@
 import { routePaths } from "../routing";
 
-/**
- * The home's page links, each with one line of description. *Nähe* is an action at the top of the
- * home, not a page here. The notices are also reachable from the footer. The Zentrum is marked as
- * an experiment.
- */
+/** The home's page links, each with one line of description. */
 const homeMenuItems: readonly {
   label: string;
   description: string;
   path: string;
-  isExperiment?: boolean;
 }[] = [
   {
     label: "Linien",
@@ -17,10 +12,9 @@ const homeMenuItems: readonly {
     path: routePaths.network(),
   },
   {
-    label: "Zentrum",
-    description: "Wo die Bahnen in der Innenstadt gerade fahren",
-    path: routePaths.zentrum(),
-    isExperiment: true,
+    label: "Experimente",
+    description: "Neue Kartenansichten ausprobieren",
+    path: routePaths.experiment(),
   },
   {
     label: "Meldungen",
@@ -45,10 +39,7 @@ export function HomeMenu() {
           <li key={item.path}>
             <a href={`#${item.path}`}>
               <span>
-                <strong>
-                  {item.label}
-                  {item.isExperiment && <em className="home-menu-progress">Experiment</em>}
-                </strong>
+                <strong>{item.label}</strong>
                 <small>{item.description}</small>
               </span>
               <b aria-hidden="true">›</b>

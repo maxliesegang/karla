@@ -19,7 +19,7 @@ export const isStationBoardStopView = (view: RouteView, isStationBoardMode: bool
  * borrow signs, positions and search; home and settings read none of it.
  */
 export const readsObservedNetwork = (view: ActiveView): boolean =>
-  view === "zentrum" || view === "network" || view === "nearby";
+  view === "experiment" || view === "network" || view === "nearby";
 
 /** The resolved chain the layout is read from, never the raw address. */
 export type ResolvedViewSelection = {
@@ -141,7 +141,7 @@ function getBackPath(
     return nearbyReturnStopId ? routePaths.stop(nearbyReturnStopId) : routePaths.home();
   }
   // Dropping the plan's line or stop returns to the plan at the same size.
-  if (route.view === "zentrum" && (route.zentrumStopId || route.zentrumLineId)) {
+  if (route.view === "experiment" && (route.zentrumStopId || route.zentrumLineId)) {
     return routePaths.zentrum({}, route.isZentrumFullscreen);
   }
   return getParentSelectionPath({
@@ -178,7 +178,7 @@ export function getDashboardClassNames(layout: ViewLayout): (string | false)[] {
     layout.isLineInView && "line-view",
     layout.isHomeView && "home-view",
     // The plan gets the panel's whole box, and the whole screen on a phone.
-    layout.activeView === "zentrum" && "zentrum-view",
+    layout.activeView === "experiment" && "zentrum-view",
     layout.isStopBoardOnly && "stop-view",
     layout.isStationBoardView && "station-board-only",
   ];

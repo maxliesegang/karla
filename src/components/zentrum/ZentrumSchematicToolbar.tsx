@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { LineBadge } from "../LineBadge";
 import type { ZentrumLineSignReader } from "./line-sign";
-import { ZentrumExperimentsMenu } from "./ZentrumExperimentsMenu";
+import { ZentrumPlanOptionsMenu } from "./ZentrumPlanOptionsMenu";
 
 /**
  * The band under the plan: legend, caption and an opened stop's bar. Tapping a badge follows that
@@ -86,7 +86,7 @@ export function ZentrumPlanControls({
 }) {
   return (
     <div className="zentrum-plan-controls">
-      <ZentrumExperimentsMenu isStopOpen={isStopOpen} />
+      <ZentrumPlanOptionsMenu isStopOpen={isStopOpen} />
       <button
         type="button"
         className="zentrum-plan-expand"

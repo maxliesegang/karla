@@ -17,7 +17,7 @@ import {
   ZENTRUM_SCHEMATIC_VIEWBOX,
   zentrumSchematicNodeById,
 } from "../../lib/zentrum-schematic-plan";
-import type { ZentrumExperiments } from "../../lib/zentrum-experiments";
+import type { ZentrumPlanOptions } from "../../lib/zentrum-plan-options";
 import type {
   ZentrumSchematicOverlay,
   ZentrumTravelMeasure,
@@ -85,7 +85,7 @@ export function ZentrumSchematicCanvas({
   /** What is lit over the route traces, or nothing to draw every line whole. */
   overlay?: ZentrumSchematicOverlay;
   /** How lines calling at the opened stop are drawn where the overlay does not light them. */
-  unlitLineStyle?: ZentrumExperiments["unlitLineStyle"];
+  unlitLineStyle?: ZentrumPlanOptions["unlitLineStyle"];
   /** The countdown on each tram the opened stop waits for; when present, other marks recede. */
   vehicleMinutesById?: ReadonlyMap<string, number>;
   /** Minutes to each stop from the opened one, printed before its name; unreached stops recede. */
