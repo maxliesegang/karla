@@ -20,6 +20,8 @@ import {
 import { DEFAULT_BOARD_MAX_AGE_MS } from "../src/data/transit-source.ts";
 import { RUN_MARK_RETENTION_GRACE_MS } from "../src/lib/line-run-departures.ts";
 import { getCallsAfterStop } from "../src/lib/trip-calls.ts";
+import { createRunMotions, getRunPlacement } from "../src/lib/vehicle-positioning.ts";
+import { createDeparture } from "./support/fixtures.ts";
 
 const locator: KvvTripLocator = {
   tripCode: "888",
@@ -227,6 +229,34 @@ test("a terminus uses its valid arrival delay instead of its invalid departure p
   assert.equal(terminus.delayMinutes, 6);
   assert.equal(terminus.scheduledArrivalTime, "2026-08-26T05:44:00.000Z");
   assert.equal(terminus.scheduledDepartureTime, undefined);
+});
+
+test("a scheduled-only S4 keeps its call times and can be placed without claiming predictions", () => {
+  const payload = {
+    ...tripPayload,
+    stopSeq: tripPayload.stopSeq.map((entry) => ({
+      ...entry,
+      realtimeStatus: undefined,
+      ref: { ...entry.ref, arrValid: "0", depValid: "0", arrDelay: "0", depDelay: "0" },
+    })),
+  };
+  const trip = parseTripResponse(payload, locator);
+  assert.equal(trip.tripCalls[0].scheduledDepartureTime, "2026-08-26T05:30:00.000Z");
+  assert.equal(trip.tripCalls[1].scheduledArrivalTime, "2026-08-26T05:31:00.000Z");
+  assert.equal(trip.tripCalls[1].scheduledDepartureTime, "2026-08-26T05:32:00.000Z");
+  assert.ok(trip.tripCalls.every((call) => call.delayMinutes === undefined));
+  const departure = createDeparture({
+    lineId: "S4",
+    status: "scheduled",
+    tripCalls: trip.tripCalls.map((call) => ({ ...call, localStopId: call.providerId })),
+  });
+  const placement = getRunPlacement(
+    createRunMotions(),
+    departure,
+    Date.parse("2026-08-26T05:30:45Z"),
+  );
+  assert.equal(placement?.fromStopId, "7001001");
+  assert.equal(placement?.toStopId, "7001002");
 });
 
 test("the row's own call is marked once, where the trip calls at that stop three times", () => {

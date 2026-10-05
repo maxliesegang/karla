@@ -514,13 +514,16 @@ function parseTripCall(
   // arrival.
   const hasArrival = readOptionalString(ref?.arrValid) !== "0";
   const hasDeparture = readOptionalString(ref?.depValid) !== "0";
+  // With neither prediction valid, EFA still supplies the scheduled calls.
+  const isScheduledOnly = !hasArrival && !hasDeparture;
   // Planned times with the deviation beside them. Arrival and departure delays are separate facts:
   // a vehicle can arrive four minutes late at a terminus and leave on time.
   const arrivalDelayMinutes = hasArrival ? parseDelayMinutes(ref?.arrDelay) : undefined;
   const departureDelayMinutes = hasDeparture ? parseDelayMinutes(ref?.depDelay) : undefined;
-  const scheduledDepartureTime = hasDeparture
-    ? parseSequenceTime(ref?.depDateTimeSec ?? ref?.depDateTime)
-    : undefined;
+  const scheduledDepartureTime =
+    hasDeparture || isScheduledOnly
+      ? parseSequenceTime(ref?.depDateTimeSec ?? ref?.depDateTime)
+      : undefined;
   // The sequence omits the board's own call, so the row is the only account of it.
   const delayMinutes =
     departureDelayMinutes ?? arrivalDelayMinutes ?? (ref ? undefined : rowCall?.delayMinutes);
@@ -536,9 +539,10 @@ function parseTripCall(
     isCurrentStop: isCurrentStop || undefined,
     latitude: coordinates?.latitude,
     longitude: coordinates?.longitude,
-    scheduledArrivalTime: hasArrival
-      ? parseSequenceTime(ref?.arrDateTimeSec ?? ref?.arrDateTime)
-      : undefined,
+    scheduledArrivalTime:
+      hasArrival || isScheduledOnly
+        ? parseSequenceTime(ref?.arrDateTimeSec ?? ref?.arrDateTime)
+        : undefined,
     scheduledDepartureTime: ref ? scheduledDepartureTime : rowCall?.scheduledDepartureTime,
     delayMinutes,
     // Stated only where it differs from the departure delay.

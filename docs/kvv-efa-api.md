@@ -239,6 +239,8 @@ Also send `outputFormat=json`, `coordOutputFormat=WGS84[DD.ddddd]`, `useRealtime
   `stopSeq`. Validate a non-empty sequence and the echoed `vehicleCallAtStop`.
 - Read realtime from each call's `arrValid` / `depValid`, delay and `realtimeStatus`; `mode.realtime`
   stayed `"0"` on trips with valid predictions.
+- When both validity flags are `"0"`, retain the scheduled call times without delays. Observed on
+  S4 trip 3770 on 5 October 2026; discarding these times leaves scheduled-only runs unplaceable.
 - Cancellation appears as `TRIP_CANCELLED` on the calls; `-9999` remains the no-prediction sentinel.
 - The DM row stays the stop's departure fact (countdown, platform, destination, hints, notices); the
   trip's sequence is merged into it.
