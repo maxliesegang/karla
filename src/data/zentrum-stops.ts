@@ -1,9 +1,4 @@
-/**
- * Which stops count as the Zentrum: a judgement about the city, written down (a rectangle swept in
- * Schillerstraße and Sophienstraße). Membership only; lines and service are observed live, so a
- * listed stop with no service is not shown. Edges: Mühlburger Tor (west), Albtalbahnhof (south),
- * Karl-Wilhelm-Platz, Gottesauer Platz and Ostendstraße (east).
- */
+/** Area membership; stops and corridors appear only with observed rail service. */
 export const zentrumStopIds: readonly string[] = [
   // The Kaiserstraße axis, west to east; one id per place (tunnel and street answer from either
   // id).
@@ -13,6 +8,9 @@ export const zentrumStopIds: readonly string[] = [
   "kronenplatz",
   "durlacher-tor",
   "gottesauer-platz",
+  "tullastrasse",
+  "wolfartsweierer-strasse",
+  "schloss-gottesaue",
   "karl-wilhelm-platz",
   // The ring of squares inside it.
   "karlstor",

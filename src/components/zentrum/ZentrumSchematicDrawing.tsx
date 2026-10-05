@@ -1,6 +1,9 @@
 import { type CSSProperties, type SVGProps, memo } from "react";
 import type { TransitLine } from "../../data/transit-types";
-import { ZENTRUM_SCHEMATIC_VIEWBOX } from "../../lib/zentrum-schematic-plan";
+import {
+  getZentrumSchematicStopId,
+  ZENTRUM_SCHEMATIC_VIEWBOX,
+} from "../../lib/zentrum-schematic-plan";
 import {
   type ZentrumSchematicDrawnPath,
   type ZentrumSchematicLinePathSegment,
@@ -289,7 +292,7 @@ const ZentrumSchematicStopMarks = memo(function ZentrumSchematicStopMarks({
     nodeId: mark.nodeId,
     capsules: getZentrumSchematicStrokeData(mark.capsules),
     links: getZentrumSchematicStrokeData(mark.links),
-    isSelected: mark.nodeId === selectedStopId ? "true" : undefined,
+    isSelected: getZentrumSchematicStopId(mark.nodeId) === selectedStopId ? "true" : undefined,
   }));
   return (
     <g>

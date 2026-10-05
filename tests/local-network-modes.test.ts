@@ -48,7 +48,9 @@ test("a board keeps the local network and leaves long-distance rail and coaches 
 test("long-distance serving directions are not recorded as directions to go and read", () => {
   const board = parseDepartureBoardResponse(boardPayload(), "7000090");
 
-  assert.deepEqual(board.servingLines, [{ lineId: "3", directionId: "kvv:21003:E:H:s26" }]);
+  assert.deepEqual(board.servingLines, [
+    { lineId: "3", directionId: "kvv:21003:E:H:s26", transportMode: "tram" },
+  ]);
 });
 
 /**
@@ -116,7 +118,9 @@ test("a board keeps the operator's own S-Bahn and leaves the DB-pooled rail and 
 test("DB-pooled serving directions are not recorded as directions to go and read", () => {
   const board = parseDepartureBoardResponse(railBoardPayload(), "7000090");
 
-  assert.deepEqual(board.servingLines, [{ lineId: "S4", directionId: "kvv:22304:E:H:s26" }]);
+  assert.deepEqual(board.servingLines, [
+    { lineId: "S4", directionId: "kvv:22304:E:H:s26", transportMode: "lightRail" },
+  ]);
 });
 
 test("a rail line that states no pool is unknown, not foreign", () => {
@@ -215,5 +219,7 @@ test("a stop names each line-direction it knows under the line's own name", () =
   // Direction ids are opaque; the stop's pairing names their line.
   const board = parseDepartureBoardResponse(boardPayload(), "7000090");
 
-  assert.deepEqual(board.servingLines, [{ lineId: "3", directionId: "kvv:21003:E:H:s26" }]);
+  assert.deepEqual(board.servingLines, [
+    { lineId: "3", directionId: "kvv:21003:E:H:s26", transportMode: "tram" },
+  ]);
 });

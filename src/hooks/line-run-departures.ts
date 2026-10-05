@@ -23,6 +23,13 @@ export function useLineRunDepartures(
   observedDepartures: readonly Departure[],
   departureBoard: DepartureBoard | null,
   isRide: boolean,
+  {
+    includesRun,
+    refreshOnEntry = true,
+  }: {
+    includesRun?: (run: Departure, feedNow: number) => boolean;
+    refreshOnEntry?: boolean;
+  } = {},
 ): { runDepartures: readonly Departure[]; feedNow: number } {
   const [following, setFollowing] = useState<{
     lineId: string;
@@ -34,7 +41,7 @@ export function useLineRunDepartures(
   );
   const followedRowIds = useMemo(() => followed.map(({ rowId }) => rowId), [followed]);
   // Followed runs are re-read on their own cadence; answers land in the store.
-  const followedRuns = useRunReadingsByRowId(followedRowIds);
+  const followedRuns = useRunReadingsByRowId(followedRowIds, { refreshOnEntry });
   const feedNow = useVehicleFeedNow(
     observedDepartures.length > 0 || followed.length > 0 || isRide,
     departureBoard,
@@ -43,7 +50,16 @@ export function useLineRunDepartures(
   // The followed set accumulates across boards, so it is state, set only when it changes. Compared
   // before setting, not in an updater, since even a no-op updater queues a render.
   const update = (observed: readonly Departure[]) => {
-    const next = updateFollowedRuns(followed, observed, feedNow, findRun);
+    const scopedFindRun = (rowId: string) => {
+      const run = findRun(rowId);
+      return run && (!includesRun || includesRun(run, feedNow)) ? run : undefined;
+    };
+    const next = updateFollowedRuns(
+      followed,
+      includesRun ? observed.filter((run) => includesRun(run, feedNow)) : observed,
+      feedNow,
+      scopedFindRun,
+    );
     if (following.lineId !== lineId || !areFollowedRunsEqual(next, followed)) {
       setFollowing({ lineId, followed: next });
     }
@@ -58,15 +74,18 @@ export function useLineRunDepartures(
   // turns fresh only when its re-read lands, which changes the content.
   const deviceNow = useDeviceNow();
   const [handedOverKeys, setHandedOverKeys] = useState<ReadonlySet<string>>(() => new Set());
+  const scopeNow = includesRun ? feedNow : 0;
   const runDepartures = useMemo(
-    () =>
-      selectPlaceableRuns(
-        getLineRunDepartures(followed, observedDepartures, feedNow, findRun),
+    () => {
+      const runs = getLineRunDepartures(followed, observedDepartures, feedNow, findRun);
+      return selectPlaceableRuns(
+        includesRun ? runs.filter((run) => includesRun(run, feedNow)) : runs,
         deviceNow,
         handedOverKeys,
-      ),
+      );
+    },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [followed, observedDepartures, followedRuns, handedOverKeys],
+    [followed, observedDepartures, followedRuns, handedOverKeys, includesRun, scopeNow],
   );
   useEffect(() => {
     const keys = runDepartures.map(getRunMarkKey);

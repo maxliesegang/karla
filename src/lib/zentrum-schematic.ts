@@ -4,7 +4,12 @@
  * states is not drawn, so a line that stops running leaves the plan by itself.
  */
 import type { Departure, TripCall } from "../data/transit-types";
-import { collapseTurnaroundCalls, getTripCallInstant } from "./trip-calls";
+import {
+  collapseTurnaroundCalls,
+  getTripCallInstant,
+  statesRunEnd,
+  statesRunStart,
+} from "./trip-calls";
 import { getDistinctTimetableTrips, getRunMarkKey } from "./trips";
 import {
   getRunPlacement,
@@ -13,7 +18,9 @@ import {
   type RunPlacementPhase,
   type RunSegmentTrajectory,
 } from "./vehicle-positioning";
-import { type Located, getDistanceMeters } from "./geo";
+import { toLocalMeters } from "./geo";
+import { getOctilinearDirections } from "./platform-runs";
+import { createSchematicBoardingReading } from "./schematic-boarding-places";
 import { compareLineIds } from "./line-families";
 import { findTurnarounds, type TurnaroundIndex } from "./line-turnarounds";
 import {
@@ -25,15 +32,15 @@ import {
   type ZentrumSchematicNode,
   type ZentrumSchematicObservedEdge,
   compareLineIdsNaturally,
-  findZentrumSchematicNodeId,
   getEdgeKey,
   getTrackIdByLineId,
   getTrackOffset,
   getZentrumSchematicRoutes,
   getZentrumSchematicTrackWidth,
   isRailDeparture,
+  PLATFORM_RUN_VECTORS,
+  ZENTRUM_SCHEMATIC_GRID,
   orientCorridorRun,
-  zentrumSchematicNodeById,
 } from "./zentrum-schematic-plan";
 import {
   type ZentrumSchematicDrawnPath,
@@ -111,6 +118,9 @@ export type ZentrumSchematicVehiclePathCorridorRange = {
 
 /** The plan as laid out for what runs over it: everything that holds whatever the lane width. */
 export type ZentrumSchematicLayout = {
+  nodesById: ReadonlyMap<string, ZentrumSchematicNode>;
+  resolveNodeId: (call: TripCall) => string | undefined;
+  placesByStopId: ReadonlyMap<string, readonly ZentrumSchematicBoardingPlace[]>;
   /** Identifies the layout: two layouts with one key place the same lanes. */
   layoutKey: string;
   /** The segments drawn: corridors, split at junctions. */
@@ -151,173 +161,124 @@ const sortById = (
 ): readonly [ZentrumSchematicNode, ZentrumSchematicNode] =>
   left.id < right.id ? [left, right] : [right, left];
 
-const getDepartureSchematicPaths = (departure: Departure): ZentrumSchematicNode[][] => {
-  const paths: ZentrumSchematicNode[][] = [];
+/** How far a line entering or leaving the plan runs past its last stop. */
+const ZENTRUM_SCHEMATIC_EXIT_LENGTH = ZENTRUM_SCHEMATIC_GRID;
+
+/** A run of calls inside the plan, and where its trip goes beyond either end: east and south. */
+type ObservedSchematicPath = {
+  nodes: ZentrumSchematicNode[];
+  entry?: { heading?: SchematicPoint };
+  exit?: { heading?: SchematicPoint };
+};
+
+const getHeading = (from: TripCall, to: TripCall): SchematicPoint | undefined => {
+  if (
+    from.latitude === undefined ||
+    from.longitude === undefined ||
+    to.latitude === undefined ||
+    to.longitude === undefined
+  ) {
+    return undefined;
+  }
+  const offset = toLocalMeters(to.latitude, to.longitude, {
+    latitude: from.latitude,
+    longitude: from.longitude,
+  });
+  return Math.hypot(offset.x, offset.y) > 0 ? { x: offset.x, y: -offset.y } : undefined;
+};
+
+/**
+ * The stub a line enters or leaves the plan by: along the stop's platforms, else the way the trip
+ * really goes, snapped octilinear; clear of the corridors drawn there, square to them if it can.
+ */
+const getStubNode = (
+  node: ZentrumSchematicNode,
+  inside: ZentrumSchematicNode,
+  heading: SchematicPoint | undefined,
+  taken: readonly SchematicPoint[],
+): ZentrumSchematicNode => {
+  const run = node.platformRun && PLATFORM_RUN_VECTORS[node.platformRun];
+  const along = run && Math.sign(run.x * (node.x - inside.x) + run.y * (node.y - inside.y));
+  const toward = heading ?? { x: node.x - inside.x, y: node.y - inside.y };
+  const candidates = [
+    ...(run && along ? [{ x: run.x * along, y: run.y * along }] : []),
+    ...getOctilinearDirections(toward.x, toward.y),
+  ];
+  const turn = (direction: SchematicPoint) =>
+    Math.min(
+      Math.PI,
+      ...taken.map((other) =>
+        Math.acos(
+          Math.max(
+            -1,
+            Math.min(
+              1,
+              (direction.x * other.x + direction.y * other.y) /
+                Math.hypot(direction.x, direction.y) /
+                Math.hypot(other.x, other.y),
+            ),
+          ),
+        ),
+      ),
+    );
+  const direction =
+    candidates.find((one) => turn(one) >= Math.PI / 2 - 1e-6) ??
+    candidates.find((one) => turn(one) > 1e-6) ??
+    candidates[0];
+  // One length whichever way: a diagonal steps less along each axis.
+  const step = Math.round(ZENTRUM_SCHEMATIC_EXIT_LENGTH / Math.hypot(direction.x, direction.y));
+  const x = node.x + direction.x * step;
+  const y = node.y + direction.y * step;
+  return { id: `exit:${node.id}:${x},${y}`, label: "", x, y, isJunction: true };
+};
+
+const getDepartureSchematicPaths = (
+  departure: Departure,
+  boarding: ReturnType<typeof createSchematicBoardingReading>,
+): ObservedSchematicPath[] => {
+  const paths: ObservedSchematicPath[] = [];
   let path: ZentrumSchematicNode[] = [];
-  const finishPath = () => {
-    if (path.length >= 2) paths.push(path);
+  let firstCall: TripCall | undefined;
+  let lastCall: TripCall | undefined;
+  let outsideBefore: TripCall | undefined;
+  const finishPath = (outsideAfter: TripCall | undefined) => {
+    if (path.length >= 2) {
+      paths.push({
+        nodes: path,
+        entry:
+          outsideBefore && firstCall
+            ? { heading: getHeading(firstCall, outsideBefore) }
+            : undefined,
+        exit:
+          outsideAfter && lastCall ? { heading: getHeading(lastCall, outsideAfter) } : undefined,
+      });
+    }
     path = [];
   };
 
-  for (const call of departure.tripCalls ?? []) {
-    const node = zentrumSchematicNodeById.get(findZentrumSchematicNodeId(call) ?? "");
+  const calls = collapseTurnaroundCalls(departure.tripCalls ?? []);
+  for (const [index, call] of calls.entries()) {
+    const node = boarding.nodesById.get(boarding.resolveNodeId(call) ?? "");
     if (!node) {
-      finishPath();
+      // A run that only turns or starts just outside goes no further: no stub.
+      const isLast = index === calls.length - 1 && statesRunEnd(call);
+      finishPath(isLast ? undefined : call);
+      outsideBefore = index === 0 && statesRunStart(call) ? undefined : call;
       continue;
     }
+    if (path.length === 0) firstCall = call;
+    lastCall = call;
     if (path.at(-1)?.id !== node.id) path.push(node);
   }
-  finishPath();
+  finishPath(undefined);
   return paths;
 };
 
-/**
- * The share of a stop's calls a platform needs before it is drawn as a place. Rarely used ones are
- * diversions or layovers (Marktplatz `5(U)`: nine calls against a thousand).
- */
-const ZENTRUM_SCHEMATIC_BOARDING_PLACE_MINIMUM_SHARE = 0.05;
-
-/**
- * How near two platforms stand to be one place whatever runs through them: the two islands of the
- * Hauptbahnhof's forecourt each serve the S-Bahn and the trams, and are one stop to a rider. Places
- * a rider walks between stand fifty metres and more apart.
- */
-const ZENTRUM_SCHEMATIC_BOARDING_PLACE_RADIUS_METERS = 20;
-
-/** One platform at a stop, as the drawn trips state it. */
-type ZentrumSchematicPlatform = {
-  /** The stops trips boarding here arrive from and leave for, and how many do each. */
-  arms: Map<string, number>;
-  callCount: number;
-  latitudes: number[];
-  longitudes: number[];
-};
-
-const getMedian = (values: readonly number[]): number | undefined =>
-  values.length === 0
-    ? undefined
-    : [...values].sort((left, right) => left - right)[Math.floor(values.length / 2)];
-
-/** Where a platform stands: the median of where the feed placed its calls, unplaced if nowhere. */
-const getPlatformPosition = ({ latitudes, longitudes }: ZentrumSchematicPlatform): Located => ({
-  latitude: getMedian(latitudes),
-  longitude: getMedian(longitudes),
-});
-
-const isArmSubset = (left: ZentrumSchematicPlatform, right: ZentrumSchematicPlatform): boolean =>
-  [...left.arms.keys()].every((nodeId) => right.arms.has(nodeId));
-
-/**
- * A stop's platforms grouped into places: platforms standing together, or one serving only
- * corridors another serves (Europaplatz's Kaiserstraße platforms join its tunnel; the Karlstraße
- * ones serve the south branch and stay apart). Contested platforms go to the nearer place.
- */
-const groupPlatformsIntoPlaces = (
-  platforms: readonly ZentrumSchematicPlatform[],
-): readonly ZentrumSchematicBoardingPlace[] => {
-  const parents = platforms.map((_, index) => index);
-  const find = (index: number): number =>
-    parents[index] === index ? index : (parents[index] = find(parents[index]));
-  const join = (left: number, right: number) => {
-    parents[find(left)] = find(right);
-  };
-  const positions = platforms.map(getPlatformPosition);
-  const getDistance = (left: number, right: number): number => {
-    const { latitude, longitude } = positions[left];
-    return latitude === undefined || longitude === undefined
-      ? Number.POSITIVE_INFINITY
-      : getDistanceMeters(latitude, longitude, positions[right]);
-  };
-  for (let left = 0; left < platforms.length; left += 1) {
-    for (let right = left + 1; right < platforms.length; right += 1) {
-      if (getDistance(left, right) <= ZENTRUM_SCHEMATIC_BOARDING_PLACE_RADIUS_METERS) {
-        join(left, right);
-      }
-    }
-  }
-  // Platforms serving the same corridors are one place; one serving fewer joins the nearest that
-  // serves them all.
-  for (const [index, platform] of platforms.entries()) {
-    const holders = platforms.flatMap((other, otherIndex) =>
-      otherIndex !== index && isArmSubset(platform, other) ? [otherIndex] : [],
-    );
-    const supersets = holders.filter((holder) => !isArmSubset(platforms[holder], platform));
-    for (const holder of holders) if (!supersets.includes(holder)) join(index, holder);
-    if (supersets.length === 0) continue;
-    const nearest = [...supersets].sort(
-      (left, right) =>
-        getDistance(index, left) - getDistance(index, right) ||
-        platforms[right].callCount - platforms[left].callCount,
-    )[0];
-    join(index, nearest);
-  }
-
-  const placeByRoot = new Map<number, { armTripCounts: Map<string, number>; tripCount: number }>();
-  for (const [index, platform] of platforms.entries()) {
-    const place = placeByRoot.get(find(index)) ?? { armTripCounts: new Map(), tripCount: 0 };
-    placeByRoot.set(find(index), place);
-    place.tripCount += platform.callCount;
-    for (const [nodeId, count] of platform.arms) {
-      place.armTripCounts.set(nodeId, (place.armTripCounts.get(nodeId) ?? 0) + count);
-    }
-  }
-  return [...placeByRoot.values()].sort((left, right) => right.tripCount - left.tripCount);
-};
-
-/**
- * The places to stand at stops that have more than one, read from the platforms the drawn trips
- * call at. A stop whose platforms are all one place comes back with nothing.
- */
-const getZentrumSchematicBoardingPlaces = (
-  departures: readonly Departure[],
-): ReadonlyMap<string, readonly ZentrumSchematicBoardingPlace[]> => {
-  const platformsByNodeId = new Map<string, Map<string, ZentrumSchematicPlatform>>();
-  for (const departure of departures) {
-    const calls = departure.tripCalls ?? [];
-    const nodeIds = calls.map((call) => findZentrumSchematicNodeId(call));
-    for (const [index, call] of calls.entries()) {
-      const nodeId = nodeIds[index];
-      if (!nodeId || !call.platformCode) continue;
-      const platforms = platformsByNodeId.get(nodeId) ?? new Map();
-      platformsByNodeId.set(nodeId, platforms);
-      // A level and a code: the tunnel's `1(U)` and the street's `1` are two platforms.
-      const key = `${call.providerStopPointId ?? ""}|${call.platformCode}`;
-      const platform: ZentrumSchematicPlatform = platforms.get(key) ?? {
-        arms: new Map(),
-        callCount: 0,
-        latitudes: [],
-        longitudes: [],
-      };
-      platforms.set(key, platform);
-      platform.callCount += 1;
-      if (call.latitude !== undefined && call.longitude !== undefined) {
-        platform.latitudes.push(call.latitude);
-        platform.longitudes.push(call.longitude);
-      }
-      // Adjacent calls only: a trip leaving the plan and returning must not invent a corridor.
-      for (const armNodeId of [nodeIds[index - 1], nodeIds[index + 1]]) {
-        if (!armNodeId || armNodeId === nodeId) continue;
-        platform.arms.set(armNodeId, (platform.arms.get(armNodeId) ?? 0) + 1);
-      }
-    }
-  }
-
-  return new Map(
-    [...platformsByNodeId].flatMap(([nodeId, platforms]) => {
-      const callCount = [...platforms.values()].reduce((sum, one) => sum + one.callCount, 0);
-      const drawn = [...platforms.values()].filter(
-        (platform) =>
-          platform.arms.size > 0 &&
-          platform.callCount >= callCount * ZENTRUM_SCHEMATIC_BOARDING_PLACE_MINIMUM_SHARE,
-      );
-      const places = groupPlatformsIntoPlaces(drawn);
-      return places.length >= 2 ? [[nodeId, places] as const] : [];
-    }),
-  );
-};
-
 /** What the drawn runs state about the plan, before any of it is laid out. */
-type ZentrumSchematicObservation = {
+type ZentrumSchematicObservation = Pick<
+  ZentrumSchematicLayout,
+  "nodesById" | "resolveNodeId" | "placesByStopId"
+> & {
   /** Every segment drawn, in id order so the same corridors always read alike. */
   edges: readonly ZentrumSchematicObservedEdge[];
   corridors: readonly ZentrumSchematicObservedEdge[];
@@ -345,8 +306,46 @@ const observeZentrumSchematic = (
     (departure) => departure.status !== "cancelled" && isRailDeparture(departure),
   );
 
-  for (const departure of drawnDepartures) {
-    for (const path of getDepartureSchematicPaths(departure)) {
+  const boarding = createSchematicBoardingReading(drawnDepartures);
+  const observedPaths = drawnDepartures.flatMap((departure) =>
+    getDepartureSchematicPaths(departure, boarding).map((path) => ({ departure, ...path })),
+  );
+  const innerCorridors = new Map<string, readonly [ZentrumSchematicNode, ZentrumSchematicNode]>();
+  for (const { nodes } of observedPaths) {
+    for (let index = 1; index < nodes.length; index += 1) {
+      innerCorridors.set(
+        getEdgeKey(nodes[index - 1].id, nodes[index].id),
+        sortById(nodes[index - 1], nodes[index]),
+      );
+    }
+  }
+  // Stubs keep off the ways the routed corridors leave each stop.
+  const takenByNodeId = new Map<string, SchematicPoint[]>();
+  for (const through of getZentrumSchematicRoutes(
+    [...innerCorridors.values()],
+    [...boarding.nodesById.values()],
+  ).values()) {
+    for (const [end, next] of [
+      [through[0], through[1]],
+      [through.at(-1)!, through.at(-2)!],
+    ]) {
+      const taken = takenByNodeId.get(end.id) ?? [];
+      taken.push({ x: next.x - end.x, y: next.y - end.y });
+      takenByNodeId.set(end.id, taken);
+    }
+  }
+  for (const { departure, nodes, entry, exit } of observedPaths) {
+    const stub = (
+      node: ZentrumSchematicNode,
+      inside: ZentrumSchematicNode,
+      heading?: SchematicPoint,
+    ) => getStubNode(node, inside, heading, takenByNodeId.get(node.id) ?? []);
+    const path = [
+      ...(entry ? [stub(nodes[0], nodes[1], entry.heading)] : []),
+      ...nodes,
+      ...(exit ? [stub(nodes.at(-1)!, nodes.at(-2)!, exit.heading)] : []),
+    ];
+    {
       const paths = pathsByLineId.get(departure.lineId) ?? new Map();
       const pathKey = getPathKey(path);
       const observed = paths.get(pathKey);
@@ -365,7 +364,10 @@ const observeZentrumSchematic = (
     }
   }
 
-  const routes = getZentrumSchematicRoutes([...corridorByKey.values()]);
+  const routes = getZentrumSchematicRoutes(
+    [...corridorByKey.values()],
+    [...boarding.nodesById.values()],
+  );
   const route = (nodes: readonly ZentrumSchematicNode[]): readonly ZentrumSchematicNode[] =>
     nodes.flatMap((node, index) => {
       if (index === 0) return [node];
@@ -442,11 +444,41 @@ const observeZentrumSchematic = (
         [...lineIds].sort(compareLineIdsNaturally),
       ]),
     ),
-    boardingPlacesByNodeId: getZentrumSchematicBoardingPlaces(drawnDepartures),
+    ...boarding,
   };
 };
 
 /** The lanes laid out for what was observed: the plan's one expensive step. */
+const isStubNode = (node: ZentrumSchematicNode): boolean => node.id.startsWith("exit:");
+
+/**
+ * An edge's lanes; a stub running straight on keeps the slots of the corridor it continues, so its
+ * lines hold their places and the lines ending there leave a gap.
+ */
+const getStubTrackIds = (
+  edge: ZentrumSchematicObservedEdge,
+  edges: readonly ZentrumSchematicObservedEdge[],
+  trackIdsByEdgeId: ReadonlyMap<string, readonly string[]>,
+): readonly string[] => {
+  const own = trackIdsByEdgeId.get(edge.id) ?? [];
+  const stub = isStubNode(edge.from) ? edge.from : isStubNode(edge.to) ? edge.to : undefined;
+  if (!stub) return own;
+  const node = stub === edge.from ? edge.to : edge.from;
+  const out = { x: stub.x - node.x, y: stub.y - node.y };
+  const continued = edges.find((other) => {
+    if (other === edge || (other.from.id !== node.id && other.to.id !== node.id)) return false;
+    const far = other.from.id === node.id ? other.to : other.from;
+    const back = { x: far.x - node.x, y: far.y - node.y };
+    const slots = trackIdsByEdgeId.get(other.id) ?? [];
+    return (
+      Math.abs(out.x * back.y - out.y * back.x) < 1e-6 &&
+      out.x * back.x + out.y * back.y < 0 &&
+      own.every((trackId) => slots.includes(trackId))
+    );
+  });
+  return continued ? (trackIdsByEdgeId.get(continued.id) ?? own) : own;
+};
+
 const layOutZentrumSchematic = (
   {
     edges: observedEdges,
@@ -454,13 +486,16 @@ const layOutZentrumSchematic = (
     linePaths,
     lineIdsByNodeId,
     boardingPlacesByNodeId,
+    nodesById,
+    resolveNodeId,
+    placesByStopId,
   }: ZentrumSchematicObservation,
   layoutKey: string,
 ): ZentrumSchematicLayout => {
   const trackIdsByEdgeId = getTrackIdsByEdgeId(observedEdges, linePaths);
   const lanes: readonly ZentrumSchematicLanedEdge[] = observedEdges.map((edge) => ({
     ...edge,
-    trackIds: trackIdsByEdgeId.get(edge.id) ?? [],
+    trackIds: getStubTrackIds(edge, observedEdges, trackIdsByEdgeId),
   }));
   const trackBandOffsetByEdgeId = getTrackBandOffsetByEdgeId(lanes, linePaths);
   const edges: readonly ZentrumSchematicEdge[] = lanes.map((edge) => ({
@@ -469,6 +504,9 @@ const layOutZentrumSchematic = (
   }));
   return {
     layoutKey,
+    nodesById,
+    resolveNodeId,
+    placesByStopId,
     edges,
     corridors,
     linePaths,
@@ -479,8 +517,13 @@ const layOutZentrumSchematic = (
 };
 
 /** Everything the layout depends on: the corridors and the drawn patterns. */
-const getZentrumSchematicLayoutKey = ({ edges, linePaths }: ZentrumSchematicObservation): string =>
+const getZentrumSchematicLayoutKey = ({
+  edges,
+  linePaths,
+  nodesById,
+}: ZentrumSchematicObservation): string =>
   [
+    ...[...nodesById.values()].map(({ id, x, y }) => `${id}:${x},${y}`),
     ...edges.map(({ id, lineIds }) => `${id}\u0001${lineIds.join(",")}`),
     ...linePaths.map(({ id, trackId }) => `${id}\u0001${trackId}`),
   ].join("\u0002");
@@ -510,7 +553,12 @@ export function createZentrumSchematicReader(): (
     if (last && isSameLayout && last.placesKey === placesKey) return last.layout;
     const layout =
       last && isSameLayout
-        ? { ...last.layout, boardingPlacesByNodeId: observation.boardingPlacesByNodeId }
+        ? {
+            ...last.layout,
+            boardingPlacesByNodeId: observation.boardingPlacesByNodeId,
+            placesByStopId: observation.placesByStopId,
+            resolveNodeId: observation.resolveNodeId,
+          }
         : layOutZentrumSchematic(observation, layoutKey);
     last = { placesKey, layout };
     return layout;
@@ -536,6 +584,7 @@ export function createZentrumSchematicDrawer(): (
       linePaths,
       trackWidth,
       layout.boardingPlacesByNodeId,
+      layout.nodesById,
     );
     // From the final edges, so marks ride the painted geometry and halt at the capsules, where
     // the strokes end too.
@@ -571,7 +620,10 @@ const getBoardingPlacesKey = (
     .map(
       ([nodeId, places]) =>
         `${nodeId}:${places
-          .map(({ armTripCounts, tripCount }) => `${tripCount}=${[...armTripCounts].join(",")}`)
+          .map(
+            ({ armTripCounts, tripCount, platformCodes, platformKeys }) =>
+              `${tripCount}=${[...armTripCounts].join(",")}:${platformCodes?.join(",")}:${platformKeys?.join(",")}`,
+          )
           .join("|")}`,
     )
     .sort()
@@ -650,7 +702,7 @@ const getZentrumSchematicPlacedRuns = (
 
     const calls = collapseTurnaroundCalls(departure.tripCalls ?? []);
     const nodeOf = (call: (typeof calls)[number]): ZentrumSchematicNode | undefined =>
-      zentrumSchematicNodeById.get(findZentrumSchematicNodeId(call) ?? "");
+      reading.nodesById.get(reading.resolveNodeId(call) ?? "");
     let selectedLink:
       | {
           index: number;

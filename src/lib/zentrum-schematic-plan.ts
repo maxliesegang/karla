@@ -2,10 +2,14 @@
  * The plan itself: the stops it draws, the window it is cropped to, and the geometry every reading
  * of it is measured in. Authored, not observed; what runs over it is `zentrum-schematic.ts`.
  */
+import { findCatalogStop } from "../data/generated/kvv-stop-catalog";
+import { kvvStopMappingByLocalStopId } from "../data/kvv-stop-mappings";
 import { getVerifiedLineColor } from "../data/line-signs";
 import type { Departure } from "../data/transit-types";
 import { isZentrumStop } from "../data/zentrum-stops";
 import { getLineTrunkId } from "./line-families";
+import type { PlatformRun } from "./platform-runs";
+
 /**
  * The window drawn, cropped to the outermost dots and labels: any margin shrinks the plan, whose
  * fit is height-bound. A crop, not a shift, so nodes stay on the grid.
@@ -15,7 +19,7 @@ export const ZENTRUM_SCHEMATIC_VIEWBOX = { x: 8, y: 44, width: 1156, height: 638
 export const ZENTRUM_SCHEMATIC_GRID = 22;
 
 /**
- * One stop on the plan, and the page its dot opens. A complex is one dot. Positions are octilinear
+ * A boarding place on the plan, and its shared stop address. Positions are octilinear
  * and solved against platform coordinates (`npm run solve:zentrum`), north up; they decide only
  * where an observed trip is drawn.
  */
@@ -28,22 +32,40 @@ export type ZentrumSchematicNode = {
   /** The side the name stands on, clear of the corridors; solved with the position. */
   labelSide?: "left" | "right" | "above" | "below";
   /**
-   * The way the platforms run. Corridors leave along it and turn square to the stop they serve,
+   * The way the platforms run. Corridors leave along it and turn towards the stop they serve,
    * through a junction (`getZentrumSchematicRoutes`).
    */
-  platformRun?: "level" | "upright";
+  platformRun?: PlatformRun;
+  /** A boarding place drawn apart from its stop: the stop's id. */
+  stopId?: string;
+  geographicPosition?: { latitude: number; longitude: number };
   /** A bend between stops, where corridors meet: drawn without a dot, a mark or a name. */
   isJunction?: boolean;
 };
 
-export const ZENTRUM_SCHEMATIC_NODES: readonly ZentrumSchematicNode[] = [
+const authoredZentrumNodes: readonly ZentrumSchematicNode[] = [
   { id: "karl-wilhelm-platz", label: "Karl-Wilhelm-Platz", x: 946, y: 66, labelSide: "right" },
   { id: "muehlburger-tor", label: "Mühlburger Tor", x: 110, y: 154, labelSide: "left" },
   { id: "europaplatz", label: "Europaplatz", x: 374, y: 154, labelSide: "above" },
   { id: "marktplatz", label: "Marktplatz", x: 572, y: 154, labelSide: "above" },
   { id: "kronenplatz", label: "Kronenplatz", x: 726, y: 154, labelSide: "below" },
   { id: "durlacher-tor", label: "Durlacher Tor", x: 858, y: 154, labelSide: "below" },
-  { id: "gottesauer-platz", label: "Gottesauer Platz", x: 1034, y: 154, labelSide: "right" },
+  { id: "gottesauer-platz", label: "Gottesauer Platz", x: 968, y: 154, labelSide: "above" },
+  {
+    id: "tullastrasse",
+    label: "Tullastraße",
+    x: 1100,
+    y: 154,
+    labelSide: "above",
+  },
+  {
+    id: "wolfartsweierer-strasse",
+    label: "Wolfartsweierer Straße",
+    x: 924,
+    y: 286,
+    labelSide: "below",
+  },
+  { id: "schloss-gottesaue", label: "Schloss Gottesaue", x: 990, y: 220, labelSide: "below" },
   { id: "karlstor", label: "Karlstor", x: 374, y: 286, labelSide: "left" },
   { id: "ettlinger-tor", label: "Ettlinger Tor", x: 572, y: 286, labelSide: "right" },
   { id: "rueppurrer-tor", label: "Rüppurrer Tor", x: 726, y: 286, labelSide: "above" },
@@ -73,6 +95,16 @@ export const ZENTRUM_SCHEMATIC_NODES: readonly ZentrumSchematicNode[] = [
   },
 ] as const;
 
+export const ZENTRUM_SCHEMATIC_NODES: readonly ZentrumSchematicNode[] = authoredZentrumNodes.map(
+  (node) => {
+    const mapping = kvvStopMappingByLocalStopId[node.id];
+    const stop = mapping && findCatalogStop(mapping.providerStopId);
+    return stop
+      ? { ...node, geographicPosition: { latitude: stop.latitude, longitude: stop.longitude } }
+      : node;
+  },
+);
+
 export const zentrumSchematicNodeById = new Map(
   ZENTRUM_SCHEMATIC_NODES.map((node) => [node.id, node]),
 );
@@ -91,24 +123,54 @@ const isInsideSegment = (
   );
 };
 
+/** The way a platform run points, in plan units; `rising` climbs eastwards. */
+export const PLATFORM_RUN_VECTORS = {
+  level: { x: 1, y: 0 },
+  upright: { x: 0, y: 1 },
+  rising: { x: 1, y: -1 },
+  falling: { x: 1, y: 1 },
+} as const satisfies Record<PlatformRun, SchematicPoint>;
+
+const isOctilinear = ({ x, y }: SchematicPoint): boolean =>
+  x === 0 || y === 0 || Math.abs(x) === Math.abs(y);
+
 /**
- * Where a corridor from a stop with a platform run turns square towards the other end: level with
- * it along the run. None where the corridor already runs along it, or a stop would be passed.
+ * Where a corridor leaving a stop along its platform run turns towards the other end: as soon as
+ * the rest is octilinear. None where it already runs along it, or a stop would be passed.
  */
-const getJunctionPoint = (
+const getPlatformRunBend = (
   stop: ZentrumSchematicNode,
   other: ZentrumSchematicNode,
+  nodes: readonly ZentrumSchematicNode[],
 ): SchematicPoint | undefined => {
   if (!stop.platformRun) return undefined;
-  const point =
-    stop.platformRun === "upright" ? { x: stop.x, y: other.y } : { x: other.x, y: stop.y };
-  if ((point.x === stop.x && point.y === stop.y) || (point.x === other.x && point.y === other.y)) {
-    return undefined;
-  }
-  const passes = ZENTRUM_SCHEMATIC_NODES.some(
+  const run = PLATFORM_RUN_VECTORS[stop.platformRun];
+  const offset = subtractPoints(other, stop);
+  if (crossProduct(run, offset) === 0) return undefined;
+  const sign = Math.sign(dotProduct(run, offset));
+  if (sign === 0) return undefined;
+  const reach = Math.floor((dotProduct(run, offset) * sign) / dotProduct(run, run));
+  const step = { x: run.x * sign, y: run.y * sign };
+  const point = Array.from({ length: reach }, (_, index) => ({
+    x: stop.x + step.x * (index + 1),
+    y: stop.y + step.y * (index + 1),
+  })).find((candidate) => isOctilinear(subtractPoints(other, candidate)));
+  if (!point || (point.x === other.x && point.y === other.y)) return undefined;
+  const passes = nodes.some(
     (node) => isInsideSegment(node, stop, point) || isInsideSegment(node, point, other),
   );
   return passes ? undefined : point;
+};
+
+const getOctilinearBend = (
+  from: SchematicPoint,
+  to: SchematicPoint,
+): SchematicPoint | undefined => {
+  const dx = to.x - from.x,
+    dy = to.y - from.y;
+  if (dx === 0 || dy === 0 || Math.abs(dx) === Math.abs(dy)) return undefined;
+  const step = Math.min(Math.abs(dx), Math.abs(dy));
+  return { x: to.x - Math.sign(dx) * step, y: to.y - Math.sign(dy) * step };
 };
 
 /**
@@ -117,10 +179,16 @@ const getJunctionPoint = (
  */
 export const getZentrumSchematicRoutes = (
   corridors: readonly (readonly [ZentrumSchematicNode, ZentrumSchematicNode])[],
+  nodes: readonly ZentrumSchematicNode[] = ZENTRUM_SCHEMATIC_NODES,
 ): ReadonlyMap<string, readonly ZentrumSchematicNode[]> => {
   const junctionByPoint = new Map<string, ZentrumSchematicNode>();
   const turns = corridors.map(([from, to]) => {
-    const point = getJunctionPoint(from, to) ?? getJunctionPoint(to, from);
+    // A boarding place's own run first: it is read from where its platforms stand.
+    const [first, second] = to.stopId && !from.stopId ? [to, from] : [from, to];
+    const point =
+      getPlatformRunBend(first, second, nodes) ??
+      getPlatformRunBend(second, first, nodes) ??
+      getOctilinearBend(from, to);
     if (!point) return [from, to];
     const id = `junction:${point.x},${point.y}`;
     const junction = junctionByPoint.get(id) ?? { id, label: "", ...point, isJunction: true };
@@ -149,7 +217,23 @@ export const getZentrumSchematicRoutes = (
 export const isRailDeparture = ({ transportMode }: Pick<Departure, "transportMode">): boolean =>
   transportMode === "tram" || transportMode === "lightRail";
 
-/** The dot a call is at: the stop the registry resolved it to. */
+/** The shared board address of a drawn boarding place. */
+export const getZentrumSchematicStopId = (nodeId: string): string => nodeId.split("@", 1)[0];
+
+export function getZentrumSchematicLineIdsByStopId(
+  lineIdsByNodeId: ReadonlyMap<string, readonly string[]>,
+): ReadonlyMap<string, readonly string[]> {
+  const lines = new Map<string, Set<string>>();
+  for (const [nodeId, lineIds] of lineIdsByNodeId) {
+    const stopId = getZentrumSchematicStopId(nodeId);
+    const atStop = lines.get(stopId) ?? new Set<string>();
+    for (const lineId of lineIds) atStop.add(lineId);
+    lines.set(stopId, atStop);
+  }
+  return new Map([...lines].map(([stopId, ids]) => [stopId, [...ids]]));
+}
+
+/** A call's shared stop address, before boarding places are laid out. */
 export const findZentrumSchematicNodeId = (call: { localStopId?: string }): string | undefined =>
   isZentrumStop(call.localStopId) ? call.localStopId : undefined;
 
@@ -338,4 +422,9 @@ export type ZentrumSchematicBoardingPlace = {
   armTripCounts: ReadonlyMap<string, number>;
   /** Calls observed boarding here, ranking places at the stop. */
   tripCount: number;
+  platformCodes?: readonly string[];
+  platformKeys?: readonly string[];
+  platformRun?: PlatformRun;
+  latitude?: number;
+  longitude?: number;
 };

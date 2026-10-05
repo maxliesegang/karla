@@ -95,6 +95,7 @@ export class KvvEfaClient {
       includeTripCalls?: boolean;
       /** Opaque `servingLine.stateless` ids; the parameter may repeat. */
       lineIds?: readonly string[];
+      eventKind?: "departure" | "arrival";
     } = {},
   ): Promise<KvvDepartureBoard> {
     const payload = await this.requestJson(this.departureEndpoint, `Abfahrtstafel ${stopPointId}`, {
@@ -105,7 +106,7 @@ export class KvvEfaClient {
       // Off is the default, but pinned: with the mode macros, `1` turns a stop board into a
       // district board (Marktplatz returned rows from seven nearby stops).
       useProxFootSearch: "0",
-      itdDateTimeDepArr: "dep",
+      itdDateTimeDepArr: options.eventKind === "arrival" ? "arr" : "dep",
       ...toRowLimitParameters(options.limit ?? DEFAULT_DEPARTURE_LIMIT),
       ...(options.lineIds?.length ? {} : LOCAL_NETWORK_MODE_PARAMETERS),
       // Otherwise the feed answers in its projected grid (MRCV).
@@ -113,7 +114,7 @@ export class KvvEfaClient {
       ...(options.lineIds?.length ? { line: options.lineIds } : {}),
       ...(options.includeTripCalls ? { depType: "stopEvents", includeCompleteStopSeq: "1" } : {}),
     });
-    return parseDepartureBoardResponse(payload, stopPointId);
+    return parseDepartureBoardResponse(payload, stopPointId, options.eventKind);
   }
 
   /**

@@ -1,3 +1,4 @@
+import { getZentrumSchematicLineIdsByStopId } from "../../lib/zentrum-schematic-plan";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { DepartureBoard, DepartureBoardCoverage } from "../../data/transit-types";
 import { useDepartureBoard } from "../../hooks/departure-board";
@@ -51,9 +52,14 @@ export function ZentrumView({
   /** Where the rider stands, asked only when the plan is set to open at the nearest stop. */
   nearbyStops: NearbyStopsController;
 }) {
+  const { board: openedStopBoard } = useDepartureBoard(selectedStopId);
+  const evidenceBoards = useMemo(
+    () => (openedStopBoard ? [...departureBoards, openedStopBoard] : departureBoards),
+    [departureBoards, openedStopBoard],
+  );
   // Runs named by the posts, placed from their own readings; the set changes only as runs come and
   // go.
-  const { runDepartures, feedNow } = useZentrumVehicles(departureBoards);
+  const { runDepartures, feedNow } = useZentrumVehicles(evidenceBoards);
   // The drawing reads the marks' runs, so a line keeps its lanes while any mark is on them. The
   // reader keeps the last layout.
   const [readSchematic] = useState(createZentrumSchematicReader);
@@ -63,7 +69,11 @@ export function ZentrumView({
   // A followed line or opened stop leaves the address once nothing drawn names it, after the first
   // answer.
   const isLineObserved = selectedLineId === undefined || layout.lineIds.includes(selectedLineId);
-  const isStopObserved = selectedStopId === undefined || layout.lineIdsByNodeId.has(selectedStopId);
+  const lineIdsByStopId = useMemo(
+    () => getZentrumSchematicLineIdsByStopId(layout.lineIdsByNodeId),
+    [layout.lineIdsByNodeId],
+  );
+  const isStopObserved = selectedStopId === undefined || lineIdsByStopId.has(selectedStopId);
   const isReadingAnswered = layout.lineIds.length > 0;
   useEffect(() => {
     if ((!isLineObserved || !isStopObserved) && isReadingAnswered) {
@@ -76,14 +86,13 @@ export function ZentrumView({
   );
   const locationNote = useNearestZentrumStopOpening(
     nearbyStops,
-    layout.lineIdsByNodeId,
+    lineIdsByStopId,
     selectedLineId !== undefined || selectedStopId !== undefined,
     openNearestStop,
   );
   const followedLineId = isLineObserved ? selectedLineId : undefined;
   const openedStopId = isStopObserved ? selectedStopId : undefined;
   // An opened stop reads its whole board; the plan only draws trams already inside it.
-  const { board: openedStopBoard } = useDepartureBoard(openedStopId);
   // Choosing navigates, so readings can be shared and closed with back. Stable for memoized stops.
   const selectLine = useCallback(
     (lineId: string | undefined) => navigateTo(routePaths.zentrum({ lineId }, isFullscreen)),

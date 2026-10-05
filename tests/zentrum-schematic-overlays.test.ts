@@ -280,3 +280,75 @@ test("counts minutes to an arrival up, never promising one early", () => {
   assert.equal(getMinutesUntilArrival(instant(5) + 1_000, instant(3)), 3);
   assert.equal(getMinutesUntilArrival(instant(3), instant(5)), 0);
 });
+
+test("a shared stop board includes inferred boarding places and lights their physical corridor", () => {
+  const atTulla = (departure: Departure, code: string, latitude: number, longitude: number) => ({
+    ...departure,
+    tripCalls: departure.tripCalls?.map((call) =>
+      call.localStopId === "tullastrasse"
+        ? { ...call, providerStopPointId: "7000007", platformCode: code, latitude, longitude }
+        : call,
+    ),
+  });
+  const inbound = atTulla(
+    run("inbound", "S2", [
+      ["gottesauer-platz", 0],
+      ["tullastrasse", 2],
+      ["essenweinstrasse", 4],
+    ]),
+    "4",
+    49.007335,
+    8.431542,
+  );
+  const outbound = atTulla(
+    run("outbound", "S2", [
+      ["essenweinstrasse", 0],
+      ["tullastrasse", 2],
+      ["gottesauer-platz", 4],
+    ]),
+    "3",
+    49.006722,
+    8.431291,
+  );
+  const south = atTulla(
+    run("south", "5", [
+      ["tullastrasse", 2],
+      ["schloss-gottesaue", 4],
+      ["wolfartsweierer-strasse", 6],
+    ]),
+    "3",
+    49.006722,
+    8.431291,
+  );
+  const east = atTulla(
+    run("east", "1", [
+      ["gottesauer-platz", 0],
+      ["tullastrasse", 2],
+      ["weinweg", 4],
+    ]),
+    "1a",
+    49.006292,
+    8.43165,
+  );
+  const west = atTulla(
+    run("west", "1", [
+      ["weinweg", 0],
+      ["tullastrasse", 2],
+      ["gottesauer-platz", 4],
+    ]),
+    "2a",
+    49.006097,
+    8.432522,
+  );
+  const runs = [inbound, outbound, south, east, west];
+  const vehicles = placeVehicles(runs, 1);
+  const vehicle = vehicles.find((v) => v.departure.id === inbound.id)!;
+  assert.ok(vehicle.to.id.startsWith("tullastrasse@"));
+  const board = getZentrumStopBoard([inbound], vehicles, "tullastrasse", instant(1));
+  assert.equal(board.rows[0].vehicleId, vehicle.id);
+  const times = getZentrumTravelTimes(runs, "tullastrasse", instant(1));
+  assert.ok(times.travelTimesByNodeId.has("schloss-gottesaue"));
+  assert.ok(
+    times.overlay.corridorIdsByLineId.get("5")?.has(`schloss-gottesaue\u0000${vehicle.to.id}`),
+  );
+});

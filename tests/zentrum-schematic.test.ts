@@ -106,14 +106,18 @@ test("reads only adjacent observed calls into schematic edges", () => {
     ]),
   );
 
+  // Leaving the plan, the line runs on as a stub, straight on past Europaplatz.
   assert.deepEqual(
     reading.edges.map(({ from, to, lineIds }) => [from.id, to.id, lineIds]),
-    [["europaplatz", "muehlburger-tor", ["2"]]],
+    [
+      ["europaplatz", "exit:europaplatz:396,154", ["2"]],
+      ["europaplatz", "muehlburger-tor", ["2"]],
+    ],
   );
   assert.equal(reading.lineIdsByNodeId.has("karlstor"), false);
   assert.deepEqual(
     reading.linePaths.map(({ lineId, nodes }) => [lineId, nodes.map(({ id }) => id)]),
-    [["2", ["muehlburger-tor", "europaplatz"]]],
+    [["2", ["muehlburger-tor", "europaplatz", "exit:europaplatz:396,154"]]],
   );
 });
 
@@ -1530,7 +1534,7 @@ test("a node is a Zentrum stop, and every Zentrum stop has one", () => {
 
   assert.equal(new Set(nodeIds).size, nodeIds.length);
   assert.deepEqual(
-    nodeIds.filter((id) => !isZentrumStop(id)),
+    ZENTRUM_SCHEMATIC_NODES.filter((node) => !isZentrumStop(node.stopId ?? node.id)),
     [],
   );
   assert.deepEqual(
@@ -1646,4 +1650,12 @@ test("keeps groups joining a corridor from opposite sides from weaving down it",
   assert.deepEqual(orderOn("ettlinger-tor", "kongresszentrum"), ["S4", "S8", "S1", "S2"]);
   // East of Marktplatz the turning pair rides south of line 1, the side they turn to.
   assert.deepEqual(orderOn("kronenplatz", "marktplatz").indexOf("1"), 0);
+});
+
+test("a complex has one authored stop name; boarding places come from observed platforms", () => {
+  assert.equal(
+    ZENTRUM_SCHEMATIC_NODES.filter((node) => (node.stopId ?? node.id) === "tullastrasse").length,
+    1,
+  );
+  assert.ok(!ZENTRUM_SCHEMATIC_NODES.some((node) => node.label === "Tullastraße (Nord)"));
 });

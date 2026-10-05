@@ -1,5 +1,7 @@
 /** The stop marks, laid out from the same corridors and lanes as the lines they cross. */
+import { toLocalMeters } from "./geo";
 import {
+  PLATFORM_RUN_VECTORS,
   type ZentrumSchematicBoardingPlace,
   type SchematicPoint,
   type ZentrumSchematicEdge,
@@ -509,9 +511,36 @@ const getLinkedCapsule = (
   return getCheapest(solutions);
 };
 
+/** Narrows arms to those meeting a preference, where any does. */
+const preferArms = (
+  arms: readonly ZentrumSchematicNodeArm[],
+  isPreferred: (arm: ZentrumSchematicNodeArm) => boolean,
+): readonly ZentrumSchematicNodeArm[] => {
+  const preferred = arms.filter(isPreferred);
+  return preferred.length > 0 ? preferred : arms;
+};
+
+/** Where a place stands from the middle of its stop's places, in plan directions; none unplaced. */
+const getPlaceOffset = (
+  place: ZentrumSchematicBoardingPlace,
+  places: readonly ZentrumSchematicBoardingPlace[],
+): SchematicPoint | undefined => {
+  const located = places.filter((one) => one.latitude !== undefined && one.longitude !== undefined);
+  if (place.latitude === undefined || place.longitude === undefined || located.length < 2) {
+    return undefined;
+  }
+  const mean = (values: number[]) => values.reduce((sum, value) => sum + value, 0) / values.length;
+  const offset = toLocalMeters(place.latitude, place.longitude, {
+    latitude: mean(located.map((one) => one.latitude!)),
+    longitude: mean(located.map((one) => one.longitude!)),
+  });
+  return { x: offset.x, y: -offset.y };
+};
+
 /**
  * The arms a place is drawn on: those the stop's other places do not use (every place shares the
- * busy corridor, as at Karlstor), else its own.
+ * busy corridor, as at Karlstor), else its own; of those, the ones along its platforms, on the
+ * side of the stop where it stands.
  */
 const getPlaceArms = (
   place: ZentrumSchematicBoardingPlace,
@@ -526,7 +555,15 @@ const getPlaceArms = (
   const shares = (arm: ZentrumSchematicNodeArm): number =>
     places.filter((other) => other !== place && leadsTo(arm, other)).length;
   const fewest = Math.min(...own.map(shares));
-  return own.filter((arm) => shares(arm) === fewest);
+  const run = place.platformRun && PLATFORM_RUN_VECTORS[place.platformRun];
+  const offset = getPlaceOffset(place, places);
+  return preferArms(
+    preferArms(
+      own.filter((arm) => shares(arm) === fewest),
+      (arm) => !!run && Math.abs(crossProduct(arm.outward, run)) < 1e-6,
+    ),
+    (arm) => !!offset && dotProduct(arm.outward, offset) > 0,
+  );
 };
 
 /** The fallback: one capsule across each straight at the stop, and one across each other arm. */
@@ -570,9 +607,13 @@ const getCapsuleGroups = (
   return groups;
 };
 
-/** A corner every lane turns through, which is one pill across the bend. */
+/**
+ * A corner every lane turns through, which is one pill across the bend. Square turns only: across a
+ * gentler bend the pill would leave the plan's eight directions.
+ */
 const isCorner = (chosen: readonly ZentrumSchematicNodeArm[]): boolean => {
   if (chosen.length !== 2 || isOppositeArm(chosen[0], chosen[1])) return false;
+  if (Math.abs(dotProduct(chosen[0].outward, chosen[1].outward)) > 1e-6) return false;
   const [first, second] = chosen.map(({ edge }) => edge.trackIds);
   return first.length === second.length && first.every((trackId) => second.includes(trackId));
 };
@@ -680,6 +721,7 @@ export const getZentrumSchematicStopMarks = (
   linePaths: readonly ZentrumSchematicLinePath[],
   trackWidth: number,
   boardingPlacesByNodeId: ReadonlyMap<string, readonly ZentrumSchematicBoardingPlace[]>,
+  nodesById: ReadonlyMap<string, ZentrumSchematicNode> = zentrumSchematicNodeById,
 ): readonly ZentrumSchematicStopMark[] => {
   const edgesByNodeId = new Map<string, ZentrumSchematicEdge[]>();
   for (const edge of edges) {
@@ -689,8 +731,8 @@ export const getZentrumSchematicStopMarks = (
   for (const bend of getZentrumSchematicLaneBends(linePaths, edges, trackWidth)) {
     addTo(bendsByNodeId, bend.nodeId, bend);
   }
-  return [...edgesByNodeId.keys()].flatMap((nodeId): ZentrumSchematicStopMark[] => {
-    const node = zentrumSchematicNodeById.get(nodeId);
+  const marks = [...edgesByNodeId.keys()].flatMap((nodeId): ZentrumSchematicStopMark[] => {
+    const node = nodesById.get(nodeId);
     if (!node) return [];
     return [
       getNodeMark(
@@ -701,6 +743,32 @@ export const getZentrumSchematicStopMarks = (
         trackWidth,
       ),
     ];
+  });
+  const groups = new Map<string, ZentrumSchematicStopMark[]>();
+  for (const mark of marks) addTo(groups, nodesById.get(mark.nodeId)?.stopId ?? mark.nodeId, mark);
+  const linkObstacles = [
+    ...edges.map((edge) => getBandOutline(edge, trackWidth)),
+    ...getZentrumSchematicLaneBends(linePaths, edges, trackWidth).flatMap((bend) =>
+      getBendOutlines(bend, trackWidth),
+    ),
+  ];
+  return marks.map((mark) => {
+    const group = groups.get(nodesById.get(mark.nodeId)?.stopId ?? mark.nodeId) ?? [mark];
+    const links = [...mark.links];
+    if (group[0] === mark && group.length > 1) {
+      for (const other of group.slice(1)) {
+        const options = [mark.main.from, mark.main.to].flatMap((start) =>
+          [other.main.from, other.main.to].flatMap((end) =>
+            getElbowLinks(start, end, trackWidth)
+              .filter((legs) => legs.every((leg) => leg.isClear(linkObstacles)))
+              .map((legs) => ({ legs, cost: legs.reduce((sum, leg) => sum + leg.cost, 0) })),
+          ),
+        );
+        const best = getCheapest(options);
+        if (best) links.push(...best.legs.map((leg) => leg.stroke));
+      }
+    }
+    return { ...mark, links };
   });
 };
 

@@ -16,7 +16,6 @@ import {
   getUnitVector,
   formatPoint,
   subtractPoints,
-  zentrumSchematicNodeById,
 } from "./zentrum-schematic-plan";
 
 /** How many points a bend is sampled into for a mark to follow. */
@@ -533,7 +532,7 @@ export function getZentrumSchematicVehiclePathsByCorridorId(
   // Each stop is looked for between the middles of the stretches either side of it.
   const nodeIds = [legs[0].fromNodeId, ...legs.map(({ toNodeId }) => toNodeId)];
   const stopIndices = nodeIds.flatMap((nodeId, index) =>
-    zentrumSchematicNodeById.has(nodeId) ? [index] : [],
+    stopLinesByNodeId.has(nodeId) ? [index] : [],
   );
   const cuts = stopIndices.map((index, at) => {
     const nodeId = nodeIds[index];

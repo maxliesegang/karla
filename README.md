@@ -101,6 +101,17 @@ offered only where this visit has observed both lines on the same route out of t
 least three calls. The diagram draws a shared trunk and forks into one leg per line past the stop
 they part at; a line ending at the junction is stated in words (*S11 endet in Busenbach*).
 
+The Zentrum discovers observation posts from live trip sequences: the last stop before each
+exit, and arrival plus departure boards at internal termini. All area boards bootstrap the reading
+and refresh every five minutes to discover changed routes. Learned posts refresh every 90 seconds,
+filtered by rail direction; crowded boards receive separate direction reads to extend their horizon.
+Runs are retained within ten minutes of an area visit and two minutes after leaving it.
+
+Boarding places share one stop name and board address. Platform coordinates and observed neighboring
+calls determine their grouping, including neighbors outside the map. Places with overlapping drawn
+routes receive separate marks positioned from their geographic offsets; Gleise remain visible.
+Corridors follow horizontal, vertical or 45° segments.
+
 ### Vehicle marks
 
 Marks are placed from each run's own calls, never from a position feed (KVV publishes none that

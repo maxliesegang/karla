@@ -12,9 +12,13 @@ import {
   toZentrumCanvasTop,
 } from "../../lib/zentrum-plan-canvas";
 import type { ZentrumSchematicReading, ZentrumSchematicVehicle } from "../../lib/zentrum-schematic";
-import { placeZentrumSchematicLabels } from "../../lib/zentrum-schematic-labels";
 import {
-  ZENTRUM_SCHEMATIC_NODES,
+  type ZentrumSchematicLabel,
+  placeZentrumSchematicLabels,
+} from "../../lib/zentrum-schematic-labels";
+import {
+  getZentrumSchematicStopId,
+  getZentrumSchematicLineIdsByStopId,
   ZENTRUM_SCHEMATIC_VIEWBOX,
   zentrumSchematicNodeById,
 } from "../../lib/zentrum-schematic-plan";
@@ -92,6 +96,21 @@ export function ZentrumSchematicCanvas({
   zoom: number;
   planWidth: number | undefined;
 }) {
+  const { edges, stopMarks, trackWidth } = schematic;
+  // Here, not with the drawing: a printed travel time makes every name taller.
+  const hasTimes = stopMinutesByNodeId !== undefined;
+  const labelsByNodeId = useMemo(
+    () =>
+      placeZentrumSchematicLabels(
+        edges,
+        stopMarks,
+        trackWidth,
+        planWidth,
+        hasTimes,
+        stopMinutesByNodeId ? new Set(stopMinutesByNodeId.keys()) : undefined,
+      ),
+    [edges, stopMarks, trackWidth, planWidth, hasTimes, stopMinutesByNodeId],
+  );
   const canvasRef = useRef<HTMLDivElement>(null);
 
   // Bring an opened stop into view, moving the plan no further than that.
@@ -120,7 +139,8 @@ export function ZentrumSchematicCanvas({
   // The lines kept at full strength: the followed one, or those calling at the opened stop.
   const { lineIdsByNodeId } = schematic;
   const highlightedLineIds = useMemo(() => {
-    if (selectedStopId !== undefined) return new Set(lineIdsByNodeId.get(selectedStopId));
+    if (selectedStopId !== undefined)
+      return new Set(getZentrumSchematicLineIdsByStopId(lineIdsByNodeId).get(selectedStopId));
     return selectedLineId === undefined ? undefined : new Set([selectedLineId]);
   }, [lineIdsByNodeId, selectedLineId, selectedStopId]);
 
@@ -174,7 +194,7 @@ export function ZentrumSchematicCanvas({
       >
         <ZentrumSchematicDrawing
           drawnLinePaths={drawnLinePaths}
-          stopMarks={schematic.stopMarks}
+          stopMarks={stopMarks}
           highlightedLineIds={highlightedLineIds}
           selectedStopId={selectedStopId}
           overlay={overlay}
@@ -183,6 +203,7 @@ export function ZentrumSchematicCanvas({
         />
 
         <ZentrumSchematicStops
+          labelsByNodeId={labelsByNodeId}
           schematic={schematic}
           highlightedLineIds={highlightedLineIds}
           selectedLineId={selectedLineId}
@@ -308,6 +329,7 @@ const getJunctionIds = ({ edges, lineIdsByNodeId }: ZentrumSchematicReading): Se
 
 /** The stop buttons, apart from the marks so they do not re-render every second. */
 const ZentrumSchematicStops = memo(function ZentrumSchematicStops({
+  labelsByNodeId,
   schematic,
   highlightedLineIds,
   selectedLineId,
@@ -316,6 +338,7 @@ const ZentrumSchematicStops = memo(function ZentrumSchematicStops({
   planWidth,
   onSelectStop,
 }: {
+  labelsByNodeId: ReadonlyMap<string, ZentrumSchematicLabel>;
   schematic: ZentrumSchematicReading;
   highlightedLineIds?: ReadonlySet<string>;
   selectedLineId?: string;
@@ -324,25 +347,11 @@ const ZentrumSchematicStops = memo(function ZentrumSchematicStops({
   planWidth: number | undefined;
   onSelectStop: (stationId: string) => void;
 }) {
-  const { edges, lineIdsByNodeId, stopMarks, trackWidth } = schematic;
-  // Here, not with the drawing: a printed travel time makes every name taller.
-  const hasTimes = stopMinutesByNodeId !== undefined;
-  const labelsByNodeId = useMemo(
-    () =>
-      placeZentrumSchematicLabels(
-        edges,
-        stopMarks,
-        trackWidth,
-        planWidth,
-        hasTimes,
-        stopMinutesByNodeId ? new Set(stopMinutesByNodeId.keys()) : undefined,
-      ),
-    [edges, stopMarks, trackWidth, planWidth, hasTimes, stopMinutesByNodeId],
-  );
+  const { lineIdsByNodeId, stopMarks } = schematic;
   const junctions = useMemo(() => getJunctionIds(schematic), [schematic]);
   const visibleNodes = useMemo(
-    () => ZENTRUM_SCHEMATIC_NODES.filter((node) => lineIdsByNodeId.has(node.id)),
-    [lineIdsByNodeId],
+    () => [...schematic.nodesById.values()].filter((node) => lineIdsByNodeId.has(node.id)),
+    [lineIdsByNodeId, schematic.nodesById],
   );
   const stopMarkByNodeId = useMemo(
     () => new Map(stopMarks.map((mark) => [mark.nodeId, mark])),
@@ -357,7 +366,7 @@ const ZentrumSchematicStops = memo(function ZentrumSchematicStops({
         const isHighlighted = highlightedLineIds
           ? lineIdsAtNode.some((lineId) => highlightedLineIds.has(lineId))
           : false;
-        const isSelected = selectedStopId === node.id;
+        const isSelected = selectedStopId === getZentrumSchematicStopId(node.id);
         const label = labelsByNodeId.get(node.id);
         const travel = stopMinutesByNodeId?.get(node.id);
         const minutes = travel?.minutes;
@@ -366,12 +375,13 @@ const ZentrumSchematicStops = memo(function ZentrumSchematicStops({
           : highlightedLineIds !== undefined && !isHighlighted;
         // Reached stops are named; crowded names remain available on hover and focus.
         const isNamed =
-          isSelected ||
-          (label?.fits !== false &&
-            (showsEveryName ||
-              travel !== undefined ||
-              junctions.has(node.id) ||
-              (selectedLineId !== undefined && isHighlighted)));
+          !node.stopId &&
+          (isSelected ||
+            (label?.fits !== false &&
+              (showsEveryName ||
+                travel !== undefined ||
+                junctions.has(node.id) ||
+                (selectedLineId !== undefined && isHighlighted))));
         // The button is the capsule; the name hangs where the placer set it.
         const centre = stopMark
           ? {
@@ -396,7 +406,7 @@ const ZentrumSchematicStops = memo(function ZentrumSchematicStops({
                 "--zentrum-label-y": toZentrumCanvasRun((label?.anchor.y ?? centre.y) - centre.y),
               } as CSSProperties
             }
-            onClick={() => onSelectStop(node.id)}
+            onClick={() => onSelectStop(getZentrumSchematicStopId(node.id))}
             aria-pressed={isSelected}
             aria-label={`${node.label}, Linien ${lineIdsAtNode.join(", ")}${travel ? `, mit Linie ${travel.lineId} ${travel.measure === "ride" ? `${travel.minutes} Minuten Fahrt` : `in ${travel.minutes} Minuten erreichbar`}, ${travel.sourceLabel}` : ""}. ${isSelected ? "Haltestelle schließen" : "Ziele und Abfahrten ab hier"}`}
           >

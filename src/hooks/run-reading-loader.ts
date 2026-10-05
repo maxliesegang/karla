@@ -21,6 +21,7 @@ export type RunReadingOptions = {
   /** The chosen run, re-read on every board refresh. */
   selectedRowId?: string;
   refreshMs?: number;
+  refreshOnEntry?: boolean;
 };
 
 /**
@@ -29,7 +30,11 @@ export type RunReadingOptions = {
 export function useRunReadingsByRowId(
   /** Memoize: it decides the load key. */
   rowIds: readonly string[],
-  { selectedRowId, refreshMs = DEPARTURE_BOARD_REFRESH_MS }: RunReadingOptions = {},
+  {
+    selectedRowId,
+    refreshMs = DEPARTURE_BOARD_REFRESH_MS,
+    refreshOnEntry = true,
+  }: RunReadingOptions = {},
 ): readonly Departure[] {
   const sortedRowIds = useMemo(() => toSortedIds(rowIds), [rowIds]);
   // Each run under its own tolerance (`getRunReadingRequests`).
@@ -49,7 +54,7 @@ export function useRunReadingsByRowId(
             ...(selectedRowId ? { selectedRowId, selectedMaxAgeMs: refreshMs } : {}),
           },
           // A view's first read looks past the source's cache, so its first marks are not stale.
-          isEntryRead,
+          isEntryRead && refreshOnEntry,
         ),
         (rowId, maxAgeMs) => transitSource.getRun(rowId, maxAgeMs),
       ),

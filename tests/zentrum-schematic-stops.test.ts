@@ -325,6 +325,42 @@ test("gathers platforms standing together into one place, whatever runs through 
   assert.equal(read(apart).boardingPlacesByNodeId.get("hauptbahnhof")?.length, 2);
 });
 
+test("a place with a corridor along its platforms crosses at the stop, on its own side", () => {
+  const at = (code: string, latitude: number, longitude: number) =>
+    call("karlstor", "7000061", code, { latitude, longitude });
+  const reading = buildZentrumSchematicReading([
+    departure("4", [
+      call("europaplatz", "7000037"),
+      at("3", 49.005184, 8.394622),
+      call("mathystrasse", "7000062"),
+    ]),
+    departure("4", [
+      call("mathystrasse", "7000062"),
+      at("4", 49.004423, 8.394514),
+      call("europaplatz", "7000037"),
+    ]),
+    departure("5", [
+      call("ettlinger-tor", "7000071"),
+      at("1", 49.005502, 8.395421),
+      call("europaplatz", "7000037"),
+    ]),
+    departure("5", [
+      call("europaplatz", "7000037"),
+      at("2", 49.005467, 8.395951),
+      call("ettlinger-tor", "7000071"),
+    ]),
+  ]);
+
+  assert.ok([...reading.nodesById.values()].every((node) => node.stopId !== "karlstor"));
+  const karlstor = reading.nodesById.get("karlstor")!;
+  // Platforms 3 and 4 run north–south, south of 1 and 2: across the line to Mathystraße.
+  assert.ok(
+    markAt(reading, "karlstor").capsules.some(
+      (capsule) => capsule.from.y === capsule.to.y && getCentre(capsule).y > karlstor.y,
+    ),
+  );
+});
+
 /** A platform seen a handful of times is a diversion or layover, not a place. */
 test("leaves a barely used platform out of a stop's places", () => {
   const along = [
@@ -587,6 +623,51 @@ test("sets every name that fits inside the plan, clear of bands, capsules and ot
       const clash = placed.find((other) => isOverlapping(outline, other.outline));
       assert.equal(clash, undefined, `${nodeId} is set on ${clash?.nodeId} at ${planWidth}px`);
       placed.push({ nodeId, outline });
+    }
+  }
+});
+
+test("the eastern extension has one name per complex and links its two Tullastraße places", () => {
+  const samples: { lineId: string; tripCalls: TripCall[] }[] = JSON.parse(
+    readFileSync(new URL("./support/zentrum-stop-platforms.json", import.meta.url), "utf8"),
+  );
+  const runs = samples.map((sample, index) =>
+    createDeparture({ id: `sample-${index}`, ...sample }),
+  );
+  const reading = buildZentrumSchematicReading([...liveTrips, ...runs], 1450);
+  const labels = placeZentrumSchematicLabels(
+    reading.edges,
+    reading.stopMarks,
+    reading.trackWidth,
+    1450,
+  );
+  for (const id of ["tullastrasse", "wolfartsweierer-strasse", "schloss-gottesaue"])
+    assert.ok(labels.get(id)?.fits, id);
+  const marks = reading.stopMarks.filter((mark) => mark.nodeId.startsWith("tullastrasse"));
+  assert.equal(marks.length, 2);
+  assert.ok(marks.some((mark) => mark.links.length > 0));
+  assert.equal(
+    reading.stopMarks.find((mark) => mark.nodeId === "schloss-gottesaue")?.capsules.length,
+    1,
+  );
+});
+
+test("every capsule and link runs one of the plan's eight ways", () => {
+  // The eastern samples bend at Wolfartsweierer Straße by 45 degrees.
+  const samples: { lineId: string; tripCalls: TripCall[] }[] = JSON.parse(
+    readFileSync(new URL("./support/zentrum-stop-platforms.json", import.meta.url), "utf8"),
+  );
+  const reading = buildZentrumSchematicReading(
+    [
+      ...liveTrips,
+      ...samples.map((sample, index) => createDeparture({ id: `bend-${index}`, ...sample })),
+    ],
+    1450,
+  );
+  for (const mark of reading.stopMarks) {
+    for (const { from, to } of [...mark.capsules, ...mark.links]) {
+      const angle = (Math.atan2(to.y - from.y, to.x - from.x) * 4) / Math.PI;
+      assert.ok(Math.abs(angle - Math.round(angle)) < 1e-6, mark.nodeId);
     }
   }
 });

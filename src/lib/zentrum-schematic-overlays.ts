@@ -10,10 +10,11 @@ import {
   getDirectTravelTimes,
   type TravelMeasure,
 } from "./direct-travel-times";
+import { createSchematicBoardingReading } from "./schematic-boarding-places";
 import { compareLineIds } from "./line-families";
 import { isSameRun } from "./trips";
 import type { ZentrumSchematicVehicle } from "./zentrum-schematic";
-import { findZentrumSchematicNodeId, getEdgeKey, isRailDeparture } from "./zentrum-schematic-plan";
+import { getZentrumSchematicStopId, getEdgeKey, isRailDeparture } from "./zentrum-schematic-plan";
 
 /** A stretch of a mark's path, lit from the mark to `end`. */
 export type ZentrumSchematicLitStretch = {
@@ -125,7 +126,10 @@ function getZentrumStopApproaches(
     // A moving tram has left the stop its link starts at.
     const firstIndex = vehicle.progress === 0 ? 0 : 1;
     const index = aheadStops.findIndex(
-      (stop, at) => at >= firstIndex && stop.nodeId === nodeId && stop.departsAt !== undefined,
+      (stop, at) =>
+        at >= firstIndex &&
+        getZentrumSchematicStopId(stop.nodeId) === getZentrumSchematicStopId(nodeId) &&
+        stop.departsAt !== undefined,
     );
     if (index < 0) continue;
     const stop = aheadStops[index];
@@ -237,24 +241,36 @@ export function getZentrumTravelTimes(
   travelTimesByNodeId: ReadonlyMap<string, ZentrumTravelTime>;
   overlay: ZentrumSchematicOverlay;
 } {
-  const times = getDirectTravelTimes(
-    departures.filter(isRailDeparture),
-    nodeId,
-    feedNow,
-    measure,
-    findZentrumSchematicNodeId,
+  const railRuns = departures.filter(isRailDeparture);
+  const { resolveNodeId } = createSchematicBoardingReading(railRuns);
+  const times = getDirectTravelTimes(railRuns, nodeId, feedNow, measure, (call) =>
+    call.localStopId === nodeId ? nodeId : resolveNodeId(call),
   );
+  const chosen = new Map<string, DirectRideTime>();
+  for (const [id, time] of times) {
+    const stopId = getZentrumSchematicStopId(id);
+    const best = chosen.get(stopId);
+    const cost = (ride: typeof time) =>
+      measure === "ride" ? ride.arrivesAt - ride.departsAt : ride.arrivesAt;
+    if (
+      !best ||
+      cost(time) < cost(best) ||
+      (cost(time) === cost(best) && time.arrivesAt < best.arrivesAt)
+    )
+      chosen.set(stopId, time);
+  }
   const corridorIdsByLineId = new Map<string, Set<string>>();
-  for (const { lineId, stopIds } of times.values()) {
+  for (const { lineId, stopIds, boardingCall } of chosen.values()) {
+    const physicalStopIds = [resolveNodeId(boardingCall) ?? stopIds[0], ...stopIds.slice(1)];
     lightCorridors(
       corridorIdsByLineId,
       lineId,
-      stopIds.slice(1).map((stopId, index) => getEdgeKey(stopIds[index], stopId)),
+      physicalStopIds.slice(1).map((stopId, index) => getEdgeKey(physicalStopIds[index], stopId)),
     );
   }
   return {
     travelTimesByNodeId: new Map(
-      [...times].map(
+      [...chosen].map(
         ([id, { arrivesAt, departsAt, lineId, departure, boardingCall, arrivalCall }]) => [
           id,
           { arrivesAt, departsAt, lineId, departure, boardingCall, arrivalCall },

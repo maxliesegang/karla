@@ -1,6 +1,9 @@
 import { getTripCallTimeReading } from "../../lib/departure-presentation";
 import type { ZentrumSchematicVehicle } from "../../lib/zentrum-schematic";
-import { zentrumSchematicNodeById } from "../../lib/zentrum-schematic-plan";
+import {
+  getZentrumSchematicStopId,
+  zentrumSchematicNodeById,
+} from "../../lib/zentrum-schematic-plan";
 import { getDepartureAddressId, routePaths } from "../../routing";
 import { DepartureTime } from "../DepartureTime";
 import { LineBadge } from "../LineBadge";
@@ -65,7 +68,8 @@ export function ZentrumVehicleDetail({
             return (
               <li key={`${stop.nodeId}:${stop.departsAt ?? ""}`}>
                 <span>
-                  {zentrumSchematicNodeById.get(stop.nodeId)?.label ?? stop.call.stopName}
+                  {zentrumSchematicNodeById.get(getZentrumSchematicStopId(stop.nodeId))?.label ??
+                    stop.call.stopName}
                 </span>
                 {reading && <DepartureTime reading={reading} />}
               </li>

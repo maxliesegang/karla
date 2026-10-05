@@ -66,6 +66,27 @@ feed's `countdown` is a difference of whole minutes.
 | `XML_GEOOBJECT_REQUEST` | Line geometry | Available, not used |
 | `https://projekte.kvv-efa.de/json` | Nominal live vehicle positions | HTTP 400; do not use |
 
+### Arrival discovery and platform coordinates (5 October 2026)
+
+`itdDateTimeDepArr=arr` answers a separate `arrivalList`, with the same run locator fields as
+`departureList`. The row's `dateTime` describes arrival; it does not establish a departure.
+KARLA uses these rows internally to discover runs ending within a map area.
+
+DM rows provide WGS84 platform coordinates as `x` (longitude) and `y` (latitude).
+At `7000007` (Tullastraße/Alter Schlachthof), Gleise 3 and 4 were north of 1a/2a/1b/2b.
+S2 called at 3 and 4, and line 5 at 3. A platform code or line name alone does not locate a
+boarding place; use the call's coordinates.
+
+The regular Tullastraße board (`7000007`) returned all six Gleise: 1a/2a/1b/2b and 3/4.
+The distinct E21/22/E43/44 stop IDs (`7009021`, `7009022`, `7009043`, `7009044`) returned empty
+boards in this read; they are not established aliases. In the saved GTFS snapshot, the six regular
+platforms share parent `Pde:08212:7`.
+
+Schloss Gottesaue (`7000624`) returned Gleise 1 and 2, about 75 metres apart along the same
+Wolfartsweierer Straße–Tullastraße corridor. Both share parent `Pde:08212:624` in that snapshot.
+Opposite platforms can stand far apart. Use an observed pair of neighboring calls as evidence that
+they serve the same corridor; aggregate neighbor sets alone can join different branches.
+
 ## Departure monitor: `XSLT_DM_REQUEST`
 
 ```text

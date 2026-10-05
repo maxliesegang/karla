@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { zentrumSchematicNodeById } from "../../lib/zentrum-schematic-plan";
+import {
+  getZentrumSchematicStopId,
+  zentrumSchematicNodeById,
+} from "../../lib/zentrum-schematic-plan";
 
 export function ZentrumStopSearch({
   lineIdsByNodeId,
@@ -40,7 +43,7 @@ export function ZentrumStopSearch({
   }, [isOpen]);
   const sortedStops = useMemo(
     () =>
-      [...lineIdsByNodeId.keys()]
+      [...new Set([...lineIdsByNodeId.keys()].map(getZentrumSchematicStopId))]
         .flatMap((id) => {
           const node = zentrumSchematicNodeById.get(id);
           return node ? [node] : [];

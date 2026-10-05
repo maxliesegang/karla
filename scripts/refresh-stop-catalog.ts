@@ -4,7 +4,8 @@
  *   position and locality (which GTFS lacks).
  * - KVV's CC0 GTFS feed: lines and calls per stop, for the whole municipality in one download.
  * Joined on the global id, not on the provider id's shape. Also writes
- * `src/data/generated/kvv-line-days.ts`: the rail and tram lines that do not run every day.
+ * `src/data/generated/kvv-line-days.ts`: the rail and tram lines that do not run every day, and
+ * `src/data/generated/kvv-platform-runs.ts`: which way each rail platform runs.
  *
  *     npm run refresh:stops
  *
@@ -17,11 +18,16 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
+import { type PlatformRun, getTravelAxis, measurePlatformRun } from "../src/lib/platform-runs.ts";
 
 const STOP_LIST_ENDPOINT = "https://projekte.kvv-efa.de/sl3-alone/XML_STOPLIST_REQUEST";
 const GTFS_ARCHIVE_URL = "https://projekte.kvv-efa.de/GTFS/google_transit.zip";
 const OUTPUT_PATH = new URL("../src/data/generated/kvv-stop-catalog.ts", import.meta.url);
 const LINE_DAYS_OUTPUT_PATH = new URL("../src/data/generated/kvv-line-days.ts", import.meta.url);
+const PLATFORM_RUNS_OUTPUT_PATH = new URL(
+  "../src/data/generated/kvv-platform-runs.ts",
+  import.meta.url,
+);
 /** GTFS `route_type`s of trams, metros and rail: the lines the maps draw. */
 const RAIL_ROUTE_TYPES = new Set(["0", "1", "2"]);
 /** A line runs on a weekday when it runs on at least this share of that weekday's dates. */
@@ -55,8 +61,16 @@ async function main(): Promise<void> {
     const feedVersion = await downloadGtfsArchive(archivePath);
     console.log(`GTFS: feed version ${feedVersion}`);
 
-    const { lineByTripId, serviceIdsByRailLine } = await readLinesByTrip(archivePath);
+    const { lineByTripId, serviceIdsByRailLine, railTripIds } = await readLinesByTrip(archivePath);
     console.log(`GTFS: ${lineByTripId.size} trips`);
+
+    const platformRuns = await readPlatformRuns(
+      archivePath,
+      railTripIds,
+      new Map(stops.map(({ globalId, providerStopId }) => [globalId, providerStopId])),
+    );
+    await writeFile(PLATFORM_RUNS_OUTPUT_PATH, renderPlatformRunsModule(platformRuns, feedVersion));
+    console.log(`GTFS: runs read for ${platformRuns.size} rail platforms`);
 
     const nonDailyLineIds = await readNonDailyLines(archivePath, serviceIdsByRailLine);
     await writeFile(LINE_DAYS_OUTPUT_PATH, renderLineDaysModule(nonDailyLineIds, feedVersion));
@@ -159,6 +173,7 @@ async function downloadGtfsArchive(archivePath: string): Promise<string> {
 async function readLinesByTrip(archivePath: string): Promise<{
   lineByTripId: Map<string, string>;
   serviceIdsByRailLine: Map<string, Set<string>>;
+  railTripIds: Set<string>;
 }> {
   const nameByRouteId = new Map<string, string>();
   const railRouteIds = new Set<string>();
@@ -170,16 +185,139 @@ async function readLinesByTrip(archivePath: string): Promise<{
 
   const lineByTripId = new Map<string, string>();
   const serviceIdsByRailLine = new Map<string, Set<string>>();
+  const railTripIds = new Set<string>();
   for await (const [routeId = "", serviceId, tripId] of columnsOf(archivePath, "trips.txt", 3)) {
     const name = nameByRouteId.get(routeId);
     if (!tripId || !name) continue;
     lineByTripId.set(tripId, name);
     if (!railRouteIds.has(routeId) || !serviceId) continue;
+    railTripIds.add(tripId);
     const services = serviceIdsByRailLine.get(name) ?? new Set<string>();
     services.add(serviceId);
     serviceIdsByRailLine.set(name, services);
   }
-  return { lineByTripId, serviceIdsByRailLine };
+  return { lineByTripId, serviceIdsByRailLine, railTripIds };
+}
+
+/** A rail platform of the municipality, and what its trips state about it. */
+type GtfsPlatform = {
+  station: string;
+  code: string;
+  latitude: number;
+  longitude: number;
+  /** Each trip's neighbouring stations, as an unordered pair. */
+  routePairs: Set<string>;
+  travel: { x: number; y: number };
+};
+
+/**
+ * Which way each rail platform runs, by `providerStopId|platformCode`: along it and the platforms
+ * of its station that serve the same through route, else along its trips. Every direction runs in
+ * the timetable, so a pair is measured that a live reading may see only half of.
+ */
+async function readPlatformRuns(
+  archivePath: string,
+  railTripIds: ReadonlySet<string>,
+  providerStopIdByGlobalId: ReadonlyMap<string, string>,
+): Promise<Map<string, PlatformRun>> {
+  const positionByStopId = new Map<string, { latitude: number; longitude: number }>();
+  const stationByStopId = new Map<string, string>();
+  const platformByStopId = new Map<string, GtfsPlatform>();
+  for await (const [stopId, , latitude, longitude, , , , parent, , code] of columnsOf(
+    archivePath,
+    "stops.txt",
+    10,
+  )) {
+    if (!stopId || !latitude || !longitude) continue;
+    const position = { latitude: Number(latitude), longitude: Number(longitude) };
+    positionByStopId.set(stopId, position);
+    stationByStopId.set(stopId, parent || stopId);
+    if (!code || !parent?.startsWith(`P${GLOBAL_ID_PREFIX}`)) continue;
+    platformByStopId.set(stopId, {
+      station: parent.slice(1),
+      code,
+      ...position,
+      routePairs: new Set(),
+      travel: { x: 0, y: 0 },
+    });
+  }
+
+  const readTrip = (calls: { sequence: number; stopId: string }[]) => {
+    calls.sort((left, right) => left.sequence - right.sequence);
+    for (let index = 1; index < calls.length - 1; index += 1) {
+      const platform = platformByStopId.get(calls[index].stopId);
+      const previous = calls[index - 1].stopId;
+      const next = calls[index + 1].stopId;
+      if (!platform) continue;
+      const stations = [previous, next].map((stopId) => stationByStopId.get(stopId) ?? stopId);
+      platform.routePairs.add(stations.sort().join("|"));
+      const [from, to] = [positionByStopId.get(previous), positionByStopId.get(next)];
+      if (!from || !to) continue;
+      const axis = getTravelAxis(from, to);
+      platform.travel.x += axis.x;
+      platform.travel.y += axis.y;
+    }
+  };
+  // Rows come grouped by trip.
+  let tripId: string | undefined;
+  let calls: { sequence: number; stopId: string }[] = [];
+  for await (const [rowTripId, , , stopId, sequence] of columnsOf(
+    archivePath,
+    "stop_times.txt",
+    5,
+  )) {
+    if (rowTripId !== tripId) {
+      readTrip(calls);
+      tripId = rowTripId;
+      calls = [];
+    }
+    if (rowTripId && stopId && railTripIds.has(rowTripId)) {
+      calls.push({ sequence: Number(sequence), stopId });
+    }
+  }
+  readTrip(calls);
+
+  const platforms = [...platformByStopId.values()].filter(({ routePairs }) => routePairs.size > 0);
+  const runs = new Map<string, PlatformRun>();
+  for (const platform of platforms) {
+    const providerStopId = providerStopIdByGlobalId.get(platform.station);
+    if (!providerStopId) continue;
+    const partners = platforms.filter(
+      (other) =>
+        other.station === platform.station &&
+        [...other.routePairs].some((pair) => platform.routePairs.has(pair)),
+    );
+    const travel = partners.reduce(
+      (sum, { travel: axis }) => ({ x: sum.x + axis.x, y: sum.y + axis.y }),
+      { x: 0, y: 0 },
+    );
+    const run = measurePlatformRun(partners, travel);
+    if (run) runs.set(`${providerStopId}|${platform.code}`, run);
+  }
+  return runs;
+}
+
+function renderPlatformRunsModule(
+  runs: ReadonlyMap<string, PlatformRun>,
+  feedVersion: string,
+): string {
+  const rows = [...runs]
+    .sort(([left], [right]) => left.localeCompare(right, "en", { numeric: true }))
+    .map(([key, run]) => `  [${JSON.stringify(key)}, ${JSON.stringify(run)}],`)
+    .join("\n");
+  return `// Generated by scripts/refresh-stop-catalog.ts — do not edit by hand.
+//
+// KVV GTFS feed version ${feedVersion} (CC0), https://projekte.kvv-efa.de/GTFS/google_transit.zip
+//
+// Refresh with: npm run refresh:stops
+
+import type { PlatformRun } from "../../lib/platform-runs";
+
+/** Which way each rail platform runs, by \`providerStopPointId|platformCode\`. */
+export const kvvPlatformRunByKey: ReadonlyMap<string, PlatformRun> = new Map<string, PlatformRun>([
+${rows}
+]);
+`;
 }
 
 const DAY_MS = 86_400_000;

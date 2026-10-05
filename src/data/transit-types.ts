@@ -169,7 +169,7 @@ type DepartureBoardReading = {
 };
 
 /** A line-direction a stop states: the provider's opaque id, with the line's name where known. */
-export type ServingLine = { lineId?: string; directionId: string };
+export type ServingLine = { lineId?: string; directionId: string; transportMode?: TransportMode };
 
 /** One stop's board plus the provenance the views have to disclose. */
 export type DepartureBoard = DepartureBoardReading &
@@ -255,4 +255,16 @@ export type DepartureBoardRequest = {
    * minutes ahead instead of every line for twenty.
    */
   routeDirectionIds?: readonly string[];
+};
+
+/** Stops and event directions used to discover runs, independently of passenger boards. */
+export type RunDiscoveryPost = {
+  stopId: string;
+  eventKind: "departure" | "arrival";
+};
+
+export type RunDiscoveryReading = {
+  runDepartures: readonly Departure[];
+  clockBoard: DepartureBoard | null;
+  failedStopIds: readonly string[];
 };

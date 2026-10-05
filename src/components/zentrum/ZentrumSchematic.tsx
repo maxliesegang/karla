@@ -1,3 +1,4 @@
+import { getZentrumSchematicStopId } from "../../lib/zentrum-schematic-plan";
 import { type CSSProperties, useCallback, useEffect, useMemo, useState } from "react";
 import type { Departure, DepartureBoard } from "../../data/transit-types";
 import { useStoredPreference } from "../../hooks/stored-preference";
@@ -185,7 +186,8 @@ export function ZentrumSchematic({
     (stopId: string | undefined) => {
       setDetailSelection(undefined);
       setPanelEntranceMotion("slide");
-      onSelectStop(stopId === selectedStopId ? undefined : stopId);
+      const address = stopId === undefined ? undefined : getZentrumSchematicStopId(stopId);
+      onSelectStop(address === selectedStopId ? undefined : address);
     },
     [onSelectStop, selectedStopId],
   );

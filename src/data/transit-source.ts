@@ -12,6 +12,8 @@ import type {
   ServiceNoticeBoard,
   TransitStop,
   TransitNetwork,
+  RunDiscoveryPost,
+  RunDiscoveryReading,
 } from "./transit-types";
 import { RunReadingStore } from "./run-reading-store";
 import {
@@ -42,12 +44,22 @@ export type LineDepartureBoardsRequest = {
    */
   runMaxAgeMs?: number;
 };
+export type RunDiscoveryRequest = {
+  maxAgeMs: number;
+  runMaxAgeMs: number;
+  topologyMaxAgeMs: number;
+  horizonMs: number;
+};
 export { createDepartureId };
 
 /**
  * The boundary the views talk to. Nothing above it knows about EFA, provider ids or HTTP.
  */
 export interface TransitSource {
+  getRunDiscoveryReading(
+    posts: readonly RunDiscoveryPost[],
+    options: RunDiscoveryRequest,
+  ): Promise<RunDiscoveryReading>;
   /** Stops and lines: the local identities views address. */
   getNetwork(): TransitNetwork;
   /** Resolves both local core-network stops and any stop exposed by the KVV network. */
@@ -153,6 +165,128 @@ export class KvvTransitSource implements TransitSource {
     return this.network;
   }
 
+  async getRunDiscoveryReading(
+    posts: readonly RunDiscoveryPost[],
+    { maxAgeMs, runMaxAgeMs, topologyMaxAgeMs, horizonMs }: RunDiscoveryRequest,
+  ): Promise<RunDiscoveryReading> {
+    const bases = await Promise.all(
+      posts.map((post) => this.getDiscoveryEventBoard(post, topologyMaxAgeMs)),
+    );
+    const railLines = new Set(
+      bases.flatMap((board) => [
+        ...(board.servingLines ?? []).flatMap(({ lineId, transportMode }) =>
+          lineId && (transportMode === "tram" || transportMode === "lightRail") ? [lineId] : [],
+        ),
+        ...board.departures
+          .filter(({ transportMode }) => transportMode === "tram" || transportMode === "lightRail")
+          .map(({ lineId }) => lineId),
+      ]),
+    );
+    const boards = (
+      await Promise.all(
+        bases.map((base, index) =>
+          this.getDiscoveryBoards(posts[index], base, railLines, { maxAgeMs, horizonMs }),
+        ),
+      )
+    ).flat();
+    const rows = boards.flatMap((board) => board.departures);
+    const rowsByRun = new Map<string, Departure>();
+    for (const row of rows) {
+      const key = this.runReadings.findRunRecordKey(row.id);
+      const known = rowsByRun.get(key);
+      if (!known || isBetterRunReading(row, known)) rowsByRun.set(key, row);
+    }
+    await Promise.all(
+      [...rowsByRun.values()]
+        .filter(
+          (row) => railLines.has(row.lineId) && row.minutesUntilDeparture <= RUN_UNDER_WAY_MINUTES,
+        )
+        .map((row) => this.getRun(row.id, runMaxAgeMs)),
+    );
+    return {
+      runDepartures: [...rowsByRun.values()].flatMap((row) => {
+        const run = this.findRun(row.id);
+        return run?.tripCalls?.length && railLines.has(run.lineId) ? [run] : [];
+      }),
+      clockBoard: boards
+        .filter((board) => board.dataStatus === "live")
+        .reduce<DepartureBoard | null>(
+          (latest, board) => (!latest || board.receivedAt > latest.receivedAt ? board : latest),
+          null,
+        ),
+      failedStopIds: [
+        ...new Set(
+          boards
+            .filter((board) => board.dataStatus !== "live" || board.refreshFailedAt)
+            .map(({ stopId }) => stopId),
+        ),
+      ],
+    };
+  }
+
+  private async getDiscoveryBoards(
+    post: RunDiscoveryPost,
+    base: DepartureBoard,
+    railLines: ReadonlySet<string>,
+    { maxAgeMs, horizonMs }: Pick<RunDiscoveryRequest, "maxAgeMs" | "horizonMs">,
+  ): Promise<DepartureBoard[]> {
+    const directions = [
+      ...new Set([
+        ...(base.servingLines ?? [])
+          .filter(({ lineId }) => lineId && railLines.has(lineId))
+          .map(({ directionId }) => directionId),
+        ...base.departures
+          .filter(({ lineId }) => railLines.has(lineId))
+          .flatMap(({ routeDirectionId }) => (routeDirectionId ? [routeDirectionId] : [])),
+      ]),
+    ];
+    if (directions.length === 0) return [base];
+    const filtered = await this.getDiscoveryEventBoard(post, maxAgeMs, directions);
+    if (filtered.dataStatus !== "live") return [filtered, base];
+    const horizon = Date.parse(filtered.feedUpdatedAt) + horizonMs;
+    const limit =
+      kvvStopMappingByLocalStopId[base.stopId]?.departureLimit ?? DEFAULT_DEPARTURE_LIMIT;
+    let sparse: string[] = [];
+    if (filtered.departures.length >= limit && directions.length > 1) {
+      const covered = new Set(
+        filtered.departures
+          .filter(
+            (row) =>
+              Date.parse(row.predictedDepartureTime ?? row.scheduledDepartureTime) >= horizon,
+          )
+          .map(({ routeDirectionId }) => routeDirectionId),
+      );
+      sparse = directions.filter((direction) => !covered.has(direction));
+    }
+    const supplements = await Promise.all(
+      sparse.map((direction) => this.getDiscoveryEventBoard(post, maxAgeMs, [direction])),
+    );
+    return [filtered, ...supplements];
+  }
+
+  private getDiscoveryEventBoard(
+    post: RunDiscoveryPost,
+    maxAgeMs: number,
+    directionIds?: readonly string[],
+  ): Promise<DepartureBoard> {
+    if (post.eventKind === "departure") {
+      return this.getDepartureBoard(post.stopId, { maxAgeMs, routeDirectionIds: directionIds });
+    }
+    const key = `arrival:${this.getDepartureBoardCacheKey(
+      post.stopId,
+      false,
+      undefined,
+      directionIds?.length ? createSortedKey(directionIds) : undefined,
+    )}`;
+    const cached = this.departureBoardCache.get(key);
+    if (cached && Date.now() - cached.receivedAt < maxAgeMs)
+      return Promise.resolve(this.publishBoard(cached));
+    return this.boardRequests.share(key, async () => {
+      const board = await this.fetchDepartureBoard(post.stopId, false, directionIds, "arrival");
+      return this.retainAndPublishBoard(key, board);
+    });
+  }
+
   getKnownStop(stopId: string): TransitStop | undefined {
     return this.stops.findStop(stopId);
   }
@@ -249,19 +383,7 @@ export class KvvTransitSource implements TransitSource {
       (coverage
         ? this.fetchDirectionCoveredBoard(stopId, request.maxAgeMs, coverage)
         : this.fetchDepartureBoard(stopId, includeTripCalls, request.routeDirectionIds)
-      ).then((fetched) => {
-        // Only live boards are cached.
-        if (fetched.dataStatus === "live") {
-          this.departureBoardCache.set(cacheKey, fetched);
-          return this.publishBoard(fetched);
-        }
-        // A failed refresh keeps the last board, stamped with the failure, until it is too old.
-        const lastLive = this.departureBoardCache.get(cacheKey);
-        return lastLive?.dataStatus === "live" &&
-          fetched.receivedAt - lastLive.receivedAt <= RETAINED_DEPARTURE_BOARD_LIMIT_MS
-          ? this.publishBoard({ ...lastLive, refreshFailedAt: fetched.receivedAt })
-          : fetched;
-      }),
+      ).then((fetched) => this.retainAndPublishBoard(cacheKey, fetched)),
     );
   }
 
@@ -430,6 +552,7 @@ export class KvvTransitSource implements TransitSource {
     stopId: string,
     includeTripCalls: boolean,
     lineIds?: readonly string[],
+    eventKind: "departure" | "arrival" = "departure",
   ): Promise<DepartureBoard> {
     const providerId = this.stops.findProviderStopId(stopId);
     if (!providerId)
@@ -443,12 +566,13 @@ export class KvvTransitSource implements TransitSource {
         includeTripCalls,
         limit: kvvStopMappingByLocalStopId[stopId]?.departureLimit ?? DEFAULT_DEPARTURE_LIMIT,
         ...(lineIds?.length ? { lineIds } : {}),
+        ...(eventKind === "arrival" ? { eventKind } : {}),
       });
       const receivedAt = Date.now();
       // A filtered board saw only its lines, so it is never recorded as the stop's serving
       // directions.
       const isWholeStop = !lineIds?.length;
-      if (isWholeStop) {
+      if (isWholeStop && eventKind === "departure") {
         this.coverage.rememberServingDirections(
           stopId,
           board.servingLines.map(({ directionId }) => directionId),
@@ -463,7 +587,9 @@ export class KvvTransitSource implements TransitSource {
         // Published in expected-departure order, not the feed's schedule order.
         departures: sortDeparturesByExpectedInstant(
           keepOneRowPerRun(
-            board.departures.map((departure) => this.toDeparture(departure, stopId, receivedAt)),
+            board.departures.map((departure) =>
+              this.toDeparture(departure, stopId, receivedAt, eventKind),
+            ),
           ),
           Date.parse(board.serverTime) || undefined,
         ),
@@ -534,6 +660,18 @@ export class KvvTransitSource implements TransitSource {
       : { ...board, departures };
   }
 
+  private retainAndPublishBoard(cacheKey: string, fetched: DepartureBoard): DepartureBoard {
+    if (fetched.dataStatus === "live") {
+      this.departureBoardCache.set(cacheKey, fetched);
+      return this.publishBoard(fetched);
+    }
+    const lastLive = this.departureBoardCache.get(cacheKey);
+    return lastLive?.dataStatus === "live" &&
+      fetched.receivedAt - lastLive.receivedAt <= RETAINED_DEPARTURE_BOARD_LIMIT_MS
+      ? this.publishBoard({ ...lastLive, refreshFailedAt: fetched.receivedAt })
+      : fetched;
+  }
+
   /** Every board is resolved through the store and teaches session topology on its way out. */
   private publishBoard(board: DepartureBoard): DepartureBoard {
     const published = this.resolveBoard(board);
@@ -541,11 +679,17 @@ export class KvvTransitSource implements TransitSource {
     return published;
   }
 
-  private toDeparture(departure: KvvDeparture, stopId: string, receivedAt: number): Departure {
+  private toDeparture(
+    departure: KvvDeparture,
+    stopId: string,
+    receivedAt: number,
+    eventKind: "departure" | "arrival" = "departure",
+  ): Departure {
     // A board can cover several stop points; each row keeps the one it leaves from, so it can match
     // its own call in the sequence.
     const departureStopId = this.stops.findLocalStopId(departure.stopPointId) ?? stopId;
-    const id = createDepartureId(departure, departureStopId);
+    const rowId = createDepartureId(departure, departureStopId);
+    const id = eventKind === "arrival" ? `arrival:${rowId}` : rowId;
     const tripCalls = departure.tripCalls && this.stops.toTripCalls(departure.tripCalls);
     const mapped: Departure = {
       id,

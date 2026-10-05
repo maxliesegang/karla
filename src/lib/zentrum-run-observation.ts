@@ -1,5 +1,4 @@
 import type { Departure, DepartureBoard } from "../data/transit-types";
-import { ZENTRUM_OBSERVATION_POST_STOP_IDS } from "./observed-network";
 import { getDistinctRuns } from "./trips";
 import { isRailDeparture } from "./zentrum-schematic-plan";
 
@@ -14,8 +13,6 @@ export type ZentrumRunObservation = {
   clockBoard: DepartureBoard | null;
 };
 
-const ZENTRUM_POST_STOP_IDS: ReadonlySet<string> = new Set(ZENTRUM_OBSERVATION_POST_STOP_IDS);
-
 const isDrawableRun = (departure: Departure): boolean =>
   Boolean(departure.tripCalls?.length) && isRailDeparture(departure);
 
@@ -23,9 +20,7 @@ const isDrawableRun = (departure: Departure): boolean =>
 export function getZentrumRunObservation(
   departureBoards: readonly DepartureBoard[],
 ): ZentrumRunObservation {
-  const boards = departureBoards.filter(
-    (board) => board.dataStatus === "live" && ZENTRUM_POST_STOP_IDS.has(board.stopId),
-  );
+  const boards = departureBoards.filter((board) => board.dataStatus === "live");
   const runDepartures = getDistinctRuns(
     boards.flatMap((board) => board.departures).filter(isDrawableRun),
   );

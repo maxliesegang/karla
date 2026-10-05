@@ -100,7 +100,11 @@ export type KvvDepartureBoard = {
  * A line-direction a stop serves, paired with the line's name. Direction ids are opaque, so this
  * pairing is the only way to name a line with no departure on the board.
  */
-export type KvvServingLine = { lineId?: string; directionId: string };
+export type KvvServingLine = {
+  lineId?: string;
+  directionId: string;
+  transportMode?: TransportMode;
+};
 
 export type KvvStopSearchResult = {
   providerId: string;
@@ -161,6 +165,7 @@ export function parseStopSearchResponse(payload: unknown): KvvStopSearchResult[]
 export function parseDepartureBoardResponse(
   payload: unknown,
   stopPointId: string,
+  eventKind: "departure" | "arrival" = "departure",
 ): KvvDepartureBoard {
   if (!isRecord(payload))
     throw new KvvEfaError(`Abfahrtstafel ${stopPointId}: unerwartete Antwort`);
@@ -171,7 +176,9 @@ export function parseDepartureBoardResponse(
     isRecord(stopPoint) && typeof stopPoint.name === "string"
       ? removeMunicipalityPrefix(stopPoint.name)
       : "";
-  const departureEntries = Array.isArray(payload.departureList) ? payload.departureList : [];
+  const departureEntries = readRecordList(
+    eventKind === "arrival" ? payload.arrivalList : payload.departureList,
+  );
   const servingLines = isRecord(payload.servingLines)
     ? readRecordList(payload.servingLines.lines)
     : [];
@@ -183,7 +190,7 @@ export function parseDepartureBoardResponse(
     servingLines: parseServingLines(servingLines),
     departures: departureEntries
       .filter(isRecord)
-      .map(parseDeparture)
+      .map((entry) => parseDeparture(entry, eventKind))
       .filter((entry): entry is KvvDeparture => entry !== null),
   };
 }
@@ -266,12 +273,19 @@ function parseServingLines(lines: readonly Record<string, unknown>[]): KvvServin
       byDirectionId.has(directionId)
     )
       continue;
-    byDirectionId.set(directionId, lineId ? { lineId, directionId } : { directionId });
+    byDirectionId.set(directionId, {
+      ...(lineId ? { lineId } : {}),
+      directionId,
+      ...(mode?.type ? { transportMode: parseTransportMode(readOptionalString(mode.type)) } : {}),
+    });
   }
   return [...byDirectionId.values()];
 }
 
-function parseDeparture(entry: Record<string, unknown>): KvvDeparture | null {
+function parseDeparture(
+  entry: Record<string, unknown>,
+  eventKind: "departure" | "arrival",
+): KvvDeparture | null {
   const servingLine = isRecord(entry.servingLine) ? entry.servingLine : null;
   const lineId = readOptionalString(servingLine?.symbol) ?? readOptionalString(servingLine?.number);
   const destination = readOptionalString(servingLine?.direction);
@@ -300,6 +314,15 @@ function parseDeparture(entry: Record<string, unknown>): KvvDeparture | null {
       delayMinutes,
     ),
   });
+  if (eventKind === "arrival") {
+    for (const call of tripCalls ?? []) {
+      if (!call.isCurrentStop) continue;
+      call.scheduledArrivalTime = call.scheduledDepartureTime;
+      call.scheduledDepartureTime = undefined;
+      call.arrivalDelayMinutes = call.delayMinutes;
+      call.delayMinutes = undefined;
+    }
+  }
 
   return {
     stopPointId: readOptionalString(entry.stopID) ?? "",
@@ -490,6 +513,7 @@ function parseTripCalls(
     // match on the code.
     platform: entry.platform,
     stopID: entry.stopID,
+    coords: `${entry.x},${entry.y}`,
   };
   return [
     ...previous.map((stop) => parseTripCall(stop, false)),
@@ -509,7 +533,7 @@ function parseTripCall(
   const fullName = readOptionalString(entry.name);
   const name = nameWithoutPlace ?? (fullName && removeMunicipalityPrefix(fullName));
   if (!name) return null;
-  const coordinates = parseCoordinates(ref?.coords);
+  const coordinates = parseCoordinates(ref?.coords ?? entry.coords);
   // A terminus carries a placeholder `depDelay: 0` with `depValid: 0`; its real deviation is on the
   // arrival.
   const hasArrival = readOptionalString(ref?.arrValid) !== "0";

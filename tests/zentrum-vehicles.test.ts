@@ -51,10 +51,9 @@ const board = (
     : { stopId, receivedAt, dataStatus, errorMessage: "unavailable", departures: rows };
 };
 
-test("reads the vehicles the Zentrum's own posts placed, and nothing else", () => {
+test("reads runs from every supplied live board, including an opened stop", () => {
   const observation = getZentrumRunObservation([
     board("europaplatz", 10, [departure("a")]),
-    // Not a post of the Zentrum: its rows are read by the boards, not by the plan.
     board("durlacher-tor", 10, [departure("b")]),
     // A post that could not be read states nothing about what is running.
     board("karlstor", 10, [departure("c")], "unavailable"),
@@ -62,7 +61,7 @@ test("reads the vehicles the Zentrum's own posts placed, and nothing else", () =
 
   assert.deepEqual(
     observation.runDepartures.map(({ id }) => id),
-    ["a"],
+    ["a", "b"],
   );
 });
 
