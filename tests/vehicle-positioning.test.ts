@@ -1,12 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { Departure, TripCall } from "../src/data/transit-types.ts";
-import {
-  getRunPlacement as getSmoothTripPlacement,
-  getRunTrajectoryProgress as getTripTrajectoryProgress,
-} from "../src/lib/vehicle-positioning.ts";
+import { getRunPlacement as getSmoothTripPlacement } from "../src/lib/vehicle-positioning.ts";
 import { createCall, run } from "./support/calls.ts";
-import { createRunMotions } from "../src/lib/vehicle-positioning.ts";
+import { createRunMotions, NEAR_STOP_RETURN_PROGRESS } from "../src/lib/vehicle-positioning.ts";
 import { createDeparture } from "./support/fixtures.ts";
 
 /** One drawing's motion record, shared across this file. */
@@ -44,36 +41,33 @@ const placementOnly = (placement: ReturnType<typeof getSmoothTripPlacement>) => 
   return position;
 };
 
-test("leaves at the published departure and reaches the next published arrival", () => {
+test("leaves just after the published departure and reaches the next published arrival", () => {
   const trip = departure("position-dwell", [call("a", 0), call("b", 2), call("c", 4)]);
 
-  const departing = getSmoothTripPlacement(motions, trip, start + 19_000);
+  // Away ten seconds after the minute, then evenly to B.
+  const standing = getSmoothTripPlacement(motions, trip, start + 5_000);
+  assert.equal(standing?.progress, 0);
+  const departing = getSmoothTripPlacement(motions, trip, start + 21_000);
   assert.ok(departing && departing.progress > 0.09 && departing.progress < 0.11);
 
-  const running = getSmoothTripPlacement(motions, trip, start + 95_000);
-  assert.ok(running && running.progress > 0.83 && running.progress < 0.87);
+  const running = getSmoothTripPlacement(motions, trip, start + 98_000);
+  assert.ok(running && running.progress > 0.79 && running.progress < 0.81);
   assert.equal(running?.trajectory?.arrivesAt, start + 2 * 60_000);
 });
 
-test("a revised arrival inherits the velocity already visible on the link", () => {
+test("a revised arrival bends the pace without moving the mark", () => {
   const original = departure("position-velocity", [call("a", 0), call("b", 2), call("c", 4)]);
   const delayed = departure("position-velocity", [call("a", 0), call("b", 2, 1), call("c", 4, 1)]);
-  const sampledAt = start + 60_000;
-  const before = getSmoothTripPlacement(motions, original, sampledAt);
-  const trajectory = before?.trajectory;
-  assert.ok(trajectory);
-  const previousVelocity =
-    (getTripTrajectoryProgress(trajectory, sampledAt + 1_000) -
-      getTripTrajectoryProgress(trajectory, sampledAt)) /
-    1_000;
+  const before = getSmoothTripPlacement(motions, original, start + 60_000);
+  const revised = getSmoothTripPlacement(motions, delayed, start + 61_000);
+  const later = getSmoothTripPlacement(motions, delayed, start + 91_000);
+  assert.ok(before && revised && later);
 
-  const revised = getSmoothTripPlacement(motions, delayed, sampledAt + 1_000);
-  assert.ok(revised?.trajectory);
-  assert.ok(revised.trajectory.startVelocity > 0);
-  assert.ok(
-    Math.abs(revised.trajectory.startVelocity - previousVelocity) < previousVelocity * 0.05,
-    "the new plan starts at the old plan's speed instead of restarting its acceleration",
-  );
+  assert.equal(revised.motion, "travelled");
+  assert.ok(revised.progress >= before.progress && revised.progress - before.progress < 0.02);
+  // Slower than the original thirty seconds' worth.
+  assert.ok(later.progress - revised.progress < 30 / 110);
+  assert.equal(later.trajectory?.arrivesAt, revised.trajectory?.arrivesAt);
 });
 
 test("does not traverse a duplicated first stop before leaving it", () => {
@@ -109,7 +103,7 @@ test("traverses two genuinely timed calls at the same stop as separate platforms
     call("b", 4),
   ]);
 
-  const crossing = getSmoothTripPlacement(motions, trip, start + 60_000);
+  const crossing = getSmoothTripPlacement(motions, trip, start + 65_000);
   assert.equal(crossing?.fromStopId, "a");
   assert.equal(crossing?.toStopId, "a");
   assert.ok(crossing && crossing.progress > 0.49 && crossing.progress < 0.51);
@@ -127,24 +121,54 @@ test("places a large forward correction instead of animating an unobserved journ
     call("a", 0),
     call("b", 2, -2),
     call("c", 4, -3),
-    call("d", 6, -4),
-    call("e", 8, -4),
+    call("d", 6, -5),
+    call("e", 8, -5),
   ]);
 
   const before = getSmoothTripPlacement(motions, original, start + 60_000);
   const after = getSmoothTripPlacement(motions, corrected, start + 61_000);
 
   assert.equal(before?.fromStopId, "a");
-  assert.equal(after?.fromStopId, "c");
+  assert.equal(after?.fromStopId, "d");
   assert.equal(after?.motion, "placed");
   assert.ok(before && after && getCallDistance(after) > getCallDistance(before));
   // Well past a link, so the drawing snaps it.
-  assert.ok(after && (after.placedAfterLinks ?? 0) > 1);
+  assert.ok(after && (after.placedAfterLinks ?? 0) > 2);
 });
 
-test("a placement that barely moved the mark is stated as one a drawing may correct", () => {
-  // Drawn a little down its first link; the re-read run says it has not left. The move back is a
-  // fraction of a link, a correction rather than a journey.
+test("a reading a link ahead is caught up by travelling, not placed", () => {
+  const tripId = "position-catch-up";
+  const before = getSmoothTripPlacement(
+    motions,
+    departure(tripId, [call("a", 0), call("b", 2), call("c", 4), call("d", 6)]),
+    start + 30_000,
+  );
+  // A minute early from B on: the reading stands at C while the mark is near A.
+  const early = departure(tripId, [
+    call("a", 0),
+    call("b", 2, -1),
+    call("c", 4, -2),
+    call("d", 6, -2),
+  ]);
+  const after = getSmoothTripPlacement(motions, early, start + 31_000);
+  assert.ok(before && after);
+  assert.equal(after.motion, "travelled");
+  assert.equal(after.fromStopId, "a");
+
+  let previous = getCallDistance(after);
+  for (let second = 32; second <= 120; second += 1) {
+    const shown = getSmoothTripPlacement(motions, early, start + second * 1_000);
+    assert.ok(shown && getCallDistance(shown) >= previous, `fell back at ${second}s`);
+    assert.equal(shown.motion, "travelled");
+    previous = getCallDistance(shown);
+  }
+  // Caught up within a minute and a half.
+  assert.ok(previous >= 1.99);
+});
+
+test("a mark that has left slows to reach the next stop when a later departure says", () => {
+  // Drawn well down its first link; the re-read run says it has not left. It neither backs into
+  // the stop nor stops mid-link: it goes on at an even, slower pace and reaches B on time.
   const calls = [call("a", 0), call("b", 2), call("c", 4)];
   const drawn = getSmoothTripPlacement(
     motions,
@@ -161,11 +185,54 @@ test("a placement that barely moved the mark is stated as one a drawing may corr
     call("b", 2, 2),
     call("c", 4, 2),
   ]);
-  const placed = getSmoothTripPlacement(motions, held, start + 31_000);
+  const slowed = getSmoothTripPlacement(motions, held, start + 31_000);
+  assert.ok(slowed && slowed.progress >= drawn.progress);
+  // Evenly: the remaining link spread over the time until B's revised arrival.
+  const pace = (1 - slowed.progress) / (240_000 - 31_000);
+  for (const second of [60, 120, 200]) {
+    const creeping = getSmoothTripPlacement(motions, held, start + second * 1_000);
+    assert.ok(creeping);
+    assert.equal(creeping.motion, "travelled");
+    assert.equal(creeping?.fromStopId, "a");
+    const onPace: number = slowed.progress + pace * (second * 1_000 - 31_000);
+    assert.ok(Math.abs(creeping.progress - onPace) < 0.01, `off pace at ${second}s`);
+  }
+  // At B as the reading arrives, and standing there until it leaves.
+  const atB = getSmoothTripPlacement(motions, held, start + 245_000);
+  assert.deepEqual([atB?.fromStopId, atB?.progress], ["b", 0]);
+});
 
-  assert.equal(placed?.motion, "placed");
-  assert.equal(placed?.fromStopId, "a");
-  assert.ok(placed && placed.placedAfterLinks !== undefined && placed.placedAfterLinks <= 1);
+test("a mark only edged out of a stop goes back to it when the departure is re-stated later", () => {
+  // Drawn just past A; the re-read run says it has not left. Waiting there would read as a tram
+  // stuck outside the stop, so the mark is put back, within a correctable distance.
+  const calls = [call("a", 0), call("b", 2), call("c", 4)];
+  const drawn = getSmoothTripPlacement(
+    motions,
+    departure("position-edged-out", calls),
+    start + 15_000,
+  );
+  assert.ok(drawn && drawn.fromStopId === "a" && drawn.progress > 0);
+  assert.ok(drawn.progress <= NEAR_STOP_RETURN_PROGRESS);
+
+  const held = departure("position-edged-out", [
+    { ...call("a", 0, 2), arrivalDelayMinutes: 0 },
+    call("b", 2, 2),
+    call("c", 4, 2),
+  ]);
+  const returned = getSmoothTripPlacement(motions, held, start + 16_000);
+  assert.equal(returned?.fromStopId, "a");
+  assert.equal(returned?.progress, 0);
+  assert.equal(returned?.motion, "placed");
+  assert.ok(
+    returned.placedAfterLinks !== undefined &&
+      returned.placedAfterLinks <= NEAR_STOP_RETURN_PROGRESS,
+  );
+
+  const standing = getSmoothTripPlacement(motions, held, start + 60_000);
+  assert.equal(standing?.progress, 0);
+  assert.equal(standing?.motion, "travelled");
+  const onward = getSmoothTripPlacement(motions, held, start + 170_000);
+  assert.ok(onward && onward.fromStopId === "a" && onward.progress > 0.05);
 });
 
 test("a backward revision re-times the link instead of moving the mark back", () => {
@@ -197,7 +264,7 @@ test("a backward revision re-times the link instead of moving the mark back", ()
   // Still short of B after the old reading would have had it there…
   assert.ok(waiting && waiting.progress < 1);
   // …arriving on the corrected clock.
-  assert.ok(arriving && arriving.progress > 0.95);
+  assert.ok(arriving && getCallDistance(arriving) > 0.95);
   assert.equal(arrived?.fromStopId, "b");
 });
 
@@ -211,7 +278,7 @@ test("a delay that keeps growing bends the pace instead of dragging the mark bac
     start + 95_000,
   );
   assert.ok(shown && shown.progress > 0.7);
-  let previous = shown.progress;
+  let previous = getCallDistance(shown);
   for (let minute = 1; minute <= 5; minute += 1) {
     const revised = departure(tripId, [
       { ...call("a", 0), delayMinutes: undefined },
@@ -221,15 +288,17 @@ test("a delay that keeps growing bends the pace instead of dragging the mark bac
     shown = getSmoothTripPlacement(motions, revised, start + 95_000 + minute * 30_000);
     assert.ok(shown);
     assert.equal(shown.motion, "travelled");
-    assert.ok(shown.progress >= previous);
-    previous = shown.progress;
+    assert.ok(getCallDistance(shown) >= previous);
+    previous = getCallDistance(shown);
   }
+  // Waiting at B, the stop its first reading had it reach.
+  assert.equal(previous, 1);
 });
 
-test("a lead built by a receding reading is given back by the tick, never by a fall", () => {
+test("a lead built by a receding reading is held, and given back only by a placement", () => {
   // A delay restated a minute later each refresh and carried back over earlier calls slides the
-  // reading under a standing mark. The mark gives ground back a tick at a time, never jumping back
-  // a visible part of a link and never placed.
+  // reading under the mark. The mark slows and waits at stops; only once the reading is links
+  // behind is it placed.
   const stops = ["a", "b", "c", "d", "e", "f", "g", "h"];
   // Eight calls a minute apart, six minutes under way, monitored from E on.
   const reading = (delayMinutes: number) =>
@@ -238,34 +307,23 @@ test("a lead built by a receding reading is given back by the tick, never by a f
       run(stops.map((stopId, index) => call(stopId, index - 6, index >= 4 ? delayMinutes : 0))),
     );
 
-  // The same reading with no history: where a snapped mark would stand, to measure the lead.
-  const readingAlone = (delayMinutes: number, at: number, tick: number) =>
-    getSmoothTripPlacement(
-      motions,
-      { ...reading(delayMinutes), id: `alone-${tick}`, tripId: `alone-${tick}` },
-      at,
-    );
-
   let previous: number | null = null;
-  let leadReachedBand = false;
+  let placedFromLead = false;
   for (let tick = 0; tick <= 600; tick += 1) {
     const at = start + tick * 1_000;
     const delayMinutes = Math.floor(tick / 30);
     const shown = getSmoothTripPlacement(motions, reading(delayMinutes), at);
-    const read = readingAlone(delayMinutes, at, tick);
-    assert.ok(shown && read, `no mark at ${tick}s`);
-    // Only the first paint is a placement.
-    if (tick > 0) assert.equal(shown.motion, "travelled", `placed at ${tick}s`);
+    assert.ok(shown, `no mark at ${tick}s`);
     const distance = stops.indexOf(shown.fromStopId) + shown.progress;
-    leadReachedBand ||= distance - (stops.indexOf(read.fromStopId) + read.progress) > 1.9;
-    // Half a link per frame is the limit; the original fault jumped more than two calls.
-    if (previous !== null) {
-      assert.ok(previous - distance < 0.5, `fell ${previous - distance} calls at ${tick}s`);
+    if (previous !== null && distance < previous) {
+      assert.equal(shown.motion, "placed", `fell ${previous - distance} calls at ${tick}s`);
+      assert.ok((shown.placedAfterLinks ?? 0) > 2);
+      placedFromLead = true;
     }
     previous = distance;
   }
-  // …and the lead really reached the band.
-  assert.ok(leadReachedBand);
+  // …and the lead really grew past the band.
+  assert.ok(placedFromLead);
 });
 
 test("keeps its ground when a fresher reading times a call inside the link it is on", () => {
@@ -346,8 +404,8 @@ test("carries the last stated deviation across the calls the feed does not monit
 
   assert.equal(placement?.fromStopId, "b");
   assert.equal(placement?.toStopId, "c");
-  // Thirty seconds into a two-minute link: early acceleration.
-  assert.ok(placement && placement.progress > 0.19 && placement.progress < 0.22);
+  // Twenty seconds into a link left ten seconds late.
+  assert.ok(placement && placement.progress > 0.17 && placement.progress < 0.19);
 });
 
 test("keeps the two ends of a call apart: a late arrival is not a late departure", () => {
@@ -392,7 +450,7 @@ test("stands a monitored trip at the terminus it is due out of, once its turnaro
   assert.equal(
     getSmoothTripPlacement(
       motions,
-      { ...trip, id: "position-long-before-start" },
+      { ...trip, id: "position-long-before-start", tripId: "position-long-before-start" },
       start - 12 * 60_000,
     ),
     null,
@@ -435,7 +493,7 @@ test("a waiting mark stays at its terminus while the sequence around it is re-ti
   // It leaves on its own departure.
   const leaving = getSmoothTripPlacement(motions, reading(0), start + 60_000);
   assert.equal(leaving?.phase, "running");
-  assert.ok(leaving && leaving.progress > 0.13 && leaving.progress < 0.17);
+  assert.ok(leaving && leaving.progress > 0.16 && leaving.progress < 0.18);
 });
 
 test("draws no waiting mark for a run the feed is not watching", () => {
@@ -566,7 +624,7 @@ test("a delay that overtakes the mark re-times the link it is on instead of haul
   assert.equal(holding?.motion, "travelled");
   assert.ok(holding && getCallDistance(holding) > 2 && getCallDistance(holding) < 2.2);
 
-  // Every hundred seconds, inside the freshness window: travelling, never further back.
+  // Every hundred seconds, inside the freshness window: travelling slower, never further back.
   let previous = getCallDistance(holding);
   for (let at = 22 * 60_000; at <= 41 * 60_000; at += 100_000) {
     const shown = getSmoothTripPlacement(motions, revised, start + at);
@@ -580,9 +638,7 @@ test("a delay that overtakes the mark re-times the link it is on instead of haul
   assert.ok(arriving && getCallDistance(arriving) > 2.9);
 });
 
-test("a carried delay several calls behind does not reverse a departed mark", () => {
-  // A delay carried from calls ahead is not evidence the vehicle is still at the last stop, so the
-  // link is re-timed instead of moving back.
+test("a reading a link behind holds a departed mark; one several calls behind places it", () => {
   const calls = run([call("a", 0), call("b", 2), call("c", 4), call("d", 6), call("e", 8)]);
   const trip = departure("position-contradicted", calls);
 
@@ -601,8 +657,18 @@ test("a carried delay several calls behind does not reverse a departed mark", ()
   );
   const placed = getSmoothTripPlacement(motions, revised, start + 7 * 60_000 + 1_000);
 
-  assert.equal(placed?.motion, "travelled");
-  assert.equal(placed?.fromStopId, "d");
+  assert.equal(placed?.motion, "placed");
+  assert.equal(placed?.fromStopId, "a");
+
+  const nearTrip = departure("position-contradicted-near", calls);
+  assert.equal(getSmoothTripPlacement(motions, nearTrip, start + 7 * 60_000)?.fromStopId, "d");
+  const near = departure(
+    "position-contradicted-near",
+    run([call("a", 0), call("b", 2), call("c", 4, 2), call("d", 6, 2), call("e", 8, 2)]),
+  );
+  const held = getSmoothTripPlacement(motions, near, start + 7 * 60_000 + 1_000);
+  assert.equal(held?.motion, "travelled");
+  assert.equal(held?.fromStopId, "d");
 });
 
 test("a departure re-stated later brings a departed mark back to the terminus it left from", () => {
@@ -630,9 +696,8 @@ test("a departure re-stated later brings a departed mark back to the terminus it
   });
 });
 
-test("a stand read a link ahead of a standing mark is placed there, not travelled to", () => {
-  // Drawn standing at B; the next reading has it standing at C. The link was never drawn, so it is
-  // a placement, corrected over a few seconds.
+test("a stand read a link ahead of a standing mark is travelled to", () => {
+  // Drawn standing at B; the next reading has it standing at C. The mark makes up the link.
   const tripId = "position-stand-link-ahead";
   const held = departure(
     tripId,
@@ -658,12 +723,14 @@ test("a stand read a link ahead of a standing mark is placed there, not travelle
       call("d", 6),
     ]),
   );
-  const placed = getSmoothTripPlacement(motions, moved, start + 3.17 * 60_000);
+  const leaving = getSmoothTripPlacement(motions, moved, start + 3.17 * 60_000);
+  assert.equal(leaving?.fromStopId, "b");
+  assert.equal(leaving?.motion, "travelled");
 
-  assert.equal(placed?.fromStopId, "c");
-  assert.equal(placed?.progress, 0);
-  assert.equal(placed?.motion, "placed");
-  assert.equal(placed?.placedAfterLinks, 1);
+  const arrived = getSmoothTripPlacement(motions, moved, start + 3.17 * 60_000 + 45_000);
+  assert.equal(arrived?.fromStopId, "c");
+  assert.equal(arrived?.progress, 0);
+  assert.equal(arrived?.motion, "travelled");
 });
 
 test("a stand read behind the mark is a re-timing, not a vehicle reversing", () => {
@@ -723,7 +790,7 @@ test("a mark held over readings that place nothing is not held for ever", () => 
     departure("position-held", calls),
     start + 7 * 60_000,
   );
-  assert.ok(placed && placed.fromStopId === "b" && placed.progress > 0.74);
+  assert.ok(placed && placed.fromStopId === "b" && placed.progress > 0.7);
 
   // Cut short of the vehicle, refreshed every second.
   const cut = departure("position-held", calls.slice(0, 3));

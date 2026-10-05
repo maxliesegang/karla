@@ -77,7 +77,7 @@ export type LineDiagramVehicle = {
 };
 
 export type LineDiagramVehicleOptions = {
-  /** The drawing's own record of its marks' motion (`createRunMotions`), shared with its legs. */
+  /** The record of mark motion every view shares (`hooks/run-motions.ts`). */
   motions: RunMotions;
   /** Share this across a bundled trunk and its legs; it changes only with the observations. */
   turnaroundIndex?: TurnaroundIndex;

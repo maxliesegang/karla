@@ -1,12 +1,17 @@
 import type { Departure } from "../data/transit-types";
 import { findFinalCallInstant } from "./trip-calls";
-import { getRunMarkKey } from "./trips";
+import { getRunMarkKey, getSequenceReadInstant } from "./trips";
 
 /**
  * How long a finished run's mark is kept past its final call; must stay inside
  * `RUN_ENDED_GRACE_MS`.
  */
 export const RUN_MARK_RETENTION_GRACE_MS = 2 * 60_000;
+/**
+ * A run is first drawn only from calls read this recently, so a cached board does not place it
+ * before its own re-read (`LINE_RUN_READING_MAX_AGE_MS`) lands.
+ */
+export const RUN_FIRST_PLACEMENT_MAX_AGE_MS = 90_000;
 /** Bounds the followed set against an unexpectedly large board. */
 const FOLLOWED_RUN_CAPACITY = 256;
 
@@ -103,4 +108,23 @@ export function getLineRunDepartures(
     ...current,
     ...unlisted,
   ];
+}
+
+/**
+ * The runs a drawing may place: those already drawn, and new ones read recently. `now` is the
+ * device clock, as read stamps are.
+ */
+export function selectPlaceableRuns(
+  runs: readonly Departure[],
+  now: number,
+  drawnMarkKeys: ReadonlySet<string>,
+): Departure[] {
+  return runs.filter((run) => {
+    const readAt = getSequenceReadInstant(run);
+    return (
+      readAt === undefined ||
+      now - readAt <= RUN_FIRST_PLACEMENT_MAX_AGE_MS ||
+      drawnMarkKeys.has(getRunMarkKey(run))
+    );
+  });
 }

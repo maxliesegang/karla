@@ -58,7 +58,7 @@ test("moves continuously across every visible row when an observed trip skips a 
     { motions },
   );
 
-  assert.ok(getVehicleRowCoordinate(vehicle) > 1.1 && getVehicleRowCoordinate(vehicle) < 1.4);
+  assert.ok(getVehicleRowCoordinate(vehicle) > 1.05 && getVehicleRowCoordinate(vehicle) < 1.3);
   assert.equal(getRunPositionAnchorIndex(diagramStops, [vehicle], call("c", 2)), 1);
 });
 

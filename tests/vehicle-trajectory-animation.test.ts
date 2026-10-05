@@ -10,15 +10,13 @@ import {
 
 const start = Date.parse("2026-08-23T10:00:00Z");
 
-/** One 60-second link with the ramp share the placement plans its segments on. */
+/** One 60-second link sampled every second, as the placement plans it. */
+const progresses = Array.from({ length: 61 }, (_, second) => second / 60);
 const trajectory: RunSegmentTrajectory = {
-  startProgress: 0,
   startsAt: start,
+  progresses,
+  startProgress: 0,
   arrivesAt: start + 60_000,
-  startVelocity: 0,
-  cruiseVelocity: 1 / 51_000,
-  acceleratesUntil: start + 9_000,
-  brakesFrom: start + 51_000,
   sampledAt: start,
 };
 
@@ -55,13 +53,13 @@ test("keyframes the crossings of the boundaries still ahead of the mark", () => 
     trajectory,
     animationStartsAt: start,
     getValue,
-    boundaryProgresses: [0.5, -0.2, 1.2],
+    boundaryProgresses: [0.505, -0.2, 1.2],
   });
   // One boundary lies on the link, one before its start, one past its end: only the first adds a
   // keyframe, and it stands where the crossing actually happens.
   assert.equal(withBoundary.length, without.length + 1);
   const crossed = withBoundary.map(({ value }) => readProgress(value));
-  const atBoundary = crossed.find((progress) => Math.abs(progress - 0.5) < 0.001);
+  const atBoundary = crossed.find((progress) => Math.abs(progress - 0.505) < 0.001);
   assert.ok(atBoundary);
 });
 

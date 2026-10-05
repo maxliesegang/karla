@@ -4,8 +4,11 @@ import type { Departure, TripCall } from "../src/data/transit-types.ts";
 import {
   areFollowedRunsEqual,
   getLineRunDepartures,
+  RUN_FIRST_PLACEMENT_MAX_AGE_MS,
+  selectPlaceableRuns,
   updateFollowedRuns,
 } from "../src/lib/line-run-departures.ts";
+import { getRunMarkKey } from "../src/lib/trips.ts";
 import { createCall } from "./support/calls.ts";
 import { createDeparture } from "./support/fixtures.ts";
 
@@ -174,5 +177,28 @@ test("a set followed is equal to itself until a run is named or ends", () => {
       followed,
       followed.map((entry) => ({ ...entry, observedAt: entry.observedAt + 1 })),
     ),
+  );
+});
+
+test("a run is first drawn only from calls read recently; a drawn run keeps its last reading", () => {
+  const calls = [call("a", 0), call("b", 2)];
+  const old = departure(
+    "placeable-old",
+    calls,
+    "realtime",
+    start - RUN_FIRST_PLACEMENT_MAX_AGE_MS - 1,
+  );
+  const fresh = departure("placeable-fresh", calls, "realtime", start - 5_000);
+  const undated = { ...departure("placeable-undated", calls), readAt: undefined };
+
+  // A cached board's calls wait for the run's own re-read.
+  assert.deepEqual(
+    selectPlaceableRuns([old, fresh, undated], start, new Set()).map(({ id }) => id),
+    ["placeable-fresh", "placeable-undated"],
+  );
+  // Already drawn: a refresh that failed does not take the mark away.
+  assert.deepEqual(
+    selectPlaceableRuns([old, fresh], start, new Set([getRunMarkKey(old)])).map(({ id }) => id),
+    ["placeable-old", "placeable-fresh"],
   );
 });

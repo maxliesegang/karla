@@ -1,9 +1,13 @@
-import { getRunTrajectoryProgress, type RunSegmentTrajectory } from "./vehicle-positioning";
+import {
+  FOLLOW_STEP_MS,
+  getRunTrajectoryProgress,
+  type RunSegmentTrajectory,
+} from "./vehicle-positioning";
 
 /**
- * One trajectory as Web Animation keyframes: the acceleration–cruise–braking curve
- * (`vehicle-positioning.ts`) sampled densely on the ramps and at each boundary the drawing cares
- * about. A revised plan starts from the painted value, correcting over a few seconds.
+ * One trajectory as Web Animation keyframes: the plan's samples (`vehicle-positioning.ts`) and each
+ * boundary the drawing cares about. A revised plan starts from the painted value, correcting over a
+ * few seconds.
  */
 
 /** A revised prediction meets the painted marker over this short visual correction. */
@@ -76,15 +80,13 @@ export function getTrajectoryKeyframes({
   const correctionEndsAt = paintedValue
     ? Math.min(trajectory.arrivesAt, animationStartsAt + TRAJECTORY_CORRECTION_MS)
     : animationStartsAt;
-  const rampSamples = (from: number, to: number) =>
-    Array.from({ length: 5 }, (_, index) => from + ((to - from) * (index + 1)) / 6);
+  const sampleTimes = trajectory.progresses.map(
+    (_, index) => trajectory.startsAt + index * FOLLOW_STEP_MS,
+  );
   const times = [
     animationStartsAt,
     correctionEndsAt,
-    ...rampSamples(trajectory.startsAt, trajectory.acceleratesUntil),
-    trajectory.acceleratesUntil,
-    trajectory.brakesFrom,
-    ...rampSamples(trajectory.brakesFrom, trajectory.arrivesAt),
+    ...sampleTimes,
     ...boundaryProgressesWithin.map(findPassageTime),
     trajectory.arrivesAt,
   ]

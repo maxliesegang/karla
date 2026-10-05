@@ -9,7 +9,7 @@ import type {
 } from "../../data/transit-types";
 import { getFarthestLineRun, getLineTermini } from "../../lib/stop-services";
 import { findTurnarounds } from "../../lib/line-turnarounds";
-import { createRunMotions } from "../../lib/vehicle-positioning";
+import { useRunMotions } from "../../hooks/run-motions";
 import { useStoredPreference } from "../../hooks/stored-preference";
 import { appSettings } from "../../lib/app-settings";
 import { useLineRunDepartures } from "../../hooks/line-run-departures";
@@ -250,7 +250,7 @@ export function useLineDiagramReading({
     () => findTurnarounds(visibleRunDepartures),
     [visibleRunDepartures],
   );
-  const [motions] = useState(createRunMotions);
+  const motions = useRunMotions();
   const vehicles = useMemo(
     () =>
       getShownLineDiagramVehicles(
