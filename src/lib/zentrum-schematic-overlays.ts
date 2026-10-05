@@ -24,18 +24,18 @@ export type ZentrumSchematicLitStretch = {
 
 export type ZentrumSchematicOverlay = {
   /** The corridors lit whole, by the line whose lane they are lit in. */
-  edgeIdsByLineId: ReadonlyMap<string, ReadonlySet<string>>;
+  corridorIdsByLineId: ReadonlyMap<string, ReadonlySet<string>>;
   stretches: readonly ZentrumSchematicLitStretch[];
 };
 
-const lightEdges = (
-  edgeIdsByLineId: Map<string, Set<string>>,
+const lightCorridors = (
+  corridorIdsByLineId: Map<string, Set<string>>,
   lineId: string,
-  edgeIds: Iterable<string>,
+  corridorIds: Iterable<string>,
 ) => {
-  const lit = edgeIdsByLineId.get(lineId) ?? new Set<string>();
-  edgeIdsByLineId.set(lineId, lit);
-  for (const edgeId of edgeIds) lit.add(edgeId);
+  const lit = corridorIdsByLineId.get(lineId) ?? new Set<string>();
+  corridorIdsByLineId.set(lineId, lit);
+  for (const corridorId of corridorIds) lit.add(corridorId);
 };
 
 /**
@@ -44,18 +44,18 @@ const lightEdges = (
 export function getZentrumVehiclePathsOverlay(
   vehicles: readonly ZentrumSchematicVehicle[],
 ): ZentrumSchematicOverlay {
-  const edgeIdsByLineId = new Map<string, Set<string>>();
+  const corridorIdsByLineId = new Map<string, Set<string>>();
   const stretches: ZentrumSchematicLitStretch[] = [];
   for (const vehicle of vehicles) {
-    const onPath = new Set(vehicle.path.edgeRanges.map(({ edgeId }) => edgeId));
-    lightEdges(
-      edgeIdsByLineId,
+    const onPath = new Set(vehicle.path.corridorRanges.map(({ corridorId }) => corridorId));
+    lightCorridors(
+      corridorIdsByLineId,
       vehicle.lineId,
-      vehicle.aheadEdgeIds.filter((edgeId) => !onPath.has(edgeId)),
+      vehicle.aheadCorridorIds.filter((corridorId) => !onPath.has(corridorId)),
     );
     if (onPath.size > 0 && vehicle.progress < 1) stretches.push({ vehicle, end: 1 });
   }
-  return { edgeIdsByLineId, stretches };
+  return { corridorIdsByLineId, stretches };
 }
 
 /** A tram on the plan that will leave a stop, and when. */
@@ -99,19 +99,19 @@ export function getZentrumStopDepartures(
 
 type ZentrumStopApproach = ZentrumStopDeparture & {
   /** Corridors past the end of the tram's path, lit whole. */
-  edgeIds: readonly string[];
+  corridorIds: readonly string[];
   /** Where the lit stretch on the tram's path ends, if ahead of it. */
   end?: number;
 };
 
 const lightApproaches = (approaches: Iterable<ZentrumStopApproach>): ZentrumSchematicOverlay => {
-  const edgeIdsByLineId = new Map<string, Set<string>>();
+  const corridorIdsByLineId = new Map<string, Set<string>>();
   const stretches: ZentrumSchematicLitStretch[] = [];
-  for (const { vehicle, edgeIds, end } of approaches) {
-    lightEdges(edgeIdsByLineId, vehicle.lineId, edgeIds);
+  for (const { vehicle, corridorIds, end } of approaches) {
+    lightCorridors(corridorIdsByLineId, vehicle.lineId, corridorIds);
     if (end !== undefined) stretches.push({ vehicle, end });
   }
-  return { edgeIdsByLineId, stretches };
+  return { corridorIdsByLineId, stretches };
 };
 
 /** Every tram on the plan that will still leave a stop. */
@@ -135,13 +135,13 @@ function getZentrumStopApproaches(
         call: stop.call,
         departsAt: stop.departsAt ?? 0,
         isAtStop: true,
-        edgeIds: [],
+        corridorIds: [],
       });
       continue;
     }
     // On the mark's path the stretch ends at the stop; past it, corridors to the stop are lit
     // whole.
-    const edgeIds: string[] = [];
+    const corridorIds: string[] = [];
     let end: number | undefined = stop.pathProgress;
     if (end === undefined) {
       let lastOnPath = 0;
@@ -149,7 +149,7 @@ function getZentrumStopApproaches(
         if (aheadStops[at].pathProgress !== undefined) lastOnPath = at;
       }
       for (let at = lastOnPath; at < index; at += 1) {
-        edgeIds.push(getEdgeKey(aheadStops[at].nodeId, aheadStops[at + 1].nodeId));
+        corridorIds.push(getEdgeKey(aheadStops[at].nodeId, aheadStops[at + 1].nodeId));
       }
       end = 1;
     }
@@ -158,8 +158,8 @@ function getZentrumStopApproaches(
       call: stop.call,
       departsAt: stop.departsAt ?? 0,
       isAtStop: false,
-      edgeIds,
-      end: vehicle.path.edgeRanges.length > 0 && end > vehicle.progress ? end : undefined,
+      corridorIds,
+      end: vehicle.path.corridorRanges.length > 0 && end > vehicle.progress ? end : undefined,
     });
   }
 
@@ -241,10 +241,10 @@ export function getZentrumTravelTimes(
     measure,
     findZentrumSchematicNodeId,
   );
-  const edgeIdsByLineId = new Map<string, Set<string>>();
+  const corridorIdsByLineId = new Map<string, Set<string>>();
   for (const { lineId, stopIds } of times.values()) {
-    lightEdges(
-      edgeIdsByLineId,
+    lightCorridors(
+      corridorIdsByLineId,
       lineId,
       stopIds.slice(1).map((stopId, index) => getEdgeKey(stopIds[index], stopId)),
     );
@@ -256,7 +256,7 @@ export function getZentrumTravelTimes(
         { arrivesAt, lineId, departsAt },
       ]),
     ),
-    overlay: { edgeIdsByLineId, stretches: [] },
+    overlay: { corridorIdsByLineId, stretches: [] },
   };
 }
 

@@ -73,18 +73,21 @@ const getStrayLitSegments = (
   linePath: ZentrumSchematicDrawnLinePath;
   segment: ZentrumSchematicLinePathSegment;
 }[] => {
-  const segmentByEdgeId = new Map<string, ZentrumSchematicLinePathSegment>();
+  const segmentByCorridorId = new Map<string, ZentrumSchematicLinePathSegment>();
   for (const { segments } of drawnLinePaths) {
     for (const segment of segments) {
-      if (!segmentByEdgeId.has(segment.edgeId)) segmentByEdgeId.set(segment.edgeId, segment);
+      if (!segmentByCorridorId.has(segment.corridorId))
+        segmentByCorridorId.set(segment.corridorId, segment);
     }
   }
-  return [...overlay.edgeIdsByLineId].flatMap(([lineId, edgeIds]) => {
+  return [...overlay.corridorIdsByLineId].flatMap(([lineId, corridorIds]) => {
     const own = drawnLinePaths.find((linePath) => linePath.lineIds.includes(lineId));
     if (!own) return [];
-    const ownEdgeIds = new Set(own.segments.map(({ edgeId }) => edgeId));
-    return [...edgeIds].flatMap((edgeId) => {
-      const segment = ownEdgeIds.has(edgeId) ? undefined : segmentByEdgeId.get(edgeId);
+    const ownCorridorIds = new Set(own.segments.map(({ corridorId }) => corridorId));
+    return [...corridorIds].flatMap((corridorId) => {
+      const segment = ownCorridorIds.has(corridorId)
+        ? undefined
+        : segmentByCorridorId.get(corridorId);
       return segment ? [{ lineId, linePath: own, segment }] : [];
     });
   });
@@ -208,16 +211,18 @@ function ZentrumSchematicLitLayer({
     <g>
       {drawnLinePaths.flatMap((linePath) => {
         // A trunk and its branches share one path, lit wherever any of them is.
-        const litEdgeIds = new Set(
-          linePath.lineIds.flatMap((lineId) => [...(overlay.edgeIdsByLineId.get(lineId) ?? [])]),
+        const litCorridorIds = new Set(
+          linePath.lineIds.flatMap((lineId) => [
+            ...(overlay.corridorIdsByLineId.get(lineId) ?? []),
+          ]),
         );
-        const segmentEdgeIds = new Set(linePath.segments.map(({ edgeId }) => edgeId));
+        const segmentCorridorIds = new Set(linePath.segments.map(({ corridorId }) => corridorId));
         return [
           ...linePath.segments
-            .filter((segment) => litEdgeIds.has(segment.edgeId))
+            .filter((segment) => litCorridorIds.has(segment.corridorId))
             .map((segment) => (
               <ZentrumTrackStroke
-                key={`lit:${linePath.id}:${segment.edgeId}`}
+                key={`lit:${linePath.id}:${segment.corridorId}`}
                 d={segment.data}
                 stroke={linePath.sign.color}
                 style={getLineColorStyle(linePath)}
@@ -228,7 +233,9 @@ function ZentrumSchematicLitLayer({
             // A mark off its line's drawn pattern follows an unpainted lane.
             if (
               !linePath.lineIds.includes(vehicle.lineId) ||
-              !vehicle.path.edgeRanges.some(({ edgeId }) => segmentEdgeIds.has(edgeId))
+              !vehicle.path.corridorRanges.some(({ corridorId }) =>
+                segmentCorridorIds.has(corridorId),
+              )
             ) {
               return [];
             }
@@ -256,7 +263,7 @@ function ZentrumSchematicLitLayer({
       })}
       {getStrayLitSegments(drawnLinePaths, overlay).map(({ lineId, linePath, segment }) => (
         <ZentrumTrackStroke
-          key={`stray:${lineId}:${segment.edgeId}`}
+          key={`stray:${lineId}:${segment.corridorId}`}
           d={segment.data}
           stroke={linePath.sign.color}
           style={getLineColorStyle(linePath)}

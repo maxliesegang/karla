@@ -139,7 +139,7 @@ async function observe(rowLimit: number): Promise<Observations> {
         samples: bucket.latitudes.length,
       }))
       .sort((left, right) => left.id.localeCompare(right.id)),
-    edges: reading.edges
+    edges: reading.corridors
       .map((edge) => ({ from: edge.from.id, to: edge.to.id, lineIds: [...edge.lineIds] }))
       .sort((left, right) => edgeKey(left).localeCompare(edgeKey(right))),
   };
@@ -469,9 +469,11 @@ async function main(): Promise<void> {
   console.log("\nThe table, in reading order:\n");
   for (const node of placed) {
     const label = authored.get(node.id)?.label ?? node.id;
+    // Authored, not solved: kept as written.
+    const platformRun = authored.get(node.id)?.platformRun;
     console.log(
       `  { id: "${node.id}", label: "${label}", x: ${node.x}, y: ${node.y}, ` +
-        `labelSide: "${node.labelSide}" },`,
+        `labelSide: "${node.labelSide}"${platformRun ? `, platformRun: "${platformRun}"` : ""} },`,
     );
   }
 

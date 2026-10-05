@@ -75,8 +75,8 @@ const ZENTRUM_SCHEMATIC_LANE_PAINT = 0.72;
 /** One corridor as it leaves a stop: the way out, how far it runs, and the lanes it carries. */
 type ZentrumSchematicNodeArm = {
   edge: ZentrumSchematicEdge;
-  /** The stop at the far end, which boarding places name corridors by. */
-  nodeId: string;
+  /** The stops it leads to, past any junction, which boarding places name corridors by. */
+  stopIds: ReadonlySet<string>;
   outward: SchematicPoint;
   length: number;
   /** The corridor's band paint, which other places' capsules and every link keep off. */
@@ -85,16 +85,29 @@ type ZentrumSchematicNodeArm = {
 
 type Outline = readonly SchematicPoint[];
 
+/** The stops a corridor leaving a node leads to, walked through junctions. */
+const getStopIdsAhead = (
+  node: ZentrumSchematicNode,
+  edge: ZentrumSchematicEdge,
+  edgesByNodeId: ReadonlyMap<string, readonly ZentrumSchematicEdge[]>,
+): string[] => {
+  const other = edge.from.id === node.id ? edge.to : edge.from;
+  if (!other.isJunction) return [other.id];
+  return (edgesByNodeId.get(other.id) ?? [])
+    .filter((next) => next !== edge)
+    .flatMap((next) => getStopIdsAhead(other, next, edgesByNodeId));
+};
+
 const getNodeArms = (
   node: ZentrumSchematicNode,
-  edges: readonly ZentrumSchematicEdge[],
+  edgesByNodeId: ReadonlyMap<string, readonly ZentrumSchematicEdge[]>,
   trackWidth: number,
 ): readonly ZentrumSchematicNodeArm[] =>
-  edges.map((edge) => {
+  (edgesByNodeId.get(node.id) ?? []).map((edge) => {
     const other = edge.from.id === node.id ? edge.to : edge.from;
     return {
       edge,
-      nodeId: other.id,
+      stopIds: new Set(getStopIdsAhead(node, edge, edgesByNodeId)),
       outward: getUnitVector(node, other),
       length: Math.hypot(other.x - node.x, other.y - node.y),
       band: getBandOutline(edge, trackWidth),
@@ -156,7 +169,7 @@ const getBandExtent = (
     lowest: Math.min(...arms.map(({ edge }) => getTrackOffset(edge, 0, trackWidth))) - overhang,
     highest:
       Math.max(
-        ...arms.map(({ edge }) => getTrackOffset(edge, edge.trackLineIds.length - 1, trackWidth)),
+        ...arms.map(({ edge }) => getTrackOffset(edge, edge.trackIds.length - 1, trackWidth)),
       ) + overhang,
   };
 };
@@ -204,7 +217,7 @@ export const getBandOutline = (edge: ZentrumSchematicEdge, trackWidth: number): 
   const normal = getNormal(edge);
   const reach = trackWidth * ZENTRUM_SCHEMATIC_LANE_PAINT;
   const lowest = getTrackOffset(edge, 0, trackWidth) - reach;
-  const highest = getTrackOffset(edge, edge.trackLineIds.length - 1, trackWidth) + reach;
+  const highest = getTrackOffset(edge, edge.trackIds.length - 1, trackWidth) + reach;
   const at = (point: SchematicPoint, offset: number) => ({
     x: point.x + normal.x * offset,
     y: point.y + normal.y * offset,
@@ -227,21 +240,30 @@ const getBendOutlines = (
       ),
     );
 
+const getProjectionRange = (outline: Outline, axisX: number, axisY: number) => {
+  let minimum = Number.POSITIVE_INFINITY;
+  let maximum = Number.NEGATIVE_INFINITY;
+  for (const { x, y } of outline) {
+    const projection = x * axisX + y * axisY;
+    minimum = Math.min(minimum, projection);
+    maximum = Math.max(maximum, projection);
+  }
+  return { minimum, maximum };
+};
+
+const hasSeparatingEdge = (outline: Outline, other: Outline): boolean =>
+  outline.some((point, index) => {
+    const next = outline[(index + 1) % outline.length];
+    const axisX = point.y - next.y;
+    const axisY = next.x - point.x;
+    const own = getProjectionRange(outline, axisX, axisY);
+    const theirs = getProjectionRange(other, axisX, axisY);
+    return own.maximum <= theirs.minimum || theirs.maximum <= own.minimum;
+  });
+
 /** Whether two convex outlines overlap: they do unless an edge of one separates them. */
 export const isOverlapping = (left: Outline, right: Outline): boolean =>
-  [left, right].every((outline) =>
-    outline.every((point, index) => {
-      const next = outline[(index + 1) % outline.length];
-      const axis = { x: point.y - next.y, y: next.x - point.x };
-      const project = (points: Outline) => points.map(({ x, y }) => x * axis.x + y * axis.y);
-      const leftProjection = project(left);
-      const rightProjection = project(right);
-      return (
-        Math.max(...leftProjection) > Math.min(...rightProjection) &&
-        Math.max(...rightProjection) > Math.min(...leftProjection)
-      );
-    }),
-  );
+  !hasSeparatingEdge(left, right) && !hasSeparatingEdge(right, left);
 
 /**
  * A corner stop's capsule, as TfL draws one: a pill along the corner's diagonal through the middle
@@ -324,11 +346,11 @@ const getPlaceFit = (
   obstacles: readonly Outline[],
   trackWidth: number,
 ) => {
-  const needed = new Set(chosen.flatMap(({ edge }) => edge.trackLineIds));
+  const needed = new Set(chosen.flatMap(({ edge }) => edge.trackIds));
   const halfWidth = getCapsuleKeepOut(trackWidth);
   return {
     covers: (band: readonly ZentrumSchematicNodeArm[]) =>
-      [...needed].every((trackId) => band.some(({ edge }) => edge.trackLineIds.includes(trackId))),
+      [...needed].every((trackId) => band.some(({ edge }) => edge.trackIds.includes(trackId))),
     isClear: (capsule: ZentrumSchematicStroke, band: readonly ZentrumSchematicNodeArm[]) => {
       const outline = getStrokeOutline(capsule, halfWidth);
       return (
@@ -345,9 +367,66 @@ const OCTILINEAR_DIRECTIONS: readonly SchematicPoint[] = Array.from({ length: 8 
   y: Math.round(Math.sin((index * Math.PI) / 4) * 1e9) / 1e9,
 }));
 
+/** A link's leg as drawn and as tested: short of a capsule end it meets, which stands in paint. */
+type ZentrumSchematicLinkLeg = {
+  stroke: ZentrumSchematicStroke;
+  cost: number;
+  isClear: (linkObstacles: readonly Outline[]) => boolean;
+};
+
+const getLinkLeg = (
+  from: SchematicPoint,
+  direction: SchematicPoint,
+  length: number,
+  insets: { from: number; to: number },
+): ZentrumSchematicLinkLeg => {
+  const at = (distance: number) => ({
+    x: from.x + direction.x * distance,
+    y: from.y + direction.y * distance,
+  });
+  const outline = getStrokeOutline({ from: at(insets.from), to: at(length - insets.to) }, 0.01);
+  // A level or upright link reads as part of the grid; a diagonal one only where needed.
+  const isDiagonal = direction.x !== 0 && direction.y !== 0;
+  return {
+    stroke: { from, to: at(length) },
+    cost: length * (isDiagonal ? 1.5 : 1),
+    isClear: (linkObstacles) => !linkObstacles.some((obstacle) => isOverlapping(outline, obstacle)),
+  };
+};
+
+/** The two-leg octilinear links from one point to another, round a corner either way. */
+const getElbowLinks = (
+  start: SchematicPoint,
+  end: SchematicPoint,
+  inset: number,
+): (readonly ZentrumSchematicLinkLeg[])[] => {
+  const offset = subtractPoints(end, start);
+  return OCTILINEAR_DIRECTIONS.flatMap((first) =>
+    OCTILINEAR_DIRECTIONS.flatMap((second) => {
+      // offset = first * a + second * b, solved for both.
+      const across = crossProduct(first, second);
+      if (Math.abs(across) < 1e-6) return [];
+      const a = crossProduct(offset, second) / across;
+      const b = crossProduct(first, offset) / across;
+      if (a < inset || b < inset) return [];
+      const elbow = { x: start.x + first.x * a, y: start.y + first.y * a };
+      return [
+        [
+          getLinkLeg(start, first, a, { from: inset, to: 0 }),
+          getLinkLeg(elbow, second, b, { from: 0, to: inset }),
+        ],
+      ];
+    }),
+  );
+};
+
+/** What an elbow costs beyond its length, in lanes: a straight link is preferred where one fits. */
+const ZENTRUM_SCHEMATIC_LINK_ELBOW_COST = 4;
+
 /**
- * The second place's capsule for a laid main one, and their link: an octilinear link from an end of
- * the main capsule fixes how far out this one stands. The nearest fit wins; undefined if none.
+ * The second place's capsule for a laid main one, and their link. A straight octilinear link from
+ * an end of the main capsule fixes how far out this one stands; failing that, `withElbows` lets the
+ * link turn once. The nearest fit wins; undefined if none.
  */
 const getLinkedCapsule = (
   node: ZentrumSchematicNode,
@@ -357,16 +436,58 @@ const getLinkedCapsule = (
   obstacles: readonly Outline[],
   linkObstacles: readonly Outline[],
   trackWidth: number,
-): { capsule: ZentrumSchematicStroke; link: ZentrumSchematicStroke; cost: number } | undefined => {
+  withElbows: boolean,
+):
+  | { capsule: ZentrumSchematicStroke; links: readonly ZentrumSchematicStroke[]; cost: number }
+  | undefined => {
   const { covers, isClear } = getPlaceFit(chosen, arms, obstacles, trackWidth);
   const inset = trackWidth * ZENTRUM_SCHEMATIC_STOP_CLEARANCE;
+  const toSolution = (
+    capsule: ZentrumSchematicStroke,
+    reach: number,
+    legs: readonly ZentrumSchematicLinkLeg[],
+    extraCost = 0,
+  ) =>
+    legs.every((leg) => leg.isClear(linkObstacles))
+      ? [
+          {
+            capsule,
+            links: legs.map(({ stroke }) => stroke),
+            cost: reach + extraCost + legs.reduce((sum, leg) => sum + leg.cost, 0),
+          },
+        ]
+      : [];
+  const ends = (capsule: ZentrumSchematicStroke) => [capsule.from, capsule.to];
   const solutions = chosen
     .filter((arm) => covers([arm]))
     .flatMap((arm) => {
-      const atStop = getBandCapsule(node, [arm], 0, trackWidth);
       const farthest = arm.length * ZENTRUM_SCHEMATIC_STOP_MAXIMUM_REACH;
-      return [main.from, main.to].flatMap((start) =>
-        [atStop.from, atStop.to].flatMap((end) =>
+      if (withElbows) {
+        const step = trackWidth / 4;
+        const elbowed = [];
+        for (let reach = step; reach <= farthest; reach += step) {
+          const capsule = getBandCapsule(node, [arm], reach, trackWidth);
+          if (!isClear(capsule, [arm])) continue;
+          for (const start of ends(main)) {
+            for (const end of ends(capsule)) {
+              for (const legs of getElbowLinks(start, end, inset)) {
+                elbowed.push(
+                  ...toSolution(
+                    capsule,
+                    reach,
+                    legs,
+                    trackWidth * ZENTRUM_SCHEMATIC_LINK_ELBOW_COST,
+                  ),
+                );
+              }
+            }
+          }
+        }
+        return elbowed;
+      }
+      const atStop = getBandCapsule(node, [arm], 0, trackWidth);
+      return ends(main).flatMap((start) =>
+        ends(atStop).flatMap((end) =>
           OCTILINEAR_DIRECTIONS.flatMap((direction) => {
             // end + outward * reach = start + direction * length, solved for both.
             const across = crossProduct(arm.outward, direction);
@@ -378,23 +499,9 @@ const getLinkedCapsule = (
             if (reach <= 0 || reach > farthest || length < inset * 2) return [];
             const capsule = getBandCapsule(node, [arm], reach, trackWidth);
             if (!isClear(capsule, [arm])) return [];
-            // Tested short of its ends, which stand at the capsules on either side of the paint.
-            const spine = {
-              from: { x: start.x + direction.x * inset, y: start.y + direction.y * inset },
-              to: {
-                x: start.x + direction.x * (length - inset),
-                y: start.y + direction.y * (length - inset),
-              },
-            };
-            const outline = getStrokeOutline(spine, 0.01);
-            if (linkObstacles.some((obstacle) => isOverlapping(outline, obstacle))) return [];
-            const link = {
-              from: start,
-              to: { x: start.x + direction.x * length, y: start.y + direction.y * length },
-            };
-            // A level or upright link reads as part of the grid; a diagonal one only where needed.
-            const isDiagonal = direction.x !== 0 && direction.y !== 0;
-            return [{ capsule, link, cost: reach + length * (isDiagonal ? 1.5 : 1) }];
+            return toSolution(capsule, reach, [
+              getLinkLeg(start, direction, length, { from: inset, to: inset }),
+            ]);
           }),
         ),
       );
@@ -411,9 +518,13 @@ const getPlaceArms = (
   places: readonly ZentrumSchematicBoardingPlace[],
   arms: readonly ZentrumSchematicNodeArm[],
 ): readonly ZentrumSchematicNodeArm[] => {
-  const own = arms.filter((arm) => place.armTripCounts.has(arm.nodeId));
+  const leadsTo = (
+    arm: ZentrumSchematicNodeArm,
+    { armTripCounts }: ZentrumSchematicBoardingPlace,
+  ) => [...arm.stopIds].some((stopId) => armTripCounts.has(stopId));
+  const own = arms.filter((arm) => leadsTo(arm, place));
   const shares = (arm: ZentrumSchematicNodeArm): number =>
-    places.filter((other) => other !== place && other.armTripCounts.has(arm.nodeId)).length;
+    places.filter((other) => other !== place && leadsTo(arm, other)).length;
   const fewest = Math.min(...own.map(shares));
   return own.filter((arm) => shares(arm) === fewest);
 };
@@ -425,7 +536,7 @@ const getStopCapsules = (
   trackWidth: number,
 ): readonly ZentrumSchematicStroke[] => {
   const laneCount = (band: readonly ZentrumSchematicNodeArm[]) =>
-    Math.max(...band.map(({ edge }) => edge.trackLineIds.length));
+    Math.max(...band.map(({ edge }) => edge.trackIds.length));
   return getStopBands(chosen)
     .sort((left, right) => laneCount(right) - laneCount(left))
     .map((band) => getBandCapsule(node, band, 0, trackWidth));
@@ -440,7 +551,7 @@ const getCapsuleGroups = (
   chosen: readonly ZentrumSchematicNodeArm[],
 ): (readonly ZentrumSchematicNodeArm[])[] => {
   const lanesOf = (band: readonly ZentrumSchematicNodeArm[]) =>
-    new Set(band.flatMap(({ edge }) => edge.trackLineIds));
+    new Set(band.flatMap(({ edge }) => edge.trackIds));
   const bands = [...getStraights(chosen), ...chosen.map((arm) => [arm])];
   const remaining = lanesOf(chosen);
   const coversAll = (band: readonly ZentrumSchematicNodeArm[]) =>
@@ -462,7 +573,7 @@ const getCapsuleGroups = (
 /** A corner every lane turns through, which is one pill across the bend. */
 const isCorner = (chosen: readonly ZentrumSchematicNodeArm[]): boolean => {
   if (chosen.length !== 2 || isOppositeArm(chosen[0], chosen[1])) return false;
-  const [first, second] = chosen.map(({ edge }) => edge.trackLineIds);
+  const [first, second] = chosen.map(({ edge }) => edge.trackIds);
   return first.length === second.length && first.every((trackId) => second.includes(trackId));
 };
 
@@ -499,7 +610,7 @@ const getNodeMark = (
     others: groups.filter((_, other) => other !== index),
     options: getCapsuleOptions(node, lead, arms, bendOutlines, trackWidth, slack),
   }));
-  const layOut = (linkClearance: number) => {
+  const layOut = (linkClearance: number, withElbows: boolean) => {
     const linkObstacles = [
       ...arms.map(({ band }) => band),
       ...bends.flatMap((bend) => getBendOutlines(bend, trackWidth, linkClearance)),
@@ -519,10 +630,11 @@ const getNodeMark = (
             [...bendOutlines, ...laid],
             linkObstacles,
             trackWidth,
+            withElbows,
           );
           if (!linked) return [];
           capsules.push(linked.capsule);
-          links.push(linked.link);
+          links.push(...linked.links);
           cost += linked.cost;
         }
         return [{ capsules, links, cost }];
@@ -530,11 +642,29 @@ const getNodeMark = (
     );
     return getCheapest(layouts);
   };
-  const best = ZENTRUM_SCHEMATIC_LINK_CLEARANCES.reduce<ReturnType<typeof layOut>>(
-    (found, linkClearance) => found ?? layOut(linkClearance),
-    undefined,
-  );
-  if (best) return { nodeId: node.id, main: best.capsules[0], ...best };
+  // A straight link at any clearance before a link that turns.
+  for (const withElbows of [false, true]) {
+    for (const linkClearance of ZENTRUM_SCHEMATIC_LINK_CLEARANCES) {
+      const best = layOut(linkClearance, withElbows);
+      if (best) return { nodeId: node.id, main: best.capsules[0], ...best };
+    }
+  }
+  // No link fits: each group on its own arm, unlinked.
+  const unlinked: ZentrumSchematicStroke[] = [];
+  for (const chosen of groups) {
+    const laid = unlinked.map((one) => getStrokeOutline(one, clearance));
+    const option = getCheapest(
+      getCapsuleOptions(node, chosen, arms, [...bendOutlines, ...laid], trackWidth).map((one) => ({
+        ...one,
+        cost: one.reach,
+      })),
+    );
+    if (!option) break;
+    unlinked.push(option.capsule);
+  }
+  if (unlinked.length === groups.length) {
+    return { nodeId: node.id, main: unlinked[0], capsules: unlinked, links: [] };
+  }
   // Nothing fits cleanly: every group marked at the stop itself.
   const capsules = groups.flatMap((chosen) => getStopCapsules(node, chosen, trackWidth));
   return { nodeId: node.id, main: capsules[0], capsules, links: [] };
@@ -559,13 +689,13 @@ export const getZentrumSchematicStopMarks = (
   for (const bend of getZentrumSchematicLaneBends(linePaths, edges, trackWidth)) {
     addTo(bendsByNodeId, bend.nodeId, bend);
   }
-  return [...edgesByNodeId].flatMap(([nodeId, nodeEdges]): ZentrumSchematicStopMark[] => {
+  return [...edgesByNodeId.keys()].flatMap((nodeId): ZentrumSchematicStopMark[] => {
     const node = zentrumSchematicNodeById.get(nodeId);
     if (!node) return [];
     return [
       getNodeMark(
         node,
-        getNodeArms(node, nodeEdges, trackWidth),
+        getNodeArms(node, edgesByNodeId, trackWidth),
         boardingPlacesByNodeId.get(nodeId) ?? [],
         bendsByNodeId.get(nodeId) ?? [],
         trackWidth,

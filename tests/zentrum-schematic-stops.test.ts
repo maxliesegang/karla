@@ -14,6 +14,7 @@ import {
   ZENTRUM_SCHEMATIC_VIEWBOX,
   type ZentrumSchematicStroke,
   getEdgeKey,
+  getZentrumSchematicRoutes,
   zentrumSchematicNodeById,
 } from "../src/lib/zentrum-schematic-plan.ts";
 import { getZentrumSchematicLaneBends } from "../src/lib/zentrum-schematic-paths.ts";
@@ -110,6 +111,102 @@ test("marks a corner stop with one diagonal pill", () => {
   // Along the diagonal between the arm north and the arm west.
   assert.ok(Math.abs(Math.abs(run.x) - Math.abs(run.y)) < 0.01);
   assert.ok(Math.hypot(run.x, run.y) > 2 * reading.trackWidth);
+});
+
+const node = (id: string) => {
+  const found = zentrumSchematicNodeById.get(id);
+  assert.ok(found, id);
+  return found;
+};
+
+/** Albtalbahnhof's platforms run north to south: its corridors leave north and turn square. */
+test("routes a stop's corridors along its platforms and square through one junction", () => {
+  const [albtal, ebert, hbf] = ["albtalbahnhof", "ebertstrasse", "hauptbahnhof"].map(node);
+  const routes = getZentrumSchematicRoutes([
+    [albtal, ebert],
+    [albtal, hbf],
+    [ebert, hbf],
+  ]);
+  const ids = (from: string, to: string) => routes.get(getEdgeKey(from, to))?.map(({ id }) => id);
+  const junction = `junction:${albtal.x},${ebert.y}`;
+
+  assert.deepEqual(ids("albtalbahnhof", "ebertstrasse"), [
+    "albtalbahnhof",
+    junction,
+    "ebertstrasse",
+  ]);
+  assert.deepEqual(ids("albtalbahnhof", "hauptbahnhof"), [
+    "albtalbahnhof",
+    junction,
+    "hauptbahnhof",
+  ]);
+  // The street the corridors turn into is split there, so all three share it.
+  assert.deepEqual(ids("ebertstrasse", "hauptbahnhof"), ["ebertstrasse", junction, "hauptbahnhof"]);
+});
+
+test("marks every stop around the junction with one capsule, and the junction with none", () => {
+  const reading = buildZentrumSchematicReading([
+    departure("E", [call("albtalbahnhof", "7001201"), call("ebertstrasse", "7000091")]),
+    ...["S1", "S4", "S7"].map((lineId) =>
+      departure(lineId, [
+        call("albtalbahnhof", "7001201"),
+        call("hauptbahnhof", "7000089"),
+        call("poststrasse", "7000098"),
+      ]),
+    ),
+    ...["3", "6"].map((lineId) =>
+      departure(lineId, [
+        call("ebertstrasse", "7000091"),
+        call("hauptbahnhof", "7000089"),
+        call("poststrasse", "7000098"),
+      ]),
+    ),
+  ]);
+
+  assert.deepEqual(reading.stopMarks.map(({ nodeId }) => nodeId).sort(), [
+    "albtalbahnhof",
+    "ebertstrasse",
+    "hauptbahnhof",
+    "poststrasse",
+  ]);
+  for (const nodeId of ["albtalbahnhof", "ebertstrasse", "hauptbahnhof"]) {
+    const mark = markAt(reading, nodeId);
+    assert.equal(mark.capsules.length, 1, nodeId);
+    assert.equal(mark.links.length, 0, nodeId);
+  }
+  const albtal = markAt(reading, "albtalbahnhof").main;
+  assert.equal(albtal.from.y, albtal.to.y);
+
+  // E leaves Albtalbahnhof north and reaches Ebertstraße heading west: one corridor, one path.
+  const path = reading.vehiclePathsByLineId
+    .get("E")
+    ?.get(getEdgeKey("albtalbahnhof", "ebertstrasse"));
+  assert.ok(path);
+  const points = path.fromNodeId === "albtalbahnhof" ? path.points : [...path.points].reverse();
+  const [start, second] = points;
+  const [before, end] = points.slice(-2);
+  assert.ok(Math.abs(second.x - start.x) < 0.01 && second.y < start.y, "leaves north");
+  assert.ok(Math.abs(end.y - before.y) < 0.01 && end.x < before.x, "arrives heading west");
+
+  // Lanes turning together keep a lane apart through the curve.
+  const junctionBends = getZentrumSchematicLaneBends(
+    reading.linePaths,
+    reading.edges,
+    reading.trackWidth,
+  ).filter(({ nodeId }) => nodeId.startsWith("junction:"));
+  const middle = (trackId: string) => {
+    const bend = junctionBends.find((one) => one.trackId === trackId);
+    assert.ok(bend, trackId);
+    return bend.points[Math.floor(bend.points.length / 2)];
+  };
+  const [s1, s4, s7] = ["S1", "S4", "S7"].map(middle);
+  for (const [left, right] of [
+    [s1, s4],
+    [s4, s7],
+  ]) {
+    const gap = Math.hypot(left.x - right.x, left.y - right.y);
+    assert.ok(Math.abs(gap - reading.trackWidth) < 0.05 * reading.trackWidth, `${gap}`);
+  }
 });
 
 /* Two streets through one place, no capsule crossing both: one capsule each, linked. */
@@ -248,28 +345,35 @@ test("leaves a barely used platform out of a stop's places", () => {
   assert.equal(markAt(reading, "karlstor").links.length, 0);
 });
 
-/* The Zentrum boards' calling patterns on 3 October 2026, with trip counts. */
+/* The Zentrum boards' calling patterns, with trip counts. */
 type LiveCall = [string, string, string, number | null, number | null];
-const liveTrips = (
-  JSON.parse(
-    readFileSync(new URL("./support/zentrum-live-trips.json", import.meta.url), "utf8"),
-  ) as { lineId: string; mode: "tram" | "lightRail"; count: number; calls: LiveCall[] }[]
-).flatMap(({ lineId, mode, count, calls }) =>
-  Array.from({ length: count }, () => ({
-    ...departure(
-      lineId,
-      calls.map(([localStopId, providerStopPointId, platformCode, latitude, longitude]) =>
-        call(
-          localStopId,
-          providerStopPointId,
-          platformCode,
-          latitude === null || longitude === null ? undefined : { latitude, longitude },
+const readLiveTrips = (fileName: string) =>
+  (
+    JSON.parse(readFileSync(new URL(`./support/${fileName}`, import.meta.url), "utf8")) as {
+      lineId: string;
+      mode: "tram" | "lightRail";
+      count: number;
+      calls: LiveCall[];
+    }[]
+  ).flatMap(({ lineId, mode, count, calls }) =>
+    Array.from({ length: count }, () => ({
+      ...departure(
+        lineId,
+        calls.map(([localStopId, providerStopPointId, platformCode, latitude, longitude]) =>
+          call(
+            localStopId,
+            providerStopPointId,
+            platformCode,
+            latitude === null || longitude === null ? undefined : { latitude, longitude },
+          ),
         ),
       ),
-    ),
-    transportMode: mode,
-  })),
-);
+      transportMode: mode,
+    })),
+  );
+/* 3 October 2026, all day; and the runs drawn early on 5 October 2026. */
+const liveTrips = readLiveTrips("zentrum-live-trips.json");
+const morningRuns = readLiveTrips("zentrum-live-runs-morning.json");
 
 test("reads the places a rider walks between off a day's trips", () => {
   const reading = buildZentrumSchematicReading(liveTrips);
@@ -297,6 +401,33 @@ test("reads the places a rider walks between off a day's trips", () => {
       assert.equal(crossed.length, 1, `${mark.nodeId} crosses ${crossed.length} bands`);
     }
   }
+});
+
+test("stands each place on its own arm, linked round the corner where no straight link fits", () => {
+  // Karlstor: lines 4, 5, S5 and S12 call east of the junction, 3 and S12 south of it.
+  const reading = buildZentrumSchematicReading(morningRuns);
+  const node = zentrumSchematicNodeById.get("karlstor");
+  const mark = markAt(reading, "karlstor");
+  assert.ok(node);
+  const [east, south] = mark.capsules;
+  assert.ok(east.from.x > node.x && east.to.x > node.x);
+  assert.ok(south.from.y > node.y && south.to.y > node.y);
+  assert.ok(mark.links.length > 0);
+  for (const link of mark.links) assertOctilinear(link);
+});
+
+test("keeps lines running on together in order where another joins them for one corridor", () => {
+  const reading = buildZentrumSchematicReading(liveTrips);
+  const lanes = (edgeId: string) => reading.edges.find(({ id }) => id === edgeId)?.trackIds ?? [];
+  const side = (edgeId: string) =>
+    Math.sign(lanes(edgeId).indexOf("3") - lanes(edgeId).indexOf("4"));
+
+  // 3 and 4 turn west at Europaplatz together; S1 shares Hauptbahnhof's corridors with 3 elsewhere.
+  assert.notEqual(side(getEdgeKey("europaplatz", "karlstor")), 0);
+  assert.equal(
+    side(getEdgeKey("europaplatz", "muehlburger-tor")),
+    side(getEdgeKey("europaplatz", "karlstor")),
+  );
 });
 
 /** Capsules cross straight lanes and never touch another stop's. */

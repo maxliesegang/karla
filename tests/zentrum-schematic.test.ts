@@ -19,7 +19,7 @@ import {
   getZentrumSchematicVehiclePathPlacement,
   getZentrumSchematicLinePathData,
   getZentrumSchematicVehiclePathData,
-  reverseZentrumSchematicVehiclePath,
+  reverseZentrumSchematicCorridorPath,
 } from "../src/lib/zentrum-schematic-paths.ts";
 import { getZentrumVehicleLinkKey } from "../src/lib/zentrum-plan-canvas.ts";
 import { run } from "./support/calls.ts";
@@ -342,8 +342,8 @@ test("draws a trunk and its branches as one lane on the corridors they share", (
 
   // Each line keeps its own pattern; only the lane is shared, and only where signed as one service.
   assert.deepEqual(sharedEdge.lineIds, ["S1", "S4", "S5", "S11", "S41", "S51"]);
-  assert.deepEqual([...sharedEdge.trackLineIds].sort(), ["S1", "S4", "S41", "S5"]);
-  assert.equal(sharedEdge.trackLineIds.includes("2"), false);
+  assert.deepEqual([...sharedEdge.trackIds].sort(), ["S1", "S4", "S41", "S5"]);
+  assert.equal(sharedEdge.trackIds.includes("2"), false);
   assert.deepEqual(
     reading.linePaths.map(({ lineId, trackId }) => [lineId, trackId]),
     [
@@ -387,7 +387,7 @@ test("parts a branch from its trunk where their observed patterns part", () => {
     reading.edges.find(
       ({ from, to }) =>
         [from.id, to.id].includes(leftStopId) && [from.id, to.id].includes(rightStopId),
-    )?.trackLineIds ?? [];
+    )?.trackIds ?? [];
   const pathData = new Map(
     reading.linePaths.map((linePath) => [
       linePath.lineId,
@@ -439,7 +439,7 @@ test("keeps lines with a longer shared route adjacent through busy corridors", (
     reading.edges.find(
       ({ from, to }) =>
         [from.id, to.id].includes(leftStopId) && [from.id, to.id].includes(rightStopId),
-    )?.trackLineIds ?? [];
+    )?.trackIds ?? [];
   const assertAdjacent = (order: readonly string[], leftLineId: string, rightLineId: string) =>
     assert.equal(Math.abs(order.indexOf(leftLineId) - order.indexOf(rightLineId)), 1);
 
@@ -499,7 +499,7 @@ test("orders a shared straight by the side on which its lines leave", () => {
   );
 
   // Later branches nest inside earlier ones, so no line crosses another to reach its branch.
-  assert.deepEqual(westCorridor?.trackLineIds, ["3", "1", "4", "2"]);
+  assert.deepEqual(westCorridor?.trackIds, ["3", "1", "4", "2"]);
   assert.match(pathData.get("3") ?? "", /^M 110\.00 143\.50 /);
   assert.match(pathData.get("1") ?? "", /^M 110\.00 150\.50 /);
   assert.match(pathData.get("4") ?? "", /^M 110\.00 157\.50 /);
@@ -525,10 +525,10 @@ test("lays neighbouring lanes exactly one lane width apart", () => {
       [from.id, to.id].includes("muehlburger-tor") && [from.id, to.id].includes("europaplatz"),
   );
   assert.ok(corridor);
-  assert.equal(corridor.trackLineIds.length, 4);
+  assert.equal(corridor.trackIds.length, 4);
 
   // The corridor runs level, so lane start points give the spacing.
-  const laneOffsets = corridor.trackLineIds.map((trackId) => {
+  const laneOffsets = corridor.trackIds.map((trackId) => {
     const linePath = reading.linePaths.find((path) => path.trackId === trackId);
     assert.ok(linePath);
     const start = getZentrumSchematicLinePathData(
@@ -623,7 +623,7 @@ test("thins every lane together when a corridor outgrows the band", () => {
   const busier = buildZentrumSchematicReading(corridorRuns(16));
   const quiet = buildZentrumSchematicReading(corridorRuns(2));
 
-  assert.equal(busy.edges[0]?.trackLineIds.length, 12);
+  assert.equal(busy.edges[0]?.trackIds.length, 12);
   assert.ok(busy.trackWidth < quiet.trackWidth);
   // Past the band, the lanes share its width.
   assert.equal(busy.trackWidth * 12, busier.trackWidth * 16);
@@ -642,7 +642,7 @@ test("draws a lane at one width on screen, whatever size the plan is drawn at", 
     onScreen(large, ZENTRUM_SCHEMATIC_VIEWBOX.width * 2),
   );
   // Neighbours still stand one lane width apart.
-  const [first, second] = small.edges[0].trackLineIds.map((trackId) => {
+  const [first, second] = small.edges[0].trackIds.map((trackId) => {
     const linePath = small.linePaths.find((path) => path.trackId === trackId);
     assert.ok(linePath);
     return getZentrumSchematicLinePathData(linePath, small.edges, small.trackWidth);
@@ -701,7 +701,7 @@ test("does not reserve lanes for services that join later on a straight", () => 
     reading.edges.find(
       ({ from, to }) =>
         [from.id, to.id].includes("barbarossaplatz") && [from.id, to.id].includes("ebertstrasse"),
-    )?.trackLineIds,
+    )?.trackIds,
     ["6"],
   );
   assert.match(data, /A 10\.00 10\.00 0 0 0 208\.00 619\.50/);
@@ -720,7 +720,7 @@ test("rounds right-angle turns around the intersection of their offset lanes", (
         departure("E", [call("werderstrasse", "7000083"), call("tivoli", "7000084")]),
         departure("6", [call("tivoli", "7000084"), call("poststrasse", "7000098")]),
       ],
-      roundedCorner: "L 722.50 602.50 A 10.00 10.00 0 0 1 712.50 612.50",
+      roundedCorner: "L 729.50 609.50 A 10.00 10.00 0 0 1 719.50 619.50",
     },
     {
       line3Calls: [
@@ -731,7 +731,7 @@ test("rounds right-angle turns around the intersection of their offset lanes", (
       companions: [
         departure("6", [call("ebertstrasse", "7000091"), call("hauptbahnhof", "7000089")]),
       ],
-      roundedCorner: "L 374.00 602.50 A 10.00 10.00 0 0 0 384.00 612.50",
+      roundedCorner: "L 374.00 609.50 A 10.00 10.00 0 0 0 384.00 619.50",
     },
   ] as const;
 
@@ -924,9 +924,53 @@ test("places a vehicle on the nearest occurrence when a route visits a stop twic
   assert.equal(vehicle.from.id, "marktplatz");
   assert.equal(vehicle.to.id, "kronenplatz");
   assert.deepEqual(
-    vehicle.path.edgeRanges.map(({ edgeId }) => edgeId),
+    vehicle.path.corridorRanges.map(({ corridorId }) => corridorId),
     [getEdgeKey("marktplatz", "kronenplatz")],
   );
+});
+
+test("keeps line 5 on its arriving lane between Europaplatz platforms", () => {
+  const timedCall = (stopId: string, providerId: string, platform: string, minute: number) => ({
+    ...call(stopId, providerId, platform),
+    scheduledArrivalTime: `2026-09-04T12:0${minute}:00+02:00`,
+    scheduledDepartureTime: `2026-09-04T12:0${minute}:00+02:00`,
+    delayMinutes: 0,
+  });
+  const trip = departure(
+    "5",
+    run([
+      timedCall("karlstor", "7000061", "1", 0),
+      timedCall("europaplatz", "7000037", "3", 2),
+      timedCall("europaplatz", "7000037", "5", 3),
+      timedCall("europaplatz-muehlburger-tor-wende--1xjn1ol", "7000038", "3", 4),
+    ]),
+    { id: "five-arriving", tripInstanceId: "five-arriving" },
+  );
+  const neighbor = departure("3", [
+    call("karlstor", "7000061", "3"),
+    call("europaplatz", "7000037", "3"),
+    call("europaplatz", "7000037", "5"),
+    call("muehlburger-tor", "7000039", "1a"),
+  ]);
+  const reading = buildZentrumSchematicReading([trip, neighbor]);
+  const runMotions = createRunMotions();
+  const [arriving] = getZentrumSchematicVehicles(
+    reading,
+    [trip],
+    Date.parse("2026-09-04T12:01:59+02:00"),
+    runMotions,
+  );
+  const [parked] = getZentrumSchematicVehicles(
+    reading,
+    [trip],
+    Date.parse("2026-09-04T12:02:30+02:00"),
+    runMotions,
+  );
+  assert.ok(arriving && parked);
+  const halt = arriving.path.points.at(-1);
+  assert.ok(halt);
+  assert.deepEqual({ x: parked.x, y: parked.y }, { x: halt.x, y: halt.y });
+  assert.equal(parked.angle, getZentrumSchematicVehiclePathPlacement(arriving.path, 1).angle);
 });
 
 test("keeps a vehicle standing before its Zentrum run starts", () => {
@@ -1072,6 +1116,18 @@ test("keeps one stable marker through a Zentrum turnaround", () => {
   assert.deepEqual(
     vehicles.map(({ id, markerKey, phase, from }) => [id, markerKey, phase, from.id]),
     [["zentrum-departure@today", "zentrum-departure@today", "beforeStart", "karlstor"]],
+  );
+
+  // Before the arrival gets in, the arriving tram is the one marker; its stand waits.
+  const approaching = getZentrumSchematicVehicles(
+    reading,
+    [arriving, departing],
+    Date.parse("2026-09-04T12:03:00+02:00"),
+    createRunMotions(),
+  );
+  assert.deepEqual(
+    approaching.map(({ id, markerKey, phase }) => [id, markerKey, phase]),
+    [["zentrum-arrival@today", "zentrum-departure@today", "running"]],
   );
 });
 
@@ -1246,7 +1302,7 @@ test("parks a mark inside a stop complex, pointing the way out", () => {
   const oriented =
     leavingPath.fromNodeId === "marktplatz"
       ? leavingPath
-      : reverseZentrumSchematicVehiclePath(leavingPath);
+      : reverseZentrumSchematicCorridorPath(leavingPath);
   assert.equal(parked.path.points[0]?.x, oriented.points[0].x);
   assert.equal(parked.path.points[0]?.y, oriented.points[0].y);
   // Facing the way out.
@@ -1326,7 +1382,7 @@ test("lights the corridors ahead of a placed vehicle, and none behind it", () =>
     Date.parse("2026-09-04T12:01:00+02:00"),
     motions,
   );
-  assert.deepEqual([...(vehicle?.aheadEdgeIds ?? [])].sort(), [
+  assert.deepEqual([...(vehicle?.aheadCorridorIds ?? [])].sort(), [
     "europaplatz\u0000marktplatz",
     "kronenplatz\u0000marktplatz",
   ]);
@@ -1338,7 +1394,7 @@ test("lights the corridors ahead of a placed vehicle, and none behind it", () =>
     Date.parse("2026-09-04T12:03:00+02:00"),
     motions,
   );
-  assert.deepEqual([...(past?.aheadEdgeIds ?? [])], ["kronenplatz\u0000marktplatz"]);
+  assert.deepEqual([...(past?.aheadCorridorIds ?? [])], ["kronenplatz\u0000marktplatz"]);
 });
 
 test("paints a line crossing a wider band over it, whatever its number", () => {
@@ -1388,7 +1444,7 @@ test("splits a drawn line at the stops without losing or repeating any of it", (
 
   const { segments } = drawnPath;
   assert.deepEqual(
-    segments.map(({ edgeId }) => edgeId),
+    segments.map(({ corridorId }) => corridorId),
     ["europaplatz\u0000muehlburger-tor", "europaplatz\u0000karlstor"],
   );
   const pointsOf = (data: string) =>
@@ -1413,6 +1469,39 @@ test("splits a drawn line at the stops without losing or repeating any of it", (
         (capsule.to.y - capsule.from.y) * (cut.x - capsule.from.x),
     ) < 0.1,
   );
+});
+
+test("ends a line that turns back at a stop on that stop's capsule", () => {
+  const reading = buildZentrumSchematicReading(
+    drawn([
+      board(
+        departure("6", [call("poststrasse", "7001017"), call("tivoli", "7001018")]),
+        departure("3", [
+          call("poststrasse", "7001017"),
+          call("tivoli", "7001018"),
+          call("werderstrasse", "7001019"),
+        ]),
+        departure("E", [call("werderstrasse", "7001019"), call("tivoli", "7001020")]),
+      ),
+    ]),
+  );
+  const capsules = reading.stopMarks.find(({ nodeId }) => nodeId === "tivoli")?.capsules ?? [];
+  for (const lineId of ["6", "E"]) {
+    const data = reading.drawnPaths.find(({ lineIds }) => lineIds.includes(lineId))?.data ?? "";
+    const [, x, y] = data.match(/([\d.-]+) ([\d.-]+)$/) ?? [];
+    const end = { x: Number(x), y: Number(y) };
+    assert.ok(
+      capsules.some(
+        ({ from, to }) =>
+          Math.abs((to.x - from.x) * (end.y - from.y) - (to.y - from.y) * (end.x - from.x)) < 0.5 &&
+          Math.min(from.x, to.x) - 0.01 <= end.x &&
+          end.x <= Math.max(from.x, to.x) + 0.01 &&
+          Math.min(from.y, to.y) - 0.01 <= end.y &&
+          end.y <= Math.max(from.y, to.y) + 0.01,
+      ),
+      `${lineId} ends at ${data}`,
+    );
+  }
 });
 
 test("cuts the highlighted path at a vehicle's position inside a corridor", () => {
@@ -1512,7 +1601,7 @@ test("orders a corridor for a parting its lines have not reached yet", () => {
     reading.edges.find(
       ({ from, to }) =>
         [from.id, to.id].includes(leftStopId) && [from.id, to.id].includes(rightStopId),
-    )?.trackLineIds ?? [];
+    )?.trackIds ?? [];
 
   // 4 leaves east, so it holds the Kriegsstraße's eastern lane; line 1, which does not turn, is
   // north of both.
@@ -1549,7 +1638,7 @@ test("keeps groups joining a corridor from opposite sides from weaving down it",
     reading.edges.find(
       ({ from, to }) =>
         [from.id, to.id].includes(leftStopId) && [from.id, to.id].includes(rightStopId),
-    )?.trackLineIds ?? [];
+    )?.trackIds ?? [];
 
   // Lanes are numbered west-first: the eastern pair holds the eastern lanes, so neither group
   // crosses.

@@ -84,7 +84,7 @@ test("lights a tram's corridor from the tram onwards, and nothing behind it", ()
   const overlay = getZentrumVehiclePathsOverlay([vehicle]);
 
   // The corridor it is on goes out behind it, so it is a stretch from the mark, not lit whole.
-  assert.deepEqual([...(overlay.edgeIdsByLineId.get("S1") ?? [])], [MARKTPLATZ_KRONENPLATZ]);
+  assert.deepEqual([...(overlay.corridorIdsByLineId.get("S1") ?? [])], [MARKTPLATZ_KRONENPLATZ]);
   assert.deepEqual(
     overlay.stretches.map(({ vehicle: { id }, end }) => [id, end]),
     [[vehicle.id, 1]],
@@ -100,7 +100,7 @@ test("keeps a corridor lit whole while a tram behind will still run it", () => {
   const overlay = getZentrumVehiclePathsOverlay(vehicles);
 
   // The lead is on the Marktplatz–Kronenplatz corridor; the follower still has all of it ahead.
-  assert.ok(overlay.edgeIdsByLineId.get("S1")?.has(MARKTPLATZ_KRONENPLATZ));
+  assert.ok(overlay.corridorIdsByLineId.get("S1")?.has(MARKTPLATZ_KRONENPLATZ));
   assert.equal(overlay.stretches.length, 2);
 });
 
@@ -115,7 +115,7 @@ test("lights the way a tram still has to come to a stop, and says when it leaves
   );
   // The rest of its own corridor, then the corridor on to the stop.
   assert.deepEqual(
-    [...(toKronenplatz.overlay.edgeIdsByLineId.get("S1") ?? [])],
+    [...(toKronenplatz.overlay.corridorIdsByLineId.get("S1") ?? [])],
     [MARKTPLATZ_KRONENPLATZ],
   );
   assert.deepEqual(
@@ -224,8 +224,8 @@ test("reads how soon every stop is reached directly, by the tram that gets there
     marktplatz: { arrivesAt: instant(3), lineId: "S5", departsAt: instant(1) },
     kronenplatz: { arrivesAt: instant(6), lineId: "S1", departsAt: instant(2) },
   });
-  assert.deepEqual([...(overlay.edgeIdsByLineId.get("S5") ?? [])], [EUROPAPLATZ_MARKTPLATZ]);
-  assert.deepEqual([...(overlay.edgeIdsByLineId.get("S1") ?? [])].sort(), [
+  assert.deepEqual([...(overlay.corridorIdsByLineId.get("S5") ?? [])], [EUROPAPLATZ_MARKTPLATZ]);
+  assert.deepEqual([...(overlay.corridorIdsByLineId.get("S1") ?? [])].sort(), [
     EUROPAPLATZ_MARKTPLATZ,
     MARKTPLATZ_KRONENPLATZ,
   ]);

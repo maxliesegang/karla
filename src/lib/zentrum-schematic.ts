@@ -29,6 +29,7 @@ import {
   getEdgeKey,
   getTrackIdByLineId,
   getTrackOffset,
+  getZentrumSchematicRoutes,
   getZentrumSchematicTrackWidth,
   isRailDeparture,
   orientCorridorRun,
@@ -37,13 +38,14 @@ import {
 import {
   type ZentrumSchematicDrawnPath,
   getZentrumSchematicDrawnPaths,
+  getZentrumSchematicPathSteps,
   getZentrumSchematicVehiclePathPlacement,
-  getZentrumSchematicVehiclePathsByEdgeId,
-  joinZentrumSchematicVehiclePaths,
-  orientZentrumSchematicVehiclePath,
-  type ZentrumSchematicVehiclePath as ZentrumSchematicVehicleSegmentPath,
+  getZentrumSchematicVehiclePathsByCorridorId,
+  joinZentrumSchematicCorridorPaths,
+  orientZentrumSchematicCorridorPath,
+  type ZentrumSchematicCorridorPath,
 } from "./zentrum-schematic-paths";
-import { getTrackBandOffsetByEdgeId, getTrackLineIdsByEdgeId } from "./zentrum-schematic-lanes";
+import { getTrackBandOffsetByEdgeId, getTrackIdsByEdgeId } from "./zentrum-schematic-lanes";
 import {
   getZentrumSchematicStopMarks,
   type ZentrumSchematicStopMark,
@@ -61,7 +63,7 @@ export type ZentrumSchematicVehicle = {
   progress: number;
   phase?: RunPlacementPhase;
   /** Every drawn corridor from the one the vehicle is on through the end of its run. */
-  aheadEdgeIds: readonly string[];
+  aheadCorridorIds: readonly string[];
   /** The drawn stops the run still calls at, in order, from the one its link leaves. */
   aheadStops: readonly ZentrumSchematicAheadStop[];
   x: number;
@@ -98,11 +100,11 @@ export type ZentrumSchematicVehiclePath = {
   /** Each point's share of the path's length, ascending to 1. */
   steps: readonly number[];
   /** The corridors making up the path, with their ranges of its progress. */
-  edgeRanges: readonly ZentrumSchematicVehiclePathEdgeRange[];
+  corridorRanges: readonly ZentrumSchematicVehiclePathCorridorRange[];
 };
 
-export type ZentrumSchematicVehiclePathEdgeRange = {
-  edgeId: string;
+export type ZentrumSchematicVehiclePathCorridorRange = {
+  corridorId: string;
   start: number;
   end: number;
 };
@@ -111,7 +113,10 @@ export type ZentrumSchematicVehiclePathEdgeRange = {
 export type ZentrumSchematicLayout = {
   /** Identifies the layout: two layouts with one key place the same lanes. */
   layoutKey: string;
+  /** The segments drawn: corridors, split at junctions. */
   edges: readonly ZentrumSchematicEdge[];
+  /** Every corridor a drawn run states, stop to stop. */
+  corridors: readonly ZentrumSchematicObservedEdge[];
   linePaths: readonly ZentrumSchematicLinePath[];
   /** Every drawn line, in legend order. */
   lineIds: readonly string[];
@@ -127,10 +132,7 @@ export type ZentrumSchematicReading = ZentrumSchematicLayout & {
   /** The strokes the drawing paints. */
   drawnPaths: readonly ZentrumSchematicDrawnPath[];
   /** The stretch a mark follows, by line and corridor, so placing a vehicle is a lookup. */
-  vehiclePathsByLineId: ReadonlyMap<
-    string,
-    ReadonlyMap<string, ZentrumSchematicVehicleSegmentPath>
-  >;
+  vehiclePathsByLineId: ReadonlyMap<string, ReadonlyMap<string, ZentrumSchematicCorridorPath>>;
   stopMarks: readonly ZentrumSchematicStopMark[];
 };
 
@@ -142,6 +144,12 @@ const getPathKey = (nodes: readonly ZentrumSchematicNode[]): string => {
     .join("\u0000");
   return forward < reverse ? forward : reverse;
 };
+
+const sortById = (
+  left: ZentrumSchematicNode,
+  right: ZentrumSchematicNode,
+): readonly [ZentrumSchematicNode, ZentrumSchematicNode] =>
+  left.id < right.id ? [left, right] : [right, left];
 
 const getDepartureSchematicPaths = (departure: Departure): ZentrumSchematicNode[][] => {
   const paths: ZentrumSchematicNode[][] = [];
@@ -310,8 +318,9 @@ const getZentrumSchematicBoardingPlaces = (
 
 /** What the drawn runs state about the plan, before any of it is laid out. */
 type ZentrumSchematicObservation = {
-  /** Every corridor a drawn run states, in id order so the same corridors always read alike. */
+  /** Every segment drawn, in id order so the same corridors always read alike. */
   edges: readonly ZentrumSchematicObservedEdge[];
+  corridors: readonly ZentrumSchematicObservedEdge[];
   linePaths: readonly ZentrumSchematicLinePath[];
   lineIdsByNodeId: ReadonlyMap<string, readonly string[]>;
   boardingPlacesByNodeId: ReadonlyMap<string, readonly ZentrumSchematicBoardingPlace[]>;
@@ -319,12 +328,14 @@ type ZentrumSchematicObservation = {
 
 /**
  * The paths the drawn runs state through the plan. Calls count only in adjacent pairs, so a trip
- * leaving and returning invents no shortcut, and an unknown call breaks the path.
+ * leaving and returning invents no shortcut, and an unknown call breaks the path. A corridor is
+ * drawn over one segment, or several through a junction; the layout sees only segments.
  */
 const observeZentrumSchematic = (
   drawnVehicles: readonly Departure[],
 ): ZentrumSchematicObservation => {
-  const lineIdsByEdgeKey = new Map<string, Set<string>>();
+  const lineIdsByCorridorKey = new Map<string, Set<string>>();
+  const corridorByKey = new Map<string, readonly [ZentrumSchematicNode, ZentrumSchematicNode]>();
   const pathsByLineId = new Map<
     string,
     Map<string, { nodes: readonly ZentrumSchematicNode[]; tripCount: number }>
@@ -346,29 +357,57 @@ const observeZentrumSchematic = (
       pathsByLineId.set(departure.lineId, paths);
       for (let index = 1; index < path.length; index += 1) {
         const key = getEdgeKey(path[index - 1].id, path[index].id);
-        const lineIds = lineIdsByEdgeKey.get(key) ?? new Set<string>();
+        const lineIds = lineIdsByCorridorKey.get(key) ?? new Set<string>();
         lineIds.add(departure.lineId);
-        lineIdsByEdgeKey.set(key, lineIds);
+        lineIdsByCorridorKey.set(key, lineIds);
+        if (!corridorByKey.has(key)) corridorByKey.set(key, sortById(path[index - 1], path[index]));
       }
     }
   }
 
-  const lineIdsByNodeId = new Map<string, Set<string>>();
-  const edges: ZentrumSchematicObservedEdge[] = [...lineIdsByEdgeKey.entries()]
-    .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
-    .flatMap(([key, lineIds]) => {
-      const [fromId, toId] = key.split("\u0000");
-      const from = zentrumSchematicNodeById.get(fromId);
-      const to = zentrumSchematicNodeById.get(toId);
-      if (!from || !to) return [];
-      const sortedLineIds = [...lineIds].sort(compareLineIdsNaturally);
-      for (const node of [from, to]) {
-        const nodeLineIds = lineIdsByNodeId.get(node.id) ?? new Set<string>();
-        for (const lineId of sortedLineIds) nodeLineIds.add(lineId);
-        lineIdsByNodeId.set(node.id, nodeLineIds);
-      }
-      return [{ id: key, from, to, lineIds: sortedLineIds }];
+  const routes = getZentrumSchematicRoutes([...corridorByKey.values()]);
+  const route = (nodes: readonly ZentrumSchematicNode[]): readonly ZentrumSchematicNode[] =>
+    nodes.flatMap((node, index) => {
+      if (index === 0) return [node];
+      const through = routes.get(getEdgeKey(nodes[index - 1].id, node.id)) ?? [];
+      const forward = through[0]?.id === nodes[index - 1].id ? through : [...through].reverse();
+      return forward.length > 2 ? forward.slice(1) : [node];
     });
+
+  const lineIdsByNodeId = new Map<string, Set<string>>();
+  const segmentByKey = new Map<string, readonly [ZentrumSchematicNode, ZentrumSchematicNode]>();
+  const lineIdsBySegmentKey = new Map<string, Set<string>>();
+  for (const [key, lineIds] of lineIdsByCorridorKey) {
+    const nodes = routes.get(key) ?? corridorByKey.get(key) ?? [];
+    for (const node of [nodes[0], nodes.at(-1)]) {
+      if (!node) continue;
+      const nodeLineIds = lineIdsByNodeId.get(node.id) ?? new Set<string>();
+      for (const lineId of lineIds) nodeLineIds.add(lineId);
+      lineIdsByNodeId.set(node.id, nodeLineIds);
+    }
+    for (let index = 1; index < nodes.length; index += 1) {
+      const [left, right] = sortById(nodes[index - 1], nodes[index]);
+      const segmentKey = getEdgeKey(left.id, right.id);
+      segmentByKey.set(segmentKey, [left, right]);
+      const segmentLineIds = lineIdsBySegmentKey.get(segmentKey) ?? new Set<string>();
+      for (const lineId of lineIds) segmentLineIds.add(lineId);
+      lineIdsBySegmentKey.set(segmentKey, segmentLineIds);
+    }
+  }
+  const toEdges = (
+    byKey: ReadonlyMap<string, readonly [ZentrumSchematicNode, ZentrumSchematicNode]>,
+    lineIdsByKey: ReadonlyMap<string, ReadonlySet<string>>,
+  ): ZentrumSchematicObservedEdge[] =>
+    [...byKey]
+      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+      .map(([id, [from, to]]) => ({
+        id,
+        from,
+        to,
+        lineIds: [...(lineIdsByKey.get(id) ?? [])].sort(compareLineIdsNaturally),
+      }));
+  const edges = toEdges(segmentByKey, lineIdsBySegmentKey);
+  const corridors = toEdges(corridorByKey, lineIdsByCorridorKey);
 
   // Each line is drawn by the path most distinct trips take, not every short working. Ties go to
   // the longer path, then the key, so refresh order cannot make the drawing flicker.
@@ -382,7 +421,7 @@ const observeZentrumSchematic = (
       )[0];
       if (!mostUsed) return [];
       const [pathKey, { nodes }] = mostUsed;
-      return [{ id: `${lineId}:${pathKey}`, lineId, nodes }];
+      return [{ id: `${lineId}:${pathKey}`, lineId, nodes: route(nodes) }];
     })
     .sort(
       (left, right) =>
@@ -392,6 +431,7 @@ const observeZentrumSchematic = (
   const trackIdByLineId = getTrackIdByLineId(drawnPaths.map(({ lineId }) => lineId));
   return {
     edges,
+    corridors,
     linePaths: drawnPaths.map((linePath) => ({
       ...linePath,
       trackId: trackIdByLineId.get(linePath.lineId) ?? linePath.lineId,
@@ -410,16 +450,17 @@ const observeZentrumSchematic = (
 const layOutZentrumSchematic = (
   {
     edges: observedEdges,
+    corridors,
     linePaths,
     lineIdsByNodeId,
     boardingPlacesByNodeId,
   }: ZentrumSchematicObservation,
   layoutKey: string,
 ): ZentrumSchematicLayout => {
-  const trackLineIdsByEdgeId = getTrackLineIdsByEdgeId(observedEdges, linePaths);
+  const trackIdsByEdgeId = getTrackIdsByEdgeId(observedEdges, linePaths);
   const lanes: readonly ZentrumSchematicLanedEdge[] = observedEdges.map((edge) => ({
     ...edge,
-    trackLineIds: trackLineIdsByEdgeId.get(edge.id) ?? [],
+    trackIds: trackIdsByEdgeId.get(edge.id) ?? [],
   }));
   const trackBandOffsetByEdgeId = getTrackBandOffsetByEdgeId(lanes, linePaths);
   const edges: readonly ZentrumSchematicEdge[] = lanes.map((edge) => ({
@@ -429,6 +470,7 @@ const layOutZentrumSchematic = (
   return {
     layoutKey,
     edges,
+    corridors,
     linePaths,
     lineIds: [...new Set(edges.flatMap((edge) => edge.lineIds))].sort(compareLineIds),
     lineIdsByNodeId,
@@ -495,18 +537,25 @@ export function createZentrumSchematicDrawer(): (
       trackWidth,
       layout.boardingPlacesByNodeId,
     );
-    // From the final edges, so marks ride the painted geometry and halt at the capsules.
+    // From the final edges, so marks ride the painted geometry and halt at the capsules, where
+    // the strokes end too.
     const stopLinesByNodeId = new Map(stopMarks.map(({ nodeId, capsules }) => [nodeId, capsules]));
     const vehiclePathsByLineId = new Map(
       linePaths.map((linePath) => [
         linePath.lineId,
-        getZentrumSchematicVehiclePathsByEdgeId(linePath, edges, trackWidth, stopLinesByNodeId),
+        getZentrumSchematicVehiclePathsByCorridorId(linePath, edges, trackWidth, stopLinesByNodeId),
       ]),
     );
     last = {
       ...layout,
       trackWidth,
-      drawnPaths: getZentrumSchematicDrawnPaths(linePaths, edges, trackWidth, vehiclePathsByLineId),
+      drawnPaths: getZentrumSchematicDrawnPaths(
+        linePaths,
+        edges,
+        trackWidth,
+        vehiclePathsByLineId,
+        stopLinesByNodeId,
+      ),
       vehiclePathsByLineId,
       stopMarks,
     };
@@ -538,7 +587,7 @@ const getVehicleLaneOffset = (
   trackWidth: number | undefined,
 ): SchematicPoint => {
   if (!edge || trackWidth === undefined || trackId === undefined) return { x: 0, y: 0 };
-  const laneIndex = edge.trackLineIds.indexOf(trackId);
+  const laneIndex = edge.trackIds.indexOf(trackId);
   if (laneIndex < 0) return { x: 0, y: 0 };
   const offset = getTrackOffset(edge, laneIndex, trackWidth);
   const run = orientCorridorRun(edge);
@@ -561,7 +610,7 @@ type ZentrumSchematicPlacedRun = {
   placedAfterLinks?: number;
   trajectory?: RunSegmentTrajectory;
   /** The corridors from the one the vehicle is on to the end of its run through the plan. */
-  aheadEdgeIds: readonly string[];
+  aheadCorridorIds: readonly string[];
   /** The drawn stops from the one the link leaves, not yet measured along the path. */
   aheadStops: readonly Omit<ZentrumSchematicAheadStop, "pathProgress">[];
   /**
@@ -571,6 +620,8 @@ type ZentrumSchematicPlacedRun = {
   via: readonly ZentrumSchematicNode[];
   /** For a link inside a complex: the corridor the trip leaves it by, where the mark parks. */
   leaving?: { from: ZentrumSchematicNode; to: ZentrumSchematicNode };
+  /** The arriving corridor for a complex with no drawn way out. */
+  entering?: { from: ZentrumSchematicNode; to: ZentrumSchematicNode };
 };
 
 const getZentrumSchematicPlacedRuns = (
@@ -640,15 +691,16 @@ const getZentrumSchematicPlacedRuns = (
     }
     if (!selectedLink) continue;
     const { index, from, to, via } = selectedLink;
-    const aheadEdgeIds: string[] = [];
+    const aheadCorridorIds: string[] = [];
     const aheadStops: Omit<ZentrumSchematicAheadStop, "pathProgress">[] = [];
     let leaving: { from: ZentrumSchematicNode; to: ZentrumSchematicNode } | undefined;
+    let entering: { from: ZentrumSchematicNode; to: ZentrumSchematicNode } | undefined;
     if (placement.phase !== "afterEnd") {
       for (let ahead = index; ahead < calls.length - 1; ahead += 1) {
         const aheadFrom = nodeOf(calls[ahead]);
         const aheadTo = nodeOf(calls[ahead + 1]);
         if (!aheadFrom || !aheadTo || aheadFrom.id === aheadTo.id) continue;
-        aheadEdgeIds.push(getEdgeKey(aheadFrom.id, aheadTo.id));
+        aheadCorridorIds.push(getEdgeKey(aheadFrom.id, aheadTo.id));
       }
       for (let ahead = index; ahead < calls.length; ahead += 1) {
         const node = nodeOf(calls[ahead]);
@@ -663,6 +715,13 @@ const getZentrumSchematicPlacedRuns = (
       }
     }
     if (from.id === to.id) {
+      for (let behind = index - 1; behind >= 0; behind -= 1) {
+        const node = nodeOf(calls[behind]);
+        if (!node) break;
+        if (node.id === from.id) continue;
+        entering = { from: node, to: from };
+        break;
+      }
       for (let ahead = index + 1; ahead < calls.length - 1; ahead += 1) {
         const aheadFrom = nodeOf(calls[ahead]);
         const aheadTo = nodeOf(calls[ahead + 1]);
@@ -684,10 +743,11 @@ const getZentrumSchematicPlacedRuns = (
       motion: placement.motion,
       placedAfterLinks: placement.placedAfterLinks,
       trajectory: placement.trajectory,
-      aheadEdgeIds,
+      aheadCorridorIds,
       aheadStops,
       via,
       ...(leaving ? { leaving } : {}),
+      ...(entering ? { entering } : {}),
     });
   }
 
@@ -699,10 +759,17 @@ const getZentrumSchematicPlacedRuns = (
   const endedNodeIds = new Set(
     afterTurnarounds.flatMap(({ phase, to }) => (phase === "afterEnd" ? [to.id] : [])),
   );
+  // A turn's arrival still under way is the vehicle; its departure's stand waits for it.
+  const arrivingTurnKeys = new Set(
+    afterTurnarounds.flatMap(({ departure, phase }) => {
+      const turningKey = turnarounds.turningDepartureKeyByArrivalKey.get(getRunMarkKey(departure));
+      return phase === "running" && turningKey !== undefined ? [turningKey] : [];
+    }),
+  );
   return afterTurnarounds.filter((placement) => {
     if (placement.phase !== "beforeStart") return true;
     if (endedNodeIds.has(placement.from.id)) return false;
-    return true;
+    return !arrivingTurnKeys.has(getRunMarkKey(placement.departure));
   });
 };
 
@@ -717,56 +784,90 @@ const getVehiclePath = (
     to,
     via,
     leaving,
+    entering,
   }: Pick<
     ZentrumSchematicPlacedRun,
-    "departure" | "trackId" | "edge" | "from" | "to" | "via" | "leaving"
+    "departure" | "trackId" | "edge" | "from" | "to" | "via" | "leaving" | "entering"
   >,
 ): ZentrumSchematicVehiclePath => {
   const paths = reading.vehiclePathsByLineId.get(departure.lineId);
-  // Inside a complex the mark parks where its vehicle will emerge, else on the stop.
+  // Inside a complex the mark parks on its way out, or where it arrived if the way out is undrawn.
   if (from.id === to.id) {
-    const leavingPath = getLeavingPath(reading, departure, leaving);
-    return { points: [leavingPath?.points[0] ?? from], steps: [0], edgeRanges: [] };
+    const leavingPath = getRunCorridorPath(reading, departure, leaving);
+    const enteringPath = getRunCorridorPath(reading, departure, entering);
+    return {
+      points: [leavingPath?.points[0] ?? enteringPath?.points.at(-1) ?? from],
+      steps: [0],
+      corridorRanges: [],
+    };
   }
   const stops = [from, ...via, to];
-  const pieces: { edgeId: string; path: ZentrumSchematicVehicleSegmentPath }[] = [];
+  const pieces: { corridorId: string; path: ZentrumSchematicCorridorPath }[] = [];
   for (let index = 0; index < stops.length - 1; index += 1) {
     const piece = paths?.get(getEdgeKey(stops[index].id, stops[index + 1].id));
     if (!piece) break;
     pieces.push({
-      edgeId: getEdgeKey(stops[index].id, stops[index + 1].id),
-      path: orientZentrumSchematicVehiclePath(piece, stops[index].id),
+      corridorId: getEdgeKey(stops[index].id, stops[index + 1].id),
+      path: orientZentrumSchematicCorridorPath(piece, stops[index].id),
     });
   }
   const joined =
     pieces.length === stops.length - 1
-      ? joinZentrumSchematicVehiclePaths(pieces.map(({ path }) => path))
+      ? joinZentrumSchematicCorridorPaths(pieces.map(({ path }) => path))
       : undefined;
   if (joined) {
-    const totalLength = pieces.reduce((sum, { path }) => sum + getPathLength(path.points), 0);
+    const lengths = pieces.map(({ path }) => getPathLength(path.points));
+    const totalLength = lengths.reduce((sum, length) => sum + length, 0);
     let startLength = 0;
-    const edgeRanges = pieces.map(({ edgeId, path }) => {
-      const endLength = startLength + getPathLength(path.points);
+    const corridorRanges = pieces.map(({ corridorId }, index) => {
+      const endLength = startLength + lengths[index];
       const range = {
-        edgeId,
+        corridorId,
         start: totalLength > 0 ? startLength / totalLength : 0,
         end: totalLength > 0 ? endLength / totalLength : 0,
       };
       startLength = endLength;
       return range;
     });
-    return { ...joined, edgeRanges };
+    return { ...joined, corridorRanges };
   }
-  // A corridor the line's drawn pattern does not hold: a straight along the corridor's lane.
-  const lane = getVehicleLaneOffset(edge, trackId, reading.trackWidth);
+  // A corridor the line's drawn pattern does not hold: its segments, along the line's lane.
+  const segments = edge ? [edge] : getJunctionSegments(reading.edges, from, to);
+  const points = segments.flatMap((segment, index) => {
+    const lane = getVehicleLaneOffset(segment, trackId, reading.trackWidth);
+    const start = index === 0 ? from : segment.from.id === to.id ? segment.to : segment.from;
+    const end = segment.from.id === start.id ? segment.to : segment.from;
+    return [
+      { x: start.x + lane.x, y: start.y + lane.y },
+      { x: end.x + lane.x, y: end.y + lane.y },
+    ];
+  });
+  const steps = getZentrumSchematicPathSteps(points);
+  if (!steps) return { points: [from, to], steps: [0, 1], corridorRanges: [] };
   return {
-    points: [
-      { x: from.x + lane.x, y: from.y + lane.y },
-      { x: to.x + lane.x, y: to.y + lane.y },
-    ],
-    steps: [0, 1],
-    edgeRanges: edge ? [{ edgeId: edge.id, start: 0, end: 1 }] : [],
+    points,
+    steps,
+    corridorRanges: [{ corridorId: getEdgeKey(from.id, to.id), start: 0, end: 1 }],
   };
+};
+
+/** The segments a corridor runs over through a junction, from one stop to the other. */
+const getJunctionSegments = (
+  edges: readonly ZentrumSchematicEdge[],
+  from: ZentrumSchematicNode,
+  to: ZentrumSchematicNode,
+): readonly ZentrumSchematicEdge[] => {
+  const touching = (node: ZentrumSchematicNode) =>
+    edges.filter((edge) => edge.from.id === node.id || edge.to.id === node.id);
+  const far = (edge: ZentrumSchematicEdge, node: ZentrumSchematicNode) =>
+    edge.from.id === node.id ? edge.to : edge.from;
+  for (const first of touching(from)) {
+    const junction = far(first, from);
+    if (!junction.isJunction) continue;
+    const second = touching(junction).find((edge) => far(edge, junction).id === to.id);
+    if (second) return [first, second];
+  }
+  return [];
 };
 
 /** The stops ahead, each measured where its corridor's range on the mark's path ends. */
@@ -775,7 +876,7 @@ const measureAheadStops = (
   pathStops: readonly ZentrumSchematicNode[],
   path: ZentrumSchematicVehiclePath,
 ): readonly ZentrumSchematicAheadStop[] => {
-  const isMeasured = path.edgeRanges.length === pathStops.length - 1;
+  const isMeasured = path.corridorRanges.length === pathStops.length - 1;
   let next = 0;
   return aheadStops.map((stop) => {
     if (next >= pathStops.length || stop.nodeId !== pathStops[next].id) return stop;
@@ -785,7 +886,7 @@ const measureAheadStops = (
       index === 0
         ? 0
         : isMeasured
-          ? path.edgeRanges[index - 1].end
+          ? path.corridorRanges[index - 1].end
           : index === pathStops.length - 1
             ? 1
             : undefined;
@@ -823,7 +924,7 @@ export function getZentrumSchematicVehicles(
       to,
       progress,
       phase,
-      aheadEdgeIds,
+      aheadCorridorIds,
       aheadStops,
       markerKey,
       motion,
@@ -831,6 +932,7 @@ export function getZentrumSchematicVehicles(
       trajectory,
       via,
       leaving,
+      entering,
     }) => {
       const path = getVehiclePath(reading, {
         departure,
@@ -840,6 +942,7 @@ export function getZentrumSchematicVehicles(
         to,
         via,
         leaving,
+        entering,
       });
       const placement = getZentrumSchematicVehiclePathPlacement(path, progress);
       return {
@@ -852,7 +955,7 @@ export function getZentrumSchematicVehicles(
         to,
         progress,
         phase,
-        aheadEdgeIds,
+        aheadCorridorIds,
         aheadStops: measureAheadStops(
           aheadStops,
           from.id === to.id ? [from] : [from, ...via, to],
@@ -864,30 +967,36 @@ export function getZentrumSchematicVehicles(
         trajectory,
         x: placement.x,
         y: placement.y,
-        angle: placement.angle ?? getVehicleHeadingAngle(reading, { departure, leaving }),
+        angle: placement.angle ?? getVehicleHeadingAngle(reading, { departure, leaving, entering }),
       };
     },
   );
 }
 
-/** Which way a mark parked inside a complex points: along the corridor it will leave by. */
+/** A parked mark faces its way out, or keeps its arriving direction where the way out is undrawn. */
 const getVehicleHeadingAngle = (
   reading: ZentrumSchematicReading,
-  { departure, leaving }: Pick<ZentrumSchematicPlacedRun, "departure" | "leaving">,
+  {
+    departure,
+    leaving,
+    entering,
+  }: Pick<ZentrumSchematicPlacedRun, "departure" | "leaving" | "entering">,
 ): number => {
-  const leavingPath = getLeavingPath(reading, departure, leaving);
-  return leavingPath ? (getZentrumSchematicVehiclePathPlacement(leavingPath, 0).angle ?? 0) : 0;
+  const leavingPath = getRunCorridorPath(reading, departure, leaving);
+  if (leavingPath) return getZentrumSchematicVehiclePathPlacement(leavingPath, 0).angle ?? 0;
+  const enteringPath = getRunCorridorPath(reading, departure, entering);
+  return enteringPath ? (getZentrumSchematicVehiclePathPlacement(enteringPath, 1).angle ?? 0) : 0;
 };
 
-/** The line's drawn path out of a stop complex, the way the run will leave by it. */
-const getLeavingPath = (
+/** A corridor's drawn path, oriented in the run's direction. */
+const getRunCorridorPath = (
   reading: ZentrumSchematicReading,
   departure: Departure,
-  leaving: ZentrumSchematicPlacedRun["leaving"],
-): ZentrumSchematicVehicleSegmentPath | undefined => {
-  if (!leaving) return undefined;
+  corridor: ZentrumSchematicPlacedRun["leaving"],
+): ZentrumSchematicCorridorPath | undefined => {
+  if (!corridor) return undefined;
   const path = reading.vehiclePathsByLineId
     .get(departure.lineId)
-    ?.get(getEdgeKey(leaving.from.id, leaving.to.id));
-  return path && orientZentrumSchematicVehiclePath(path, leaving.from.id);
+    ?.get(getEdgeKey(corridor.from.id, corridor.to.id));
+  return path && orientZentrumSchematicCorridorPath(path, corridor.from.id);
 };

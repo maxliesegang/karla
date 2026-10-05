@@ -27,6 +27,13 @@ export type ZentrumSchematicNode = {
   y: number;
   /** The side the name stands on, clear of the corridors; solved with the position. */
   labelSide?: "left" | "right" | "above" | "below";
+  /**
+   * The way the platforms run. Corridors leave along it and turn square to the stop they serve,
+   * through a junction (`getZentrumSchematicRoutes`).
+   */
+  platformRun?: "level" | "upright";
+  /** A bend between stops, where corridors meet: drawn without a dot, a mark or a name. */
+  isJunction?: boolean;
 };
 
 export const ZENTRUM_SCHEMATIC_NODES: readonly ZentrumSchematicNode[] = [
@@ -56,12 +63,87 @@ export const ZENTRUM_SCHEMATIC_NODES: readonly ZentrumSchematicNode[] = [
   { id: "hauptbahnhof", label: "Hauptbahnhof", x: 462, y: 616, labelSide: "above" },
   { id: "poststrasse", label: "Poststraße", x: 572, y: 616, labelSide: "below" },
   { id: "tivoli", label: "Tivoli", x: 726, y: 616, labelSide: "right" },
-  { id: "albtalbahnhof", label: "Albtalbahnhof", x: 418, y: 660, labelSide: "below" },
+  {
+    id: "albtalbahnhof",
+    label: "Albtalbahnhof",
+    x: 418,
+    y: 660,
+    labelSide: "below",
+    platformRun: "upright",
+  },
 ] as const;
 
 export const zentrumSchematicNodeById = new Map(
   ZENTRUM_SCHEMATIC_NODES.map((node) => [node.id, node]),
 );
+
+/** Whether a point lies strictly inside a segment, exactly: plan coordinates are whole units. */
+const isInsideSegment = (
+  point: SchematicPoint,
+  from: SchematicPoint,
+  to: SchematicPoint,
+): boolean => {
+  const run = { x: to.x - from.x, y: to.y - from.y };
+  const offset = { x: point.x - from.x, y: point.y - from.y };
+  const along = offset.x * run.x + offset.y * run.y;
+  return (
+    offset.x * run.y - offset.y * run.x === 0 && along > 0 && along < run.x * run.x + run.y * run.y
+  );
+};
+
+/**
+ * Where a corridor from a stop with a platform run turns square towards the other end: level with
+ * it along the run. None where the corridor already runs along it, or a stop would be passed.
+ */
+const getJunctionPoint = (
+  stop: ZentrumSchematicNode,
+  other: ZentrumSchematicNode,
+): SchematicPoint | undefined => {
+  if (!stop.platformRun) return undefined;
+  const point =
+    stop.platformRun === "upright" ? { x: stop.x, y: other.y } : { x: other.x, y: stop.y };
+  if ((point.x === stop.x && point.y === stop.y) || (point.x === other.x && point.y === other.y)) {
+    return undefined;
+  }
+  const passes = ZENTRUM_SCHEMATIC_NODES.some(
+    (node) => isInsideSegment(node, stop, point) || isInsideSegment(node, point, other),
+  );
+  return passes ? undefined : point;
+};
+
+/**
+ * The plan nodes each observed corridor is drawn through, by its key: its two stops, with any
+ * junction between. A corridor crossing another's junction is split there, so the two share it.
+ */
+export const getZentrumSchematicRoutes = (
+  corridors: readonly (readonly [ZentrumSchematicNode, ZentrumSchematicNode])[],
+): ReadonlyMap<string, readonly ZentrumSchematicNode[]> => {
+  const junctionByPoint = new Map<string, ZentrumSchematicNode>();
+  const turns = corridors.map(([from, to]) => {
+    const point = getJunctionPoint(from, to) ?? getJunctionPoint(to, from);
+    if (!point) return [from, to];
+    const id = `junction:${point.x},${point.y}`;
+    const junction = junctionByPoint.get(id) ?? { id, label: "", ...point, isJunction: true };
+    junctionByPoint.set(id, junction);
+    return [from, junction, to];
+  });
+  const junctions = [...junctionByPoint.values()];
+  return new Map(
+    corridors.map(([from, to], index) => [
+      getEdgeKey(from.id, to.id),
+      turns[index].flatMap((node, at) => {
+        if (at === 0) return [node];
+        const previous = turns[index][at - 1];
+        const distance = (point: SchematicPoint) =>
+          Math.hypot(point.x - previous.x, point.y - previous.y);
+        const crossed = junctions
+          .filter((junction) => isInsideSegment(junction, previous, node))
+          .sort((left, right) => distance(left) - distance(right));
+        return [...crossed, node];
+      }),
+    ]),
+  );
+};
 
 /** Only rail is drawn. */
 export const isRailDeparture = ({ transportMode }: Pick<Departure, "transportMode">): boolean =>
@@ -80,7 +162,7 @@ export type ZentrumSchematicObservedEdge = {
 
 /** An observed corridor with its lanes ordered, before its band has been placed. */
 export type ZentrumSchematicLanedEdge = ZentrumSchematicObservedEdge & {
-  trackLineIds: readonly string[];
+  trackIds: readonly string[];
 };
 
 export type ZentrumSchematicEdge = ZentrumSchematicLanedEdge & {
@@ -117,11 +199,11 @@ export const getTrackIdByLineId = (lineIds: readonly string[]): ReadonlyMap<stri
     lineIdsByTrackKey.set(key, [...(lineIdsByTrackKey.get(key) ?? []), lineId]);
   }
   return new Map(
-    [...lineIdsByTrackKey.values()].flatMap((trackLineIds) => {
-      const trackId = [...trackLineIds].sort(
+    [...lineIdsByTrackKey.values()].flatMap((sharedLineIds) => {
+      const trackId = [...sharedLineIds].sort(
         (left, right) => left.length - right.length || left.localeCompare(right, "de"),
       )[0];
-      return trackLineIds.map((lineId) => [lineId, trackId] as const);
+      return sharedLineIds.map((lineId) => [lineId, trackId] as const);
     }),
   );
 };
@@ -187,17 +269,16 @@ export const getZentrumSchematicTrackWidth = (
         );
   return Math.min(
     wanted,
-    ZENTRUM_SCHEMATIC_TRACK_BAND_WIDTH /
-      Math.max(...edges.map((edge) => edge.trackLineIds.length), 1),
+    ZENTRUM_SCHEMATIC_TRACK_BAND_WIDTH / Math.max(...edges.map((edge) => edge.trackIds.length), 1),
   );
 };
 
 /** A lane's signed distance from the middle of its corridor, positive along the corridor normal. */
 export const getTrackOffset = (
   edge: ZentrumSchematicEdge,
-  lineIndex: number,
+  trackIndex: number,
   trackWidth: number,
-): number => (edge.trackBandOffset + lineIndex - (edge.trackLineIds.length - 1) / 2) * trackWidth;
+): number => (edge.trackBandOffset + trackIndex - (edge.trackIds.length - 1) / 2) * trackWidth;
 
 /** Where a lane runs at a stop; without a width, every line runs down the corridor's centre. */
 export const getLineTrackPoint = (

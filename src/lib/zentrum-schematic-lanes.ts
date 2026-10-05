@@ -1,9 +1,10 @@
 /**
- * Which lane of a corridor each line is drawn in, and where the corridor's band of lanes sits.
+ * Which lane of an edge each line is drawn in, and where the edge's band of lanes sits.
  *
  * The one part of the plan that is solved rather than read: lines must keep their order along
- * shared corridors so each stays one stroke and companions stay side by side. The ordering follows
- * LOOM: a cost over crossings and separations, improved pass by pass until it settles.
+ * shared edges so each stays one stroke and companions stay side by side. The ordering follows
+ * LOOM: a cost over crossings and separations, improved pass by pass until it settles, except that
+ * the cost ranks crossings above separations.
  */
 import {
   type SchematicPoint,
@@ -19,33 +20,37 @@ import {
   orientCorridorRun,
 } from "./zentrum-schematic-plan";
 /**
- * LOOM's weights for a crossing at a stop and for a lane standing between two lines that travel
- * together. One cost, not a ranking, so a crossing may be accepted to keep a shared route whole.
+ * The cost's ranks, as weights far apart: fewest crossings, then crossings at bare junctions rather
+ * than stops (whose capsules want straight lanes), then lanes ending where others turn away from
+ * them, then fewest lanes standing between lines that travel together. No separation saved buys a
+ * crossing.
  */
-const LINE_CROSSING_WEIGHT = 4;
-const LINE_SEPARATION_WEIGHT = 3;
+const TRACK_CROSSING_WEIGHT = 1e9;
+const STOP_CROSSING_WEIGHT = 1e6;
+const TRACK_END_WEIGHT = 1e3;
+const TRACK_SEPARATION_WEIGHT = 3;
 
 /** A cap on sweeps. Every move lowers (cost, order), so the search ends anyway; this bounds it. */
-const LINE_ORDER_PASS_LIMIT = 24;
+const TRACK_ORDER_PASS_LIMIT = 24;
 
 /**
- * One lane's passage through a stop, by the corridors it uses (a trunk and its branches are one
- * lane). One corridor means the pattern ends here, drawn into the dot.
+ * One pattern's passage through a stop, by the edges it uses, under its lane (a trunk and its
+ * branches are one lane, with a passage each). One edge means the pattern ends here.
  */
-type NodeLinePassage = { lineId: string; edgeIds: readonly string[] };
+type NodeTrackPassage = { trackId: string; edgeIds: readonly string[] };
 
-/** How one corridor meets a stop: which way it leaves, and which way its lanes are numbered. */
-type NodeCorridor = {
-  /** The unit direction from the dot along the corridor. */
+/** How one edge meets a stop: which way it leaves, and which way its lanes are numbered. */
+type NodeEdge = {
+  /** The unit direction from the dot along the edge. */
   outward: SchematicPoint;
-  /** +1 where the corridor is measured away from this stop, -1 where it is measured towards it. */
+  /** +1 where the edge is measured away from this stop, -1 where it is measured towards it. */
   laneDirection: number;
 };
 
-const getNodeCorridors = (
+const getNodeEdges = (
   node: ZentrumSchematicNode,
   edges: readonly ZentrumSchematicObservedEdge[],
-): ReadonlyMap<string, NodeCorridor> =>
+): ReadonlyMap<string, NodeEdge> =>
   new Map(
     edges
       .filter((edge) => edge.from.id === node.id || edge.to.id === node.id)
@@ -61,69 +66,80 @@ const getNodeCorridors = (
   );
 
 /**
- * How far a line turns at a stop, from the arriving corridor's frame: straight on is zero, and the
- * sign matches lane numbering. A pattern ending here reads zero, in the way of anything turning.
+ * How far a line turns at a stop, from the arriving edge's frame: straight on is zero, and the
+ * sign matches lane numbering. A pattern ending here reads zero.
  */
-const getCorridorTurn = (corridor: NodeCorridor, exit: NodeCorridor | undefined): number => {
+const getEdgeTurn = (edge: NodeEdge, exit: NodeEdge | undefined): number => {
   if (!exit) return 0;
-  const arriving = { x: -corridor.outward.x, y: -corridor.outward.y };
-  const rightwards = { x: -corridor.outward.y, y: corridor.outward.x };
+  const arriving = { x: -edge.outward.x, y: -edge.outward.y };
+  const rightwards = { x: -edge.outward.y, y: edge.outward.x };
   return Math.atan2(dotProduct(exit.outward, rightwards), dotProduct(exit.outward, arriving));
 };
 
 /**
  * A pair of lines at a stop, reduced to the test their lanes must pass not to cross. Sharing both
- * corridors, lane numbers must reverse (they count outwards from the dot); sharing one, they cross
- * when the left one leaves right; sharing none, any order works.
+ * edges, lane numbers must reverse (they count outwards from the dot); sharing one, they cross
+ * when the left one leaves right; sharing none, any order works. A pattern ending here crosses
+ * nothing, but its lane should end on the side the other turns to, not leave a gap it turns from.
  */
-type NodeLineCrossing = {
-  lineIds: readonly [string, string];
-  /** The corridors the pair's lanes are read on, and which way each numbers them. */
+type NodeTrackCrossing = {
+  trackIds: readonly [string, string];
+  /** Whether one of the pair ends here, so the test is the side its lane ends on. */
+  isEnd: boolean;
+  /** The edges the pair's lanes are read on, and which way each numbers them. */
   reads: readonly { edgeId: string; laneDirection: number }[];
   /** Where the pair parts, which way the second turns away from the first. */
   turnSign: number;
 };
 
-const getNodeLineCrossings = (
-  corridors: ReadonlyMap<string, NodeCorridor>,
-  passages: readonly NodeLinePassage[],
-): readonly NodeLineCrossing[] =>
+const getNodeTrackCrossings = (
+  nodeEdges: ReadonlyMap<string, NodeEdge>,
+  passages: readonly NodeTrackPassage[],
+): readonly NodeTrackCrossing[] =>
   passages.flatMap((left, index) =>
-    passages.slice(index + 1).flatMap((right): NodeLineCrossing[] => {
-      const lineIds = [left.lineId, right.lineId] as const;
+    passages.slice(index + 1).flatMap((right): NodeTrackCrossing[] => {
+      // One lane holds one place, whichever of its patterns is read.
+      if (left.trackId === right.trackId) return [];
+      const trackIds = [left.trackId, right.trackId] as const;
       const shared = left.edgeIds.filter((edgeId) => right.edgeIds.includes(edgeId));
       const read = (edgeId: string) => ({
         edgeId,
-        laneDirection: corridors.get(edgeId)?.laneDirection ?? 1,
+        laneDirection: nodeEdges.get(edgeId)?.laneDirection ?? 1,
       });
       if (shared.length === 2) {
-        return [{ lineIds, reads: shared.map(read), turnSign: 0 }];
+        return [{ trackIds, isEnd: false, reads: shared.map(read), turnSign: 0 }];
       }
       if (shared.length !== 1) return [];
-      const corridor = corridors.get(shared[0]);
-      if (!corridor) return [];
-      const getTurn = (passage: NodeLinePassage) =>
-        getCorridorTurn(
-          corridor,
-          corridors.get(passage.edgeIds.find((id) => id !== shared[0]) ?? ""),
-        );
-      const turnSign = Math.sign(getTurn(left) - getTurn(right));
-      return turnSign === 0 ? [] : [{ lineIds, reads: [read(shared[0])], turnSign }];
+      const edge = nodeEdges.get(shared[0]);
+      if (!edge) return [];
+      const [leftExit, rightExit] = [left, right].map((passage) =>
+        nodeEdges.get(passage.edgeIds.find((id) => id !== shared[0]) ?? ""),
+      );
+      const turnSign = Math.sign(getEdgeTurn(edge, leftExit) - getEdgeTurn(edge, rightExit));
+      const isEnd = !leftExit || !rightExit;
+      return turnSign === 0 ? [] : [{ trackIds, isEnd, reads: [read(shared[0])], turnSign }];
     }),
   );
 
-const countNodeLineCrossings = (
-  crossings: readonly NodeLineCrossing[],
+/** The crossings at a stop, and the lanes ending where another turns away from them. */
+const countNodeTrackCrossings = (
+  crossings: readonly NodeTrackCrossing[],
   orderByEdgeId: ReadonlyMap<string, readonly string[]>,
-): number => {
-  let count = 0;
-  for (const { lineIds, reads, turnSign } of crossings) {
+): { crossings: number; ends: number } => {
+  const count = { crossings: 0, ends: 0 };
+  for (const { trackIds, isEnd, reads, turnSign } of crossings) {
     const sides = reads.map(({ edgeId, laneDirection }) => {
       const order = orderByEdgeId.get(edgeId) ?? [];
-      return Math.sign(laneDirection * (order.indexOf(lineIds[0]) - order.indexOf(lineIds[1])));
+      return Math.sign(laneDirection * (order.indexOf(trackIds[0]) - order.indexOf(trackIds[1])));
     });
-    const crosses = reads.length === 2 ? sides[0] === sides[1] : sides[0] * turnSign < 0;
-    if (crosses) count += 1;
+    if (reads.length === 2) {
+      if (sides[0] === sides[1]) count.crossings += 1;
+    } else if (isEnd) {
+      // Turning over the end's lane is what draws cleanly.
+      if (sides[0] * turnSign > 0) count.ends += 1;
+    } else if (sides[0] * turnSign < 0) {
+      count.crossings += 1;
+    }
   }
   return count;
 };
@@ -133,12 +149,12 @@ const getLinePathEdgeIds = (linePath: ZentrumSchematicLinePath): ReadonlySet<str
     linePath.nodes.slice(1).map((node, index) => getEdgeKey(linePath.nodes[index].id, node.id)),
   );
 
-const getLinePairKey = (leftLineId: string, rightLineId: string): string =>
-  leftLineId < rightLineId
-    ? `${leftLineId}\u0000${rightLineId}`
-    : `${rightLineId}\u0000${leftLineId}`;
+const getTrackPairKey = (leftTrackId: string, rightTrackId: string): string =>
+  leftTrackId < rightTrackId
+    ? `${leftTrackId}\u0000${rightTrackId}`
+    : `${rightTrackId}\u0000${leftTrackId}`;
 
-const compareLineOrders = (left: readonly string[], right: readonly string[]): number => {
+const compareTrackOrders = (left: readonly string[], right: readonly string[]): number => {
   for (let index = 0; index < Math.min(left.length, right.length); index += 1) {
     const compared = compareLineIdsNaturally(left[index], right[index]);
     if (compared !== 0) return compared;
@@ -146,37 +162,93 @@ const compareLineOrders = (left: readonly string[], right: readonly string[]): n
   return left.length - right.length;
 };
 
-/**
- * How much two lanes want to be neighbours: the corridors their drawn routes share. Charging for
- * each lane between them keeps long shared routes together, with short workings around them.
- */
-const getLineAffinities = (
+/** Two lanes' run together: consecutive edges both run through, unbroken at stops. */
+type SharedTrackRun = {
+  trackIds: readonly [string, string];
+  edgeIds: readonly string[];
+  /** Where the run passes from one of its edges into the next. */
+  steps: readonly { fromEdgeId: string; toEdgeId: string; nodeId: string }[];
+};
+
+const getSharedTrackRuns = (
   edgeIdsByTrackId: ReadonlyMap<string, ReadonlySet<string>>,
-): ReadonlyMap<string, number> => {
-  const affinityByLinePair = new Map<string, number>();
-  const edgeIdsByLinePath = [...edgeIdsByTrackId];
-  for (let leftIndex = 0; leftIndex < edgeIdsByLinePath.length; leftIndex += 1) {
-    const [leftLineId, leftEdgeIds] = edgeIdsByLinePath[leftIndex];
-    for (const [rightLineId, rightEdgeIds] of edgeIdsByLinePath.slice(leftIndex + 1)) {
-      const affinity = [...leftEdgeIds].filter((edgeId) => rightEdgeIds.has(edgeId)).length;
-      if (affinity > 0) affinityByLinePair.set(getLinePairKey(leftLineId, rightLineId), affinity);
+  passagesByNodeId: ReadonlyMap<string, readonly NodeTrackPassage[]>,
+): readonly SharedTrackRun[] => {
+  // The stop each lane runs through between two edges, by the pair.
+  const throughNodeByTrackId = new Map<string, Map<string, string>>();
+  for (const [nodeId, passages] of passagesByNodeId) {
+    for (const { trackId, edgeIds } of passages) {
+      const nodeByKey = throughNodeByTrackId.get(trackId) ?? new Map<string, string>();
+      for (const from of edgeIds) {
+        for (const to of edgeIds) {
+          if (from !== to) nodeByKey.set(`${from}\u0000${to}`, nodeId);
+        }
+      }
+      throughNodeByTrackId.set(trackId, nodeByKey);
     }
   }
-  return affinityByLinePair;
+  const runs: SharedTrackRun[] = [];
+  const lanes = [...edgeIdsByTrackId];
+  for (let leftIndex = 0; leftIndex < lanes.length; leftIndex += 1) {
+    const [leftTrackId, leftEdgeIds] = lanes[leftIndex];
+    const leftThrough = throughNodeByTrackId.get(leftTrackId);
+    for (const [rightTrackId, rightEdgeIds] of lanes.slice(leftIndex + 1)) {
+      const shared = [...leftEdgeIds].filter((edgeId) => rightEdgeIds.has(edgeId));
+      const rightThrough = throughNodeByTrackId.get(rightTrackId);
+      const reached = new Set<string>();
+      for (const start of shared) {
+        if (reached.has(start)) continue;
+        const run = [start];
+        const steps: SharedTrackRun["steps"][number][] = [];
+        reached.add(start);
+        for (let at = 0; at < run.length; at += 1) {
+          for (const next of shared) {
+            const key = `${run[at]}\u0000${next}`;
+            const nodeId = leftThrough?.get(key);
+            if (reached.has(next) || !nodeId || rightThrough?.get(key) !== nodeId) continue;
+            reached.add(next);
+            run.push(next);
+            steps.push({ fromEdgeId: run[at], toEdgeId: next, nodeId });
+          }
+        }
+        runs.push({ trackIds: [leftTrackId, rightTrackId], edgeIds: run, steps });
+      }
+    }
+  }
+  return runs;
+};
+
+/**
+ * How much two lanes want to be neighbours on each edge: the length of their run through it.
+ * A pair meeting for one edge wants little, so a long shared route elsewhere cannot buy a
+ * crossing here.
+ */
+const getTrackAffinitiesByEdgeId = (
+  runs: readonly SharedTrackRun[],
+): ReadonlyMap<string, ReadonlyMap<string, number>> => {
+  const affinitiesByEdgeId = new Map<string, Map<string, number>>();
+  for (const { trackIds, edgeIds } of runs) {
+    for (const edgeId of edgeIds) {
+      const affinities = affinitiesByEdgeId.get(edgeId) ?? new Map<string, number>();
+      affinities.set(getTrackPairKey(...trackIds), edgeIds.length);
+      affinitiesByEdgeId.set(edgeId, affinities);
+    }
+  }
+  return affinitiesByEdgeId;
 };
 
 const getEdgeSeparationCost = (
-  lineIds: readonly string[],
-  affinityByLinePair: ReadonlyMap<string, number>,
+  trackIds: readonly string[],
+  affinityByTrackPair: ReadonlyMap<string, number> = new Map(),
 ): number => {
   let cost = 0;
-  for (let leftIndex = 0; leftIndex < lineIds.length; leftIndex += 1) {
-    for (let rightIndex = leftIndex + 1; rightIndex < lineIds.length; rightIndex += 1) {
-      const affinity = affinityByLinePair.get(
-        getLinePairKey(lineIds[leftIndex], lineIds[rightIndex]),
+  for (let leftIndex = 0; leftIndex < trackIds.length; leftIndex += 1) {
+    for (let rightIndex = leftIndex + 1; rightIndex < trackIds.length; rightIndex += 1) {
+      const affinity = affinityByTrackPair.get(
+        getTrackPairKey(trackIds[leftIndex], trackIds[rightIndex]),
       );
       if (affinity) {
-        cost += LINE_SEPARATION_WEIGHT * affinity * Math.max(rightIndex - leftIndex - 1, 0);
+        cost += TRACK_SEPARATION_WEIGHT * affinity * Math.max(rightIndex - leftIndex - 1, 0);
       }
     }
   }
@@ -187,7 +259,7 @@ const getEdgeSeparationCost = (
  * Moves of a run of neighbouring lines elsewhere, plus the reversal. Runs, because a group leaving
  * together (S-Bahnen turning north out of the Poststraße) can only cross others as a block.
  */
-const getLineOrderMoves = (order: readonly string[]): (readonly string[])[] => {
+const getTrackOrderMoves = (order: readonly string[]): (readonly string[])[] => {
   const moves: string[][] = [];
   for (let start = 0; start < order.length; start += 1) {
     for (let length = 1; length <= order.length - start; length += 1) {
@@ -200,40 +272,40 @@ const getLineOrderMoves = (order: readonly string[]): (readonly string[])[] => {
       }
     }
   }
-  // A mirrored corridor rights itself in one scorable step.
+  // A mirrored edge rights itself in one scorable step.
   if (order.length > 2) moves.push([...order].reverse());
   return moves;
 };
 
-/** One corridor's order carried into the next at a stop; read once, since routes fix them. */
-type LineOrderHandover = {
+/** One edge's order carried into the next at a stop; read once, since routes fix them. */
+type TrackOrderHandover = {
   fromEdgeId: string;
   toEdgeId: string;
   nodeId: string;
-  /** The lines running from one corridor into the other: what the handover is worth. */
-  throughLineIds: ReadonlySet<string>;
+  /** The lines running from one edge into the other: what the handover is worth. */
+  throughTrackIds: ReadonlySet<string>;
 };
 
-const getLineOrderHandovers = (
-  corridorsByNodeId: ReadonlyMap<string, ReadonlyMap<string, NodeCorridor>>,
-  passagesByNodeId: ReadonlyMap<string, readonly NodeLinePassage[]>,
-): ReadonlyMap<string, readonly LineOrderHandover[]> => {
-  const handoversByEdgeId = new Map<string, LineOrderHandover[]>();
-  for (const [nodeId, corridors] of corridorsByNodeId) {
-    for (const fromEdgeId of corridors.keys()) {
-      for (const toEdgeId of corridors.keys()) {
+const getTrackOrderHandovers = (
+  edgesByNodeId: ReadonlyMap<string, ReadonlyMap<string, NodeEdge>>,
+  passagesByNodeId: ReadonlyMap<string, readonly NodeTrackPassage[]>,
+): ReadonlyMap<string, readonly TrackOrderHandover[]> => {
+  const handoversByEdgeId = new Map<string, TrackOrderHandover[]>();
+  for (const [nodeId, nodeEdges] of edgesByNodeId) {
+    for (const fromEdgeId of nodeEdges.keys()) {
+      for (const toEdgeId of nodeEdges.keys()) {
         if (fromEdgeId === toEdgeId) continue;
-        const throughLineIds = new Set(
+        const throughTrackIds = new Set(
           (passagesByNodeId.get(nodeId) ?? [])
             .filter(
               (passage) =>
                 passage.edgeIds.includes(fromEdgeId) && passage.edgeIds.includes(toEdgeId),
             )
-            .map(({ lineId }) => lineId),
+            .map(({ trackId }) => trackId),
         );
-        if (throughLineIds.size === 0) continue;
+        if (throughTrackIds.size === 0) continue;
         const handovers = handoversByEdgeId.get(fromEdgeId) ?? [];
-        handovers.push({ fromEdgeId, toEdgeId, nodeId, throughLineIds });
+        handovers.push({ fromEdgeId, toEdgeId, nodeId, throughTrackIds });
         handoversByEdgeId.set(fromEdgeId, handovers);
       }
     }
@@ -242,26 +314,26 @@ const getLineOrderHandovers = (
 };
 
 /**
- * Whether lines running between two corridors keep their lane numbers: measured the same way from
+ * Whether lines running between two edges keep their lane numbers: measured the same way from
  * the stop they reverse; measured opposite ways (a straight) they match.
  */
-const keepsLaneOrder = (arriving: NodeCorridor, leaving: NodeCorridor): boolean =>
+const keepsLaneOrder = (arriving: NodeEdge, leaving: NodeEdge): boolean =>
   arriving.laneDirection !== leaving.laneDirection;
 
 /**
  * Carries orders outwards across stops so no line crosses another where it runs through;
- * per-corridor moves cannot fix a group turning off together. The busiest handover goes first;
+ * per-edge moves cannot fix a group turning off together. The busiest handover goes first;
  * lines joining at a stop keep their places.
  */
-const propagateLineOrders = (
+const propagateTrackOrders = (
   busiestFirst: readonly ZentrumSchematicObservedEdge[],
-  handoversByEdgeId: ReadonlyMap<string, readonly LineOrderHandover[]>,
-  corridorsByNodeId: ReadonlyMap<string, ReadonlyMap<string, NodeCorridor>>,
+  handoversByEdgeId: ReadonlyMap<string, readonly TrackOrderHandover[]>,
+  edgesByNodeId: ReadonlyMap<string, ReadonlyMap<string, NodeEdge>>,
   orderByEdgeId: ReadonlyMap<string, readonly string[]>,
   firstSeedEdgeId?: string,
 ): Map<string, readonly string[]> => {
   const settled = new Map<string, readonly string[]>();
-  const open: LineOrderHandover[] = [];
+  const open: TrackOrderHandover[] = [];
   const settle = (edgeId: string, order: readonly string[]) => {
     settled.set(edgeId, order);
     for (const handover of handoversByEdgeId.get(edgeId) ?? []) {
@@ -271,13 +343,13 @@ const propagateLineOrders = (
   if (firstSeedEdgeId) settle(firstSeedEdgeId, orderByEdgeId.get(firstSeedEdgeId) ?? []);
 
   while (settled.size < busiestFirst.length) {
-    let best: LineOrderHandover | undefined;
+    let best: TrackOrderHandover | undefined;
     for (const handover of open) {
       if (settled.has(handover.toEdgeId)) continue;
       if (
         !best ||
-        handover.throughLineIds.size > best.throughLineIds.size ||
-        (handover.throughLineIds.size === best.throughLineIds.size &&
+        handover.throughTrackIds.size > best.throughTrackIds.size ||
+        (handover.throughTrackIds.size === best.throughTrackIds.size &&
           `${handover.toEdgeId} ${handover.fromEdgeId}` < `${best.toEdgeId} ${best.fromEdgeId}`)
       ) {
         best = handover;
@@ -290,30 +362,30 @@ const propagateLineOrders = (
       continue;
     }
 
-    const arriving = corridorsByNodeId.get(best.nodeId)?.get(best.fromEdgeId);
-    const leaving = corridorsByNodeId.get(best.nodeId)?.get(best.toEdgeId);
+    const arriving = edgesByNodeId.get(best.nodeId)?.get(best.fromEdgeId);
+    const leaving = edgesByNodeId.get(best.nodeId)?.get(best.toEdgeId);
     const base = orderByEdgeId.get(best.toEdgeId) ?? [];
-    const through = best.throughLineIds;
-    const carried = (settled.get(best.fromEdgeId) ?? []).filter((lineId) => through.has(lineId));
+    const through = best.throughTrackIds;
+    const carried = (settled.get(best.fromEdgeId) ?? []).filter((trackId) => through.has(trackId));
     const derived =
       arriving && leaving && keepsLaneOrder(arriving, leaving) ? carried : [...carried].reverse();
     const next = [...base];
-    const places = base.flatMap((lineId, index) => (through.has(lineId) ? [index] : []));
-    derived.forEach((lineId, index) => {
-      if (places[index] !== undefined) next[places[index]] = lineId;
+    const places = base.flatMap((trackId, index) => (through.has(trackId) ? [index] : []));
+    derived.forEach((trackId, index) => {
+      if (places[index] !== undefined) next[places[index]] = trackId;
     });
     // The same array where nothing moved, so the search sees by identity what was disturbed.
-    settle(best.toEdgeId, next.every((lineId, index) => lineId === base[index]) ? base : next);
+    settle(best.toEdgeId, next.every((trackId, index) => trackId === base[index]) ? base : next);
   }
   return settled;
 };
 
 /**
- * The lane order on every corridor (LOOM's line ordering): crossings at stops plus lanes left
+ * The lane order on every edge (LOOM's line ordering): crossings at stops plus lanes left
  * between companions, scored at stops so a turn's far end counts. A move is taken only if it lowers
  * the cost; ties go to the lower-reading order, so the search cannot cycle and is deterministic.
  */
-export const getTrackLineIdsByEdgeId = (
+export const getTrackIdsByEdgeId = (
   edges: readonly ZentrumSchematicObservedEdge[],
   linePaths: readonly ZentrumSchematicLinePath[],
 ): ReadonlyMap<string, readonly string[]> => {
@@ -329,12 +401,13 @@ export const getTrackLineIdsByEdgeId = (
   const nodesById = new Map(
     edges.flatMap(({ from, to }) => [from, to]).map((node) => [node.id, node] as const),
   );
-  const corridorsByNodeId = new Map(
-    [...nodesById].map(([nodeId, node]) => [nodeId, getNodeCorridors(node, edges)] as const),
+  const edgesByNodeId = new Map(
+    [...nodesById].map(([nodeId, node]) => [nodeId, getNodeEdges(node, edges)] as const),
   );
-  // One passage per lane at a stop: where a trunk and branch part, the lane carries on into both.
+  // One passage per drawn pattern at a stop, under its lane: a branch ending here ends, though its
+  // trunk runs on.
   const edgeIdsByTrackId = new Map<string, Set<string>>();
-  const passageEdgeIdsByNodeId = new Map<string, Map<string, Set<string>>>();
+  const passageByKeyByNodeId = new Map<string, Map<string, NodeTrackPassage>>();
   for (const linePath of linePaths) {
     const pathEdgeIds = edgeIdsByTrackId.get(linePath.trackId) ?? new Set<string>();
     for (const edgeId of getLinePathEdgeIds(linePath)) pathEdgeIds.add(edgeId);
@@ -342,43 +415,44 @@ export const getTrackLineIdsByEdgeId = (
     for (const [index, node] of linePath.nodes.entries()) {
       const edgeIds = [linePath.nodes[index - 1], linePath.nodes[index + 1]]
         .filter((neighbor): neighbor is ZentrumSchematicNode => neighbor !== undefined)
-        .map((neighbor) => getEdgeKey(node.id, neighbor.id));
-      const passageEdgeIdsByTrackId =
-        passageEdgeIdsByNodeId.get(node.id) ?? new Map<string, Set<string>>();
-      const passageEdgeIds = passageEdgeIdsByTrackId.get(linePath.trackId) ?? new Set<string>();
-      for (const edgeId of edgeIds) passageEdgeIds.add(edgeId);
-      passageEdgeIdsByTrackId.set(linePath.trackId, passageEdgeIds);
-      passageEdgeIdsByNodeId.set(node.id, passageEdgeIdsByTrackId);
+        .map((neighbor) => getEdgeKey(node.id, neighbor.id))
+        .sort();
+      const passageByKey = passageByKeyByNodeId.get(node.id) ?? new Map<string, NodeTrackPassage>();
+      passageByKey.set(`${linePath.trackId}\u0001${edgeIds.join("\u0001")}`, {
+        trackId: linePath.trackId,
+        edgeIds,
+      });
+      passageByKeyByNodeId.set(node.id, passageByKey);
     }
   }
-  const passagesByNodeId = new Map<string, readonly NodeLinePassage[]>(
-    [...passageEdgeIdsByNodeId].map(([nodeId, passageEdgeIdsByTrackId]) => [
-      nodeId,
-      [...passageEdgeIdsByTrackId].map(([lineId, passageEdgeIds]) => ({
-        lineId,
-        edgeIds: [...passageEdgeIds],
-      })),
-    ]),
+  const passagesByNodeId = new Map<string, readonly NodeTrackPassage[]>(
+    [...passageByKeyByNodeId].map(([nodeId, passageByKey]) => [nodeId, [...passageByKey.values()]]),
   );
 
-  const handoversByEdgeId = getLineOrderHandovers(corridorsByNodeId, passagesByNodeId);
+  const handoversByEdgeId = getTrackOrderHandovers(edgesByNodeId, passagesByNodeId);
   const busiestFirst = [...edges].sort(
     (left, right) =>
       (orderByEdgeId.get(right.id)?.length ?? 0) - (orderByEdgeId.get(left.id)?.length ?? 0) ||
       left.id.localeCompare(right.id),
   );
 
-  const affinityByLinePair = getLineAffinities(edgeIdsByTrackId);
-  const lineCrossingsByNodeId = new Map(
-    [...corridorsByNodeId].map(
-      ([nodeId, corridors]) =>
-        [nodeId, getNodeLineCrossings(corridors, passagesByNodeId.get(nodeId) ?? [])] as const,
+  const sharedRuns = getSharedTrackRuns(edgeIdsByTrackId, passagesByNodeId);
+  const affinitiesByEdgeId = getTrackAffinitiesByEdgeId(sharedRuns);
+  const trackCrossingsByNodeId = new Map(
+    [...edgesByNodeId].map(
+      ([nodeId, nodeEdges]) =>
+        [nodeId, getNodeTrackCrossings(nodeEdges, passagesByNodeId.get(nodeId) ?? [])] as const,
     ),
   );
-  const countCrossingsAt = (
-    nodeId: string,
-    orders: ReadonlyMap<string, readonly string[]>,
-  ): number => countNodeLineCrossings(lineCrossingsByNodeId.get(nodeId) ?? [], orders);
+  const getNodeCost = (nodeId: string, orders: ReadonlyMap<string, readonly string[]>): number => {
+    const { crossings, ends } = countNodeTrackCrossings(
+      trackCrossingsByNodeId.get(nodeId) ?? [],
+      orders,
+    );
+    const crossingWeight =
+      TRACK_CROSSING_WEIGHT + (nodesById.get(nodeId)?.isJunction ? 0 : STOP_CROSSING_WEIGHT);
+    return crossingWeight * crossings + TRACK_END_WEIGHT * ends;
+  };
   const searchOrder = [...edges].sort((left, right) => left.id.localeCompare(right.id));
   const compareDrawings = (
     left: ReadonlyMap<string, readonly string[]>,
@@ -387,34 +461,37 @@ export const getTrackLineIdsByEdgeId = (
     for (const edge of searchOrder) {
       const leftOrder = left.get(edge.id);
       const rightOrder = right.get(edge.id);
-      // A move leaves every corridor it did not touch holding the very same array.
+      // A move leaves every edge it did not touch holding the very same array.
       if (leftOrder === rightOrder) continue;
-      const compared = compareLineOrders(leftOrder ?? [], rightOrder ?? []);
+      const compared = compareTrackOrders(leftOrder ?? [], rightOrder ?? []);
       if (compared !== 0) return compared;
     }
     return 0;
   };
 
-  orderByEdgeId = propagateLineOrders(
+  orderByEdgeId = propagateTrackOrders(
     busiestFirst,
     handoversByEdgeId,
-    corridorsByNodeId,
+    edgesByNodeId,
     orderByEdgeId,
   );
 
   // The cost is kept in parts, so scoring a candidate re-counts only the stops it disturbed.
-  const crossingCountByNodeId = new Map<string, number>();
+  const nodeCostByNodeId = new Map<string, number>();
   const separationByEdgeId = new Map<string, number>();
   let cost = 0;
   const readCost = (orders: ReadonlyMap<string, readonly string[]>) => {
     cost = 0;
-    for (const nodeId of corridorsByNodeId.keys()) {
-      const crossings = countCrossingsAt(nodeId, orders);
-      crossingCountByNodeId.set(nodeId, crossings);
-      cost += LINE_CROSSING_WEIGHT * crossings;
+    for (const nodeId of edgesByNodeId.keys()) {
+      const nodeCost = getNodeCost(nodeId, orders);
+      nodeCostByNodeId.set(nodeId, nodeCost);
+      cost += nodeCost;
     }
     for (const edge of searchOrder) {
-      const separation = getEdgeSeparationCost(orders.get(edge.id) ?? [], affinityByLinePair);
+      const separation = getEdgeSeparationCost(
+        orders.get(edge.id) ?? [],
+        affinitiesByEdgeId.get(edge.id),
+      );
       separationByEdgeId.set(edge.id, separation);
       cost += separation;
     }
@@ -428,13 +505,11 @@ export const getTrackLineIdsByEdgeId = (
     let candidateCost = cost;
     for (const edge of moved) {
       candidateCost +=
-        getEdgeSeparationCost(candidate.get(edge.id) ?? [], affinityByLinePair) -
+        getEdgeSeparationCost(candidate.get(edge.id) ?? [], affinitiesByEdgeId.get(edge.id)) -
         (separationByEdgeId.get(edge.id) ?? 0);
     }
     for (const nodeId of new Set(moved.flatMap(({ from, to }) => [from.id, to.id]))) {
-      candidateCost +=
-        LINE_CROSSING_WEIGHT *
-        (countCrossingsAt(nodeId, candidate) - (crossingCountByNodeId.get(nodeId) ?? 0));
+      candidateCost += getNodeCost(nodeId, candidate) - (nodeCostByNodeId.get(nodeId) ?? 0);
     }
     return candidateCost;
   };
@@ -446,7 +521,7 @@ export const getTrackLineIdsByEdgeId = (
   ): Map<string, readonly string[]> => new Map(orders).set(edgeId, order);
 
   /**
-   * One sweep, taking the best move on each corridor in turn. Carried moves escape plateaus but
+   * One sweep, taking the best move on each edge in turn. Carried moves escape plateaus but
    * cost far more, so they are swept only once local moves have nothing left.
    */
   const sweep = (carries: boolean): boolean => {
@@ -456,10 +531,10 @@ export const getTrackLineIdsByEdgeId = (
       if (order.length < 2) continue;
       let best = orderByEdgeId;
       let bestCost = cost;
-      for (const candidate of getLineOrderMoves(order)) {
+      for (const candidate of getTrackOrderMoves(order)) {
         const moved = withOrder(orderByEdgeId, edge.id, candidate);
         const drawing = carries
-          ? propagateLineOrders(busiestFirst, handoversByEdgeId, corridorsByNodeId, moved, edge.id)
+          ? propagateTrackOrders(busiestFirst, handoversByEdgeId, edgesByNodeId, moved, edge.id)
           : moved;
         const candidateCost = getCandidateCost(drawing);
         if (
@@ -479,13 +554,71 @@ export const getTrackLineIdsByEdgeId = (
     return improved;
   };
 
-  for (let pass = 0; pass < LINE_ORDER_PASS_LIMIT; pass += 1) {
-    if (!sweep(false) && !sweep(true)) break;
+  /**
+   * Run moves: a pair set to one side along all of its run at once, so it crosses nowhere on it. A
+   * edge at a time cannot get there without crossing them first (3 and 6 from Tivoli on).
+   */
+  const getRunMoves = ({
+    trackIds,
+    edgeIds,
+    steps,
+  }: SharedTrackRun): Map<string, readonly string[]>[] => {
+    // The side each edge must keep, relative to the first, for the pair not to cross.
+    const sideByEdgeId = new Map([[edgeIds[0], 1]]);
+    for (const { fromEdgeId, toEdgeId, nodeId } of steps) {
+      const nodeEdges = edgesByNodeId.get(nodeId);
+      const arriving = nodeEdges?.get(fromEdgeId);
+      const leaving = nodeEdges?.get(toEdgeId);
+      if (!arriving || !leaving) continue;
+      const side = sideByEdgeId.get(fromEdgeId) ?? 1;
+      sideByEdgeId.set(toEdgeId, keepsLaneOrder(arriving, leaving) ? side : -side);
+    }
+    const getSide = (order: readonly string[]) =>
+      Math.sign(order.indexOf(trackIds[0]) - order.indexOf(trackIds[1]));
+    return [1, -1].flatMap((target) => {
+      const candidate = new Map(orderByEdgeId);
+      let moved = false;
+      for (const edgeId of edgeIds) {
+        const order = orderByEdgeId.get(edgeId) ?? [];
+        if (getSide(order) === target * (sideByEdgeId.get(edgeId) ?? 1)) continue;
+        moved = true;
+        candidate.set(
+          edgeId,
+          order.map((trackId) =>
+            trackId === trackIds[0] ? trackIds[1] : trackId === trackIds[1] ? trackIds[0] : trackId,
+          ),
+        );
+      }
+      return moved ? [candidate] : [];
+    });
+  };
+  const sweepRuns = (): boolean => {
+    let improved = false;
+    for (const run of sharedRuns) {
+      if (run.edgeIds.length < 2) continue;
+      for (const candidate of getRunMoves(run)) {
+        const candidateCost = getCandidateCost(candidate);
+        if (
+          candidateCost < cost ||
+          (candidateCost === cost && compareDrawings(candidate, orderByEdgeId) < 0)
+        ) {
+          orderByEdgeId = candidate;
+          readCost(orderByEdgeId);
+          improved = true;
+          break;
+        }
+      }
+    }
+    return improved;
+  };
+
+  for (let pass = 0; pass < TRACK_ORDER_PASS_LIMIT; pass += 1) {
+    if (!sweep(false) && !sweepRuns() && !sweep(true)) break;
   }
   return orderByEdgeId;
 };
 
-/** Whether two corridors meeting at a stop are one straight through it (exact: coordinates are). */
+/** Whether two edges meeting at a stop are one straight through it (exact: coordinates are). */
 const isStraightPair = (
   beforeEdge: ZentrumSchematicLanedEdge,
   afterEdge: ZentrumSchematicLanedEdge,
@@ -499,9 +632,9 @@ const isStraightPair = (
 };
 
 /**
- * Each corridor's band offset from its middle, in lanes, so a lane running straight through a stop
+ * Each edge's band offset from its middle, in lanes, so a lane running straight through a stop
  * keeps its distance from the middle (no stepping aside along the Kaiserstraße). Each straight pair
- * of corridors votes per through lane; the majority wins, ties shift nothing. The busiest corridor
+ * of edges votes per through lane; the majority wins, ties shift nothing. The busiest edge
  * of a straight stays centred. In lanes, so the lane width can change without a re-layout.
  */
 export const getTrackBandOffsetByEdgeId = (
@@ -529,14 +662,12 @@ export const getTrackBandOffsetByEdgeId = (
       const voteKey = `${pairKey}\u0000${linePath.trackId}`;
       if (votedLanes.has(voteKey)) continue;
       votedLanes.add(voteKey);
-      const arrivingLane = arriving.trackLineIds.indexOf(linePath.trackId);
-      const leavingLane = leaving.trackLineIds.indexOf(linePath.trackId);
+      const arrivingLane = arriving.trackIds.indexOf(linePath.trackId);
+      const leavingLane = leaving.trackIds.indexOf(linePath.trackId);
       if (arrivingLane < 0 || leavingLane < 0) continue;
       // b_leaving - b_arriving, from o_arriving(arrivingLane) = o_leaving(leavingLane).
       const delta =
-        arrivingLane -
-        leavingLane +
-        (leaving.trackLineIds.length - arriving.trackLineIds.length) / 2;
+        arrivingLane - leavingLane + (leaving.trackIds.length - arriving.trackIds.length) / 2;
       const canonicalDelta = arriving.id === leftId ? delta : -delta;
       const pair = votesByPairKey.get(pairKey) ?? {
         leftId,
@@ -565,7 +696,7 @@ export const getTrackBandOffsetByEdgeId = (
     addNeighbor(rightId, leftId, -winningDelta);
   }
 
-  // Each straight is anchored at its busiest corridor and its offsets carried outwards from there.
+  // Each straight is anchored at its busiest edge and its offsets carried outwards from there.
   const bandOffsetByEdgeId = new Map<string, number>();
   for (const edge of edges) {
     if (bandOffsetByEdgeId.has(edge.id)) continue;
@@ -583,8 +714,8 @@ export const getTrackBandOffsetByEdgeId = (
       }
     }
     const anchor = component.reduce((widest, candidate) =>
-      candidate.trackLineIds.length > widest.trackLineIds.length ||
-      (candidate.trackLineIds.length === widest.trackLineIds.length && candidate.id < widest.id)
+      candidate.trackIds.length > widest.trackIds.length ||
+      (candidate.trackIds.length === widest.trackIds.length && candidate.id < widest.id)
         ? candidate
         : widest,
     );

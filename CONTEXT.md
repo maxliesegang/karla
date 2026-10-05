@@ -114,6 +114,16 @@ _Avoid_: experiments (the page contains experimental maps; these choices configu
 **Schematic plan**: the authored drawing of that area (nodes, edges, lanes), solved offline and never
 read live.
 
+**Corridor**: a connection between two stops observed in runs. A junction may split it into
+several drawing edges; travel times and vehicle progress still measure the corridor stop to stop.
+
+**Drawn track** (`trackId`): one lane in the schematic. Lines with the same trunk and colour share
+a drawn track; their passenger-facing line identities remain separate.
+
+**Junction**: a bend between stops, where a corridor from a stop with a platform run (Albtalbahnhof)
+turns square into the street it serves. Drawn without a mark; corridors stay stop to stop for runs,
+lighting and travel times.
+
 ## Boundary
 
 **TransitSource**: the only module that talks to the provider. Views use it and nothing else.
