@@ -10,8 +10,10 @@ import {
   collapseTurnaroundCalls,
   getCallKey,
   getTripCallInstant,
+  runsInOrderOf,
   statesRunEnd,
 } from "./trip-calls";
+import { compareGermanNames } from "./text";
 import {
   createSoonestPassageComparator,
   getRunPlacement,
@@ -27,8 +29,11 @@ export type LineDiagramStop = {
   stopName: string;
   /** The municipality, only where the stop name does not name one. */
   placeName?: string;
-  /** Which platform of the stop this is, only where a neighbouring row is the same stop. */
-  platformLabel?: string;
+  /**
+   * Which platforms of the stop this row is, only where a neighbouring row is the same stop: the
+   * drawn trip's, plus those observed runs either way use there.
+   */
+  platformLabels?: readonly string[];
   stopId: string;
   tripCall: TripCall;
 };
@@ -131,30 +136,62 @@ export function buildLineDiagramStops(
   calls: readonly TripCall[],
   /** The stop the diagram is read from, whose municipality needs no qualifier. */
   riderStopId?: string,
+  /** Every observed run of the line, either way round, whose platforms a repeated row names too. */
+  observedRunCalls: readonly (readonly TripCall[])[] = [],
 ): LineDiagramStop[] {
   // A turnaround is one call reported twice; any other repeat is a stop the route reaches twice.
   const tripCalls = collapseTurnaroundCalls(calls);
   const homePlaceName = findHomePlaceName(tripCalls, riderStopId);
   const callKeys = tripCalls.map(getCallKey);
-  const stops = tripCalls.map((tripCall, index) => {
-    const stopId =
+  // Two consecutive rows of one stop can only be told apart by platform, so it is printed there and
+  // nowhere else.
+  const isRepeatedStop = (index: number) =>
+    callKeys[index - 1] === callKeys[index] || callKeys[index + 1] === callKeys[index];
+  const platformLabelsByIndex = callKeys.some((_, index) => isRepeatedStop(index))
+    ? getObservedPlatformLabels(tripCalls, observedRunCalls)
+    : [];
+
+  return tripCalls.map((tripCall, index) => ({
+    stopName: tripCall.stopName,
+    placeName: getStopPlaceQualifier(tripCall, homePlaceName),
+    platformLabels: isRepeatedStop(index) ? platformLabelsByIndex[index] : undefined,
+    stopId:
       tripCall.localStopId ??
       findStopByName(network, tripCall.stopName)?.id ??
-      createStopSlug(tripCall.stopName);
-    // Two consecutive rows of one stop (Europaplatz) can only be told apart by platform, so it is
-    // printed there and nowhere else.
-    const isRepeatedStop =
-      callKeys[index - 1] === callKeys[index] || callKeys[index + 1] === callKeys[index];
+      createStopSlug(tripCall.stopName),
+    tripCall,
+  }));
+}
 
-    return {
-      stopName: tripCall.stopName,
-      placeName: getStopPlaceQualifier(tripCall, homePlaceName),
-      platformLabel: isRepeatedStop ? tripCall.platformLabel : undefined,
-      stopId,
-      tripCall,
-    };
-  });
-  return stops;
+/**
+ * Each row's platform, joined by the platforms of the runs' calls aligned with it. A run whose
+ * direction the rows cannot tell is left out.
+ */
+function getObservedPlatformLabels(
+  rows: readonly TripCall[],
+  observedRunCalls: readonly (readonly TripCall[])[],
+): (readonly string[])[] {
+  const labels = rows.map(({ platformLabel }) => new Set(platformLabel ? [platformLabel] : []));
+  for (const runCalls of observedRunCalls) {
+    const calls = collapseTurnaroundCalls(runCalls);
+    const isInOrder = runsInOrderOf(calls, rows);
+    if (isInOrder === undefined) continue;
+    const oriented = isInOrder ? calls : [...calls].reverse();
+    for (const [rowIndex, callIndex] of alignSameRouteCalls(rows, oriented)) {
+      const label = oriented[callIndex].platformLabel;
+      if (label) labels[rowIndex].add(label);
+    }
+  }
+  return labels.map((rowLabels) => [...rowLabels].sort(compareGermanNames));
+}
+
+/** Platforms sharing their word name it once (`Gleis 3/4`); others are listed apart. */
+export function formatPlatformLabels(labels: readonly string[]): string {
+  const parts = labels.map((label) => /^(.*\s)(\S+)$/.exec(label));
+  const word = parts[0]?.[1];
+  return word && parts.every((part) => part?.[1] === word)
+    ? `${word}${parts.map((part) => part?.[2]).join("/")}`
+    : labels.join(" / ");
 }
 
 /**

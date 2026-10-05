@@ -8,7 +8,12 @@ import type {
 import { createStopSlug } from "./stop-slug";
 import { findHomePlaceName, getBaseName, getQualifiedStopName } from "./stop-naming";
 import { isSameLineFamily } from "./line-families";
-import { getCallKey, getCallSequenceKey, getCallsAfterCurrentStop } from "./trip-calls";
+import {
+  getCallKey,
+  getCallSequenceKey,
+  getCallsAfterCurrentStop,
+  runsInOrderOf,
+} from "./trip-calls";
 
 /** Every name a stop goes by. */
 const getStopNameVariants = (stop: TransitStop): string[] =>
@@ -132,19 +137,10 @@ export function getFarthestLineRun(
   }
   const first = farthestCalls[0];
   const last = farthestCalls[farthestCalls.length - 1];
-  const indexByKey = new Map(farthestCalls.map((call, index) => [getCallKey(call), index]));
-  const diagramIndices = diagramCalls.flatMap((call) => {
-    const index = indexByKey.get(getCallKey(call));
-    return index === undefined ? [] : [index];
-  });
-  const firstDiagramIndex = diagramIndices[0];
-  const nextDiagramIndex = diagramIndices.find((index) => index !== firstDiagramIndex);
-
   // Rows run destination to origin; two shared calls decide which end is on top.
   const runsTowardStart =
-    firstDiagramIndex !== undefined && nextDiagramIndex !== undefined
-      ? nextDiagramIndex > firstDiagramIndex
-      : getCallKey(diagramCalls[0] ?? last) === getCallKey(first);
+    runsInOrderOf(farthestCalls, diagramCalls) ??
+    getCallKey(diagramCalls[0] ?? last) === getCallKey(first);
   const calls = runsTowardStart ? farthestCalls : [...farthestCalls].reverse();
   return { ...getRunTermini(calls), calls };
 }

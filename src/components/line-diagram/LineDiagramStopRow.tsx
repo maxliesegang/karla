@@ -1,5 +1,5 @@
 import { memo } from "react";
-import type { LineDiagramStop } from "../../lib/line-diagram";
+import { formatPlatformLabels, type LineDiagramStop } from "../../lib/line-diagram";
 import { getTripCallTimeReading } from "../../lib/departure-presentation";
 import { classNames } from "../../lib/class-names";
 
@@ -34,7 +34,7 @@ function LineDiagramStopRowView({
   /** The feed's clock, for call times. */
   feedNow: number;
 }) {
-  const { stopName, placeName, platformLabel, stopId } = diagramStop;
+  const { stopName, placeName, platformLabels, stopId } = diagramStop;
   // Only a chosen trip states times; otherwise they would read as the line's own.
   const callTime = isSelectedDeparture
     ? getTripCallTimeReading(diagramStop.tripCall, feedNow)
@@ -42,7 +42,7 @@ function LineDiagramStopRowView({
   const label = [
     // Spoken with its place, so an out-of-town stop is not mistaken for a local namesake.
     placeName ? `${stopName}, ${placeName}` : stopName,
-    ...(platformLabel ? [platformLabel] : []),
+    ...(platformLabels ?? []),
     ...(callTime ? [callTime.accessibilityLabel] : []),
     ...(isCurrent ? [isSelectedDeparture ? "Fahrt hier ausgewählt" : "aktueller Halt"] : []),
     ...(isAlighting ? ["dein Ausstieg"] : []),
@@ -82,9 +82,9 @@ function LineDiagramStopRowView({
           {placeName && <small className="line-diagram-stop-place">{placeName}</small>}
           <strong>{stopName}</strong>
           {/* Two rows of one stop: which one this is. */}
-          {platformLabel && (
+          {platformLabels && platformLabels.length > 0 && (
             <small className="line-diagram-stop-platform" aria-hidden="true">
-              {platformLabel}
+              {formatPlatformLabels(platformLabels)}
             </small>
           )}
           {/* The rider's stop note; it moves from the previous row to the tapped one. */}

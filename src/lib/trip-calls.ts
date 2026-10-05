@@ -15,31 +15,47 @@ import type {
 export const getCallKey = (call: TripCall): string =>
   call.localStopId ?? `${call.placeName ?? ""}:${call.stopName}`;
 
-/**
- * How many consecutive calls of the same stop each call belongs to. Platforms only distinguish
- * calls where a route reaches a stop twice in a row.
- */
-function getRepeatedCallCounts(calls: readonly TripCall[]): number[] {
-  const lengths = Array<number>(calls.length).fill(1);
+const getCallPlatform = (call: TripCall): string | undefined =>
+  call.platformCode ?? call.platformLabel;
+
+/** One stop's consecutive calls on a route: a single call, or travel between its platforms. */
+type StopVisit = { callCount: number; platforms: ReadonlySet<string> };
+
+/** The visit each call belongs to. */
+function getStopVisits(calls: readonly TripCall[]): StopVisit[] {
+  const visits: StopVisit[] = [];
   for (let start = 0; start < calls.length; ) {
     let end = start + 1;
     while (end < calls.length && getCallKey(calls[end]) === getCallKey(calls[start])) end += 1;
-    for (let index = start; index < end; index += 1) lengths[index] = end - start;
+    const visitCalls = calls.slice(start, end);
+    const visit = {
+      callCount: visitCalls.length,
+      platforms: new Set(visitCalls.flatMap((call) => getCallPlatform(call) ?? [])),
+    };
+    for (let index = start; index < end; index += 1) visits.push(visit);
     start = end;
   }
-  return lengths;
+  return visits;
 }
 
 /**
- * Whether two readings' calls are the same call of the route. Platform is compared only where a
- * stop repeats (Europaplatz's two platforms share a stop point and name); elsewhere a diverted
- * working's different platform must still match.
+ * Whether platform tells two visits' calls apart: only where the stop repeats and both readings
+ * use the same platforms. Opposite directions stop at their own platforms (Europaplatz: `3`, `5`
+ * one way, `6`, `4` the other), so read the same way up, their calls pair by order.
  */
-function isSameRouteCall(left: TripCall, right: TripCall, hasRepeatedCalls: boolean): boolean {
+const isPlatformDecisive = (left: StopVisit, right: StopVisit): boolean =>
+  (left.callCount > 1 || right.callCount > 1) &&
+  [...left.platforms].some((platform) => right.platforms.has(platform));
+
+/**
+ * Whether two readings' calls are the same call of the route. Platform is compared only where it
+ * is decisive; elsewhere a diverted working's different platform must still match.
+ */
+function isSameRouteCall(left: TripCall, right: TripCall, comparesPlatforms: boolean): boolean {
   if (getCallKey(left) !== getCallKey(right)) return false;
-  if (!hasRepeatedCalls) return true;
-  const leftPlatform = left.platformCode ?? left.platformLabel;
-  const rightPlatform = right.platformCode ?? right.platformLabel;
+  if (!comparesPlatforms) return true;
+  const leftPlatform = getCallPlatform(left);
+  const rightPlatform = getCallPlatform(right);
   // Without a platform on both sides, the stop is the best answer.
   return !leftPlatform || !rightPlatform || leftPlatform === rightPlatform;
 }
@@ -52,13 +68,13 @@ export function alignSameRouteCalls(
   left: readonly TripCall[],
   right: readonly TripCall[],
 ): readonly (readonly [leftIndex: number, rightIndex: number])[] {
-  const leftRepeatCounts = getRepeatedCallCounts(left);
-  const rightRepeatCounts = getRepeatedCallCounts(right);
+  const leftVisits = getStopVisits(left);
+  const rightVisits = getStopVisits(right);
   const isSameCall = (leftIndex: number, rightIndex: number) =>
     isSameRouteCall(
       left[leftIndex],
       right[rightIndex],
-      leftRepeatCounts[leftIndex] > 1 || rightRepeatCounts[rightIndex] > 1,
+      isPlatformDecisive(leftVisits[leftIndex], rightVisits[rightIndex]),
     );
 
   const lengths = Array.from({ length: left.length + 1 }, () =>
@@ -87,6 +103,21 @@ export function alignSameRouteCalls(
     }
   }
   return anchors;
+}
+
+/**
+ * Whether `calls` run in the same order as `reference`, read from the first two stops they share;
+ * `undefined` where they share fewer.
+ */
+export function runsInOrderOf(
+  calls: readonly TripCall[],
+  reference: readonly TripCall[],
+): boolean | undefined {
+  const indexByKey = new Map(calls.map((call, index) => [getCallKey(call), index]));
+  const sharedIndices = reference.flatMap((call) => indexByKey.get(getCallKey(call)) ?? []);
+  const first = sharedIndices[0];
+  const next = sharedIndices.find((index) => index !== first);
+  return first === undefined || next === undefined ? undefined : next > first;
 }
 
 /** One string for a whole route. */

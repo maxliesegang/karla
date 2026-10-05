@@ -226,9 +226,14 @@ export function useLineDiagramReading({
     isWholeLine && bundledLines.length === 0
       ? { firstTerminus: farthestRun.firstTerminus, lastTerminus: farthestRun.lastTerminus }
       : drawnTermini;
+  // A whole line is ridden both ways, so a repeated stop's rows name both directions' platforms.
+  const observedRunCalls = useMemo(
+    () => (isWholeLine ? observedRunDepartures.map(({ tripCalls }) => tripCalls ?? []) : []),
+    [isWholeLine, observedRunDepartures],
+  );
   const diagramStops = useMemo(
-    () => buildLineDiagramStops(network, diagramCalls, stop.id),
-    [network, diagramCalls, stop.id],
+    () => buildLineDiagramStops(network, diagramCalls, stop.id, observedRunCalls),
+    [network, diagramCalls, stop.id, observedRunCalls],
   );
   // A list, so the layer stays memoized across ticks.
   const diagramStopNames = useMemo(

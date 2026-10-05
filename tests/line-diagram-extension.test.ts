@@ -74,6 +74,34 @@ test("a repeated call the two chains name identically still lines up with its ow
   assert.deepEqual(extendLineDiagramCalls(drawn, farthest), farthest);
 });
 
+test("a repeated stop read from the opposite direction lines up place by place", () => {
+  // Line 4 calls Europaplatz at `Gleis 3` then `Gleis 5` towards Oberreut, and at `Gleis 6` then
+  // `Gleis 4` towards Waldstadt; 5/6 and 3/4 face each other.
+  const europaplatz = (platformCode: string): TripCall => ({
+    stopName: "Europaplatz",
+    localStopId: "europaplatz",
+    platformCode,
+  });
+  const drawn = [
+    ...calls("muehlburger-tor"),
+    europaplatz("5"),
+    europaplatz("3"),
+    ...calls("herrenstrasse"),
+  ];
+  const opposite = [
+    ...calls("europahalle", "muehlburger-tor"),
+    europaplatz("6"),
+    europaplatz("4"),
+    ...calls("herrenstrasse", "marktplatz"),
+  ];
+
+  assert.deepEqual(extendLineDiagramCalls(drawn, opposite), [
+    ...calls("europahalle"),
+    ...drawn,
+    ...calls("marktplatz"),
+  ]);
+});
+
 test("without a run observed far enough there is nothing to extend with", () => {
   assert.deepEqual(extendLineDiagramCalls(calls("c", "b"), undefined), [...calls("c", "b")]);
   assert.deepEqual(extendLineDiagramCalls(calls("c", "b"), []), [...calls("c", "b")]);

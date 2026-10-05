@@ -4,6 +4,7 @@ import type { Departure, TransitNetwork, TripCall } from "../src/data/transit-ty
 import {
   buildLineDiagramStops,
   countLineDiagramVehicles,
+  formatPlatformLabels,
   getLineDiagramCoordinateKey,
   getLineDiagramRunDepartures,
   getLineDiagramVehicles,
@@ -276,17 +277,47 @@ test("reads a three-call terminus as the two calls the route keeps", () => {
   const diagramStops = buildLineDiagramStops(network, tripCalls);
 
   assert.deepEqual(
-    diagramStops.map(({ stopName, stopId, platformLabel }) => ({
+    diagramStops.map(({ stopName, stopId, platformLabels }) => ({
       stopName,
       stopId,
-      platformLabel,
+      platformLabels,
     })),
     [
-      { stopName: "HAMMWEG", stopId: "hammweg", platformLabel: undefined },
-      { stopName: "WAIDWEG", stopId: "waidweg", platformLabel: "Gleis 1" },
-      { stopName: "WAIDWEG", stopId: "waidweg", platformLabel: "3" },
+      { stopName: "HAMMWEG", stopId: "hammweg", platformLabels: undefined },
+      { stopName: "WAIDWEG", stopId: "waidweg", platformLabels: ["Gleis 1"] },
+      { stopName: "WAIDWEG", stopId: "waidweg", platformLabels: ["3"] },
     ],
   );
+});
+
+test("a stop the route reaches twice names the platforms both directions use there", () => {
+  // Line 4 at Europaplatz: `Gleis 3` then `5` towards Oberreut, `6` then `4` towards Waldstadt.
+  const europaplatz = (platformCode: string): TripCall => ({
+    stopName: "Europaplatz",
+    localStopId: "europaplatz",
+    platformCode,
+    platformLabel: `Gleis ${platformCode}`,
+  });
+  const drawn = [call("a", 0), europaplatz("5"), europaplatz("3"), call("b", 3)];
+  const opposite = [call("a", 0), europaplatz("6"), europaplatz("4"), call("b", 3)];
+  const shortSameWay = [call("b", 0), europaplatz("3"), europaplatz("5")];
+  const platformsOf = (observedRunCalls: readonly (readonly TripCall[])[]) =>
+    buildLineDiagramStops(network, drawn, undefined, observedRunCalls).map(
+      ({ platformLabels }) => platformLabels,
+    );
+
+  const expected = [undefined, ["Gleis 5", "Gleis 6"], ["Gleis 3", "Gleis 4"], undefined];
+  assert.deepEqual(platformsOf([opposite, shortSameWay]), expected);
+  // Either way round, a run is read the diagram's way up.
+  assert.deepEqual(platformsOf([[...opposite].reverse()]), expected);
+  // Without other runs, the drawn trip's own platform.
+  assert.deepEqual(platformsOf([]), [undefined, ["Gleis 5"], ["Gleis 3"], undefined]);
+});
+
+test("a row's platforms share their word once", () => {
+  assert.equal(formatPlatformLabels(["Gleis 3", "Gleis 4"]), "Gleis 3/4");
+  assert.equal(formatPlatformLabels(["Gleis 5"]), "Gleis 5");
+  assert.equal(formatPlatformLabels(["Gleis 1", "3"]), "Gleis 1 / 3");
 });
 
 test("a chain names its own coordinates, and a row speaks for every mark behind it", () => {
