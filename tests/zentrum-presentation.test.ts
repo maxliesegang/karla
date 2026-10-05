@@ -6,7 +6,10 @@ import {
   getZentrumBoardingPlatformLabel,
   getZentrumTravelSourceLabel,
 } from "../src/lib/zentrum-presentation.ts";
-import { getZentrumTravelTimes } from "../src/lib/zentrum-schematic-overlays.ts";
+import {
+  getZentrumDirectRides,
+  getZentrumTravelTimes,
+} from "../src/lib/zentrum-schematic-overlays.ts";
 import { createDeparture } from "./support/fixtures.ts";
 
 const at = (minute: number) => `2026-09-04T12:${String(minute).padStart(2, "0")}:00+02:00`;
@@ -95,4 +98,23 @@ test("a direct ride retains its last boarding call in a complex, never another s
     undefined,
   );
   assert.equal(getZentrumBoardingPlatformLabel({ stopName: "Unbekannt" }), "Ohne Steigangabe");
+});
+
+test("every run's direct ride between two stops is listed, soonest departure first", () => {
+  const ride = (id: string, lineId: string, leaves: number, arrives: number) =>
+    createDeparture({
+      id,
+      lineId,
+      tripCalls: [call("europaplatz", leaves), call("marktplatz", arrives)],
+    });
+  const rides = getZentrumDirectRides(
+    [ride("later", "2", 8, 11), ride("sooner", "S1", 3, 5), ride("gone", "2", 0, 1)],
+    "europaplatz",
+    "marktplatz",
+    instant(1),
+  );
+  assert.deepEqual(
+    rides.map(({ departure }) => departure.id),
+    ["sooner", "later"],
+  );
 });

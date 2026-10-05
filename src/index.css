@@ -1801,6 +1801,10 @@ button.brand:active .brand-mark,
   font-size: 0.72em;
   font-weight: 700;
 }
+.zentrum-schematic-stop-time .zentrum-schematic-stop-wait {
+  margin-left: 0.1em;
+  font-weight: 650;
+}
 /* No plate under a name: twenty-five opaque tiles were covering the corridors the plan is for. The
    name carries a halo of the panel's own colour instead, and the plate returns on hover and focus,
    where one name is deliberately being read. Names wrap rather than run, at a measure the placer
@@ -2109,6 +2113,33 @@ button.brand:active .brand-mark,
 }
 .zentrum-departure-boarding {
   color: var(--ink-soft);
+}
+/* The ride time, with the wait for it beneath. */
+.zentrum-destination-time {
+  flex-wrap: wrap;
+  row-gap: 2px;
+}
+.zentrum-destination-time .zentrum-destination-wait {
+  flex-basis: 100%;
+  text-align: right;
+  font-size: 12px;
+}
+.zentrum-destination-rides {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.zentrum-destination-rides li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+}
+.zentrum-destination-rides b {
+  font-variant-numeric: tabular-nums;
 }
 .zentrum-destination-direction {
   margin: 0;

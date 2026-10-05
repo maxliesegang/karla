@@ -15,6 +15,7 @@ import type { ZentrumSchematicReading, ZentrumSchematicVehicle } from "../../lib
 import {
   type ZentrumSchematicLabel,
   placeZentrumSchematicLabels,
+  type ZentrumNameTime,
 } from "../../lib/zentrum-schematic-labels";
 import {
   getZentrumSchematicStopId,
@@ -98,7 +99,12 @@ export function ZentrumSchematicCanvas({
 }) {
   const { edges, stopMarks, trackWidth } = schematic;
   // Here, not with the drawing: a printed travel time makes every name taller.
-  const hasTimes = stopMinutesByNodeId !== undefined;
+  const hasTimes: ZentrumNameTime =
+    stopMinutesByNodeId === undefined
+      ? false
+      : [...stopMinutesByNodeId.values()].some((tag) => tag.waitMinutes !== undefined)
+        ? "with-wait"
+        : true;
   const labelsByNodeId = useMemo(
     () =>
       placeZentrumSchematicLabels(
@@ -408,7 +414,7 @@ const ZentrumSchematicStops = memo(function ZentrumSchematicStops({
             }
             onClick={() => onSelectStop(getZentrumSchematicStopId(node.id))}
             aria-pressed={isSelected}
-            aria-label={`${node.label}, Linien ${lineIdsAtNode.join(", ")}${travel ? `, mit Linie ${travel.lineId} ${travel.measure === "ride" ? `${travel.minutes} Minuten Fahrt` : `in ${travel.minutes} Minuten erreichbar`}, ${travel.sourceLabel}` : ""}. ${isSelected ? "Haltestelle schließen" : "Ziele und Abfahrten ab hier"}`}
+            aria-label={`${node.label}, Linien ${lineIdsAtNode.join(", ")}${travel ? `, mit Linie ${travel.lineId} ${travel.measure === "arrival" ? `in ${travel.minutes} Minuten erreichbar` : `${travel.minutes} Minuten Fahrt`}${travel.waitMinutes === undefined ? "" : `, ab in ${travel.waitMinutes} Minuten`}, ${travel.sourceLabel}` : ""}. ${isSelected ? "Haltestelle schließen" : "Ziele und Abfahrten ab hier"}`}
           >
             <i aria-hidden="true" />
             <span>
@@ -419,6 +425,11 @@ const ZentrumSchematicStops = memo(function ZentrumSchematicStops({
                   <em>{travel.lineId}</em>
                   {travel.minutes}
                   <small>min</small>
+                  {travel.waitMinutes !== undefined && (
+                    <small className="zentrum-schematic-stop-wait">
+                      · {travel.waitMinutes <= 0 ? "jetzt" : `in ${travel.waitMinutes}`}
+                    </small>
+                  )}
                 </b>
               )}
               <em className="zentrum-schematic-stop-name">{node.label}</em>

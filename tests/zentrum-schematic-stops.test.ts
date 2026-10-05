@@ -578,6 +578,8 @@ test("sets every name that fits inside the plan, clear of bands, capsules and ot
     [1100, false],
     [1450, true],
     [1100, true],
+    [1450, "with-wait"],
+    [1100, "with-wait"],
   ] as const) {
     const reading = buildZentrumSchematicReading(liveTrips, planWidth);
     const labels = placeZentrumSchematicLabels(

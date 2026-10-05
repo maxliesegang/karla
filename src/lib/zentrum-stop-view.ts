@@ -8,6 +8,7 @@ import {
   type ZentrumTravelMeasure,
   type ZentrumTravelTime,
   getMinutesUntilArrival,
+  getMinutesUntilDeparture,
   getRideMinutes,
   getZentrumStopBoard,
   getZentrumTravelTimes,
@@ -22,11 +23,14 @@ export type ZentrumReachableStop = ZentrumTravelTime & {
   nodeId: string;
   label: string;
   minutes: number;
+  /** Minutes until the ride leaves, read apart under the "split" measure. */
+  waitMinutes?: number;
 };
 
 /** Travel time and line printed at a reached stop. */
 export type ZentrumStopTravelTag = {
   minutes: number;
+  waitMinutes?: number;
   lineId: string;
   measure: ZentrumTravelMeasure;
   sourceLabel: string;
@@ -69,13 +73,19 @@ export const getZentrumStopView = (
     travelMeasure,
   );
   const getMinutes = (time: ZentrumTravelTime) =>
-    travelMeasure === "ride"
-      ? getRideMinutes(time)
-      : getMinutesUntilArrival(time.arrivesAt, feedNow);
+    travelMeasure === "arrival"
+      ? getMinutesUntilArrival(time.arrivesAt, feedNow)
+      : getRideMinutes(time);
   const reachableStops = [...travelTimesByNodeId]
-    .flatMap(([nodeId, time]) => {
+    .flatMap(([nodeId, time]): ZentrumReachableStop[] => {
       const node = zentrumSchematicNodeById.get(nodeId);
-      return node ? [{ ...time, nodeId, label: node.label, minutes: getMinutes(time) }] : [];
+      if (!node) return [];
+      const reachable = { ...time, nodeId, label: node.label, minutes: getMinutes(time) };
+      return [
+        travelMeasure === "split"
+          ? { ...reachable, waitMinutes: getMinutesUntilDeparture(time.departsAt, feedNow) }
+          : reachable,
+      ];
     })
     .sort(
       (left, right) =>
@@ -91,6 +101,7 @@ export const getZentrumStopView = (
         time.nodeId,
         {
           minutes: time.minutes,
+          ...(time.waitMinutes === undefined ? {} : { waitMinutes: time.waitMinutes }),
           lineId: time.lineId,
           measure: travelMeasure,
           sourceLabel: getZentrumTravelSourceLabel(time),

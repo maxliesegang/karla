@@ -218,7 +218,8 @@ export function getZentrumStopBoard(
 /** The soonest a rider leaving one stop now reaches another, and the tram. */
 export type ZentrumTravelTime = Omit<DirectRideTime, "stopIds">;
 
-export type ZentrumTravelMeasure = TravelMeasure;
+/** "split" picks the soonest arrival, like "arrival", and reads its ride and wait apart. */
+export type ZentrumTravelMeasure = TravelMeasure | "split";
 
 /** Whole minutes on board, at least one. */
 export const getRideMinutes = ({
@@ -243,8 +244,12 @@ export function getZentrumTravelTimes(
 } {
   const railRuns = departures.filter(isRailDeparture);
   const { resolveNodeId } = createSchematicBoardingReading(railRuns);
-  const times = getDirectTravelTimes(railRuns, nodeId, feedNow, measure, (call) =>
-    call.localStopId === nodeId ? nodeId : resolveNodeId(call),
+  const times = getDirectTravelTimes(
+    railRuns,
+    nodeId,
+    feedNow,
+    measure === "ride" ? "ride" : "arrival",
+    (call) => (call.localStopId === nodeId ? nodeId : resolveNodeId(call)),
   );
   const chosen = new Map<string, DirectRideTime>();
   for (const [id, time] of times) {
@@ -279,6 +284,28 @@ export function getZentrumTravelTimes(
     ),
     overlay: { corridorIdsByLineId, stretches: [] },
   };
+}
+
+/** Each run's direct ride from one plan stop to another, soonest departure first. */
+export function getZentrumDirectRides(
+  departures: readonly Departure[],
+  originNodeId: string,
+  destinationNodeId: string,
+  feedNow: number,
+): ZentrumTravelTime[] {
+  const railRuns = departures.filter(isRailDeparture);
+  const { resolveNodeId } = createSchematicBoardingReading(railRuns);
+  const getNodeId = (call: TripCall) =>
+    call.localStopId === originNodeId ? originNodeId : resolveNodeId(call);
+  return railRuns
+    .flatMap((run) => {
+      const rides = [...getDirectTravelTimes([run], originNodeId, feedNow, "arrival", getNodeId)]
+        .filter(([id]) => getZentrumSchematicStopId(id) === destinationNodeId)
+        .map(([, ride]) => ride)
+        .sort((left, right) => left.arrivesAt - right.arrivesAt);
+      return rides.slice(0, 1);
+    })
+    .sort((left, right) => left.departsAt - right.departsAt || left.arrivesAt - right.arrivesAt);
 }
 
 /** Whole minutes until departure, as a board counts them. */

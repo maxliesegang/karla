@@ -12,6 +12,7 @@ import {
 } from "../../lib/zentrum-schematic";
 import {
   type ZentrumTravelMeasure,
+  getZentrumDirectRides,
   getZentrumVehiclePathsOverlay,
   getZentrumApproachingVehicleIds,
 } from "../../lib/zentrum-schematic-overlays";
@@ -45,9 +46,9 @@ const getZentrumSchematicCaption = (
 ): string => {
   if (stopReading === "departures") return "Farbig: Weg der nächsten Bahnen hierher";
   if (stopReading === "destinations") {
-    return travelMeasure === "ride"
-      ? "Minuten Fahrzeit, ohne Umsteigen"
-      : "Minuten bis zur Ankunft, ohne Umsteigen";
+    return travelMeasure === "arrival"
+      ? "Minuten bis zur Ankunft, ohne Umsteigen"
+      : "Minuten Fahrzeit, ohne Umsteigen";
   }
   if (selectedLineId) {
     return vehicleCount === 0
@@ -208,6 +209,14 @@ export function ZentrumSchematic({
     stopReading === "destinations"
       ? stopView?.reachableStops.find((stop) => stop.nodeId === detailSelection.destinationStopId)
       : undefined;
+  const destinationNodeId = selectedDestination?.nodeId;
+  const destinationRides = useMemo(
+    () =>
+      selectedStop && destinationNodeId
+        ? getZentrumDirectRides(runDepartures, selectedStop.id, destinationNodeId, feedNow)
+        : [],
+    [selectedStop, destinationNodeId, runDepartures, feedNow],
+  );
   const isStopPanelOpen = !selectedVehicle && !selectedDestination && stopPanelState === "expanded";
   const selectDestination = (nodeId: string) => {
     if (!selectedStop) return;
@@ -237,6 +246,7 @@ export function ZentrumSchematic({
       originStopId={selectedStop.id}
       originStopLabel={selectedStop.label}
       reachableStop={selectedDestination}
+      rides={destinationRides}
       board={stopBoard}
       feedNow={feedNow}
       getSign={getSign}

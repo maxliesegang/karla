@@ -31,14 +31,16 @@ export const ZENTRUM_PLAN_OPTION_DEFINITIONS = {
     ],
     defaultValue: "plan",
   },
-  /** Destination minutes include waiting or count only time on board. */
+  /** Destination minutes include waiting, count only time on board, or show both apart. */
   travelMeasure: {
     group: "stop",
     label: "Ziele in Minuten",
-    description: "Zählt bis zur Ankunft, also mit Wartezeit, oder nur die Fahrt.",
+    description:
+      "Zählt bis zur Ankunft, also mit Wartezeit, nur die Fahrt, oder die Fahrt mit der Wartezeit darunter.",
     choices: [
       { value: "arrival", label: "Bis Ankunft" },
       { value: "ride", label: "Fahrzeit" },
+      { value: "split", label: "Fahrt + Warten" },
     ],
     defaultValue: "arrival",
   },

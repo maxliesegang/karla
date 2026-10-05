@@ -67,8 +67,12 @@ const ZENTRUM_NAME_MEASURE = 92;
 /** A generous character width, so a name is never judged to fit too early. */
 const ZENTRUM_NAME_CHARACTER_WIDTH = 0.62;
 
-/** The characters a travel time sets in, line badge included. */
+/** The characters a travel time sets in, line badge included, and with its wait beside it. */
 const ZENTRUM_TIME_CHARACTERS = 9;
+const ZENTRUM_TIME_WITH_WAIT_CHARACTERS = 13;
+
+/** Whether a travel time heads each name, and whether its wait stands beside it. */
+export type ZentrumNameTime = boolean | "with-wait";
 
 /** The padding `.zentrum-schematic-stop span` sets round a name, either way. */
 const ZENTRUM_NAME_PADDING = { x: 3, y: 2 };
@@ -77,7 +81,7 @@ const ZENTRUM_NAME_PADDING = { x: 3, y: 2 };
 const getNamePixels = (
   label: string,
   planWidth: number,
-  hasTime: boolean,
+  hasTime: ZentrumNameTime,
 ): { width: number; height: number } => {
   const size = getZentrumNameSize(planWidth);
   const character = size * ZENTRUM_NAME_CHARACTER_WIDTH;
@@ -86,8 +90,10 @@ const getNamePixels = (
   const lines = Math.ceil(setWidth / ZENTRUM_NAME_MEASURE);
   const nameWidth = Math.max(longestWord * character, Math.min(setWidth, ZENTRUM_NAME_MEASURE));
   // The travel time heads the name a size up (`.zentrum-schematic-stop-time`): "S11 22 min".
+  const timeCharacters =
+    hasTime === "with-wait" ? ZENTRUM_TIME_WITH_WAIT_CHARACTERS : ZENTRUM_TIME_CHARACTERS;
   const time = hasTime
-    ? { width: ZENTRUM_TIME_CHARACTERS * character * 1.15, height: size * 1.3 + 2 }
+    ? { width: timeCharacters * character * 1.15, height: size * 1.3 + 2 }
     : { width: 0, height: 0 };
   return {
     width: Math.max(nameWidth, time.width) + ZENTRUM_NAME_PADDING.x * 2,
@@ -99,7 +105,7 @@ const getNamePixels = (
 const getNameSize = (
   label: string,
   planWidth: number | undefined,
-  hasTime = false,
+  hasTime: ZentrumNameTime = false,
 ): { width: number; height: number } => {
   const width = planWidth ?? ZENTRUM_SCHEMATIC_VIEWBOX.width;
   const unitsPerPixel = ZENTRUM_SCHEMATIC_VIEWBOX.width / width;
@@ -114,7 +120,7 @@ export const getZentrumSchematicLabelBox = (
   { side, anchor }: ZentrumSchematicLabel,
   name: string,
   planWidth: number | undefined,
-  hasTime = false,
+  hasTime: ZentrumNameTime = false,
 ): Box => getLabelBox(side, anchor, getNameSize(name, planWidth, hasTime));
 
 /** The box a name of this size covers, set to one side of its anchor. */
@@ -170,7 +176,7 @@ export const placeZentrumSchematicLabels = (
   stopMarks: readonly ZentrumSchematicStopMark[],
   trackWidth: number,
   planWidth: number | undefined,
-  hasTimes = false,
+  hasTimes: ZentrumNameTime = false,
   priorityNodeIds?: ReadonlySet<string>,
 ): ReadonlyMap<string, ZentrumSchematicLabel> => {
   const width = planWidth ?? ZENTRUM_SCHEMATIC_VIEWBOX.width;

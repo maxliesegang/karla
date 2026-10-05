@@ -119,3 +119,41 @@ test("destinations are ordered by the chosen measure, using arrival time to brea
     );
   }
 });
+
+test("the split measure takes the soonest arrival and reads its ride and wait apart", () => {
+  const departures = [
+    createDeparture({
+      id: "slow",
+      lineId: "2",
+      tripCalls: [call("europaplatz", 1), call("marktplatz", 5)],
+    }),
+    createDeparture({
+      id: "fast",
+      lineId: "S1",
+      tripCalls: [call("europaplatz", 4), call("marktplatz", 6)],
+    }),
+    createDeparture({
+      id: "far",
+      lineId: "3",
+      tripCalls: [call("europaplatz", 2), call("karlstor", 3)],
+    }),
+  ];
+  const view = getZentrumStopView(
+    "destinations",
+    "europaplatz",
+    null,
+    [],
+    departures,
+    instant(0),
+    "split",
+  );
+  const marktplatz = view.reachableStops.find(({ nodeId }) => nodeId === "marktplatz");
+  assert.equal(marktplatz?.departure.id, "slow");
+  assert.equal(marktplatz?.minutes, 4);
+  assert.equal(marktplatz?.waitMinutes, 1);
+  assert.deepEqual(
+    view.reachableStops.map(({ nodeId }) => nodeId),
+    ["karlstor", "marktplatz"],
+  );
+  assert.equal(view.stopMinutesByNodeId?.get("marktplatz")?.waitMinutes, 1);
+});

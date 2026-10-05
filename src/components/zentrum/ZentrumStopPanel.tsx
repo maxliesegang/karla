@@ -31,6 +31,10 @@ const toCountdownReading = (minutes: number): CountdownReading =>
     ? { kind: "due", label: "jetzt" }
     : { kind: "minutes", minutes, label: `${minutes} min` };
 
+/** When a ride leaves, as its row prints it under the ride time. */
+export const formatWait = (minutes: number): string =>
+  minutes <= 0 ? "jetzt" : `in ${minutes} min`;
+
 /**
  * An opened stop's panel, written like the departure board; its name and reading stand on the
  * bar. Departures are the stop's whole board: a row whose tram is on the plan selects it, any
@@ -83,7 +87,9 @@ export function ZentrumStopPanel({
             ))
           : travelMeasure === "ride"
             ? "Fahrzeit in der Bahn, direkt ab hier, ohne Umsteigen."
-            : "Direkt ab hier, ohne Umsteigen."}
+            : travelMeasure === "split"
+              ? "Fahrzeit, darunter bis zur Abfahrt. Direkt, ohne Umsteigen."
+              : "Direkt ab hier, ohne Umsteigen."}
       </p>
       <div
         className="zentrum-panel-list"
@@ -163,12 +169,16 @@ export function ZentrumStopPanel({
                   type="button"
                   className="zentrum-destination-row"
                   onClick={() => onSelectDestination(reachable.nodeId)}
-                  aria-label={`${reachable.label}, Linie ${reachable.lineId}, ${reachable.minutes} Minuten, ${getZentrumTravelSourceLabel(reachable)}. Passende Abfahrt anzeigen`}
+                  aria-label={`${reachable.label}, Linie ${reachable.lineId}, ${
+                    reachable.waitMinutes === undefined
+                      ? `${reachable.minutes} Minuten`
+                      : `${reachable.minutes} Minuten Fahrt, ab in ${reachable.waitMinutes} Minuten`
+                  }, ${getZentrumTravelSourceLabel(reachable)}. Passende Abfahrt anzeigen`}
                 >
                   <LineBadge line={getSign(reachable.lineId)} size="sm" />
                   <span className="zentrum-panel-destinations-name">{reachable.label}</span>
-                  <span className="departure-countdown">
-                    {travelMeasure === "ride" ? (
+                  <span className="departure-countdown zentrum-destination-time">
+                    {travelMeasure !== "arrival" ? (
                       <DepartureCountdown
                         reading={{
                           kind: "minutes",
@@ -178,6 +188,11 @@ export function ZentrumStopPanel({
                       />
                     ) : (
                       <DepartureCountdown reading={toCountdownReading(reachable.minutes)} />
+                    )}
+                    {reachable.waitMinutes !== undefined && (
+                      <small className="zentrum-destination-wait">
+                        {formatWait(reachable.waitMinutes)}
+                      </small>
                     )}
                   </span>
                 </button>
