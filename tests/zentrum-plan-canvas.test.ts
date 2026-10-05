@@ -56,6 +56,13 @@ test("a portrait box fits the city-centre frame across its width, however tall i
   assert.equal(getZentrumPlanWidth({ width: 900, height: 300 }, 1), Math.floor(300 * planRatio));
 });
 
+test("a narrow box keeps the city-centre frame when a panel leaves it shorter than wide", () => {
+  const ratio = ZENTRUM_SCHEMATIC_VIEWBOX.width / ZENTRUM_PORTRAIT_FRAME.width;
+  assert.equal(getZentrumPlanWidth({ width: 359, height: 277 }, 1), Math.floor(359 * ratio));
+  // Asked for the whole plan, it still gets it.
+  assert.equal(getZentrumPlanWidth({ width: 359, height: 277 }, 1, true), 359);
+});
+
 test("the portrait frame holds the city centre from Europaplatz to Werderstraße", () => {
   const { x, y, width, height } = ZENTRUM_PORTRAIT_FRAME;
   for (const id of [
@@ -71,6 +78,10 @@ test("the portrait frame holds the city centre from Europaplatz to Werderstraße
     assert.ok(node, id);
     assert.ok(node.x > x && node.x < x + width && node.y > y && node.y < y + height, id);
   }
+  // Room for a name, travel time above it, set left of the Europaplatz column or above Kaiserstraße
+  // on a phone.
+  assert.ok(zentrumSchematicNodeById.get("europaplatz")!.x - x >= 100);
+  assert.ok(zentrumSchematicNodeById.get("marktplatz")!.y - y >= 85);
   // A portrait box is as tall as the frame, so no band of it is left empty.
   assert.equal(getZentrumPortraitFrameHeight(width), height);
 });
@@ -118,4 +129,14 @@ test("a vehicle transform is anchored to the canvas origin, not the ride's first
     getZentrumVehicleTransform(ride, progress),
     `translate3d(${toZentrumCanvasRun(x - ZENTRUM_SCHEMATIC_VIEWBOX.x)}, ${toZentrumCanvasRun(y - ZENTRUM_SCHEMATIC_VIEWBOX.y)}, 0) translate(-50%, -50%)`,
   );
+});
+
+test("reset fits the whole Zentrum into a portrait screen", () => {
+  const box = { width: 372, height: 635 };
+  const wholeWidth = getZentrumPlanWidth(box, 1, true)!;
+  assert.ok(wholeWidth <= box.width);
+  assert.ok(
+    (wholeWidth * ZENTRUM_SCHEMATIC_VIEWBOX.height) / ZENTRUM_SCHEMATIC_VIEWBOX.width <= box.height,
+  );
+  assert.ok(getZentrumPlanWidth(box, 1)! > wholeWidth);
 });

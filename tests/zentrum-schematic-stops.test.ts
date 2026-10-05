@@ -24,6 +24,7 @@ import {
   getStrokeOutline,
   isOverlapping,
 } from "../src/lib/zentrum-schematic-stops.ts";
+import { ZENTRUM_PORTRAIT_FRAME } from "../src/lib/zentrum-plan-canvas.ts";
 import { createDeparture } from "./support/fixtures.ts";
 
 const call = (
@@ -505,6 +506,35 @@ test("halts every mark on its stop's capsule", () => {
 /** A corner's pill lies across the curve on purpose. */
 const isDiagonalPill = ({ from, to }: ZentrumSchematicStroke) =>
   Math.abs(Math.abs(to.x - from.x) - Math.abs(to.y - from.y)) < 0.01 && to.x !== from.x;
+
+test("on a phone, the frame holds names and travel times, including names shown on focus", () => {
+  const frame = ZENTRUM_PORTRAIT_FRAME;
+  const planWidth = Math.floor((372 * ZENTRUM_SCHEMATIC_VIEWBOX.width) / frame.width);
+  const reading = buildZentrumSchematicReading(liveTrips, planWidth);
+  const labels = placeZentrumSchematicLabels(
+    reading.edges,
+    reading.stopMarks,
+    reading.trackWidth,
+    planWidth,
+    true,
+  );
+  // The outer columns' names have room only outward at this width, and are read by panning.
+  for (const nodeId of ["europaplatz", "karlstor", "ebertstrasse", "kronenplatz", "tivoli"]) {
+    const label = labels.get(nodeId);
+    const name = zentrumSchematicNodeById.get(nodeId)?.label;
+    assert.ok(label && name, nodeId);
+    const box = getZentrumSchematicLabelBox(label, name, planWidth, true);
+    assert.ok(
+      box.left >= frame.x && box.right <= frame.x + frame.width && box.top >= frame.y,
+      `${nodeId} is set out of view`,
+    );
+  }
+  for (const nodeId of ["europaplatz", "karlstor", "kronenplatz"]) {
+    assert.ok(labels.get(nodeId)?.fits, nodeId);
+  }
+  assert.equal(labels.get("ebertstrasse")?.fits, false);
+  assert.equal(labels.get("tivoli")?.fits, false);
+});
 
 test("sets every name that fits inside the plan, clear of bands, capsules and other names", () => {
   for (const [planWidth, hasTimes] of [

@@ -221,8 +221,22 @@ test("reads how soon every stop is reached directly, by the tram that gets there
   const { travelTimesByNodeId, overlay } = getZentrumTravelTimes(runs, "europaplatz", instant(1));
 
   assert.deepEqual(Object.fromEntries(travelTimesByNodeId), {
-    marktplatz: { arrivesAt: instant(3), lineId: "S5", departsAt: instant(1) },
-    kronenplatz: { arrivesAt: instant(6), lineId: "S1", departsAt: instant(2) },
+    marktplatz: {
+      arrivesAt: instant(3),
+      lineId: "S5",
+      departsAt: instant(1),
+      departure: runs[2],
+      boardingCall: runs[2].tripCalls![0],
+      arrivalCall: runs[2].tripCalls![1],
+    },
+    kronenplatz: {
+      arrivesAt: instant(6),
+      lineId: "S1",
+      departsAt: instant(2),
+      departure: runs[1],
+      boardingCall: runs[1].tripCalls![0],
+      arrivalCall: runs[1].tripCalls![2],
+    },
   });
   assert.deepEqual([...(overlay.corridorIdsByLineId.get("S5") ?? [])], [EUROPAPLATZ_MARKTPLATZ]);
   assert.deepEqual([...(overlay.corridorIdsByLineId.get("S1") ?? [])].sort(), [
@@ -254,6 +268,9 @@ test("reads the shortest ride to each stop when riding time is the measure", () 
     arrivesAt: instant(9),
     lineId: "S1",
     departsAt: instant(5),
+    departure: runs[1],
+    boardingCall: runs[1].tripCalls![0],
+    arrivalCall: runs[1].tripCalls![2],
   });
   assert.equal(getRideMinutes(byRide.travelTimesByNodeId.get("kronenplatz")!), 4);
 });

@@ -164,6 +164,9 @@ test("reaches stops beyond any plan, on the soonest direct tram", () => {
     lineId: "S5",
     departsAt: instant(1),
     stopIds: ["marktplatz", "kronenplatz", "durlach", "groetzingen"],
+    departure: runs[0],
+    boardingCall: runs[0].tripCalls![0],
+    arrivalCall: runs[0].tripCalls![3],
   });
 });
 

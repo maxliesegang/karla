@@ -3,43 +3,31 @@ import type { Departure, DepartureBoard } from "../../data/transit-types";
 import { useStoredPreference } from "../../hooks/stored-preference";
 import { useZentrumPlanCanvas } from "../../hooks/zentrum-plan-canvas";
 import { findTurnarounds } from "../../lib/line-turnarounds";
-import { createRunMotions } from "../../lib/vehicle-positioning";
+import { useRunMotions } from "../../hooks/run-motions";
 import {
   type ZentrumSchematicLayout,
-  type ZentrumSchematicVehicle,
   createZentrumSchematicDrawer,
   getZentrumSchematicVehicles,
 } from "../../lib/zentrum-schematic";
 import {
-  type ZentrumSchematicOverlay,
-  type ZentrumStopBoardRow,
   type ZentrumTravelMeasure,
-  getMinutesUntilArrival,
-  getRideMinutes,
   getZentrumVehiclePathsOverlay,
   getZentrumApproachingVehicleIds,
-  getZentrumStopBoard,
-  getZentrumTravelTimes,
-  type ZentrumTravelTime,
 } from "../../lib/zentrum-schematic-overlays";
+import { getZentrumStopView, type ZentrumStopReading } from "../../lib/zentrum-stop-view";
 import { zentrumPlanOptions } from "../../lib/zentrum-plan-options";
 import { type ZentrumPanelEntranceMotion, zentrumStopPanelState } from "../../lib/zentrum-panel";
-import {
-  type ZentrumSchematicNode,
-  zentrumSchematicNodeById,
-} from "../../lib/zentrum-schematic-plan";
+import { zentrumSchematicNodeById } from "../../lib/zentrum-schematic-plan";
 import { ARE_OTHER_EXPERIMENT_MAPS_SHOWN } from "../../routing";
 import { ExperimentMapSwitch } from "../experiment/ExperimentMapSwitch";
 import type { ZentrumLineSignReader } from "./line-sign";
-import { ZentrumSchematicCanvas, type ZentrumStopTravelTag } from "./ZentrumSchematicCanvas";
+import { ZentrumSchematicCanvas } from "./ZentrumSchematicCanvas";
 import { ZentrumPlanOptionsMenu } from "./ZentrumPlanOptionsMenu";
 import { ZentrumPlanControls, ZentrumSchematicToolbar } from "./ZentrumSchematicToolbar";
-import {
-  type ZentrumReachableStop,
-  ZentrumStopPanel,
-  type ZentrumStopReading,
-} from "./ZentrumStopPanel";
+import { ZentrumStopPanel } from "./ZentrumStopPanel";
 import { ZentrumStopBar } from "./ZentrumStopBar";
+import { ZentrumStopSearch } from "./ZentrumStopSearch";
+import { ZentrumDestinationDetail } from "./ZentrumDestinationDetail";
 import { ZentrumVehicleDetail } from "./ZentrumVehicleDetail";
 
 /** A German count, singular where it applies. */
@@ -67,72 +55,13 @@ const getZentrumSchematicCaption = (
   }
   const running = formatCount(vehicleCount, "Bahn", "Bahnen");
   return isShowingVehiclePaths
-    ? `${running} · farbig: wohin sie fahren`
-    : `${running} im Plan · Haltestelle antippen`;
+    ? `${running} · geschätzte Positionen · farbig: Fahrwege`
+    : "Positionen geschätzt · Haltestelle antippen";
 };
 
-/** What an opened stop lights, and its readings. */
-type ZentrumStopView = {
-  overlay: ZentrumSchematicOverlay;
-  /** The stop's board, or nothing while it has not answered. */
-  rows?: readonly ZentrumStopBoardRow[];
-  reachableStops: readonly ZentrumReachableStop[];
-  /** The countdown on each tram the stop waits for. */
-  vehicleMinutesById?: ReadonlyMap<string, number>;
-  /** Minutes and line printed at each reached stop. */
-  stopMinutesByNodeId?: ReadonlyMap<string, ZentrumStopTravelTag>;
-};
-
-const getZentrumStopView = (
-  reading: ZentrumStopReading,
-  stop: ZentrumSchematicNode,
-  board: DepartureBoard | null,
-  vehicles: readonly ZentrumSchematicVehicle[],
-  runDepartures: readonly Departure[],
-  feedNow: number,
-  travelMeasure: ZentrumTravelMeasure,
-): ZentrumStopView => {
-  if (reading === "departures") {
-    const { rows, overlay, vehicleMinutesById } = getZentrumStopBoard(
-      board?.departures ?? [],
-      vehicles,
-      stop.id,
-      feedNow,
-    );
-    return { overlay, rows: board ? rows : undefined, reachableStops: [], vehicleMinutesById };
-  }
-  const { travelTimesByNodeId, overlay } = getZentrumTravelTimes(
-    runDepartures,
-    stop.id,
-    feedNow,
-    travelMeasure,
-  );
-  const getMinutes = (time: ZentrumTravelTime) =>
-    travelMeasure === "ride"
-      ? getRideMinutes(time)
-      : getMinutesUntilArrival(time.arrivesAt, feedNow);
-  const reachableStops = [...travelTimesByNodeId]
-    .flatMap(([nodeId, time]) => {
-      const node = zentrumSchematicNodeById.get(nodeId);
-      return node ? [{ ...time, nodeId, label: node.label, minutes: getMinutes(time) }] : [];
-    })
-    .sort(
-      (left, right) =>
-        left.minutes - right.minutes ||
-        left.arrivesAt - right.arrivesAt ||
-        left.label.localeCompare(right.label),
-    );
-  return {
-    overlay,
-    reachableStops,
-    stopMinutesByNodeId: new Map(
-      reachableStops.map(({ nodeId, minutes, lineId }) => [
-        nodeId,
-        { minutes, lineId, measure: travelMeasure },
-      ]),
-    ),
-  };
-};
+type ZentrumDetailSelection =
+  | { kind: "vehicle"; vehicleId: string }
+  | { kind: "destination"; originStopId: string; destinationStopId: string };
 
 /**
  * The plan, its controls, the reading band and the panel for whatever is opened. A vehicle opens
@@ -147,6 +76,7 @@ export function ZentrumSchematic({
   stopBoard,
   feedNow,
   isFullscreen,
+  isStacked,
   locationNote,
   onSelectLine,
   onSelectStop,
@@ -166,17 +96,22 @@ export function ZentrumSchematic({
   feedNow: number;
   /** Whether the plan fills the screen. */
   isFullscreen: boolean;
+  /** Whether an opened panel stands under the plan rather than beside it. */
+  isStacked: boolean;
   /** Why the plan did not open at the rider's nearest stop, while that is news. */
   locationNote?: string;
   onSelectLine: (lineId: string | undefined) => void;
   onSelectStop: (stopId: string | undefined) => void;
   onChangeFullscreen: (isFullscreen: boolean) => void;
 }) {
-  const [selectedVehicleId, setSelectedVehicleId] = useState<string>();
+  const [detailSelection, setDetailSelection] = useState<ZentrumDetailSelection>();
+  const selectedVehicleId =
+    detailSelection?.kind === "vehicle" ? detailSelection.vehicleId : undefined;
   const [stopReading, setStopReading] = useState<ZentrumStopReading>("destinations");
   const plan = useZentrumPlanCanvas();
   const options = useStoredPreference(zentrumPlanOptions);
-  const stopPanelState = useStoredPreference(zentrumStopPanelState);
+  const stopPanelState =
+    useStoredPreference(zentrumStopPanelState) ?? (isStacked ? "expanded" : "collapsed");
   const [panelEntranceMotion, setPanelEntranceMotion] =
     useState<ZentrumPanelEntranceMotion>("slide");
   // The lane width follows the plan's on-screen size.
@@ -185,8 +120,8 @@ export function ZentrumSchematic({
     () => drawSchematic(layout, plan.planWidth),
     [drawSchematic, layout, plan.planWidth],
   );
-  // Mark motion, kept while mounted. Placed once per tick, so other renders re-place nothing.
-  const [motions] = useState(createRunMotions);
+  // Mark motion, shared with every view. Placed once per tick, so other renders re-place nothing.
+  const motions = useRunMotions();
   const turnarounds = useMemo(() => findTurnarounds(runDepartures), [runDepartures]);
   const vehicles = useMemo(
     () => getZentrumSchematicVehicles(schematic, runDepartures, feedNow, motions, turnarounds),
@@ -211,7 +146,7 @@ export function ZentrumSchematic({
       selectedStop
         ? getZentrumStopView(
             stopReading,
-            selectedStop,
+            selectedStop.id,
             stopBoard,
             vehicles,
             runDepartures,
@@ -242,13 +177,13 @@ export function ZentrumSchematic({
 
   // The open vehicle belonged to the previous reading.
   const selectLine = (lineId: string | undefined) => {
-    setSelectedVehicleId(undefined);
+    setDetailSelection(undefined);
     onSelectLine(lineId);
   };
   // Stable, so memoized stops do not re-render every second.
   const selectStop = useCallback(
     (stopId: string | undefined) => {
-      setSelectedVehicleId(undefined);
+      setDetailSelection(undefined);
       setPanelEntranceMotion("slide");
       onSelectStop(stopId === selectedStopId ? undefined : stopId);
     },
@@ -257,14 +192,32 @@ export function ZentrumSchematic({
   // Opened from a stop, a tram's detail rises from the stop's bar.
   const toggleVehicle = (vehicleId: string) => {
     setPanelEntranceMotion(selectedStop ? "rise" : "slide");
-    setSelectedVehicleId((current) => (current === vehicleId ? undefined : vehicleId));
+    setDetailSelection((current) =>
+      current?.kind === "vehicle" && current.vehicleId === vehicleId
+        ? undefined
+        : { kind: "vehicle", vehicleId },
+    );
   };
 
   // A tram's detail always opens whole; closing it returns to the stop as the rider left it.
-  const isStopPanelOpen = !selectedVehicle && stopPanelState === "expanded";
+  const selectedDestination =
+    detailSelection?.kind === "destination" &&
+    detailSelection.originStopId === selectedStopId &&
+    stopReading === "destinations"
+      ? stopView?.reachableStops.find((stop) => stop.nodeId === detailSelection.destinationStopId)
+      : undefined;
+  const isStopPanelOpen = !selectedVehicle && !selectedDestination && stopPanelState === "expanded";
+  const selectDestination = (nodeId: string) => {
+    if (!selectedStop) return;
+    setDetailSelection({
+      kind: "destination",
+      originStopId: selectedStop.id,
+      destinationStopId: nodeId,
+    });
+  };
   const toggleStopPanel = () => {
     setPanelEntranceMotion("rise");
-    setSelectedVehicleId(undefined);
+    setDetailSelection(undefined);
     zentrumStopPanelState.write(isStopPanelOpen ? "collapsed" : "expanded");
   };
 
@@ -275,7 +228,21 @@ export function ZentrumSchematic({
       feedNow={feedNow}
       returnLabel={selectedStop?.label}
       entranceMotion={panelEntranceMotion}
-      onClose={() => setSelectedVehicleId(undefined)}
+      onClose={() => setDetailSelection(undefined)}
+    />
+  ) : selectedDestination && selectedStop ? (
+    <ZentrumDestinationDetail
+      originStopId={selectedStop.id}
+      originStopLabel={selectedStop.label}
+      reachableStop={selectedDestination}
+      board={stopBoard}
+      feedNow={feedNow}
+      getSign={getSign}
+      onSelectStop={selectStop}
+      onClose={() => {
+        setDetailSelection(undefined);
+        zentrumStopPanelState.write("expanded");
+      }}
     />
   ) : selectedStop && stopView && isStopPanelOpen ? (
     <ZentrumStopPanel
@@ -288,6 +255,7 @@ export function ZentrumSchematic({
       travelMeasure={options.travelMeasure}
       selectedVehicleId={selectedVehicleId}
       onSelectVehicle={toggleVehicle}
+      onSelectDestination={selectDestination}
       getSign={getSign}
       feedNow={feedNow}
       entranceMotion={panelEntranceMotion}
@@ -297,7 +265,10 @@ export function ZentrumSchematic({
     <ZentrumStopBar
       label={selectedStop.label}
       reading={stopReading}
-      onChangeReading={setStopReading}
+      onChangeReading={(reading) => {
+        setStopReading(reading);
+        setDetailSelection(undefined);
+      }}
       isPanelOpen={isStopPanelOpen}
       onTogglePanel={toggleStopPanel}
       onClose={() => selectStop(undefined)}
@@ -344,6 +315,13 @@ export function ZentrumSchematic({
           isFullscreen={isFullscreen}
           onChangeFullscreen={onChangeFullscreen}
           optionsMenu={<ZentrumPlanOptionsMenu />}
+          stopSearch={
+            <ZentrumStopSearch
+              lineIdsByNodeId={schematic.lineIdsByNodeId}
+              onSelectStop={selectStop}
+            />
+          }
+          onFitWholePlan={plan.fitWholePlan}
         />
         {ARE_OTHER_EXPERIMENT_MAPS_SHOWN && <ExperimentMapSwitch map="center" />}
       </div>

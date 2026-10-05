@@ -32,6 +32,7 @@ export function ZentrumView({
   selectedLineId,
   selectedStopId,
   isFullscreen,
+  isStacked,
   nearbyStops,
 }: {
   network: ObservedNetwork;
@@ -45,6 +46,8 @@ export function ZentrumView({
   selectedStopId?: string;
   /** Whether the plan fills the screen. */
   isFullscreen: boolean;
+  /** Whether an opened panel stands under the plan rather than beside it. */
+  isStacked: boolean;
   /** Where the rider stands, asked only when the plan is set to open at the nearest stop. */
   nearbyStops: NearbyStopsController;
 }) {
@@ -117,6 +120,7 @@ export function ZentrumView({
         stopBoard={openedStopBoard}
         feedNow={feedNow}
         isFullscreen={isFullscreen}
+        isStacked={isStacked}
         locationNote={locationNote}
         onSelectLine={selectLine}
         onSelectStop={selectStop}

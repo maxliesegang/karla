@@ -19,10 +19,8 @@ import {
   zentrumSchematicNodeById,
 } from "../../lib/zentrum-schematic-plan";
 import type { ZentrumPlanOptions } from "../../lib/zentrum-plan-options";
-import type {
-  ZentrumSchematicOverlay,
-  ZentrumTravelMeasure,
-} from "../../lib/zentrum-schematic-overlays";
+import type { ZentrumSchematicOverlay } from "../../lib/zentrum-schematic-overlays";
+import type { ZentrumStopTravelTag } from "../../lib/zentrum-stop-view";
 import type { ZentrumLineSignReader } from "./line-sign";
 import {
   ZentrumSchematicDrawing,
@@ -32,13 +30,6 @@ import {
 
 /** The plan width in CSS pixels from which every stop is named (measured, not the zoom step). */
 const ZENTRUM_NAME_EVERY_STOP_WIDTH = 1000;
-
-/** How soon a stop is reached from the opened one, and the line that gets the rider there. */
-export type ZentrumStopTravelTag = {
-  minutes: number;
-  lineId: string;
-  measure: ZentrumTravelMeasure;
-};
 
 /** A mark with what its animation needs. */
 type ZentrumVehicleMark = ZentrumSchematicVehicle & TrajectoryAnimationFields;
@@ -337,8 +328,16 @@ const ZentrumSchematicStops = memo(function ZentrumSchematicStops({
   // Here, not with the drawing: a printed travel time makes every name taller.
   const hasTimes = stopMinutesByNodeId !== undefined;
   const labelsByNodeId = useMemo(
-    () => placeZentrumSchematicLabels(edges, stopMarks, trackWidth, planWidth, hasTimes),
-    [edges, stopMarks, trackWidth, planWidth, hasTimes],
+    () =>
+      placeZentrumSchematicLabels(
+        edges,
+        stopMarks,
+        trackWidth,
+        planWidth,
+        hasTimes,
+        stopMinutesByNodeId ? new Set(stopMinutesByNodeId.keys()) : undefined,
+      ),
+    [edges, stopMarks, trackWidth, planWidth, hasTimes, stopMinutesByNodeId],
   );
   const junctions = useMemo(() => getJunctionIds(schematic), [schematic]);
   const visibleNodes = useMemo(
@@ -365,11 +364,12 @@ const ZentrumSchematicStops = memo(function ZentrumSchematicStops({
         const isMuted = stopMinutesByNodeId
           ? minutes === undefined && !isSelected
           : highlightedLineIds !== undefined && !isHighlighted;
-        // Only a followed line names its stops. A name the placer could not fit shows on hover.
+        // Reached stops are named; crowded names remain available on hover and focus.
         const isNamed =
           isSelected ||
           (label?.fits !== false &&
             (showsEveryName ||
+              travel !== undefined ||
               junctions.has(node.id) ||
               (selectedLineId !== undefined && isHighlighted)));
         // The button is the capsule; the name hangs where the placer set it.
@@ -386,11 +386,7 @@ const ZentrumSchematicStops = memo(function ZentrumSchematicStops({
             className="zentrum-schematic-stop"
             data-side={label?.side ?? node.labelSide ?? "below"}
             data-muted={isMuted}
-            /* A reached stop shows its minutes even where its name is held back, unless it found
-               no room. */
-            data-named={
-              isNamed ? "true" : minutes !== undefined && label?.fits !== false ? "time" : "false"
-            }
+            data-named={isNamed}
             data-selected={isSelected}
             style={
               {
@@ -402,7 +398,7 @@ const ZentrumSchematicStops = memo(function ZentrumSchematicStops({
             }
             onClick={() => onSelectStop(node.id)}
             aria-pressed={isSelected}
-            aria-label={`${node.label}, Linien ${lineIdsAtNode.join(", ")}${travel ? `, mit Linie ${travel.lineId} ${travel.measure === "ride" ? `${travel.minutes} Minuten Fahrt` : `in ${travel.minutes} Minuten erreichbar`}` : ""}. ${isSelected ? "Haltestelle schließen" : "Ziele und Abfahrten ab hier"}`}
+            aria-label={`${node.label}, Linien ${lineIdsAtNode.join(", ")}${travel ? `, mit Linie ${travel.lineId} ${travel.measure === "ride" ? `${travel.minutes} Minuten Fahrt` : `in ${travel.minutes} Minuten erreichbar`}, ${travel.sourceLabel}` : ""}. ${isSelected ? "Haltestelle schließen" : "Ziele und Abfahrten ab hier"}`}
           >
             <i aria-hidden="true" />
             <span>

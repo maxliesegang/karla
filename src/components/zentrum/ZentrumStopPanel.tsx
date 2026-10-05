@@ -3,7 +3,6 @@ import { createLineSign } from "../../data/line-signs";
 import type { DepartureBoard } from "../../data/transit-types";
 import {
   type CountdownReading,
-  formatClockTime,
   getCountdownReading,
   getDepartureAccessibilityLabel,
   getDepartureStatusLabel,
@@ -13,8 +12,10 @@ import {
 import {
   type ZentrumStopBoardRow,
   type ZentrumTravelMeasure,
-  type ZentrumTravelTime,
 } from "../../lib/zentrum-schematic-overlays";
+import { formatPlatformLabel } from "../../lib/platform-naming";
+import type { ZentrumReachableStop, ZentrumStopReading } from "../../lib/zentrum-stop-view";
+import { getZentrumTravelSourceLabel } from "../../lib/zentrum-presentation";
 import { isRailDeparture } from "../../lib/zentrum-schematic-plan";
 import { getDepartureOpenPath, navigateTo, routePaths } from "../../routing";
 import { DepartureCountdown } from "../DepartureCountdown";
@@ -24,22 +25,11 @@ import type { ZentrumPanelEntranceMotion } from "../../lib/zentrum-panel";
 import { ZENTRUM_STOP_PANEL_ID } from "./ZentrumStopBar";
 import type { ZentrumLineSignReader } from "./line-sign";
 
-/** The two questions an opened stop answers on the plan. */
-export type ZentrumStopReading = "destinations" | "departures";
-
 /** Minutes as the board's countdown prints them. */
-export const toCountdownReading = (minutes: number): CountdownReading =>
+const toCountdownReading = (minutes: number): CountdownReading =>
   minutes <= 0
     ? { kind: "due", label: "jetzt" }
     : { kind: "minutes", minutes, label: `${minutes} min` };
-
-/** One stop the travel-time reading reaches, by the tram that gets there first. */
-export type ZentrumReachableStop = ZentrumTravelTime & {
-  nodeId: string;
-  label: string;
-  /** Until arrival, or on board, as the measure says. */
-  minutes: number;
-};
 
 /**
  * An opened stop's panel, written like the departure board; its name and reading stand on the
@@ -56,6 +46,7 @@ export function ZentrumStopPanel({
   travelMeasure,
   selectedVehicleId,
   onSelectVehicle,
+  onSelectDestination,
   getSign,
   feedNow,
   entranceMotion,
@@ -70,6 +61,7 @@ export function ZentrumStopPanel({
   travelMeasure: ZentrumTravelMeasure;
   selectedVehicleId?: string;
   onSelectVehicle: (vehicleId: string) => void;
+  onSelectDestination: (nodeId: string) => void;
   getSign: ZentrumLineSignReader;
   feedNow: number;
   entranceMotion: ZentrumPanelEntranceMotion;
@@ -99,7 +91,9 @@ export function ZentrumStopPanel({
         aria-live="polite"
       >
         {reading === "departures" ? (
-          rows === undefined ? (
+          board?.dataStatus === "unavailable" ? (
+            <p className="panel-empty">{board.errorMessage}</p>
+          ) : rows === undefined ? (
             <p className="panel-empty">Abfahrten werden geladen …</p>
           ) : rows.length === 0 ? (
             <p className="panel-empty">Gerade keine Abfahrten.</p>
@@ -144,7 +138,17 @@ export function ZentrumStopPanel({
                   <span className="departure-meta">
                     {timeReading && <DepartureTime reading={timeReading} />}
                     {departure.status !== "cancelled" && getDepartureStatusLabel(departure)}
+                    <span className="zentrum-departure-boarding">
+                      {formatPlatformLabel(
+                        departure.platformCode,
+                        departure.platformKind,
+                        "unbekannt",
+                      )}
+                    </span>
                   </span>
+                  {departure.serviceNote && (
+                    <small className="zentrum-departure-note">{departure.serviceNote}</small>
+                  )}
                 </button>
               );
             })
@@ -155,28 +159,28 @@ export function ZentrumStopPanel({
           <ol key={stopId} className="zentrum-panel-destinations">
             {reachableStops.map((reachable) => (
               <li key={reachable.nodeId}>
-                <LineBadge line={getSign(reachable.lineId)} size="sm" />
-                <span className="zentrum-panel-destinations-name">
-                  {reachable.label}
-                  <small>
-                    {travelMeasure === "ride"
-                      ? `ab ${formatClockTime(new Date(reachable.departsAt))}`
-                      : `an ${formatClockTime(new Date(reachable.arrivesAt))}`}
-                  </small>
-                </span>
-                <span className="departure-countdown">
-                  {travelMeasure === "ride" ? (
-                    <DepartureCountdown
-                      reading={{
-                        kind: "minutes",
-                        minutes: reachable.minutes,
-                        label: `${reachable.minutes} min`,
-                      }}
-                    />
-                  ) : (
-                    <DepartureCountdown reading={toCountdownReading(reachable.minutes)} />
-                  )}
-                </span>
+                <button
+                  type="button"
+                  className="zentrum-destination-row"
+                  onClick={() => onSelectDestination(reachable.nodeId)}
+                  aria-label={`${reachable.label}, Linie ${reachable.lineId}, ${reachable.minutes} Minuten, ${getZentrumTravelSourceLabel(reachable)}. Passende Abfahrt anzeigen`}
+                >
+                  <LineBadge line={getSign(reachable.lineId)} size="sm" />
+                  <span className="zentrum-panel-destinations-name">{reachable.label}</span>
+                  <span className="departure-countdown">
+                    {travelMeasure === "ride" ? (
+                      <DepartureCountdown
+                        reading={{
+                          kind: "minutes",
+                          minutes: reachable.minutes,
+                          label: `${reachable.minutes} min`,
+                        }}
+                      />
+                    ) : (
+                      <DepartureCountdown reading={toCountdownReading(reachable.minutes)} />
+                    )}
+                  </span>
+                </button>
               </li>
             ))}
           </ol>

@@ -59,7 +59,7 @@ export function ZentrumPlanOptionsMenu() {
         onClick={() => setIsMenuOpen((isOpen) => !isOpen)}
       >
         <svg viewBox="0 0 20 20" aria-hidden="true">
-          <path d="M8 3.5h4M8.75 3.5v4.75L4.5 15.25a1 1 0 0 0 .86 1.5h9.28a1 1 0 0 0 .86-1.5L11.25 8.25V3.5M6.5 12h7" />
+          <path d="M4 5h12M4 10h12M4 15h12M7 3v4M13 8v4M8 13v4" />
         </svg>
       </button>
     </div>

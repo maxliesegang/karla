@@ -57,9 +57,9 @@ const ZENTRUM_LABEL_GAP_PIXELS = 3;
 /** Distances, a lane apart, a name is tried at before accepting a collision. */
 const ZENTRUM_LABEL_RINGS = 3;
 
-/** A stop name's type size at a plan width; mirrors `clamp(8px, 0.9cqw, 11.5px)` in the CSS. */
+/** A stop name's type size at a plan width; mirrors `clamp(10px, 0.9cqw, 11.5px)` in the CSS. */
 const getZentrumNameSize = (planWidth: number): number =>
-  Math.min(11.5, Math.max(8, planWidth * 0.009));
+  Math.min(11.5, Math.max(10, planWidth * 0.009));
 
 /** The width a name wraps at, as `.zentrum-schematic-stop span` caps it. */
 const ZENTRUM_NAME_MEASURE = 92;
@@ -171,6 +171,7 @@ export const placeZentrumSchematicLabels = (
   trackWidth: number,
   planWidth: number | undefined,
   hasTimes = false,
+  priorityNodeIds?: ReadonlySet<string>,
 ): ReadonlyMap<string, ZentrumSchematicLabel> => {
   const width = planWidth ?? ZENTRUM_SCHEMATIC_VIEWBOX.width;
   const unitsPerPixel = ZENTRUM_SCHEMATIC_VIEWBOX.width / width;
@@ -231,12 +232,13 @@ export const placeZentrumSchematicLabels = (
     const freeByName = waiting.map(({ candidates }) =>
       candidates.filter((candidate) => getCost(candidate) === 0),
     );
-    const fewest = Math.min(
-      ...freeByName.map(({ length }) => (length === 0 ? Number.POSITIVE_INFINITY : length)),
+    const hasPriority = waiting.some(({ nodeId }) => priorityNodeIds?.has(nodeId));
+    const eligible = waiting.flatMap(({ nodeId }, index) =>
+      !hasPriority || priorityNodeIds?.has(nodeId) ? [index] : [],
     );
-    const next = Math.max(
-      freeByName.findIndex(({ length }) => length === fewest),
-      0,
+    const next = getFirstLeast(
+      eligible,
+      (index) => freeByName[index].length || Number.POSITIVE_INFINITY,
     );
     const [{ nodeId, candidates }] = waiting.splice(next, 1);
     const [free] = freeByName.splice(next, 1);

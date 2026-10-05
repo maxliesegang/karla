@@ -73,6 +73,8 @@ export function ZentrumPlanControls({
   isFullscreen,
   onChangeFullscreen,
   optionsMenu,
+  stopSearch,
+  onFitWholePlan,
   wholeLabel = "ganzer Plan",
 }: {
   zoom: number;
@@ -83,12 +85,15 @@ export function ZentrumPlanControls({
   isFullscreen: boolean;
   onChangeFullscreen: (isFullscreen: boolean) => void;
   optionsMenu?: ReactNode;
+  stopSearch?: ReactNode;
+  onFitWholePlan?: () => void;
   /** Spoken at the first zoom step. */
   wholeLabel?: string;
 }) {
   return (
     <div className="zentrum-plan-controls">
       {optionsMenu}
+      {stopSearch}
       <button
         type="button"
         className="zentrum-plan-expand"
@@ -108,8 +113,23 @@ export function ZentrumPlanControls({
         </svg>
       </button>
       <div className="zentrum-plan-zoom" role="group" aria-label="Zoom">
+        {onFitWholePlan && (
+          <button
+            type="button"
+            className="zentrum-plan-reset"
+            aria-label="Ganzer Plan"
+            title="Ganzer Plan"
+            onClick={onFitWholePlan}
+          >
+            <svg viewBox="0 0 20 20" aria-hidden="true">
+              <path d="M7 3H3v4M13 3h4v4M3 13v4h4M17 13v4h-4M7 7h6v6H7Z" />
+            </svg>
+          </button>
+        )}
+
         <button
           type="button"
+          className="zentrum-plan-step"
           aria-label="Vergrößern"
           title="Vergrößern"
           disabled={!canZoomIn}
@@ -121,6 +141,7 @@ export function ZentrumPlanControls({
         </button>
         <button
           type="button"
+          className="zentrum-plan-step"
           aria-label="Verkleinern"
           title="Verkleinern"
           disabled={!canZoomOut}

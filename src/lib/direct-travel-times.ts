@@ -14,8 +14,14 @@ export type DirectTravelTime = {
   lineId: string;
   /** When that vehicle leaves the rider's stop. */
   departsAt: number;
-  /** The stops passed, the rider's first and this one last. */
+  /** The stops visited, the rider's first and this one last. */
   stopIds: readonly string[];
+};
+
+export type DirectRideTime = DirectTravelTime & {
+  departure: Departure;
+  boardingCall: TripCall;
+  arrivalCall: TripCall;
 };
 
 const getMeasuredTime = (time: DirectTravelTime, measure: TravelMeasure): number =>
@@ -32,51 +38,62 @@ const compareTravelTimes = (
   compareLineIds(left.lineId, right.lineId);
 
 /**
- * The best direct ride to every stop the runs reach after boarding at `originId`. A call
+ * The best direct ride to every stop the runs reach after boarding at `originStopId`. A call
  * `getStopId` cannot name ends the run's reach, or with `passUnnamed` is ridden past.
  */
 export function getDirectTravelTimes(
   departures: readonly Departure[],
-  originId: string,
+  originStopId: string,
   feedNow: number,
   measure: TravelMeasure,
   getStopId: (call: TripCall) => string | undefined,
   passUnnamed = false,
-): ReadonlyMap<string, DirectTravelTime> {
-  const best = new Map<string, DirectTravelTime>();
+): ReadonlyMap<string, DirectRideTime> {
+  const bestRideByStopId = new Map<string, DirectRideTime>();
   for (const departure of departures) {
     if (departure.status === "cancelled") continue;
     const calls = collapseTurnaroundCalls(departure.tripCalls ?? []);
-    const named = calls.map((call) => [call, getStopId(call)] as const);
-    const kept = passUnnamed ? named.filter(([, id]) => id !== undefined) : named;
-    const stopIds = kept.map(([, id]) => id);
+    const resolvedCalls = calls.map((call) => [call, getStopId(call)] as const);
+    const eligibleCalls = passUnnamed
+      ? resolvedCalls.filter(([, id]) => id !== undefined)
+      : resolvedCalls;
+    const stopIds = eligibleCalls.map(([, id]) => id);
     // Boarding at a complex's last call.
-    let boardIndex = -1;
-    for (const [index, [call]] of kept.entries()) {
-      if (stopIds[index] !== originId || stopIds[index + 1] === originId) continue;
+    let boardingCallIndex = -1;
+    for (const [index, [call]] of eligibleCalls.entries()) {
+      if (stopIds[index] !== originStopId || stopIds[index + 1] === originStopId) continue;
       const leaves = getTripCallInstant(call);
       if (leaves !== undefined && leaves >= feedNow) {
-        boardIndex = index;
+        boardingCallIndex = index;
         break;
       }
     }
-    if (boardIndex < 0) continue;
-    const departsAt = getTripCallInstant(kept[boardIndex][0]) ?? feedNow;
+    if (boardingCallIndex < 0) continue;
+    const departsAt = getTripCallInstant(eligibleCalls[boardingCallIndex][0]) ?? feedNow;
 
-    const passed = [originId];
-    for (let index = boardIndex + 1; index < kept.length; index += 1) {
+    const visitedStopIds = [originStopId];
+    for (let index = boardingCallIndex + 1; index < eligibleCalls.length; index += 1) {
       const stopId = stopIds[index];
       if (!stopId) break;
-      if (stopId === passed[passed.length - 1]) continue;
-      passed.push(stopId);
-      const arrivesAt = getTripCallInstant(kept[index][0], "arrival");
-      if (arrivesAt === undefined || stopId === originId) continue;
-      const candidate = { arrivesAt, lineId: departure.lineId, departsAt, stopIds: [...passed] };
-      const known = best.get(stopId);
-      if (!known || compareTravelTimes(candidate, known, measure) < 0) best.set(stopId, candidate);
+      if (stopId === visitedStopIds[visitedStopIds.length - 1]) continue;
+      visitedStopIds.push(stopId);
+      const arrivesAt = getTripCallInstant(eligibleCalls[index][0], "arrival");
+      if (arrivesAt === undefined || stopId === originStopId) continue;
+      const candidate = {
+        arrivesAt,
+        lineId: departure.lineId,
+        departsAt,
+        stopIds: [...visitedStopIds],
+        departure,
+        boardingCall: eligibleCalls[boardingCallIndex][0],
+        arrivalCall: eligibleCalls[index][0],
+      };
+      const known = bestRideByStopId.get(stopId);
+      if (!known || compareTravelTimes(candidate, known, measure) < 0)
+        bestRideByStopId.set(stopId, candidate);
     }
   }
-  return best;
+  return bestRideByStopId;
 }
 
 /** Whole minutes until arrival, rounded up. */

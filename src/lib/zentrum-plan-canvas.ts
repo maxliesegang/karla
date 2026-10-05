@@ -21,21 +21,25 @@ export const getNeighboringZentrumZoom = (zoom: number, direction: 1 | -1): numb
 
 /**
  * The city centre a portrait box opens on, in plan coordinates: Europaplatz to Werderstraße and
- * Kaiserstraße to Albtalbahnhof, with room for their names.
+ * Kaiserstraße to Albtalbahnhof, with room for their names and travel times at a phone's width.
  */
-export const ZENTRUM_PORTRAIT_FRAME = { x: 297, y: 82, width: 532, height: 600 } as const;
+export const ZENTRUM_PORTRAIT_FRAME = { x: 236, y: 66, width: 593, height: 616 } as const;
+
+/** Below this width, in CSS pixels, the whole plan is too small to read, so the frame is fitted. */
+const ZENTRUM_WHOLE_PLAN_MINIMUM_WIDTH = 560;
 
 /**
- * The plan's drawn width at a zoom: landscape fits the whole plan; portrait fits the frame across
- * its width and pans to the rest. Undefined before measurement.
+ * The plan's drawn width at a zoom: a landscape box fits the whole plan; a portrait or narrow one
+ * fits the frame across its width and pans to the rest. Undefined before measurement.
  */
 export const getZentrumPlanWidth = (
   box: ZentrumPlanBox | null,
   zoom: number,
+  fitWholePlan = false,
 ): number | undefined => {
   if (!box) return undefined;
   const fitted =
-    box.height > box.width
+    (box.height > box.width || box.width < ZENTRUM_WHOLE_PLAN_MINIMUM_WIDTH) && !fitWholePlan
       ? (box.width * ZENTRUM_SCHEMATIC_VIEWBOX.width) / ZENTRUM_PORTRAIT_FRAME.width
       : Math.min(
           box.width,

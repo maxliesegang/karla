@@ -10,7 +10,8 @@ import {
 } from "../lib/zentrum-plan-canvas";
 import { useDragPan } from "./drag-pan";
 import { useElementBox } from "./element-box";
-import { useWheelZoom } from "./wheel-zoom";
+import { usePinchZoom } from "./pinch-zoom";
+import { useWheelZoom, type ZoomAt } from "./wheel-zoom";
 
 /** The plan's drawn size and scrollport. */
 export type ZentrumPlanCanvas = {
@@ -24,14 +25,16 @@ export type ZentrumPlanCanvas = {
   canZoomIn: boolean;
   canZoomOut: boolean;
   changeZoom: (direction: 1 | -1) => void;
+  fitWholePlan: () => void;
 };
 
 /**
- * The plan's drawn size. The zoom buttons keep the middle of the view in place; the wheel zooms
- * between the steps and keeps the point under the pointer.
+ * The plan's drawn size. The zoom buttons keep the middle of the view in place; the wheel and a
+ * pinch zoom between the steps and keep the point under the pointer or fingers.
  */
 export function useZentrumPlanCanvas(): ZentrumPlanCanvas {
   const [zoom, setZoom] = useState<number>(ZENTRUM_ZOOM_STEPS[0]);
+  const [isWholePlanFitted, setIsWholePlanFitted] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   /**
    * The point a zoom holds still: where it is on the plan, as a share, and where it stands in the
@@ -42,7 +45,7 @@ export function useZentrumPlanCanvas(): ZentrumPlanCanvas {
   const hasOpened = useRef(false);
   const box = useElementBox(scrollRef);
   useDragPan(scrollRef);
-  const planWidth = getZentrumPlanWidth(box, zoom);
+  const planWidth = getZentrumPlanWidth(box, zoom, isWholePlanFitted);
 
   useLayoutEffect(() => {
     const element = scrollRef.current;
@@ -72,14 +75,27 @@ export function useZentrumPlanCanvas(): ZentrumPlanCanvas {
     };
   };
 
-  useWheelZoom(scrollRef, (factor, point) => {
+  const zoomAt: ZoomAt = (factor, point) => {
     const next = Math.min(Math.max(zoom * factor, ZENTRUM_MINIMUM_ZOOM), ZENTRUM_MAXIMUM_ZOOM);
     if (next === zoom) return;
     holdAnchor(point);
     setZoom(next);
-  });
+  };
+  useWheelZoom(scrollRef, zoomAt);
+  usePinchZoom(scrollRef, zoomAt);
 
   return {
+    fitWholePlan: () => {
+      zoomAnchor.current = null;
+      hasOpened.current = false;
+      setIsWholePlanFitted(true);
+      setZoom(ZENTRUM_ZOOM_STEPS[0]);
+      const element = scrollRef.current;
+      if (element) {
+        const { left, top } = getZentrumOpeningScroll(element);
+        element.scrollTo({ left, top, behavior: "instant" });
+      }
+    },
     scrollRef,
     zoom,
     planWidth,

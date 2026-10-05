@@ -1295,6 +1295,8 @@ button.brand:active .brand-mark,
   min-height: 0;
   overflow: auto;
   overscroll-behavior: contain;
+  /* A pinch zooms the plan (`usePinchZoom`), not the page. */
+  touch-action: pan-x pan-y;
   /* A flex line so the plan can be sized against this box's height as well as its width — which is
      what fitting the whole Zentrum means, rather than fitting as much of it as the width allowed
      and letting the rest fall out of the bottom. Where the panel gives this box no height of its
@@ -1473,6 +1475,20 @@ button.brand:active .brand-mark,
   pointer-events: auto;
   cursor: pointer;
 }
+.zentrum-schematic-vehicle::before,
+.zentrum-schematic-stop::before {
+  content: "";
+  position: absolute;
+  width: max(100%, 44px);
+  height: max(100%, 44px);
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+}
+.zentrum-schematic-vehicle[data-selected="true"] {
+  box-shadow: 0 0 0 5px color-mix(in srgb, var(--zentrum-line-color) 28%, transparent);
+}
 .zentrum-schematic-vehicle:hover,
 .zentrum-schematic-vehicle:focus-visible,
 .zentrum-schematic-vehicle[data-selected="true"] {
@@ -1641,12 +1657,24 @@ button.brand:active .brand-mark,
   list-style: none;
 }
 .zentrum-panel-destinations li {
+  border-bottom: 1px solid var(--line);
+}
+.zentrum-destination-row {
+  width: 100%;
+  color: var(--ink);
+  background: transparent;
+  border: 0;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
-  padding: 9px 0;
-  border-bottom: 1px solid var(--line);
+  padding: 12px 0;
+}
+.zentrum-destination-row:is(:hover, :focus-visible) {
+  background: color-mix(in srgb, var(--ink) 6%, var(--surface));
 }
 .zentrum-panel-destinations-name {
   min-width: 0;
@@ -1727,7 +1755,7 @@ button.brand:active .brand-mark,
   background: transparent;
   color: var(--ink);
   font: inherit;
-  font-size: clamp(8px, 0.9cqw, 11.5px);
+  font-size: clamp(10px, 0.9cqw, 11.5px);
   font-weight: 650;
   line-height: 1.12;
   transform: translate(-50%, -50%);
@@ -1806,13 +1834,6 @@ button.brand:active .brand-mark,
 }
 .zentrum-schematic-stop-name {
   font-style: normal;
-}
-.zentrum-schematic-stop[data-named="time"] .zentrum-schematic-stop-name {
-  display: none;
-}
-.zentrum-schematic-stop[data-named="time"]:hover .zentrum-schematic-stop-name,
-.zentrum-schematic-stop[data-named="time"]:focus-visible .zentrum-schematic-stop-name {
-  display: inline;
 }
 /* The plate goes under the name, not the whole button: a busy complex's button reaches across every
    lane through it, and a plate the size of that hid the very lines the stop was opened to read. */
@@ -2079,6 +2100,40 @@ button.brand:active .brand-mark,
   gap: 6px 14px;
   min-width: 0;
 }
+.zentrum-departure-note {
+  display: block;
+  grid-column: 2 / 4;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: normal;
+}
+.zentrum-departure-boarding {
+  color: var(--ink-soft);
+}
+.zentrum-destination-direction {
+  margin: 0;
+  color: var(--ink-soft);
+  font-size: 14px;
+}
+.zentrum-destination-calls small {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+.zentrum-boarding-note {
+  margin: 0;
+  font-size: 14px;
+}
+.zentrum-destination-action {
+  min-height: 44px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  color: var(--ink);
+  background: var(--surface);
+  font: inherit;
+  cursor: pointer;
+}
 /* The drawing's own controls float in its bottom corner, as a map's do: the plan keeps every row,
    and the zoom sits where a thumb already is. */
 .zentrum-plan-controls {
@@ -2119,10 +2174,55 @@ button.brand:active .brand-mark,
   cursor: pointer;
 }
 .zentrum-plan-expand,
+.zentrum-plan-search-toggle,
 .zentrum-plan-options-toggle {
   border: 1px solid var(--line-strong) !important;
   border-radius: var(--radius-m);
   box-shadow: 0 2px 8px #10201f1f;
+}
+.zentrum-stop-search-panel {
+  position: absolute;
+  right: calc(100% + 8px);
+  bottom: 0;
+  width: min(300px, calc(100vw - 80px));
+  max-height: min(60dvh, 400px);
+  overflow: auto;
+  padding: 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-m);
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: 0 2px 8px #10201f1f;
+}
+.zentrum-stop-search-panel label {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+.zentrum-stop-search-panel input {
+  min-width: 0;
+  min-height: 44px;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  color: var(--ink);
+  background: var(--surface);
+  font: inherit;
+}
+.zentrum-stop-search-panel ul {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.zentrum-plan-controls .zentrum-stop-search-panel button {
+  width: 100%;
+  min-height: 44px;
+  height: auto;
+  justify-items: start;
+  padding: 8px;
+  border-radius: var(--radius-s);
+  font: inherit;
+  text-align: left;
 }
 /* Anchored to the control column's foot, so it rises no higher than the column itself. */
 .zentrum-plan-options-panel {
@@ -2219,6 +2319,12 @@ button.brand:active .brand-mark,
 .zentrum-plan-controls button:disabled {
   color: var(--line-strong);
   cursor: default;
+}
+/* On a touch screen the plan zooms by pinch, so the steps give the drawing back their room. */
+@media (hover: none) and (pointer: coarse) {
+  .zentrum-plan-controls .zentrum-plan-step {
+    display: none;
+  }
 }
 /* Twenty badges wrapping to three rows was a legend costing more of a phone than the drawing it
    explains; one scrolling row keeps them all reachable and the band one line high. */
@@ -5673,14 +5779,14 @@ button.line-diagram-bundle-option:focus-visible {
     grid-template-rows: var(--zentrum-stage-row) auto;
     align-content: start;
   }
-  /* Stacked, what a reader opened rises between the plan and the band rather than beside them. */
+  /* Stacked, what a reader opened rises between the plan and the band, in the rows the plan leaves:
+     the plan keeps its frame unless the screen is too short for both. */
   .zentrum-schematic[data-has-panel="true"] {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: var(--zentrum-stage-row) auto auto;
+    grid-template-rows: var(--zentrum-stage-row) minmax(min(160px, 30dvh), 1fr) auto;
     grid-template-areas: "stage" "panel" "toolbar";
   }
   .zentrum-panel {
-    max-height: 48dvh;
     gap: 8px;
   }
   .zentrum-panel-heading {
@@ -5719,6 +5825,17 @@ button.line-diagram-bundle-option:focus-visible {
   .zentrum-plan-controls button {
     width: 40px;
     height: 40px;
+  }
+  /* Stacked, the plan's foot is mid-screen and its lower right holds the east names; the controls
+     sit over the track ends in the top corner instead, and their panels open downward. */
+  .zentrum-plan-controls {
+    top: 10px;
+    bottom: auto;
+  }
+  .zentrum-stop-search-panel,
+  .zentrum-plan-options-panel {
+    top: 0;
+    bottom: auto;
   }
   /* Stacked, the band navigation is the surface that pins: the bar names the page, the navigation
      names the band, and the band headings slide under both. Its height is one value because the

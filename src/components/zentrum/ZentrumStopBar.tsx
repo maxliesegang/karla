@@ -1,5 +1,5 @@
 import { SegmentedControl } from "../SegmentedControl";
-import type { ZentrumStopReading } from "./ZentrumStopPanel";
+import type { ZentrumStopReading } from "../../lib/zentrum-stop-view";
 
 const STOP_READINGS = [
   { value: "destinations", label: "Ziele" },

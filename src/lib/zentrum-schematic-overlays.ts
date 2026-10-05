@@ -6,7 +6,7 @@
 import type { Departure, TripCall } from "../data/transit-types";
 import { getCountdownMinutes } from "./feed-clock";
 import {
-  type DirectTravelTime,
+  type DirectRideTime,
   getDirectTravelTimes,
   type TravelMeasure,
 } from "./direct-travel-times";
@@ -212,12 +212,15 @@ export function getZentrumStopBoard(
 }
 
 /** The soonest a rider leaving one stop now reaches another, and the tram. */
-export type ZentrumTravelTime = Omit<DirectTravelTime, "stopIds">;
+export type ZentrumTravelTime = Omit<DirectRideTime, "stopIds">;
 
 export type ZentrumTravelMeasure = TravelMeasure;
 
 /** Whole minutes on board, at least one. */
-export const getRideMinutes = ({ departsAt, arrivesAt }: ZentrumTravelTime): number =>
+export const getRideMinutes = ({
+  departsAt,
+  arrivesAt,
+}: Pick<ZentrumTravelTime, "departsAt" | "arrivesAt">): number =>
   Math.max(1, Math.round((arrivesAt - departsAt) / 60_000));
 
 /**
@@ -251,10 +254,12 @@ export function getZentrumTravelTimes(
   }
   return {
     travelTimesByNodeId: new Map(
-      [...times].map(([id, { arrivesAt, lineId, departsAt }]) => [
-        id,
-        { arrivesAt, lineId, departsAt },
-      ]),
+      [...times].map(
+        ([id, { arrivesAt, departsAt, lineId, departure, boardingCall, arrivalCall }]) => [
+          id,
+          { arrivesAt, departsAt, lineId, departure, boardingCall, arrivalCall },
+        ],
+      ),
     ),
     overlay: { corridorIdsByLineId, stretches: [] },
   };

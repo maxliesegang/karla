@@ -264,6 +264,7 @@ export default function App() {
                     selectedLineId={route.zentrumLineId || undefined}
                     selectedStopId={route.zentrumStopId || undefined}
                     isFullscreen={route.isMapFullscreen}
+                    isStacked={isNarrowViewport}
                     nearbyStops={nearbyStopsController}
                   />
                 )}
