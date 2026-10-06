@@ -144,6 +144,33 @@ const countNodeTrackCrossings = (
   return count;
 };
 
+/** Conflicting straight offsets at a junction push lanes across the joining curves. */
+const countStraightTrackShifts = (
+  nodeEdges: ReadonlyMap<string, NodeEdge>,
+  passages: readonly NodeTrackPassage[],
+  orders: ReadonlyMap<string, readonly string[]>,
+): number => {
+  const deltasByPair = new Map<string, number[]>();
+  for (const { trackId, edgeIds } of passages) {
+    if (edgeIds.length !== 2) continue;
+    const [first, second] = edgeIds.map((id) => nodeEdges.get(id));
+    if (!first || !second || dotProduct(first.outward, second.outward) > -1 + 1e-9) continue;
+    const [left, right] = edgeIds.map((id) => orders.get(id) ?? []);
+    const delta = left.indexOf(trackId) - right.indexOf(trackId);
+    const key = edgeIds.join("\u0001");
+    const deltas = deltasByPair.get(key) ?? [];
+    deltas.push(delta);
+    deltasByPair.set(key, deltas);
+  }
+  let shifts = 0;
+  for (const deltas of deltasByPair.values()) {
+    deltas.sort((left, right) => left - right);
+    const median = deltas[Math.floor(deltas.length / 2)];
+    shifts += deltas.reduce((sum, delta) => sum + Math.abs(delta - median), 0);
+  }
+  return shifts;
+};
+
 const getLinePathEdgeIds = (linePath: ZentrumSchematicLinePath): ReadonlySet<string> =>
   new Set(
     linePath.nodes.slice(1).map((node, index) => getEdgeKey(linePath.nodes[index].id, node.id)),
@@ -451,7 +478,14 @@ export const getTrackIdsByEdgeId = (
     );
     const crossingWeight =
       TRACK_CROSSING_WEIGHT + (nodesById.get(nodeId)?.isJunction ? 0 : STOP_CROSSING_WEIGHT);
-    return crossingWeight * crossings + TRACK_END_WEIGHT * ends;
+    const shifts = nodesById.get(nodeId)?.isJunction
+      ? countStraightTrackShifts(
+          edgesByNodeId.get(nodeId)!,
+          passagesByNodeId.get(nodeId) ?? [],
+          orders,
+        )
+      : 0;
+    return crossingWeight * (crossings + shifts) + TRACK_END_WEIGHT * ends;
   };
   const searchOrder = [...edges].sort((left, right) => left.id.localeCompare(right.id));
   const compareDrawings = (

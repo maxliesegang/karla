@@ -1,0 +1,221 @@
+{
+  "capturedAt": "2026-10-06T04:20:30.000Z",
+  "runs": [
+    {
+      "tripCode": "23",
+      "line": "kvv:22392:E:R:s26",
+      "transportMode": "lightRail",
+      "destination": "KA Tullastraße/Alter Schlachthof",
+      "tripCalls": [
+        {
+          "stopName": "Hauptbahnhof (Vorplatz)",
+          "placeName": "Karlsruhe",
+          "platformLabel": "Gleis 24",
+          "platformCode": "24",
+          "providerId": "7000089",
+          "latitude": 48.994316,
+          "longitude": 8.399167,
+          "scheduledDepartureTime": "2026-10-06T04:19:00.000Z"
+        },
+        {
+          "stopName": "Ebertstraße",
+          "placeName": "Karlsruhe",
+          "platformLabel": "Gleis 1",
+          "platformCode": "1",
+          "providerId": "7000091",
+          "latitude": 48.994587,
+          "longitude": 8.394675,
+          "scheduledArrivalTime": "2026-10-06T04:20:00.000Z",
+          "scheduledDepartureTime": "2026-10-06T04:20:00.000Z"
+        },
+        {
+          "stopName": "Kolpingplatz",
+          "placeName": "Karlsruhe",
+          "platformLabel": "Gleis 1",
+          "platformCode": "1",
+          "providerId": "7000063",
+          "latitude": 48.997735,
+          "longitude": 8.393804,
+          "scheduledArrivalTime": "2026-10-06T04:21:00.000Z",
+          "scheduledDepartureTime": "2026-10-06T04:22:00.000Z"
+        },
+        {
+          "stopName": "Mathystraße",
+          "placeName": "Karlsruhe",
+          "platformLabel": "Gleis 3",
+          "platformCode": "3",
+          "providerId": "7000062",
+          "latitude": 49.002172,
+          "longitude": 8.394325,
+          "scheduledArrivalTime": "2026-10-06T04:23:00.000Z",
+          "scheduledDepartureTime": "2026-10-06T04:23:00.000Z"
+        },
+        {
+          "stopName": "Konzerthaus",
+          "placeName": "Karlsruhe",
+          "platformLabel": "Gleis 2",
+          "platformCode": "2",
+          "providerId": "7000510",
+          "latitude": 49.003811,
+          "longitude": 8.400056,
+          "scheduledArrivalTime": "2026-10-06T04:24:00.000Z",
+          "scheduledDepartureTime": "2026-10-06T04:25:00.000Z"
+        },
+        {
+          "stopName": "Kongresszentrum",
+          "placeName": "Karlsruhe",
+          "platformLabel": "Gleis 2",
+          "platformCode": "2",
+          "providerId": "7000072",
+          "latitude": 49.003811,
+          "longitude": 8.404054,
+          "scheduledArrivalTime": "2026-10-06T04:26:00.000Z",
+          "scheduledDepartureTime": "2026-10-06T04:26:00.000Z"
+        },
+        {
+          "stopName": "Philipp-Reis-Straße",
+          "placeName": "Karlsruhe",
+          "platformLabel": "Gleis 2",
+          "platformCode": "2",
+          "providerId": "7000621",
+          "latitude": 49.004471,
+          "longitude": 8.411456,
+          "scheduledArrivalTime": "2026-10-06T04:28:00.000Z",
+          "scheduledDepartureTime": "2026-10-06T04:28:00.000Z"
+        },
+        {
+          "stopName": "Ostendstraße",
+          "platformLabel": "Gleis 2",
+          "platformCode": "2",
+          "providerId": "7000622",
+          "isCurrentStop": true,
+          "latitude": 49.004972,
+          "longitude": 8.416549,
+          "scheduledDepartureTime": "2026-10-06T04:30:00.000Z"
+        },
+        {
+          "stopName": "Wolfartsweierer Straße",
+          "placeName": "Karlsruhe",
+          "platformLabel": "Gleis 2",
+          "platformCode": "2",
+          "providerId": "7000623",
+          "latitude": 49.003398,
+          "longitude": 8.423637,
+          "scheduledArrivalTime": "2026-10-06T04:31:00.000Z",
+          "scheduledDepartureTime": "2026-10-06T04:32:00.000Z"
+        },
+        {
+          "stopName": "Schloss Gottesaue",
+          "placeName": "Karlsruhe",
+          "platformLabel": "Gleis 2",
+          "platformCode": "2",
+          "providerId": "7000624",
+          "latitude": 49.003634,
+          "longitude": 8.427949,
+          "scheduledArrivalTime": "2026-10-06T04:32:00.000Z",
+          "scheduledDepartureTime": "2026-10-06T04:33:00.000Z"
+        },
+        {
+          "stopName": "Tullastraße/Alter Schlachthof",
+          "placeName": "Karlsruhe",
+          "platformLabel": "Gleis 4",
+          "platformCode": "4",
+          "providerId": "7000007",
+          "latitude": 49.007335,
+          "longitude": 8.431542,
+          "scheduledArrivalTime": "2026-10-06T04:35:00.000Z"
+        }
+      ]
+    },
+    {
+      "tripCode": "1233",
+      "line": "kvv:21007:E:H:s26",
+      "transportMode": "tram",
+      "destination": "Hauptbahnhof",
+      "tripCalls": [
+        {
+          "stopName": "Tullastraße/Alter Schlachthof",
+          "placeName": "Karlsruhe",
+          "platformLabel": "Gleis 3",
+          "platformCode": "3",
+          "providerId": "7000007",
+          "latitude": 49.006722,
+          "longitude": 8.431291,
+          "scheduledArrivalTime": "2026-10-06T04:30:36.000Z",
+          "scheduledDepartureTime": "2026-10-06T04:31:00.000Z",
+          "delayMinutes": 0
+        },
+        {
+          "stopName": "Schloss Gottesaue",
+          "placeName": "Karlsruhe",
+          "platformLabel": "Gleis 1",
+          "platformCode": "1",
+          "providerId": "7000624",
+          "latitude": 49.003652,
+          "longitude": 8.426925,
+          "scheduledArrivalTime": "2026-10-06T04:32:12.000Z",
+          "scheduledDepartureTime": "2026-10-06T04:32:30.000Z",
+          "delayMinutes": 0
+        },
+        {
+          "stopName": "Wolfartsweierer Straße",
+          "placeName": "Karlsruhe",
+          "platformLabel": "Gleis 1",
+          "platformCode": "1",
+          "providerId": "7000623",
+          "latitude": 49.003563,
+          "longitude": 8.423062,
+          "scheduledArrivalTime": "2026-10-06T04:33:12.000Z",
+          "scheduledDepartureTime": "2026-10-06T04:33:30.000Z",
+          "delayMinutes": 0
+        },
+        {
+          "stopName": "Ostendstraße",
+          "platformLabel": "Gleis 1",
+          "platformCode": "1",
+          "providerId": "7000622",
+          "isCurrentStop": true,
+          "latitude": 49.005137,
+          "longitude": 8.41601,
+          "scheduledDepartureTime": "2026-10-06T04:34:00.000Z",
+          "delayMinutes": 0
+        },
+        {
+          "stopName": "Philipp-Reis-Straße",
+          "placeName": "Karlsruhe",
+          "platformLabel": "Gleis 1",
+          "platformCode": "1",
+          "providerId": "7000621",
+          "latitude": 49.004488,
+          "longitude": 8.410899,
+          "scheduledArrivalTime": "2026-10-06T04:35:42.000Z",
+          "scheduledDepartureTime": "2026-10-06T04:36:00.000Z",
+          "delayMinutes": 0
+        },
+        {
+          "stopName": "Werderstraße",
+          "placeName": "Karlsruhe",
+          "platformLabel": "Gleis 1",
+          "platformCode": "1",
+          "providerId": "7000083",
+          "latitude": 49.000151,
+          "longitude": 8.410603,
+          "scheduledArrivalTime": "2026-10-06T04:37:12.000Z",
+          "scheduledDepartureTime": "2026-10-06T04:37:36.000Z",
+          "delayMinutes": 0
+        },
+        {
+          "stopName": "Tivoli",
+          "placeName": "Karlsruhe",
+          "platformLabel": "Gleis 1",
+          "platformCode": "1",
+          "providerId": "7000084",
+          "latitude": 48.996644,
+          "longitude": 8.410405,
+          "scheduledArrivalTime": "2026-10-06T04:38:24.000Z",
+          "delayMinutes": 0
+        }
+      ]
+    }
+  ]
+}

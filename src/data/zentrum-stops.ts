@@ -17,12 +17,14 @@ export const zentrumStopIds: readonly string[] = [
   "ettlinger-tor",
   "rueppurrer-tor",
   "ostendstrasse",
+  "philipp-reis-strasse",
   // West and south-west. Both are closed for construction and answer with nothing; they stay listed
   // and return by themselves with service.
   "lessingstrasse",
   "otto-sachs-strasse",
   "arbeitsagentur",
   "mathystrasse",
+  "konzerthaus",
   "zkm",
   "welfenstrasse",
   "barbarossaplatz",
