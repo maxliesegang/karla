@@ -116,7 +116,7 @@ export function ZentrumSchematic({
   const [stopReading, setStopReading] = useState<ZentrumStopReading>("destinations");
   const plan = useZentrumPlanCanvas();
   const options = useStoredPreference(zentrumPlanOptions);
-  const stopPanelState = useStoredPreference(zentrumStopPanelState) ?? "expanded";
+  const stopPanelState = useStoredPreference(zentrumStopPanelState) ?? "collapsed";
   const [panelEntranceMotion, setPanelEntranceMotion] =
     useState<ZentrumPanelEntranceMotion>("slide");
   // The lane width follows the plan's on-screen size; a line's branch is drawn while its tram is on

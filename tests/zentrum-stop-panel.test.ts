@@ -12,7 +12,7 @@ import { zentrumStopPanelState } from "../src/lib/zentrum-panel.ts";
 import { routePaths } from "../src/routing.ts";
 import { createDeparture } from "./support/fixtures.ts";
 
-const { act, createElement } = await import("react");
+const { act, createElement, useState } = await import("react");
 const { createRoot } = await import("react-dom/client");
 const { ZentrumStopPanel } = await import("../src/components/zentrum/ZentrumStopPanel.tsx");
 const { ZentrumDestinationDetail } = await import(
@@ -59,42 +59,69 @@ const board: DepartureBoard = {
 };
 const getSign = createZentrumLineSignReader([]);
 
-test("a stop opens its destinations on desktop and remembers an explicit collapse", async () => {
-  const original = zentrumStopPanelState.read();
-  zentrumStopPanelState.write(undefined);
-  const container = document.createElement("div");
-  const root = createRoot(container);
-  try {
-    await act(async () =>
-      root.render(
-        createElement(ZentrumSchematic, {
-          layout: buildZentrumSchematicReading(departures),
-          getSign,
-          selectedStopId: "europaplatz",
-          runDepartures: departures,
-          stopBoard: board,
-          feedNow: now,
-          isLoading: false,
-          isFullscreen: false,
-          isStacked: false,
-          onSelectStop() {},
-          onSelectLine() {},
-          onChangeFullscreen() {},
-        }),
-      ),
-    );
-    assert.ok(container.querySelector(".zentrum-destination-row"));
-    const toggle = container.querySelector<HTMLButtonElement>(".zentrum-stop-panel-toggle")!;
-    assert.equal(toggle.getAttribute("aria-expanded"), "true");
-    await act(async () => toggle.click());
-    assert.equal(toggle.getAttribute("aria-expanded"), "false");
-    assert.equal(zentrumStopPanelState.read(), "collapsed");
-    assert.equal(container.querySelector(".zentrum-panel"), null);
-  } finally {
-    await act(async () => root.unmount());
-    zentrumStopPanelState.write(original);
-  }
-});
+for (const isStacked of [false, true]) {
+  test(`a stop keeps its list hidden by default and remembers toggles (${isStacked ? "stacked" : "desktop"})`, async () => {
+    const original = zentrumStopPanelState.read();
+    zentrumStopPanelState.write(undefined);
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    const layout = buildZentrumSchematicReading(departures);
+    function Map() {
+      const [selectedStopId, setSelectedStopId] = useState<string>();
+      return createElement(ZentrumSchematic, {
+        layout,
+        getSign,
+        selectedStopId,
+        runDepartures: departures,
+        stopBoard: board,
+        feedNow: now,
+        isLoading: false,
+        isFullscreen: false,
+        isStacked,
+        onSelectStop: setSelectedStopId,
+        onSelectLine() {},
+        onChangeFullscreen() {},
+      });
+    }
+    const selectStop = async () => {
+      const stop = container.querySelector<HTMLButtonElement>(
+        '.zentrum-schematic-stop[aria-label^="Europaplatz,"]',
+      );
+      assert.ok(stop);
+      await act(async () => stop.click());
+    };
+    try {
+      await act(async () => root.render(createElement(Map)));
+      await selectStop();
+      assert.ok(
+        !container.querySelector(".zentrum-panel"),
+        "additional stop information should stay hidden by default",
+      );
+      let toggle = container.querySelector<HTMLButtonElement>(".zentrum-stop-panel-toggle")!;
+      assert.equal(toggle.getAttribute("aria-expanded"), "false");
+      await act(async () => toggle.click());
+      assert.equal(toggle.getAttribute("aria-expanded"), "true");
+      assert.equal(zentrumStopPanelState.read(), "expanded");
+      assert.ok(container.querySelector(".zentrum-destination-row"));
+      await selectStop();
+      await selectStop();
+      toggle = container.querySelector<HTMLButtonElement>(".zentrum-stop-panel-toggle")!;
+      assert.equal(toggle.getAttribute("aria-expanded"), "true");
+      await act(async () => toggle.click());
+      assert.equal(toggle.getAttribute("aria-expanded"), "false");
+      assert.equal(zentrumStopPanelState.read(), "collapsed");
+      assert.equal(container.querySelector(".zentrum-panel"), null);
+      await selectStop();
+      await selectStop();
+      toggle = container.querySelector<HTMLButtonElement>(".zentrum-stop-panel-toggle")!;
+      assert.equal(toggle.getAttribute("aria-expanded"), "false");
+      assert.equal(container.querySelector(".zentrum-panel"), null);
+    } finally {
+      await act(async () => root.unmount());
+      zentrumStopPanelState.write(original);
+    }
+  });
+}
 
 const panelProps = (
   travelMeasure: "arrival" | "ride" | "split",
