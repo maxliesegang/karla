@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createLineSign } from "../src/data/line-signs.ts";
+import { createLineSign, needsLineOutline } from "../src/data/line-signs.ts";
 
 test("uses colors from the KVV GTFS route catalog", () => {
   assert.equal(createLineSign("2", "tram").color, "#0073df");
@@ -22,4 +22,15 @@ test("uses readable text on GTFS colors whose published white text has low contr
   assert.equal(createLineSign("4", "tram").textColor, "#102c2c");
   assert.equal(createLineSign("1", "tram").textColor, "#000");
   assert.equal(createLineSign("17", "bus").textColor, "#fff");
+});
+
+test("outlines only pale line graphics while preserving their official colors", () => {
+  for (const lineId of ["S7", "S71", "S41", "4", "5", "S42"]) {
+    assert.equal(needsLineOutline(createLineSign(lineId, "lightRail").color), true, lineId);
+  }
+  for (const lineId of ["1", "2", "3", "6", "8", "S1", "S2", "S4", "S5", "S8"]) {
+    assert.equal(needsLineOutline(createLineSign(lineId, "lightRail").color), false, lineId);
+  }
+  assert.equal(createLineSign("S7", "lightRail").color, "#ffff00");
+  assert.equal(createLineSign("S8", "lightRail").color, "#4d4d17");
 });

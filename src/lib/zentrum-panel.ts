@@ -6,10 +6,7 @@ export type ZentrumStopPanelState = "collapsed" | "expanded";
 /** How a panel enters beside the plan or above its stop bar. */
 export type ZentrumPanelEntranceMotion = "rise" | "slide";
 
-/**
- * The rider's last choice, kept between visits. Unset, a stacked layout opens the panel into the
- * rows under the plan, and a wide one keeps the bar so the plan stays whole.
- */
+/** The rider's last choice, kept between visits; unset opens the destination list. */
 export const zentrumStopPanelState = createStoredPreference<ZentrumStopPanelState | undefined>({
   key: "karla:zentrum-stop-sheet",
   // Unreadable means unset.

@@ -89,7 +89,9 @@ export const getZentrumStopView = (
     })
     .sort(
       (left, right) =>
-        left.minutes - right.minutes ||
+        (travelMeasure === "ride"
+          ? left.minutes - right.minutes
+          : left.arrivesAt - right.arrivesAt) ||
         left.arrivesAt - right.arrivesAt ||
         left.label.localeCompare(right.label),
     );

@@ -1233,6 +1233,40 @@ button.brand:active .brand-mark,
    what the tab the reader pressed already said, so the drawing starts at the top of the panel and
    takes every row under it. What the drawing cannot say of itself is still said, at its foot, by
    the caption. */
+.zentrum-loading {
+  position: absolute;
+  z-index: 4;
+  inset: auto 12px 0;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--kvv-red) 10%, var(--surface));
+  pointer-events: none;
+}
+.zentrum-loading-track {
+  display: block;
+  width: 35%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--kvv-red);
+  animation: zentrum-loading-progress 2s ease-in-out infinite;
+}
+@keyframes zentrum-loading-progress {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .zentrum-loading-track {
+    width: 100%;
+    opacity: 0.65;
+    animation: none;
+  }
+}
+
 .zentrum-schematic {
   --zentrum-panel-width: clamp(300px, 27vw, 400px);
   flex: 1 1 auto;
@@ -1336,40 +1370,57 @@ button.brand:active .brand-mark,
   height: 100%;
   overflow: visible;
 }
-/* One lane is laid exactly one lane's width from its neighbour, so lines sharing a corridor stand
-   in one band instead of apart. `--zentrum-schematic-track-width` is set on the drawing by the view,
-   from the width the lanes were spaced at; never restate it here. Paint runs casing, seam, colour:
-   the halo below only ever surfaces around the outside of a band, and the seam -- laid at the full
-   lane width the colours are painted short of -- shows as a fine gap of the page's own colour
-   between neighbouring lanes, so lanes that touch still read as two.
-
-   The seam was ink for a while, and ink is what made the plan look like a stack of stripes rather
-   than a network: eight colours on the Kaiserstraße came out banded in black, every one of them
-   darkened by the two rules pressed against it. A gap the colour of the paper separates them just
-   as plainly and leaves the colours themselves alone, which is how a printed plan does it. */
-.zentrum-schematic-network-track-casing,
+/* Narrow separators keep adjacent routes distinct through their shared bends. */
+.zentrum-schematic-line-targets path {
+  outline: none;
+  fill: none;
+  stroke: transparent;
+  stroke-width: calc(var(--zentrum-schematic-track-width) * 0.95);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: stroke;
+  cursor: pointer;
+}
 .zentrum-schematic-network-track-gap,
+.zentrum-schematic-network-track-outline,
+.zentrum-schematic-merge-mask,
 .zentrum-schematic-network-track-color {
   fill: none;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.zentrum-schematic-network-track-casing {
-  stroke: var(--surface);
-  /* A share of the lane rather than a fixed reach, so the halo keeps its weight as the width follows
-     the screen. */
-  stroke-width: calc(var(--zentrum-schematic-track-width) * 1.43);
-  opacity: 0.96;
-}
-/* Under each line, as wide as its neighbours' colours leave clear (they start 0.68 lanes off), so it
-   parts only lines that cross. */
 .zentrum-schematic-network-track-gap {
   stroke: var(--surface);
-  stroke-width: calc(var(--zentrum-schematic-track-width) * 1.36);
+  stroke-width: var(--zentrum-schematic-track-width);
 }
-.zentrum-schematic-network-track-color {
-  /* The rest of the lane is a seam wide enough to tell dark neighbours apart. */
-  stroke-width: calc(var(--zentrum-schematic-track-width) * 0.64);
+.zentrum-schematic-network-track-color,
+.zentrum-schematic-merge-mask,
+.zentrum-schematic-network-track-outline {
+  stroke-width: calc(var(--zentrum-schematic-track-width) * 0.81);
+}
+.zentrum-schematic-network-track-outline {
+  stroke: var(--ink-soft);
+}
+.zentrum-schematic-merge-mask {
+  stroke: black;
+}
+.zentrum-schematic-network-track-color[data-pale="true"],
+.zentrum-schematic-merge-mask[data-pale="true"] {
+  stroke-width: calc(var(--zentrum-schematic-track-width) * 0.76);
+}
+.zentrum-schematic[data-pale-lines="original"] .zentrum-schematic-network-track-outline,
+.zentrum-schematic[data-pale-lines="tone"] .zentrum-schematic-network-track-outline {
+  display: none;
+}
+.zentrum-schematic[data-pale-lines="original"] .zentrum-schematic-network-track-color[data-pale],
+.zentrum-schematic[data-pale-lines="tone"] .zentrum-schematic-network-track-color[data-pale],
+.zentrum-schematic[data-pale-lines="original"] .zentrum-schematic-merge-mask[data-pale],
+.zentrum-schematic[data-pale-lines="tone"] .zentrum-schematic-merge-mask[data-pale] {
+  stroke-width: calc(var(--zentrum-schematic-track-width) * 0.81);
+}
+.zentrum-schematic[data-pale-lines="tone"]
+  .zentrum-schematic-network-track-color:not([data-trace="true"]):not([data-unlit-style]) {
+  stroke: var(--zentrum-line-tone, var(--zentrum-line-color));
 }
 /* A lit reading uses two visual channels: a quiet dashed trace for the route, then solid colour for
    what the reading lights. This avoids asking a grey tint to mean both "the route exists" and
@@ -1393,10 +1444,11 @@ button.brand:active .brand-mark,
    through what. */
 /* A stretch that ends at a moving mark ends square: a round cap would reach out past the mark. */
 .zentrum-schematic-network-track-gap[data-stretch="true"],
+.zentrum-schematic-network-track-outline[data-stretch="true"],
 .zentrum-schematic-network-track-color[data-stretch="true"] {
   stroke-linecap: butt;
 }
-.zentrum-schematic-network-track-color[data-dimmed="true"],
+.zentrum-schematic-network-track[data-dimmed="true"],
 .zentrum-schematic-vehicle[data-dimmed="true"] {
   opacity: 0.2;
 }
@@ -1423,6 +1475,8 @@ button.brand:active .brand-mark,
    is to cross the band and the band is measured in lanes. */
 .zentrum-schematic-stop-mark-casing,
 .zentrum-schematic-stop-mark,
+.zentrum-schematic-stop-selection-ring,
+.zentrum-schematic-stop-selection-gap,
 .zentrum-schematic-stop-link {
   /* Decoration across the band. The stop's own button, which is what a reader points at and what
      reads the stop out, still lies above it. */
@@ -1441,6 +1495,15 @@ button.brand:active .brand-mark,
 .zentrum-schematic-stop-mark {
   stroke: var(--surface);
   stroke-width: var(--zentrum-stop-capsule-fill);
+  transition: stroke 180ms ease;
+}
+.zentrum-schematic-stop-selection-ring {
+  stroke: var(--ink);
+  stroke-width: var(--zentrum-stop-selection-ring-width);
+}
+.zentrum-schematic-stop-selection-gap {
+  stroke: var(--surface);
+  stroke-width: var(--zentrum-stop-selection-gap-width);
 }
 /* The walk between two places of one stop: a dotted rule in ink, as printed plans mark an
    interchange on foot. Zero-length dashes with round caps are dots. */
@@ -1465,15 +1528,22 @@ button.brand:active .brand-mark,
   left: 0;
   top: 0;
   z-index: 4;
-  width: clamp(12px, 1.5cqw, 21px);
-  height: clamp(12px, 1.5cqw, 21px);
+  width: var(--zentrum-vehicle-size);
+  height: var(--zentrum-vehicle-size);
   padding: 0;
-  border: 2.5px solid var(--surface);
+  border: calc(var(--zentrum-vehicle-size) * 0.12) solid var(--surface);
   border-radius: 50%;
   background: var(--zentrum-line-color);
-  box-shadow: 0 1px 4px #10201f33;
+  box-shadow: 0 calc(var(--zentrum-vehicle-size) * 0.12) calc(var(--zentrum-vehicle-size) * 0.36)
+    #10201f33;
   pointer-events: auto;
   cursor: pointer;
+  animation: zentrum-vehicle-appear 0.24s ease-out;
+}
+@keyframes zentrum-vehicle-appear {
+  from {
+    opacity: 0;
+  }
 }
 .zentrum-schematic-vehicle::before,
 .zentrum-schematic-stop::before {
@@ -1487,20 +1557,21 @@ button.brand:active .brand-mark,
   border-radius: 50%;
 }
 .zentrum-schematic-vehicle[data-selected="true"] {
-  box-shadow: 0 0 0 5px color-mix(in srgb, var(--zentrum-line-color) 28%, transparent);
+  box-shadow: 0 0 0 calc(var(--zentrum-vehicle-size) * 0.5)
+    color-mix(in srgb, var(--zentrum-line-color) 28%, transparent);
 }
 .zentrum-schematic-vehicle:hover,
 .zentrum-schematic-vehicle:focus-visible,
 .zentrum-schematic-vehicle[data-selected="true"] {
   z-index: 5;
-  outline: 2px solid var(--ink);
-  outline-offset: 2px;
+  outline: calc(var(--zentrum-vehicle-size) * 0.2) solid var(--ink);
+  outline-offset: calc(var(--zentrum-vehicle-size) * 0.2);
 }
 .zentrum-schematic-vehicle i {
   position: absolute;
   inset: 30%;
-  border-top: clamp(1.5px, 0.2cqw, 2.5px) solid var(--zentrum-vehicle-ink);
-  border-right: clamp(1.5px, 0.2cqw, 2.5px) solid var(--zentrum-vehicle-ink);
+  border-top: calc(var(--zentrum-vehicle-size) * 0.12) solid var(--zentrum-vehicle-ink);
+  border-right: calc(var(--zentrum-vehicle-size) * 0.12) solid var(--zentrum-vehicle-ink);
   transform: rotate(calc(var(--zentrum-vehicle-angle) + 45deg));
 }
 /* The sign the line diagram hangs on a vehicle, carrying the wait at the opened stop: the line's own
@@ -1659,6 +1730,20 @@ button.brand:active .brand-mark,
 .zentrum-panel-destinations li {
   border-bottom: 1px solid var(--line);
 }
+.zentrum-destinations-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+.zentrum-destinations-heading h3 {
+  margin: 0;
+  font-size: 17px;
+}
+.zentrum-destinations-heading > span {
+  color: var(--ink-soft);
+  font-size: 12px;
+}
 .zentrum-destination-row {
   width: 100%;
   color: var(--ink);
@@ -1686,6 +1771,12 @@ button.brand:active .brand-mark,
   color: var(--ink-soft);
   font-size: 12px;
   font-weight: 650;
+  margin-top: 4px;
+  line-height: 1.35;
+}
+.zentrum-panel-destinations-name .zentrum-destination-source {
+  font-size: 11px;
+  font-weight: 400;
 }
 .zentrum-panel-calls {
   border-top: 1px solid var(--ink);
@@ -1740,10 +1831,7 @@ button.brand:active .brand-mark,
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-/* The stop's button is its capsule: the thing a finger lands on, centred on the capsule the
-   drawing lays at the stop. It draws nothing of its own -- the capsule is the mark. The name hangs
-   off it where the label placer set it (zentrum-schematic-labels.ts), which keeps names off the
-   bands, the capsules and each other. */
+/* Stop buttons center on their capsules; names follow the label placer's anchors. */
 .zentrum-schematic-stop {
   position: absolute;
   z-index: 2;
@@ -1755,9 +1843,9 @@ button.brand:active .brand-mark,
   background: transparent;
   color: var(--ink);
   font: inherit;
-  font-size: clamp(10px, 0.9cqw, 11.5px);
+  font-size: clamp(10px, 0.9cqw, 12px);
   font-weight: 650;
-  line-height: 1.12;
+  line-height: 1.16;
   transform: translate(-50%, -50%);
   cursor: pointer;
   transition: opacity 180ms ease;
@@ -1805,10 +1893,7 @@ button.brand:active .brand-mark,
   margin-left: 0.1em;
   font-weight: 650;
 }
-/* No plate under a name: twenty-five opaque tiles were covering the corridors the plan is for. The
-   name carries a halo of the panel's own colour instead, and the plate returns on hover and focus,
-   where one name is deliberately being read. Names wrap rather than run, at a measure the placer
-   sizes them by. */
+/* Names carry a surface halo and wrap at the measure used by the label placer. */
 .zentrum-schematic-stop span {
   position: absolute;
   top: calc(50% + var(--zentrum-label-y));
@@ -1821,6 +1906,9 @@ button.brand:active .brand-mark,
   max-width: 92px;
   /* A word longer than the measure widens the name rather than running out under what follows. */
   min-width: min-content;
+  transition:
+    background-color 180ms ease,
+    box-shadow 180ms ease;
   text-shadow:
     0 0 3px var(--surface),
     0 0 3px var(--surface),
@@ -1839,8 +1927,7 @@ button.brand:active .brand-mark,
 .zentrum-schematic-stop-name {
   font-style: normal;
 }
-/* The plate goes under the name, not the whole button: a busy complex's button reaches across every
-   lane through it, and a plate the size of that hid the very lines the stop was opened to read. */
+/* Hover and focus give the name a plate within its measured padding. */
 .zentrum-schematic-stop:hover,
 .zentrum-schematic-stop:focus-visible {
   z-index: 3;
@@ -1861,11 +1948,17 @@ button.brand:active .brand-mark,
   z-index: 4;
 }
 .zentrum-schematic-stop[data-selected="true"] span {
-  padding: 1px 5px;
   border-radius: var(--radius-s);
-  background: var(--ink);
-  color: var(--surface);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: none;
   text-shadow: none;
+}
+.zentrum-schematic-stop[data-selected="true"] .zentrum-schematic-stop-name {
+  font-weight: 800;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
 }
 .zentrum-schematic-stop[data-muted="true"] {
   opacity: 0.42;
@@ -2114,15 +2207,55 @@ button.brand:active .brand-mark,
 .zentrum-departure-boarding {
   color: var(--ink-soft);
 }
-/* The ride time, with the wait for it beneath. */
+/* The chosen time measure is labelled beside every destination. */
 .zentrum-destination-time {
   flex-wrap: wrap;
   row-gap: 2px;
+  max-width: 94px;
+  justify-content: flex-end;
 }
-.zentrum-destination-time .zentrum-destination-wait {
+.zentrum-destination-time .zentrum-destination-wait,
+.zentrum-destination-time .zentrum-destination-time-label {
   flex-basis: 100%;
   text-align: right;
   font-size: 12px;
+  color: var(--ink-soft);
+}
+.zentrum-destination-time .zentrum-destination-time-label {
+  font-size: 11px;
+  font-weight: 500;
+}
+.zentrum-destination-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding-block: 16px;
+  font-variant-numeric: tabular-nums;
+}
+.zentrum-destination-summary > strong {
+  font-size: 32px;
+  line-height: 1;
+}
+.zentrum-destination-summary > strong small {
+  font-size: 14px;
+  font-weight: 500;
+}
+.zentrum-destination-summary > span {
+  text-align: right;
+  font-size: 14px;
+  font-weight: 700;
+}
+.zentrum-destination-summary > span small {
+  display: block;
+  margin-top: 4px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 500;
+}
+.zentrum-destination-rides-heading {
+  margin: 20px 0 8px;
+  font-size: 15px;
 }
 .zentrum-destination-rides {
   margin: 0;
@@ -2130,19 +2263,43 @@ button.brand:active .brand-mark,
   list-style: none;
 }
 .zentrum-destination-rides li {
+  border-bottom: 1px solid var(--line);
+}
+.zentrum-destination-ride {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
   gap: 10px;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--line);
+  width: 100%;
+  padding: 12px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  font: inherit;
   font-size: 14px;
+  cursor: pointer;
 }
-.zentrum-destination-rides b {
+.zentrum-destination-ride:is(:hover, :focus-visible),
+.zentrum-destination-ride[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--ink) 6%, var(--surface));
+}
+.zentrum-destination-ride-info {
+  display: grid;
+  gap: 4px;
   font-variant-numeric: tabular-nums;
 }
+.zentrum-destination-ride-info small {
+  color: var(--ink-soft);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.zentrum-destination-ride-check {
+  width: 16px;
+  font-weight: 700;
+}
 .zentrum-destination-direction {
-  margin: 0;
+  margin: 0 0 12px;
   color: var(--ink-soft);
   font-size: 14px;
 }
@@ -2151,6 +2308,9 @@ button.brand:active .brand-mark,
   margin-top: 4px;
   color: var(--ink-soft);
   font-size: 12px;
+}
+.zentrum-destination-calls + .zentrum-panel-note {
+  margin-top: 8px;
 }
 .zentrum-boarding-note {
   margin: 0;
@@ -2357,13 +2517,18 @@ button.brand:active .brand-mark,
     display: none;
   }
 }
-/* Twenty badges wrapping to three rows was a legend costing more of a phone than the drawing it
-   explains; one scrolling row keeps them all reachable and the band one line high. */
-.zentrum-schematic-lines {
+.zentrum-schematic-line-selection {
   flex: 1 1 240px;
   min-width: 0;
   display: flex;
-  flex-wrap: nowrap;
+  gap: 4px;
+  align-items: center;
+}
+/* Line badges scroll while the overview control stays visible. */
+.zentrum-schematic-lines {
+  flex: 1 1 0;
+  min-width: 0;
+  display: flex;
   gap: 4px;
   align-items: center;
   padding-bottom: 2px;
@@ -2417,9 +2582,8 @@ button.brand:active .brand-mark,
 .zentrum-schematic-lines > * {
   flex: 0 0 auto;
 }
-/* The way back out of a line, beside the lines: the plan's own address has one more level than the
-   plan does, and this is the level being dropped. */
 .zentrum-schematic-lines-reset {
+  flex: 0 0 auto;
   min-height: 26px;
   padding: 0 10px;
   border: 1px solid var(--line-strong);
@@ -2435,6 +2599,10 @@ button.brand:active .brand-mark,
 .zentrum-schematic-lines-reset:focus-visible {
   background: var(--surface-2);
 }
+.zentrum-schematic-lines-reset[aria-pressed="true"] {
+  border-color: var(--ink);
+  background: var(--surface-2);
+}
 .zentrum-schematic-lines button {
   display: inline-flex;
   padding: 2px;
@@ -2446,7 +2614,11 @@ button.brand:active .brand-mark,
 .zentrum-schematic-lines button.selected {
   border-color: var(--ink);
 }
-.zentrum-schematic-lines[data-has-selection="true"] button:not(.selected) {
+.zentrum-schematic-lines button:is(:hover, [data-hovered="true"]) {
+  border-color: var(--ink-soft);
+  background: var(--surface-2);
+}
+.zentrum-schematic-lines[data-has-selection="true"] button:not(.selected, [data-hovered="true"]) {
   opacity: 0.48;
 }
 /* What cannot be read off the drawing — what the colour means, and that a stop can be opened —
@@ -5810,15 +5982,22 @@ button.line-diagram-bundle-option:focus-visible {
     grid-template-rows: var(--zentrum-stage-row) auto;
     align-content: start;
   }
-  /* Stacked, what a reader opened rises between the plan and the band, in the rows the plan leaves:
-     the plan keeps its frame unless the screen is too short for both. */
+  /* An opened stop shares the screen with the map; its whole panel scrolls on a phone. */
   .zentrum-schematic[data-has-panel="true"] {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: var(--zentrum-stage-row) minmax(min(160px, 30dvh), 1fr) auto;
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1.1fr) auto;
     grid-template-areas: "stage" "panel" "toolbar";
   }
   .zentrum-panel {
     gap: 8px;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  .zentrum-panel > * {
+    flex-shrink: 0;
+  }
+  .zentrum-panel-list {
+    overflow: visible;
   }
   .zentrum-panel-heading {
     min-height: 36px;
@@ -5828,7 +6007,7 @@ button.line-diagram-bundle-option:focus-visible {
   }
   /* Stacked, the legend takes the band's first row and the caption or an opened stop's bar the
      second, which holds the bar's height either way. */
-  .zentrum-schematic-lines {
+  .zentrum-schematic-line-selection {
     flex-basis: 100%;
   }
   .zentrum-schematic-caption {
@@ -6314,7 +6493,7 @@ button.line-diagram-bundle-option:focus-visible {
   .app-shell:not(.station-board-mode) .departure-board-panel {
     padding-top: 12px;
   }
-  .zentrum-schematic-lines {
+  .zentrum-schematic-line-selection {
     flex-basis: 240px;
   }
   .zentrum-schematic-caption {

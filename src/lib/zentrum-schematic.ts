@@ -128,12 +128,17 @@ export type ZentrumSchematicLayout = {
   /** Every corridor a drawn run states, stop to stop. */
   corridors: readonly ZentrumSchematicObservedEdge[];
   linePaths: readonly ZentrumSchematicLinePath[];
+  /** Other paths of a line, drawn in its lanes only while one of their runs is on the plan. */
+  branchPaths: readonly ZentrumSchematicBranchPath[];
   /** Every drawn line, in legend order. */
   lineIds: readonly string[];
   lineIdsByNodeId: ReadonlyMap<string, readonly string[]>;
   /** The stops with more than one place to stand, and those places. */
   boardingPlacesByNodeId: ReadonlyMap<string, readonly ZentrumSchematicBoardingPlace[]>;
 };
+
+/** A line's path beyond its drawn one, and the runs taking it. */
+export type ZentrumSchematicBranchPath = ZentrumSchematicLinePath & { runKeys: readonly string[] };
 
 /** The layout drawn at one lane width, with every geometry that follows from that. */
 export type ZentrumSchematicReading = ZentrumSchematicLayout & {
@@ -277,7 +282,7 @@ const getDepartureSchematicPaths = (
 /** What the drawn runs state about the plan, before any of it is laid out. */
 type ZentrumSchematicObservation = Pick<
   ZentrumSchematicLayout,
-  "nodesById" | "resolveNodeId" | "placesByStopId"
+  "nodesById" | "resolveNodeId" | "placesByStopId" | "branchPaths"
 > & {
   /** Every segment drawn, in id order so the same corridors always read alike. */
   edges: readonly ZentrumSchematicObservedEdge[];
@@ -299,7 +304,7 @@ const observeZentrumSchematic = (
   const corridorByKey = new Map<string, readonly [ZentrumSchematicNode, ZentrumSchematicNode]>();
   const pathsByLineId = new Map<
     string,
-    Map<string, { nodes: readonly ZentrumSchematicNode[]; tripCount: number }>
+    Map<string, { nodes: readonly ZentrumSchematicNode[]; runKeys: Set<string> }>
   >();
 
   const drawnDepartures = getDistinctTimetableTrips(drawnVehicles).filter(
@@ -351,7 +356,7 @@ const observeZentrumSchematic = (
       const observed = paths.get(pathKey);
       paths.set(pathKey, {
         nodes: observed?.nodes ?? path,
-        tripCount: (observed?.tripCount ?? 0) + 1,
+        runKeys: (observed?.runKeys ?? new Set()).add(getRunMarkKey(departure)),
       });
       pathsByLineId.set(departure.lineId, paths);
       for (let index = 1; index < path.length; index += 1) {
@@ -411,33 +416,41 @@ const observeZentrumSchematic = (
   const edges = toEdges(segmentByKey, lineIdsBySegmentKey);
   const corridors = toEdges(corridorByKey, lineIdsByCorridorKey);
 
-  // Each line is drawn by the path most distinct trips take, not every short working. Ties go to
-  // the longer path, then the key, so refresh order cannot make the drawing flicker.
-  const drawnPaths = [...pathsByLineId]
-    .flatMap(([lineId, paths]) => {
-      const mostUsed = [...paths.entries()].sort(
+  // Each line is laid out by the path most distinct trips take, not every short working. Ties go to
+  // the longer path, then the key, so refresh order cannot make the drawing flicker. Paths leaving
+  // it are branches.
+  const byLine = (left: { lineId: string; id: string }, right: { lineId: string; id: string }) =>
+    compareLineIdsNaturally(left.lineId, right.lineId) || left.id.localeCompare(right.id);
+  const trackIdByLineId = getTrackIdByLineId([...pathsByLineId.keys()]);
+  const drawnPaths: ZentrumSchematicLinePath[] = [];
+  const branchPaths: ZentrumSchematicBranchPath[] = [];
+  for (const [lineId, paths] of pathsByLineId) {
+    const [main, ...others] = [...paths.entries()]
+      .sort(
         ([leftKey, left], [rightKey, right]) =>
-          right.tripCount - left.tripCount ||
+          right.runKeys.size - left.runKeys.size ||
           right.nodes.length - left.nodes.length ||
           leftKey.localeCompare(rightKey),
-      )[0];
-      if (!mostUsed) return [];
-      const [pathKey, { nodes }] = mostUsed;
-      return [{ id: `${lineId}:${pathKey}`, lineId, nodes: route(nodes) }];
-    })
-    .sort(
-      (left, right) =>
-        compareLineIdsNaturally(left.lineId, right.lineId) || left.id.localeCompare(right.id),
+      )
+      .map(([pathKey, { nodes, runKeys }]) => ({
+        id: `${lineId}:${pathKey}`,
+        lineId,
+        trackId: trackIdByLineId.get(lineId) ?? lineId,
+        nodes: route(nodes),
+        runKeys: [...runKeys].sort(),
+      }));
+    drawnPaths.push({ id: main.id, lineId, trackId: main.trackId, nodes: main.nodes });
+    const mainEdgeIds = new Set(getPathEdgeIds(main.nodes));
+    branchPaths.push(
+      ...others.filter(({ nodes }) => getPathEdgeIds(nodes).some((id) => !mainEdgeIds.has(id))),
     );
+  }
 
-  const trackIdByLineId = getTrackIdByLineId(drawnPaths.map(({ lineId }) => lineId));
   return {
     edges,
     corridors,
-    linePaths: drawnPaths.map((linePath) => ({
-      ...linePath,
-      trackId: trackIdByLineId.get(linePath.lineId) ?? linePath.lineId,
-    })),
+    linePaths: drawnPaths.sort(byLine),
+    branchPaths: branchPaths.sort(byLine),
     lineIdsByNodeId: new Map(
       [...lineIdsByNodeId].map(([nodeId, lineIds]) => [
         nodeId,
@@ -447,6 +460,9 @@ const observeZentrumSchematic = (
     ...boarding,
   };
 };
+
+const getPathEdgeIds = (nodes: readonly ZentrumSchematicNode[]): string[] =>
+  nodes.slice(1).map((node, index) => getEdgeKey(nodes[index].id, node.id));
 
 /** The lanes laid out for what was observed: the plan's one expensive step. */
 const isStubNode = (node: ZentrumSchematicNode): boolean => node.id.startsWith("exit:");
@@ -484,6 +500,7 @@ const layOutZentrumSchematic = (
     edges: observedEdges,
     corridors,
     linePaths,
+    branchPaths,
     lineIdsByNodeId,
     boardingPlacesByNodeId,
     nodesById,
@@ -510,6 +527,7 @@ const layOutZentrumSchematic = (
     edges,
     corridors,
     linePaths,
+    branchPaths,
     lineIds: [...new Set(edges.flatMap((edge) => edge.lineIds))].sort(compareLineIds),
     lineIdsByNodeId,
     boardingPlacesByNodeId,
@@ -538,8 +556,8 @@ export function buildZentrumSchematicReading(
 
 /**
  * A reader that lays the plan out again only when corridors or drawn patterns changed, since the
- * layout costs tens of milliseconds and runs change every few seconds. Boarding places can change
- * alone; the lanes are kept then.
+ * layout costs tens of milliseconds and runs change every few seconds. Boarding places and branches
+ * can change alone; the lanes are kept then.
  */
 export function createZentrumSchematicReader(): (
   drawnVehicles: readonly Departure[],
@@ -548,13 +566,17 @@ export function createZentrumSchematicReader(): (
   return (drawnVehicles) => {
     const observation = observeZentrumSchematic(drawnVehicles);
     const layoutKey = getZentrumSchematicLayoutKey(observation);
-    const placesKey = getBoardingPlacesKey(observation.boardingPlacesByNodeId);
+    const placesKey = [
+      getBoardingPlacesKey(observation.boardingPlacesByNodeId),
+      ...observation.branchPaths.map(({ id, runKeys }) => `${id}\u0001${runKeys.join(",")}`),
+    ].join("\u0002");
     const isSameLayout = last?.layout.layoutKey === layoutKey;
     if (last && isSameLayout && last.placesKey === placesKey) return last.layout;
     const layout =
       last && isSameLayout
         ? {
             ...last.layout,
+            branchPaths: observation.branchPaths,
             boardingPlacesByNodeId: observation.boardingPlacesByNodeId,
             placesByStopId: observation.placesByStopId,
             resolveNodeId: observation.resolveNodeId,
@@ -567,34 +589,59 @@ export function createZentrumSchematicReader(): (
 
 /**
  * A drawer that lays a layout's lanes at the plan's on-screen width, so a resize redraws geometry
- * without re-solving lanes. The same width returns the same reading.
+ * without re-solving lanes. Branches given by id are drawn in their line's lanes. The same input
+ * returns the same reading.
  */
 export function createZentrumSchematicDrawer(): (
   layout: ZentrumSchematicLayout,
   planWidth: number | undefined,
+  branchPathIds?: readonly string[],
 ) => ZentrumSchematicReading {
   let last: ZentrumSchematicReading | undefined;
-  let lastLayout: ZentrumSchematicLayout | undefined;
-  return (layout, planWidth) => {
+  let lastKey: { layout: ZentrumSchematicLayout; branchKey: string } | undefined;
+  return (layout, planWidth, branchPathIds = []) => {
     const trackWidth = getZentrumSchematicTrackWidth(layout.edges, planWidth);
-    if (last && lastLayout === layout && last.trackWidth === trackWidth) return last;
-    const { edges, linePaths } = layout;
+    const branchKey = branchPathIds.join("\u0001");
+    if (
+      last &&
+      lastKey?.layout === layout &&
+      lastKey.branchKey === branchKey &&
+      last.trackWidth === trackWidth
+    )
+      return last;
+    const { edges } = layout;
     const stopMarks = getZentrumSchematicStopMarks(
       edges,
-      linePaths,
+      layout.linePaths,
       trackWidth,
       layout.boardingPlacesByNodeId,
       layout.nodesById,
     );
+    const drawnBranchIds = new Set(branchPathIds);
+    const linePaths = [
+      ...layout.linePaths,
+      ...layout.branchPaths
+        .filter(({ id }) => drawnBranchIds.has(id))
+        .map(({ id, lineId, trackId, nodes }) => ({ id, lineId, trackId, nodes })),
+    ];
     // From the final edges, so marks ride the painted geometry and halt at the capsules, where
     // the strokes end too.
     const stopLinesByNodeId = new Map(stopMarks.map(({ nodeId, capsules }) => [nodeId, capsules]));
-    const vehiclePathsByLineId = new Map(
+    const vehiclePathsByPathId = new Map(
       linePaths.map((linePath) => [
-        linePath.lineId,
+        linePath.id,
         getZentrumSchematicVehiclePathsByCorridorId(linePath, edges, trackWidth, stopLinesByNodeId),
       ]),
     );
+    // A corridor the main path shares with a branch keeps the main path's stretch.
+    const vehiclePathsByLineId = new Map<string, Map<string, ZentrumSchematicCorridorPath>>();
+    for (const linePath of [...linePaths].reverse()) {
+      const paths = vehiclePathsByLineId.get(linePath.lineId) ?? new Map();
+      for (const [corridorId, path] of vehiclePathsByPathId.get(linePath.id) ?? []) {
+        paths.set(corridorId, path);
+      }
+      vehiclePathsByLineId.set(linePath.lineId, paths);
+    }
     last = {
       ...layout,
       trackWidth,
@@ -602,15 +649,47 @@ export function createZentrumSchematicDrawer(): (
         linePaths,
         edges,
         trackWidth,
-        vehiclePathsByLineId,
+        vehiclePathsByPathId,
         stopLinesByNodeId,
       ),
       vehiclePathsByLineId,
       stopMarks,
     };
-    lastLayout = layout;
+    lastKey = { layout, branchKey };
     return last;
   };
+}
+
+/** How long before its first drawn call a branch run's stroke appears, and after its last it stays. */
+const ZENTRUM_BRANCH_MARGIN_MS = 2 * 60_000;
+
+/** The branches a run is on the plan for now, in layout order. */
+export function getZentrumSchematicBranchIdsOnPlan(
+  layout: Pick<ZentrumSchematicLayout, "branchPaths" | "nodesById" | "resolveNodeId">,
+  runs: readonly Departure[],
+  feedNow: number,
+): string[] {
+  if (layout.branchPaths.length === 0) return [];
+  const onPlan = new Set(
+    runs
+      .filter((run) => {
+        const calls = (run.tripCalls ?? []).filter((call) =>
+          layout.nodesById.has(layout.resolveNodeId(call) ?? ""),
+        );
+        const startsAt = getTripCallInstant(calls[0], "arrival");
+        const endsAt = getTripCallInstant(calls.at(-1), "departure");
+        return (
+          startsAt !== undefined &&
+          endsAt !== undefined &&
+          startsAt - ZENTRUM_BRANCH_MARGIN_MS <= feedNow &&
+          feedNow <= endsAt + ZENTRUM_BRANCH_MARGIN_MS
+        );
+      })
+      .map(getRunMarkKey),
+  );
+  return layout.branchPaths
+    .filter(({ runKeys }) => runKeys.some((key) => onPlan.has(key)))
+    .map(({ id }) => id);
 }
 
 const getBoardingPlacesKey = (

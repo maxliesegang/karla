@@ -22,6 +22,7 @@ export function useZentrumVehicles(
 ): {
   runDepartures: readonly Departure[];
   feedNow: number;
+  isLoading: boolean;
 } {
   const observation = useMemo(() => getZentrumRunObservation(departureBoards), [departureBoards]);
   const discovery = useRunDiscovery(zentrumStopIds, departureBoards);
@@ -34,10 +35,11 @@ export function useZentrumVehicles(
     (!observation.clockBoard || discovery.clockBoard.receivedAt > observation.clockBoard.receivedAt)
       ? discovery.clockBoard
       : observation.clockBoard;
-  return useLineRunDepartures(ZENTRUM_VEHICLE_RETENTION_KEY, runs, clockBoard, false, {
+  const reading = useLineRunDepartures(ZENTRUM_VEHICLE_RETENTION_KEY, runs, clockBoard, false, {
     includesRun: scopeToArea ? includesZentrumRun : undefined,
     refreshOnEntry: false,
   });
+  return { ...reading, isLoading: discovery === null };
 }
 
 /** The Zentrum's runs on lines that run every day: the network maps leave out the rest. */

@@ -2,15 +2,13 @@ import type { ReactNode } from "react";
 import { LineBadge } from "../LineBadge";
 import type { ZentrumLineSignReader } from "./line-sign";
 
-/**
- * The band under the plan: legend, caption and an opened stop's bar. Tapping a badge follows that
- * line. The band keeps its height whatever stands in it.
- */
+/** The band under the plan: line selection, caption and an opened stop's bar. */
 export function ZentrumSchematicToolbar({
   caption,
   lineIds,
   getSign,
   selectedLineId,
+  hoveredLineIds,
   onSelectLine,
   stopBar,
 }: {
@@ -20,43 +18,45 @@ export function ZentrumSchematicToolbar({
   getSign: ZentrumLineSignReader;
   /** The followed line, as the address names it. */
   selectedLineId?: string;
+  hoveredLineIds: readonly string[];
   onSelectLine: (lineId: string | undefined) => void;
   stopBar?: ReactNode;
 }) {
   return (
     <div className="zentrum-schematic-toolbar" data-has-stop={stopBar !== undefined}>
       <div
-        className="zentrum-schematic-lines"
-        data-has-selection={selectedLineId !== undefined}
+        className="zentrum-schematic-line-selection"
         aria-label="Linie im Plan verfolgen"
         role="group"
       >
-        {selectedLineId !== undefined && (
-          <button
-            type="button"
-            className="zentrum-schematic-lines-reset"
-            onClick={() => onSelectLine(undefined)}
-          >
-            Alle Linien
-          </button>
-        )}
-        {lineIds.map((lineId) => {
-          const isSelected = selectedLineId === lineId;
-          return (
-            <button
-              key={lineId}
-              type="button"
-              className={isSelected ? "selected" : undefined}
-              aria-pressed={isSelected}
-              aria-label={
-                isSelected ? `Linie ${lineId} nicht mehr verfolgen` : `Linie ${lineId} verfolgen`
-              }
-              onClick={() => onSelectLine(isSelected ? undefined : lineId)}
-            >
-              <LineBadge line={getSign(lineId)} size="xs" />
-            </button>
-          );
-        })}
+        <button
+          type="button"
+          className="zentrum-schematic-lines-reset"
+          aria-pressed={selectedLineId === undefined && !stopBar}
+          onClick={() => onSelectLine(undefined)}
+        >
+          Alle Linien
+        </button>
+        <div className="zentrum-schematic-lines" data-has-selection={selectedLineId !== undefined}>
+          {lineIds.map((lineId) => {
+            const isSelected = selectedLineId === lineId;
+            return (
+              <button
+                key={lineId}
+                type="button"
+                className={isSelected ? "selected" : undefined}
+                data-hovered={hoveredLineIds.includes(lineId)}
+                aria-pressed={isSelected}
+                aria-label={
+                  isSelected ? `Linie ${lineId} nicht mehr verfolgen` : `Linie ${lineId} verfolgen`
+                }
+                onClick={() => onSelectLine(isSelected ? undefined : lineId)}
+              >
+                <LineBadge line={getSign(lineId)} size="xs" />
+              </button>
+            );
+          })}
+        </div>
       </div>
       <p className="zentrum-schematic-caption">{caption}</p>
       {stopBar}

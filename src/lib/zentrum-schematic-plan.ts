@@ -65,7 +65,7 @@ const authoredZentrumNodes: readonly ZentrumSchematicNode[] = [
     y: 286,
     labelSide: "below",
   },
-  { id: "schloss-gottesaue", label: "Schloss Gottesaue", x: 990, y: 220, labelSide: "below" },
+  { id: "schloss-gottesaue", label: "Schloss Gottesaue", x: 1012, y: 286, labelSide: "below" },
   { id: "karlstor", label: "Karlstor", x: 374, y: 286, labelSide: "left" },
   { id: "ettlinger-tor", label: "Ettlinger Tor", x: 572, y: 286, labelSide: "right" },
   { id: "rueppurrer-tor", label: "Rüppurrer Tor", x: 726, y: 286, labelSide: "above" },
@@ -143,10 +143,7 @@ export const PLATFORM_RUN_VECTORS = {
 const isOctilinear = ({ x, y }: SchematicPoint): boolean =>
   x === 0 || y === 0 || Math.abs(x) === Math.abs(y);
 
-/**
- * Where a corridor leaving a stop along its platform run turns towards the other end: as soon as
- * the rest is octilinear. None where it already runs along it, or a stop would be passed.
- */
+/** A platform approach turns square where clear, otherwise at the nearest octilinear bend. */
 const getPlatformRunBend = (
   stop: ZentrumSchematicNode,
   other: ZentrumSchematicNode,
@@ -160,15 +157,21 @@ const getPlatformRunBend = (
   if (sign === 0) return undefined;
   const reach = Math.floor((dotProduct(run, offset) * sign) / dotProduct(run, run));
   const step = { x: run.x * sign, y: run.y * sign };
-  const point = Array.from({ length: reach }, (_, index) => ({
+  const candidates = Array.from({ length: reach }, (_, index) => ({
     x: stop.x + step.x * (index + 1),
     y: stop.y + step.y * (index + 1),
-  })).find((candidate) => isOctilinear(subtractPoints(other, candidate)));
-  if (!point || (point.x === other.x && point.y === other.y)) return undefined;
-  const passes = nodes.some(
-    (node) => isInsideSegment(node, stop, point) || isInsideSegment(node, point, other),
+  })).filter((candidate) => isOctilinear(subtractPoints(other, candidate)));
+  candidates.sort(
+    (left, right) =>
+      Number(dotProduct(run, subtractPoints(other, left)) !== 0) -
+      Number(dotProduct(run, subtractPoints(other, right)) !== 0),
   );
-  return passes ? undefined : point;
+  return candidates.find(
+    (point) =>
+      !nodes.some(
+        (node) => isInsideSegment(node, stop, point) || isInsideSegment(node, point, other),
+      ),
+  );
 };
 
 const getOctilinearBend = (
@@ -182,6 +185,68 @@ const getOctilinearBend = (
   return { x: to.x - Math.sign(dx) * step, y: to.y - Math.sign(dy) * step };
 };
 
+/** Corridors to two places of one stop share the intersection of their platform axes. */
+const getSharedPlaceApproach = (
+  from: ZentrumSchematicNode,
+  to: ZentrumSchematicNode,
+  corridors: readonly (readonly [ZentrumSchematicNode, ZentrumSchematicNode])[],
+  nodes: readonly ZentrumSchematicNode[],
+) => {
+  for (const [place, neighbor] of [
+    [from, to],
+    [to, from],
+  ]) {
+    if (!place.platformRun) continue;
+    const run = PLATFORM_RUN_VECTORS[place.platformRun];
+    const stopId = place.stopId ?? place.id;
+    for (const corridor of corridors) {
+      const sibling =
+        corridor[0].id === neighbor.id
+          ? corridor[1]
+          : corridor[1].id === neighbor.id
+            ? corridor[0]
+            : undefined;
+      if (
+        !sibling?.platformRun ||
+        sibling.id === place.id ||
+        (sibling.stopId ?? sibling.id) !== stopId
+      )
+        continue;
+      const otherRun = PLATFORM_RUN_VECTORS[sibling.platformRun];
+      const point = getLineIntersection(place, run, sibling, otherRun);
+      if (!point || !Number.isInteger(point.x) || !Number.isInteger(point.y)) continue;
+      if ([place, sibling, neighbor].some((node) => node.x === point.x && node.y === point.y))
+        continue;
+      const approach = subtractPoints(neighbor, point);
+      const fit = (axis: SchematicPoint) =>
+        Math.abs(dotProduct(axis, approach)) / Math.hypot(axis.x, axis.y);
+      const platformRun = [place.platformRun, sibling.platformRun].sort(
+        (left, right) =>
+          fit(PLATFORM_RUN_VECTORS[right]) - fit(PLATFORM_RUN_VECTORS[left]) ||
+          left.localeCompare(right),
+      )[0];
+      const bend = getPlatformRunBend(
+        { id: "", label: "", ...point, platformRun },
+        neighbor,
+        nodes,
+      );
+      if (!bend && !isOctilinear(approach)) continue;
+      const path = [neighbor, ...(bend ? [bend] : []), point, place];
+      const segments = path.slice(1).map((end, index) => [path[index], end] as const);
+      if (
+        nodes.some(
+          (node) =>
+            segments.some(([start, end]) => isInsideSegment(node, start, end)) ||
+            isInsideSegment(node, sibling, point),
+        )
+      )
+        continue;
+      return { place, neighbor, point, bend };
+    }
+  }
+  return undefined;
+};
+
 /**
  * The plan nodes each observed corridor is drawn through, by its key: its two stops, with any
  * junction between. A corridor crossing another's junction is split there, so the two share it.
@@ -191,7 +256,24 @@ export const getZentrumSchematicRoutes = (
   nodes: readonly ZentrumSchematicNode[] = ZENTRUM_SCHEMATIC_NODES,
 ): ReadonlyMap<string, readonly ZentrumSchematicNode[]> => {
   const junctionByPoint = new Map<string, ZentrumSchematicNode>();
+  const junctionAt = (point: SchematicPoint) => {
+    const id = `junction:${point.x},${point.y}`;
+    const junction = junctionByPoint.get(id) ?? { id, label: "", ...point, isJunction: true };
+    junctionByPoint.set(id, junction);
+    return junction;
+  };
   const turns = corridors.map(([from, to]) => {
+    const shared = getSharedPlaceApproach(from, to, corridors, nodes);
+    if (shared) {
+      const crossing = junctionAt(shared.point);
+      const approach = [
+        shared.neighbor,
+        ...(shared.bend ? [junctionAt(shared.bend)] : []),
+        crossing,
+        shared.place,
+      ];
+      return from.id === shared.neighbor.id ? approach : approach.reverse();
+    }
     // A boarding place's own run first: it is read from where its platforms stand.
     const [first, second] = to.stopId && !from.stopId ? [to, from] : [from, to];
     const point =
@@ -199,10 +281,7 @@ export const getZentrumSchematicRoutes = (
       getPlatformRunBend(second, first, nodes) ??
       getOctilinearBend(from, to);
     if (!point) return [from, to];
-    const id = `junction:${point.x},${point.y}`;
-    const junction = junctionByPoint.get(id) ?? { id, label: "", ...point, isJunction: true };
-    junctionByPoint.set(id, junction);
-    return [from, junction, to];
+    return [from, junctionAt(point), to];
   });
   const junctions = [...junctionByPoint.values()];
   return new Map(

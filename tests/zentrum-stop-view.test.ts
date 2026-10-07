@@ -14,6 +14,30 @@ const call = (localStopId: string, minute: number, delayMinutes?: number): TripC
   delayMinutes,
 });
 
+test("split destinations rank by arrival even when a farther ride is shorter", () => {
+  const departures = [
+    createDeparture({ id: "soon", tripCalls: [call("europaplatz", 1), call("marktplatz", 5)] }),
+    createDeparture({ id: "later", tripCalls: [call("europaplatz", 10), call("karlstor", 11)] }),
+  ];
+  const view = getZentrumStopView(
+    "destinations",
+    "europaplatz",
+    null,
+    [],
+    departures,
+    instant(0),
+    "split",
+  );
+  assert.deepEqual(
+    view.reachableStops.map(({ nodeId }) => nodeId),
+    ["marktplatz", "karlstor"],
+  );
+  assert.deepEqual(
+    view.reachableStops.map(({ minutes }) => minutes),
+    [4, 1],
+  );
+});
+
 test("an unanswered board remains loading, while an answered empty board has no rows", () => {
   const loading = getZentrumStopView(
     "departures",

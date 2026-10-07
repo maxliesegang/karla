@@ -23,7 +23,7 @@ export const getNeighboringZentrumZoom = (zoom: number, direction: 1 | -1): numb
  * The city centre a portrait box opens on, in plan coordinates: Europaplatz to Werderstraße and
  * Kaiserstraße to Albtalbahnhof, with room for their names and travel times at a phone's width.
  */
-export const ZENTRUM_PORTRAIT_FRAME = { x: 236, y: 66, width: 593, height: 616 } as const;
+export const ZENTRUM_PORTRAIT_FRAME = { x: 236, y: 60, width: 593, height: 622 } as const;
 
 /** Below this width, in CSS pixels, the whole plan is too small to read, so the frame is fitted. */
 const ZENTRUM_WHOLE_PLAN_MINIMUM_WIDTH = 560;

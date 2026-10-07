@@ -31,6 +31,18 @@ export const ZENTRUM_PLAN_OPTION_DEFINITIONS = {
     ],
     defaultValue: "plan",
   },
+  /** How pale line colours (S7, S41, 4, 5, S42) stand off the white plan. */
+  paleLineStyle: {
+    group: "overview",
+    label: "Helle Linien",
+    description: "Wie sich helle Linienfarben vom weißen Plan abheben.",
+    choices: [
+      { value: "edge", label: "Feine Kontur" },
+      { value: "original", label: "Ohne Kontur" },
+      { value: "tone", label: "Dunklerer Planton" },
+    ],
+    defaultValue: "edge",
+  },
   /** Destination minutes include waiting, count only time on board, or show both apart. */
   travelMeasure: {
     group: "stop",
@@ -72,6 +84,7 @@ export function getZentrumPlanOptionsFromStored(stored: unknown): ZentrumPlanOpt
     unlitLineStyle: candidate.unlitLineStyle ?? candidate.callingLineStyle,
     travelMeasure: candidate.travelMeasure ?? candidate.destinationTime,
     initialView: candidate.initialView ?? candidate.openAt,
+    paleLineStyle: candidate.paleLineStyle === "outline" ? "edge" : candidate.paleLineStyle,
   };
   return Object.fromEntries(
     Object.entries(ZENTRUM_PLAN_OPTION_DEFINITIONS).map(([key, { choices, defaultValue }]) => {

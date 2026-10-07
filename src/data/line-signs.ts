@@ -298,6 +298,20 @@ const contrastRatio = (first: string, second: string): number => {
   return (lighter + 0.05) / (darker + 0.05);
 };
 
+/** Pale line graphics need help against the plan's white separators. */
+export const needsLineOutline = (color: string): boolean => contrastRatio(color, "#ffffff") < 2;
+
+/** Darker tones for pale colours on the plan, about 2:1 on white; badges keep the official colour. */
+const planToneByColor: Record<string, string> = {
+  "#ffff00": "#cfc200",
+  "#ffcc00": "#eba900",
+  "#b3ff00": "#86c400",
+  "#4dd3ff": "#1fb3ea",
+  "#00d9b8": "#00b8a0",
+};
+
+export const getPlanLineTone = (color: string): string | undefined => planToneByColor[color];
+
 /** KVV publishes white route text throughout, even on light colours. */
 function getAccessibleTextColor(color: string): string {
   if (contrastRatio(color, "#ffffff") >= 4.5) return "#fff";

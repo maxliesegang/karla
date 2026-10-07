@@ -4,15 +4,20 @@ import type { TransitLine, TransportMode } from "../../data/transit-types";
 /** The sign one line is read by in this view. */
 export type ZentrumLineSignReader = (lineId: string) => TransitLine;
 
-/** How the plan signs its lines: by the mode the network observed, else the neutral sign. */
+const createZentrumLineSign = (lineId: string, mode: TransportMode): TransitLine => {
+  const sign = createLineSign(lineId, mode);
+  return lineId === "E" ? { ...sign, color: "#59635f", textColor: "#fff" } : sign;
+};
+
+/** Observed line signs, with a fixed neutral sign for E. */
 export const createZentrumLineSignReader = (
   lines: readonly { id: string; transportMode: TransportMode }[],
 ): ZentrumLineSignReader => {
   const signByLineId = new Map(
     lines.map((line): [string, TransitLine] => [
       line.id,
-      createLineSign(line.id, line.transportMode),
+      createZentrumLineSign(line.id, line.transportMode),
     ]),
   );
-  return (lineId) => signByLineId.get(lineId) ?? createLineSign(lineId, "other");
+  return (lineId) => signByLineId.get(lineId) ?? createZentrumLineSign(lineId, "other");
 };

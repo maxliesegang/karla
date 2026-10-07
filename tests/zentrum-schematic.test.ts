@@ -7,6 +7,7 @@ import {
   buildZentrumSchematicReading,
   createZentrumSchematicDrawer,
   createZentrumSchematicReader,
+  getZentrumSchematicBranchIdsOnPlan,
   getZentrumSchematicVehicles,
 } from "../src/lib/zentrum-schematic.ts";
 import {
@@ -258,12 +259,70 @@ test("draws only the path used by the most timetable trips for each line", () =>
     reading.linePaths.map(({ lineId, nodes }) => [lineId, nodes.map(({ id }) => id)]),
     [["S5", ["muehlburger-tor", "europaplatz", "marktplatz", "kronenplatz"]]],
   );
-  // The less-used service is still observed; only its coloured line is omitted.
+  // The less-used service is still observed, and drawn as a branch while its run is on the plan.
   assert.ok(
     reading.edges.some(
       ({ from, to, lineIds }) => [from.id, to.id].includes("karlstor") && lineIds.includes("S5"),
     ),
   );
+});
+
+test("draws a line's branch in its lane only while a run on it is on the plan", () => {
+  const timed = (stop: TripCall, time: string): TripCall => ({
+    ...stop,
+    scheduledArrivalTime: time,
+    scheduledDepartureTime: time,
+  });
+  const west = call("muehlburger-tor", "7000039");
+  const europa = call("europaplatz", "7000037");
+  const market = call("marktplatz", "7001003");
+  const kronen = call("kronenplatz", "7001002");
+  const karlstor = call("karlstor", "7000061");
+  const runs = [
+    departure("S5", [west, europa, market, kronen], { id: "main-1", tripId: "main-1" }),
+    departure("S5", [kronen, market, europa, west], { id: "main-2", tripId: "main-2" }),
+    departure(
+      "S5",
+      [
+        timed(west, "2026-09-04T12:00:00+02:00"),
+        timed(europa, "2026-09-04T12:02:00+02:00"),
+        timed(karlstor, "2026-09-04T12:04:00+02:00"),
+      ],
+      { id: "branch", tripId: "branch" },
+    ),
+    // A short working inside the main path is no branch.
+    departure("S5", [europa, market], { id: "short", tripId: "short" }),
+  ];
+  const read = createZentrumSchematicReader();
+  const layout = read(runs);
+  assert.deepEqual(
+    layout.branchPaths.map(({ runKeys, nodes }) => [runKeys, nodes.map(({ id }) => id)]),
+    [[["branch"], ["muehlburger-tor", "europaplatz", "karlstor"]]],
+  );
+  const branchId = layout.branchPaths[0].id;
+  const at = (time: string) => getZentrumSchematicBranchIdsOnPlan(layout, runs, Date.parse(time));
+  assert.deepEqual(at("2026-09-04T11:30:00+02:00"), []);
+  assert.deepEqual(at("2026-09-04T12:03:00+02:00"), [branchId]);
+  assert.deepEqual(at("2026-09-04T12:30:00+02:00"), []);
+
+  // Another run on the branch keeps the lanes as laid out.
+  const again = read([
+    ...runs,
+    departure("S5", [karlstor, europa, west], { id: "branch-2", tripId: "branch-2" }),
+  ]);
+  assert.equal(again.layoutKey, layout.layoutKey);
+  assert.equal(again.edges, layout.edges);
+  assert.deepEqual(again.branchPaths[0]?.runKeys, ["branch", "branch-2"]);
+
+  const draw = createZentrumSchematicDrawer();
+  const karlstorCorridor = getEdgeKey("europaplatz", "karlstor");
+  const without = draw(layout, undefined);
+  assert.equal(without.drawnPaths.length, 1);
+  assert.equal(without.vehiclePathsByLineId.get("S5")?.has(karlstorCorridor), false);
+  const withBranch = draw(layout, undefined, [branchId]);
+  assert.equal(withBranch.drawnPaths.length, 2);
+  assert.equal(withBranch.vehiclePathsByLineId.get("S5")?.has(karlstorCorridor), true);
+  assert.equal(withBranch.edges, without.edges);
 });
 
 test("breaks equal-usage path ties by coverage, independent of board order", () => {
@@ -605,10 +664,10 @@ test("hangs a narrower straight off the top of the band its through lines run in
     "M 110.00 143.50 L 374.00 143.50 L 572.00 143.50 L 726.00 143.50 L 858.00 143.50",
   );
   // Lines turning off bend on the side they leave.
-  assert.match(pathData.get("3") ?? "", /^M 110\.00 150\.50 L 374\.50 150\.50 A /);
+  assert.match(pathData.get("3") ?? "", /^M 110\.00 150\.50 L 353\.50 150\.50 A 31\.00 31\.00 /);
   assert.match(
     pathData.get("7") ?? "",
-    /^M 858\.00 150\.50 L 726\.00 150\.50 L 571\.50 150\.50 A /,
+    /^M 858\.00 150\.50 L 726\.00 150\.50 L 592\.50 150\.50 A 31\.00 31\.00 /,
   );
 });
 

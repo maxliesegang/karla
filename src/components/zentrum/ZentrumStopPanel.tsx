@@ -15,7 +15,7 @@ import {
 } from "../../lib/zentrum-schematic-overlays";
 import { formatPlatformLabel } from "../../lib/platform-naming";
 import type { ZentrumReachableStop, ZentrumStopReading } from "../../lib/zentrum-stop-view";
-import { getZentrumTravelSourceLabel } from "../../lib/zentrum-presentation";
+import { getZentrumRidePresentation } from "../../lib/zentrum-presentation";
 import { isRailDeparture } from "../../lib/zentrum-schematic-plan";
 import { getDepartureOpenPath, navigateTo, routePaths } from "../../routing";
 import { DepartureCountdown } from "../DepartureCountdown";
@@ -31,15 +31,7 @@ const toCountdownReading = (minutes: number): CountdownReading =>
     ? { kind: "due", label: "jetzt" }
     : { kind: "minutes", minutes, label: `${minutes} min` };
 
-/** When a ride leaves, as its row prints it under the ride time. */
-export const formatWait = (minutes: number): string =>
-  minutes <= 0 ? "jetzt" : `in ${minutes} min`;
-
-/**
- * An opened stop's panel, written like the departure board; its name and reading stand on the
- * bar. Departures are the stop's whole board: a row whose tram is on the plan selects it, any
- * other opens its trip. The plan says where; this says when.
- */
+/** Direct destinations and the whole departure board for the opened stop. */
 export function ZentrumStopPanel({
   stopId,
   label,
@@ -48,6 +40,7 @@ export function ZentrumStopPanel({
   board,
   reachableStops,
   travelMeasure,
+  isLoading,
   selectedVehicleId,
   onSelectVehicle,
   onSelectDestination,
@@ -63,6 +56,7 @@ export function ZentrumStopPanel({
   board: DepartureBoard | null;
   reachableStops: readonly ZentrumReachableStop[];
   travelMeasure: ZentrumTravelMeasure;
+  isLoading: boolean;
   selectedVehicleId?: string;
   onSelectVehicle: (vehicleId: string) => void;
   onSelectDestination: (nodeId: string) => void;
@@ -70,7 +64,7 @@ export function ZentrumStopPanel({
   feedNow: number;
   entranceMotion: ZentrumPanelEntranceMotion;
 }) {
-  const staleLabel = reading === "departures" ? getStaleBoardLabel(board, feedNow) : undefined;
+  const staleLabel = getStaleBoardLabel(board, feedNow);
   return (
     <aside
       id={ZENTRUM_STOP_PANEL_ID}
@@ -78,23 +72,33 @@ export function ZentrumStopPanel({
       data-entrance-motion={entranceMotion}
       aria-label={`Haltestelle ${label}`}
     >
+      {reading === "destinations" && (
+        <div className="zentrum-destinations-heading">
+          <h3>Direkt im Zentrum</h3>
+          {reachableStops.length > 0 && <span>{reachableStops.length} Ziele</span>}
+        </div>
+      )}
       <p className="zentrum-panel-note">
-        {reading === "departures"
-          ? (staleLabel ?? (
-              <>
-                <span className="zentrum-panel-on-plan" aria-hidden="true" /> = schon im Plan
-              </>
-            ))
-          : travelMeasure === "ride"
-            ? "Fahrzeit in der Bahn, direkt ab hier, ohne Umsteigen."
-            : travelMeasure === "split"
-              ? "Fahrzeit, darunter bis zur Abfahrt. Direkt, ohne Umsteigen."
-              : "Direkt ab hier, ohne Umsteigen."}
+        {reading === "departures" ? (
+          <>
+            <span className="zentrum-panel-on-plan" aria-hidden="true" /> = schon im Plan
+          </>
+        ) : travelMeasure === "ride" ? (
+          "Ohne Umsteigen · kürzeste Fahrzeit zuerst"
+        ) : (
+          "Ohne Umsteigen · früheste Ankunft zuerst"
+        )}
       </p>
+      {staleLabel && (
+        <p className="zentrum-panel-note" role="status">
+          {staleLabel}
+        </p>
+      )}
       <div
         className="zentrum-panel-list"
         style={{ "--row-inset": "0px" } as CSSProperties}
         aria-live="polite"
+        aria-busy={reading === "departures" ? rows === undefined : isLoading}
       >
         {reading === "departures" ? (
           board?.dataStatus === "unavailable" ? (
@@ -160,44 +164,60 @@ export function ZentrumStopPanel({
             })
           )
         ) : reachableStops.length === 0 ? (
-          <p className="panel-empty">Gerade keine direkte Fahrt ab hier bekannt.</p>
+          <p className="panel-empty">
+            {isLoading
+              ? "Direkte Ziele werden geladen …"
+              : board?.dataStatus === "unavailable"
+                ? board.errorMessage
+                : "Gerade keine direkte Fahrt im Zentrum ab hier bekannt."}
+          </p>
         ) : (
           <ol key={stopId} className="zentrum-panel-destinations">
-            {reachableStops.map((reachable) => (
-              <li key={reachable.nodeId}>
-                <button
-                  type="button"
-                  className="zentrum-destination-row"
-                  onClick={() => onSelectDestination(reachable.nodeId)}
-                  aria-label={`${reachable.label}, Linie ${reachable.lineId}, ${
-                    reachable.waitMinutes === undefined
-                      ? `${reachable.minutes} Minuten`
-                      : `${reachable.minutes} Minuten Fahrt, ab in ${reachable.waitMinutes} Minuten`
-                  }, ${getZentrumTravelSourceLabel(reachable)}. Passende Abfahrt anzeigen`}
-                >
-                  <LineBadge line={getSign(reachable.lineId)} size="sm" />
-                  <span className="zentrum-panel-destinations-name">{reachable.label}</span>
-                  <span className="departure-countdown zentrum-destination-time">
-                    {travelMeasure !== "arrival" ? (
-                      <DepartureCountdown
-                        reading={{
-                          kind: "minutes",
-                          minutes: reachable.minutes,
-                          label: `${reachable.minutes} min`,
-                        }}
-                      />
-                    ) : (
-                      <DepartureCountdown reading={toCountdownReading(reachable.minutes)} />
-                    )}
-                    {reachable.waitMinutes !== undefined && (
-                      <small className="zentrum-destination-wait">
-                        {formatWait(reachable.waitMinutes)}
+            {reachableStops.map((reachable) => {
+              const ride = getZentrumRidePresentation(reachable, board, feedNow);
+              const isArrival = travelMeasure === "arrival";
+              return (
+                <li key={reachable.nodeId}>
+                  <button
+                    type="button"
+                    className="zentrum-destination-row"
+                    onClick={() => onSelectDestination(reachable.nodeId)}
+                    aria-label={`${reachable.label}, Linie ${reachable.lineId}, ${ride.waitLabel}, ${ride.rideMinutes} min Fahrt, Ankunft ${ride.arrivalTime}, ${ride.platformLabel}, ${ride.sourceLabel}. Fahrten vergleichen`}
+                  >
+                    <LineBadge line={getSign(reachable.lineId)} size="sm" />
+                    <span className="zentrum-panel-destinations-name">
+                      {reachable.label}
+                      <small>
+                        {ride.waitLabel}
+                        {isArrival
+                          ? ` · ${ride.rideMinutes} min Fahrt`
+                          : ` · an ${ride.arrivalTime}`}
                       </small>
-                    )}
-                  </span>
-                </button>
-              </li>
-            ))}
+                      <small className="zentrum-destination-source">{ride.sourceLabel}</small>
+                    </span>
+                    <span className="departure-countdown zentrum-destination-time">
+                      <small className="zentrum-destination-time-label">
+                        {isArrival ? "Ankunft in" : "Fahrt"}
+                      </small>
+                      {!isArrival ? (
+                        <DepartureCountdown
+                          reading={{
+                            kind: "minutes",
+                            minutes: reachable.minutes,
+                            label: `${reachable.minutes} min`,
+                          }}
+                        />
+                      ) : (
+                        <DepartureCountdown reading={toCountdownReading(reachable.minutes)} />
+                      )}
+                      {isArrival && (
+                        <small className="zentrum-destination-wait">{ride.arrivalTime}</small>
+                      )}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
           </ol>
         )}
       </div>

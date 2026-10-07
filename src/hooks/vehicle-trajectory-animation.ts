@@ -13,13 +13,8 @@ import {
 } from "../lib/vehicle-trajectory-animation";
 
 /**
- * One mark's segment-length Web Animation, shared by the line diagram and the Zentrum map:
- * - a signature over the plan and coordinates decides whether the running animation still applies;
- * - a replan continues from the painted value, correcting over a few seconds;
- * - a placement is never animated from the old paint, except one within a link
- *   (`placedAfterLinks`), which is corrected like a replan;
- * - a mark without trajectory, or under `prefers-reduced-motion`, is painted at its tick position.
- * The caller supplies the property values (`getValue`); marks are found by `data-marker-key`.
+ * Animates vehicle trajectories and short corrections, preserving painted progress across replans
+ * and resizes. Marks are found by `data-marker-key`.
  */
 
 /** The fields of a mark this hook reads; a caller's own mark type extends them. */
@@ -46,6 +41,8 @@ type KeptAnimation = {
   linkKey: string;
   geometrySignature: string | undefined;
   motion: RunPlacementMotion;
+  trajectory?: RunSegmentTrajectory;
+  sampledAt?: number;
   animation: Animation;
 };
 
@@ -153,10 +150,18 @@ export function useVehicleTrajectoryAnimations<Mark extends TrajectoryAnimationF
       )
         continue;
       const paintedValue = readReusableAnimatedValue(element, mark, active);
+      const elapsed = active?.animation.currentTime;
+      const sampledAt =
+        active?.trajectory?.progresses === trajectory.progresses &&
+        active.sampledAt !== undefined &&
+        typeof elapsed === "number"
+          ? Math.max(trajectory.sampledAt, active.sampledAt + elapsed)
+          : trajectory.sampledAt;
       active?.animation.cancel();
+      animationsRef.current.delete(mark.key);
 
-      const waitingMs = Math.max(0, trajectory.startsAt - trajectory.sampledAt);
-      const animationStartsAt = waitingMs > 0 ? trajectory.startsAt : trajectory.sampledAt;
+      const waitingMs = Math.max(0, trajectory.startsAt - sampledAt);
+      const animationStartsAt = waitingMs > 0 ? trajectory.startsAt : sampledAt;
       // The first keyframe is the present position, so paint and animation agree from the first
       // frame.
       const movingFrom = getRunTrajectoryProgress(trajectory, animationStartsAt);
@@ -165,21 +170,23 @@ export function useVehicleTrajectoryAnimations<Mark extends TrajectoryAnimationF
       const movingDuration =
         waitingMs > 0
           ? trajectory.arrivesAt - trajectory.startsAt
-          : trajectory.arrivesAt - trajectory.sampledAt;
-      if (movingDuration <= 0 || movingFrom >= 1) continue;
-      const keyframes = getTrajectoryKeyframes({
-        trajectory,
-        animationStartsAt,
-        getValue: (progress) => getValue(mark, progress),
-        boundaryProgresses: getBoundaryProgresses?.(mark) ?? [],
-        paintedValue,
-      });
+          : trajectory.arrivesAt - sampledAt;
+      const keyframes =
+        movingDuration <= 0 || movingFrom >= 1
+          ? [{ value: movingFromValue, offset: 0 }]
+          : getTrajectoryKeyframes({
+              trajectory,
+              animationStartsAt,
+              getValue: (progress) => getValue(mark, progress),
+              boundaryProgresses: getBoundaryProgresses?.(mark) ?? [],
+              paintedValue,
+            });
       if (keyframes.length === 0) continue;
       const animation = element.animate(
         keyframes.map(({ value, offset }) => ({ [property]: value, offset })),
         {
           delay: waitingMs,
-          duration: movingDuration,
+          duration: Math.max(0, movingDuration),
           easing: "linear",
           fill: "both",
         },
@@ -189,6 +196,8 @@ export function useVehicleTrajectoryAnimations<Mark extends TrajectoryAnimationF
         linkKey: mark.linkKey,
         geometrySignature,
         motion: mark.motion,
+        trajectory,
+        sampledAt,
         animation,
       });
     }

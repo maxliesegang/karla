@@ -629,6 +629,50 @@ test("sets every name that fits inside the plan, clear of bands, capsules and ot
   }
 });
 
+test("keeps a long unbroken stop name on one line and wraps only between words", () => {
+  const label = { side: "right", anchor: { x: 0, y: 0 }, fits: true } as const;
+  const boxOf = (name: string) => getZentrumSchematicLabelBox(label, name, 1450);
+  const short = boxOf("ZKM");
+  const long = boxOf("Kongresszentrum");
+  const wrapped = boxOf("Wolfartsweierer Straße");
+
+  assert.ok(long.right - long.left > 92);
+  assert.equal(long.bottom - long.top, short.bottom - short.top);
+  assert.ok(wrapped.bottom - wrapped.top > long.bottom - long.top);
+});
+
+test("reserves clear space for the selected stop before other reachable names", () => {
+  const planWidth = 1100;
+  const reading = buildZentrumSchematicReading(liveTrips, planWidth);
+  const place = (selectedNodeId?: string) =>
+    placeZentrumSchematicLabels(
+      reading.edges,
+      reading.stopMarks,
+      reading.trackWidth,
+      planWidth,
+      "with-wait",
+      new Set([...reading.nodesById.keys()].filter((id) => id !== "poststrasse")),
+      selectedNodeId,
+    );
+  assert.equal(place().get("poststrasse")?.fits, false);
+  const selected = place("poststrasse");
+  const label = selected.get("poststrasse");
+  assert.ok(label?.fits);
+  const box = getZentrumSchematicLabelBox(label, "Poststraße", planWidth, "with-wait");
+  for (const [nodeId, other] of selected) {
+    if (nodeId === "poststrasse" || !other.fits) continue;
+    const name = zentrumSchematicNodeById.get(nodeId)?.label ?? nodeId;
+    const otherBox = getZentrumSchematicLabelBox(other, name, planWidth, "with-wait");
+    assert.ok(
+      box.left >= otherBox.right ||
+        box.right <= otherBox.left ||
+        box.top >= otherBox.bottom ||
+        box.bottom <= otherBox.top,
+      `Poststraße overlaps ${nodeId}`,
+    );
+  }
+});
+
 test("the eastern extension has one name per complex and links its two Tullastraße places", () => {
   const samples: { lineId: string; tripCalls: TripCall[] }[] = JSON.parse(
     readFileSync(new URL("./support/zentrum-stop-platforms.json", import.meta.url), "utf8"),

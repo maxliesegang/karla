@@ -13,6 +13,7 @@ import {
   getEdgeKey,
   getLineIntersection,
   getLineTrackPoint,
+  getZentrumSchematicStopId,
   getUnitVector,
   formatPoint,
   subtractPoints,
@@ -29,8 +30,8 @@ const ZENTRUM_SCHEMATIC_LINE_BEND_DISTANCE = 10;
 /** The innermost radius of a junction's turn, in lanes. */
 const ZENTRUM_SCHEMATIC_JUNCTION_RADIUS = 1;
 
-/** How much of its straight a junction's turn may take, since no capsule stands there. */
-const ZENTRUM_SCHEMATIC_JUNCTION_REACH = 0.75;
+/** Maximum share of a lane's straight available to a turn. */
+const ZENTRUM_SCHEMATIC_BEND_REACH = 0.75;
 
 /**
  * One softly bent SVG path per line pattern. At a turn the lanes are extended to their intersection
@@ -60,6 +61,8 @@ export type ZentrumSchematicDrawnPath = ZentrumSchematicLinePath & {
   lineIds: readonly string[];
   /** The pattern cut at the capsules, one stretch per corridor, for lighting. */
   segments: readonly ZentrumSchematicLinePathSegment[];
+  /** Local regions where this path is painted above crossing routes. */
+  foregroundRegions: readonly { x: number; y: number; width: number; height: number }[];
 };
 
 /** How many lanes a pattern runs beside, on average over its corridors. */
@@ -74,15 +77,15 @@ const getMeanLaneCount = (
 };
 
 /**
- * One path per distinct geometry, coincident lines gathered, lit stretch by stretch along its
- * line's vehicle paths. Wider bands are painted first: a line over a band hides it for one lane,
+ * One path per distinct geometry, coincident lines gathered, lit stretch by stretch along its own
+ * vehicle paths. Wider bands are painted first: a line over a band hides it for one lane,
  * while a band over a line hides the line for the band's whole width.
  */
 export function getZentrumSchematicDrawnPaths(
   linePaths: readonly ZentrumSchematicLinePath[],
   edges: readonly ZentrumSchematicEdge[],
   trackWidth: number | undefined,
-  vehiclePathsByLineId: ReadonlyMap<string, ReadonlyMap<string, ZentrumSchematicCorridorPath>>,
+  vehiclePathsByPathId: ReadonlyMap<string, ReadonlyMap<string, ZentrumSchematicCorridorPath>>,
   capsulesByNodeId: ReadonlyMap<string, readonly ZentrumSchematicStroke[]>,
 ): readonly ZentrumSchematicDrawnPath[] {
   const drawnByGeometry = new Map<string, ZentrumSchematicDrawnPath & { lineIds: string[] }>();
@@ -98,7 +101,8 @@ export function getZentrumSchematicDrawnPaths(
       ...linePath,
       data,
       lineIds: [linePath.lineId],
-      segments: toLinePathSegments(vehiclePathsByLineId.get(linePath.lineId) ?? new Map()),
+      segments: toLinePathSegments(vehiclePathsByPathId.get(linePath.id) ?? new Map()),
+      foregroundRegions: getZentrumSchematicForegroundRegions(linePath, edges, trackWidth),
     });
   }
   const laneCountByEdgeId = new Map(edges.map(({ id, trackIds }) => [id, trackIds.length]));
@@ -115,6 +119,66 @@ export type ZentrumSchematicLinePathSegment = {
   corridorId: string;
   /** The stretch as an SVG path, in schematic units, starting where the previous one ended. */
   data: string;
+};
+
+const getZentrumSchematicForegroundRegions = (
+  linePath: ZentrumSchematicLinePath,
+  edges: readonly ZentrumSchematicEdge[],
+  trackWidth: number | undefined,
+): ZentrumSchematicDrawnPath["foregroundRegions"] => {
+  const { legs, bends } = getZentrumSchematicLaneLegs(linePath, edges, trackWidth);
+  const padding = (trackWidth ?? ZENTRUM_SCHEMATIC_LINE_BEND_DISTANCE) * 2;
+  const regions = bends.flatMap(({ points }) => {
+    if (points.length === 0) return [];
+    const left = Math.min(...points.map((point) => point.x));
+    const top = Math.min(...points.map((point) => point.y));
+    return [
+      {
+        x: left - padding,
+        y: top - padding,
+        width: Math.max(...points.map((point) => point.x)) - left + padding * 2,
+        height: Math.max(...points.map((point) => point.y)) - top + padding * 2,
+      },
+    ];
+  });
+  const crossing = getDurlacherTorCrossingRegion(linePath, edges, legs, trackWidth, padding);
+  return crossing ? [...regions, crossing] : regions;
+};
+
+const getDurlacherTorCrossingRegion = (
+  { nodes }: ZentrumSchematicLinePath,
+  edges: readonly ZentrumSchematicEdge[],
+  legs: readonly ZentrumSchematicLaneLeg[],
+  trackWidth: number | undefined,
+  padding: number,
+): ZentrumSchematicDrawnPath["foregroundRegions"][number] | undefined => {
+  const isTor = (id: string) => getZentrumSchematicStopId(id) === "durlacher-tor";
+  const index = nodes.findIndex(({ id }) => isTor(id));
+  const node = nodes[index];
+  const previous = nodes[index - 1];
+  const next = nodes[index + 1];
+  if (!node || !previous || !next || (previous.y - node.y) * (next.y - node.y) >= 0)
+    return undefined;
+  const band = edges
+    .filter(({ from, to }) => (isTor(from.id) || isTor(to.id)) && from.y === to.y)
+    .flatMap((edge) =>
+      edge.trackIds.map(
+        (trackId) => getLineTrackPoint(edge, edge.from, trackId, edge.trackIds, trackWidth).y,
+      ),
+    );
+  if (band.length === 0) return undefined;
+  const top = Math.min(...band) - padding;
+  const bottom = Math.max(...band) + padding;
+  const xs = legs
+    .filter((leg) => isTor(leg.fromNodeId) || isTor(leg.toNodeId))
+    .flatMap(({ from, to }) =>
+      to.y === from.y
+        ? []
+        : [top, bottom].map((y) => from.x + ((y - from.y) * (to.x - from.x)) / (to.y - from.y)),
+    );
+  if (xs.length === 0) return undefined;
+  const left = Math.min(...xs) - padding;
+  return { x: left, y: top, width: Math.max(...xs) + padding - left, height: bottom - top };
 };
 
 /** A line's vehicle paths as lit stretches; joined, they run the whole stroke, bends included. */
@@ -200,44 +264,59 @@ const getZentrumSchematicCubicPoints = (
 };
 
 /**
- * One lane's turn at a junction, as the distance its curve starts from the corner: lanes turning
- * between the same two segments share one centre, a lane apart. Undefined elsewhere.
+ * Lanes turning between the same edges share one curve centre and stay a lane apart.
  */
-const getJunctionBendDistance = (
+const getLaneBendDistance = (
   node: ZentrumSchematicNode,
   arriving: ZentrumSchematicEdge,
   leaving: ZentrumSchematicEdge,
   trackId: string,
   trackWidth: number | undefined,
 ): number | undefined => {
-  if (!node.isJunction || trackWidth === undefined) return undefined;
+  if (trackWidth === undefined) return undefined;
   const far = (edge: ZentrumSchematicEdge) => (edge.from.id === node.id ? edge.to : edge.from);
   const incoming = getUnitVector(far(arriving), node);
   const outgoing = getUnitVector(node, far(leaving));
   const turn = Math.acos(Math.max(-1, Math.min(1, dotProduct(incoming, outgoing))));
   if (turn < 0.001) return undefined;
   const inside = getUnitVector(incoming, outgoing);
-  const depth = (id: string) => {
+  const turning = arriving.trackIds.filter((id) => leaving.trackIds.includes(id));
+  const corners = turning.flatMap((id) => {
     const corner = getLineIntersection(
       getLineTrackPoint(arriving, node, id, arriving.trackIds, trackWidth),
       incoming,
       getLineTrackPoint(leaving, node, id, leaving.trackIds, trackWidth),
       outgoing,
     );
-    return corner ? dotProduct(subtractPoints(corner, node), inside) : 0;
-  };
-  const turning = arriving.trackIds.filter((id) => leaving.trackIds.includes(id));
-  const innermost = Math.max(...turning.map(depth));
-  const radius =
-    trackWidth * ZENTRUM_SCHEMATIC_JUNCTION_RADIUS +
-    (innermost - depth(trackId)) * Math.cos(turn / 2);
-  return radius * Math.tan(turn / 2);
+    return corner ? [{ id, corner, depth: dotProduct(subtractPoints(corner, node), inside) }] : [];
+  });
+  const own = corners.find(({ id }) => id === trackId);
+  if (!own) return undefined;
+  const innermost = Math.max(...corners.map(({ depth }) => depth));
+  const extraRadius = (depth: number) => (innermost - depth) * Math.cos(turn / 2);
+  const tangent = Math.tan(turn / 2);
+  const preferredRadius = node.isJunction
+    ? trackWidth * ZENTRUM_SCHEMATIC_JUNCTION_RADIUS
+    : ZENTRUM_SCHEMATIC_LINE_BEND_DISTANCE / tangent;
+  // A short arm tightens the whole band, preserving its common curve centre.
+  const availableRadius = Math.min(
+    ...corners.map(({ corner, depth }) => {
+      const incomingLength = dotProduct(subtractPoints(corner, far(arriving)), incoming);
+      const outgoingLength = dotProduct(subtractPoints(far(leaving), corner), outgoing);
+      return (
+        (Math.min(incomingLength, outgoingLength) * ZENTRUM_SCHEMATIC_BEND_REACH) / tangent -
+        extraRadius(depth)
+      );
+    }),
+  );
+  const innerRadius = Math.max(0, Math.min(preferredRadius, availableRadius));
+  return (innerRadius + extraRadius(own.depth)) * tangent;
 };
 
 const getZentrumSchematicLinePathBend = (
   segment: { from: SchematicPoint; to: SchematicPoint },
   next: { from: SchematicPoint; to: SchematicPoint },
-  junctionBendDistance?: number,
+  laneBendDistance?: number,
 ): ZentrumSchematicLinePathBend => {
   const incomingDirection = getUnitVector(segment.from, segment.to);
   const outgoingDirection = getUnitVector(next.from, next.to);
@@ -260,12 +339,12 @@ const getZentrumSchematicLinePathBend = (
     : 0;
   if (corner && incomingDistance > 0 && outgoingDistance > 0) {
     const bendDistance =
-      junctionBendDistance === undefined
+      laneBendDistance === undefined
         ? Math.min(ZENTRUM_SCHEMATIC_LINE_BEND_DISTANCE, incomingDistance / 3, outgoingDistance / 3)
         : Math.min(
-            junctionBendDistance,
-            incomingDistance * ZENTRUM_SCHEMATIC_JUNCTION_REACH,
-            outgoingDistance * ZENTRUM_SCHEMATIC_JUNCTION_REACH,
+            laneBendDistance,
+            incomingDistance * ZENTRUM_SCHEMATIC_BEND_REACH,
+            outgoingDistance * ZENTRUM_SCHEMATIC_BEND_REACH,
           );
     const approach = {
       x: corner.x - incomingDirection.x * bendDistance,
@@ -379,11 +458,11 @@ const getZentrumSchematicLaneLegs = (
     const arriving = edgeByKey.get(leg.edgeId);
     const leaving = edgeByKey.get(next.edgeId);
     const node = linePath.nodes.find(({ id }) => id === leg.toNodeId);
-    const junctionBendDistance =
+    const laneBendDistance =
       arriving && leaving && node
-        ? getJunctionBendDistance(node, arriving, leaving, linePath.trackId, trackWidth)
+        ? getLaneBendDistance(node, arriving, leaving, linePath.trackId, trackWidth)
         : undefined;
-    return getZentrumSchematicLinePathBend(leg, next, junctionBendDistance);
+    return getZentrumSchematicLinePathBend(leg, next, laneBendDistance);
   });
   const first = legs[0];
   const last = legs.at(-1);

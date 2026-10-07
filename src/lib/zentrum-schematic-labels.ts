@@ -1,7 +1,4 @@
-/**
- * Where each stop's name is set: beside its capsule, on the first side clear of bands, capsules and
- * names.
- */
+/** Places stop names beside their capsules, clear of the drawing and other names. */
 import {
   ZENTRUM_SCHEMATIC_NODES,
   ZENTRUM_SCHEMATIC_VIEWBOX,
@@ -52,14 +49,14 @@ const LABEL_SIDE_DIRECTIONS: Record<ZentrumLabelSide, SchematicPoint> = {
 };
 
 /** The gap between a capsule and its name, in CSS pixels at any plan size. */
-const ZENTRUM_LABEL_GAP_PIXELS = 3;
+const ZENTRUM_LABEL_GAP_PIXELS = 3.5;
 
 /** Distances, a lane apart, a name is tried at before accepting a collision. */
 const ZENTRUM_LABEL_RINGS = 3;
 
-/** A stop name's type size at a plan width; mirrors `clamp(10px, 0.9cqw, 11.5px)` in the CSS. */
+/** Mirrors the stop name's `clamp(10px, 0.9cqw, 12px)` in CSS. */
 const getZentrumNameSize = (planWidth: number): number =>
-  Math.min(11.5, Math.max(10, planWidth * 0.009));
+  Math.min(12, Math.max(10, planWidth * 0.009));
 
 /** The width a name wraps at, as `.zentrum-schematic-stop span` caps it. */
 const ZENTRUM_NAME_MEASURE = 92;
@@ -85,9 +82,21 @@ const getNamePixels = (
 ): { width: number; height: number } => {
   const size = getZentrumNameSize(planWidth);
   const character = size * ZENTRUM_NAME_CHARACTER_WIDTH;
-  const longestWord = Math.max(...label.split(/\s+/).map((word) => word.length));
+  const words = label.split(/\s+/);
+  const longestWord = Math.max(...words.map((word) => word.length));
   const setWidth = label.length * character;
-  const lines = Math.ceil(setWidth / ZENTRUM_NAME_MEASURE);
+  let lines = 1;
+  let lineWidth = 0;
+  for (const word of words) {
+    const width = word.length * character;
+    const nextWidth = lineWidth + (lineWidth > 0 ? character : 0) + width;
+    if (lineWidth > 0 && nextWidth > ZENTRUM_NAME_MEASURE) {
+      lines += 1;
+      lineWidth = width;
+    } else {
+      lineWidth = nextWidth;
+    }
+  }
   const nameWidth = Math.max(longestWord * character, Math.min(setWidth, ZENTRUM_NAME_MEASURE));
   // The travel time heads the name a size up (`.zentrum-schematic-stop-time`): "S11 22 min".
   const timeCharacters =
@@ -97,7 +106,7 @@ const getNamePixels = (
     : { width: 0, height: 0 };
   return {
     width: Math.max(nameWidth, time.width) + ZENTRUM_NAME_PADDING.x * 2,
-    height: lines * size * 1.12 + time.height + ZENTRUM_NAME_PADDING.y * 2,
+    height: lines * size * 1.16 + time.height + ZENTRUM_NAME_PADDING.y * 2,
   };
 };
 
@@ -166,11 +175,7 @@ const getAnchor = (box: Box, side: ZentrumLabelSide, gap: number): SchematicPoin
   };
 };
 
-/**
- * Places every drawn stop's name: stops where corridors meet or end first. Each takes the first
- * side (authored first) inside the plan and clear of all bands, capsules and placed names, else the
- * side with the fewest collisions. `hasTimes` leaves room for a travel time above each name.
- */
+/** Places selected and reached names first; crowded names remain available on demand. */
 export const placeZentrumSchematicLabels = (
   edges: readonly ZentrumSchematicEdge[],
   stopMarks: readonly ZentrumSchematicStopMark[],
@@ -178,6 +183,7 @@ export const placeZentrumSchematicLabels = (
   planWidth: number | undefined,
   hasTimes: ZentrumNameTime = false,
   priorityNodeIds?: ReadonlySet<string>,
+  selectedNodeId?: string,
 ): ReadonlyMap<string, ZentrumSchematicLabel> => {
   const width = planWidth ?? ZENTRUM_SCHEMATIC_VIEWBOX.width;
   const unitsPerPixel = ZENTRUM_SCHEMATIC_VIEWBOX.width / width;
@@ -238,10 +244,14 @@ export const placeZentrumSchematicLabels = (
     const freeByName = waiting.map(({ candidates }) =>
       candidates.filter((candidate) => getCost(candidate) === 0),
     );
+    const selected = waiting.findIndex(({ nodeId }) => nodeId === selectedNodeId);
     const hasPriority = waiting.some(({ nodeId }) => priorityNodeIds?.has(nodeId));
-    const eligible = waiting.flatMap(({ nodeId }, index) =>
-      !hasPriority || priorityNodeIds?.has(nodeId) ? [index] : [],
-    );
+    const eligible =
+      selected >= 0
+        ? [selected]
+        : waiting.flatMap(({ nodeId }, index) =>
+            !hasPriority || priorityNodeIds?.has(nodeId) ? [index] : [],
+          );
     const next = getFirstLeast(
       eligible,
       (index) => freeByName[index].length || Number.POSITIVE_INFINITY,

@@ -8,6 +8,7 @@ import { useRunMotions } from "../../hooks/run-motions";
 import {
   type ZentrumSchematicLayout,
   createZentrumSchematicDrawer,
+  getZentrumSchematicBranchIdsOnPlan,
   getZentrumSchematicVehicles,
 } from "../../lib/zentrum-schematic";
 import {
@@ -31,6 +32,7 @@ import { ZentrumStopBar } from "./ZentrumStopBar";
 import { ZentrumStopSearch } from "./ZentrumStopSearch";
 import { ZentrumDestinationDetail } from "./ZentrumDestinationDetail";
 import { ZentrumVehicleDetail } from "./ZentrumVehicleDetail";
+import { ZentrumLoading } from "./ZentrumLoading";
 
 /** A German count, singular where it applies. */
 const formatCount = (count: number, one: string, many: string): string =>
@@ -77,8 +79,8 @@ export function ZentrumSchematic({
   runDepartures,
   stopBoard,
   feedNow,
+  isLoading,
   isFullscreen,
-  isStacked,
   locationNote,
   onSelectLine,
   onSelectStop,
@@ -96,6 +98,7 @@ export function ZentrumSchematic({
   /** The opened stop's own board, or null until it answers. */
   stopBoard: DepartureBoard | null;
   feedNow: number;
+  isLoading: boolean;
   /** Whether the plan fills the screen. */
   isFullscreen: boolean;
   /** Whether an opened panel stands under the plan rather than beside it. */
@@ -107,27 +110,46 @@ export function ZentrumSchematic({
   onChangeFullscreen: (isFullscreen: boolean) => void;
 }) {
   const [detailSelection, setDetailSelection] = useState<ZentrumDetailSelection>();
+  const [hoveredLineIds, setHoveredLineIds] = useState<readonly string[]>([]);
   const selectedVehicleId =
     detailSelection?.kind === "vehicle" ? detailSelection.vehicleId : undefined;
   const [stopReading, setStopReading] = useState<ZentrumStopReading>("destinations");
   const plan = useZentrumPlanCanvas();
   const options = useStoredPreference(zentrumPlanOptions);
-  const stopPanelState =
-    useStoredPreference(zentrumStopPanelState) ?? (isStacked ? "expanded" : "collapsed");
+  const stopPanelState = useStoredPreference(zentrumStopPanelState) ?? "expanded";
   const [panelEntranceMotion, setPanelEntranceMotion] =
     useState<ZentrumPanelEntranceMotion>("slide");
-  // The lane width follows the plan's on-screen size.
+  // The lane width follows the plan's on-screen size; a line's branch is drawn while its tram is on
+  // the plan. The drawer returns the same reading until either changes.
   const [drawSchematic] = useState(createZentrumSchematicDrawer);
   const schematic = useMemo(
-    () => drawSchematic(layout, plan.planWidth),
-    [drawSchematic, layout, plan.planWidth],
+    () =>
+      drawSchematic(
+        layout,
+        plan.planWidth,
+        getZentrumSchematicBranchIdsOnPlan(layout, runDepartures, feedNow),
+      ),
+    [drawSchematic, layout, plan.planWidth, runDepartures, feedNow],
   );
+  const [hasPlacedVehicles, setHasPlacedVehicles] = useState(false);
+  useEffect(() => {
+    if (hasPlacedVehicles || isLoading || plan.planWidth === undefined) return;
+    // The measured lines must paint before the first vehicle layer appears.
+    let frame = window.requestAnimationFrame(() => {
+      frame = window.requestAnimationFrame(() => setHasPlacedVehicles(true));
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [hasPlacedVehicles, isLoading, plan.planWidth, schematic]);
+  const isPreparingVehicles = !hasPlacedVehicles;
   // Mark motion, shared with every view. Placed once per tick, so other renders re-place nothing.
   const motions = useRunMotions();
   const turnarounds = useMemo(() => findTurnarounds(runDepartures), [runDepartures]);
   const vehicles = useMemo(
-    () => getZentrumSchematicVehicles(schematic, runDepartures, feedNow, motions, turnarounds),
-    [schematic, runDepartures, feedNow, motions, turnarounds],
+    () =>
+      isPreparingVehicles
+        ? []
+        : getZentrumSchematicVehicles(schematic, runDepartures, feedNow, motions, turnarounds),
+    [isPreparingVehicles, schematic, runDepartures, feedNow, motions, turnarounds],
   );
 
   // Escape leaves full screen; back does too, since size is in the address.
@@ -243,6 +265,7 @@ export function ZentrumSchematic({
     />
   ) : selectedDestination && selectedStop ? (
     <ZentrumDestinationDetail
+      key={`${selectedStop.id}:${selectedDestination.nodeId}`}
       originStopId={selectedStop.id}
       originStopLabel={selectedStop.label}
       reachableStop={selectedDestination}
@@ -265,6 +288,7 @@ export function ZentrumSchematic({
       board={stopBoard}
       reachableStops={stopView.reachableStops}
       travelMeasure={options.travelMeasure}
+      isLoading={isLoading}
       selectedVehicleId={selectedVehicleId}
       onSelectVehicle={toggleVehicle}
       onSelectDestination={selectDestination}
@@ -298,7 +322,9 @@ export function ZentrumSchematic({
           ? undefined
           : ({ "--zentrum-frame-height": `${plan.frameHeight}px` } as CSSProperties)
       }
+      data-pale-lines={options.paleLineStyle}
       aria-label="Schematischer Linienplan des Zentrums"
+      aria-busy={isPreparingVehicles}
     >
       <div className="zentrum-schematic-stage">
         <ZentrumSchematicCanvas
@@ -315,6 +341,8 @@ export function ZentrumSchematic({
           selectedVehicleId={selectedVehicleId}
           onSelectVehicle={toggleVehicle}
           onSelectStop={selectStop}
+          onSelectLine={selectLine}
+          onHoverLines={setHoveredLineIds}
           scrollRef={plan.scrollRef}
           zoom={plan.zoom}
           planWidth={plan.planWidth}
@@ -336,10 +364,15 @@ export function ZentrumSchematic({
           onFitWholePlan={plan.fitWholePlan}
         />
         {ARE_OTHER_EXPERIMENT_MAPS_SHOWN && <ExperimentMapSwitch map="center" />}
+        {isPreparingVehicles && <ZentrumLoading />}
       </div>
       <ZentrumSchematicToolbar
         caption={
-          locationNote ??
+          (isPreparingVehicles
+            ? schematic.lineIds.length === 0
+              ? "Linien werden aufgebaut …"
+              : "Fahrten werden ergänzt …"
+            : locationNote) ??
           getZentrumSchematicCaption(
             selectedLineId,
             followedVehicleCount,
@@ -351,6 +384,7 @@ export function ZentrumSchematic({
         lineIds={schematic.lineIds}
         getSign={getSign}
         selectedLineId={selectedLineId}
+        hoveredLineIds={hoveredLineIds}
         onSelectLine={selectLine}
         stopBar={stopBar}
       />

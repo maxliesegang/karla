@@ -5,6 +5,7 @@ import {
   findZentrumBoardingDeparture,
   getZentrumBoardingPlatformLabel,
   getZentrumTravelSourceLabel,
+  getZentrumVehiclePlaceLabel,
 } from "../src/lib/zentrum-presentation.ts";
 import {
   getZentrumDirectRides,
@@ -30,6 +31,28 @@ const board = (stopId: string, minute: number): DepartureBoard => ({
   feedUpdatedAt: at(minute),
   dataStatus: "live",
   departures: [],
+});
+
+test("vehicle labels distinguish a stand, travel, and the end of a run", () => {
+  const vehicle = {
+    from: { id: "europaplatz", label: "Europaplatz", x: 0, y: 0 },
+    to: { id: "marktplatz", label: "Marktplatz", x: 100, y: 0 },
+    progress: 0,
+  };
+  assert.equal(getZentrumVehiclePlaceLabel(vehicle), "Hält an Europaplatz");
+  assert.equal(
+    getZentrumVehiclePlaceLabel({ ...vehicle, progress: 0.5 }),
+    "Zwischen Europaplatz und Marktplatz",
+  );
+  assert.equal(getZentrumVehiclePlaceLabel({ ...vehicle, progress: 1 }), "Hält an Marktplatz");
+  assert.equal(
+    getZentrumVehiclePlaceLabel({ ...vehicle, phase: "beforeStart" }),
+    "Steht an Europaplatz vor Abfahrt",
+  );
+  assert.equal(
+    getZentrumVehiclePlaceLabel({ ...vehicle, progress: 1, phase: "afterEnd" }),
+    "Steht an Marktplatz (Fahrt endet hier)",
+  );
 });
 
 test("an unmonitored arrival stays a timetable estimate even with a predicted departure", () => {

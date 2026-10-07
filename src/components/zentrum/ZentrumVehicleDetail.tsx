@@ -1,4 +1,5 @@
 import { getTripCallTimeReading } from "../../lib/departure-presentation";
+import { getZentrumVehiclePlaceLabel } from "../../lib/zentrum-presentation";
 import type { ZentrumSchematicVehicle } from "../../lib/zentrum-schematic";
 import {
   getZentrumSchematicStopId,
@@ -53,9 +54,7 @@ export function ZentrumVehicleDetail({
         </button>
       </div>
       <p className="zentrum-panel-note">
-        {isHolding
-          ? `Hält an ${vehicle.from.label}`
-          : `Zwischen ${vehicle.from.label} und ${vehicle.to.label}`}
+        {getZentrumVehiclePlaceLabel(vehicle)}
         {" · "}
         <span title="Aus den Zeiten an den Haltestellen geschätzt, kein GPS">
           Position geschätzt

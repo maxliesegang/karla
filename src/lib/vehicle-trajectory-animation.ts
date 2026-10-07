@@ -90,7 +90,11 @@ export function getTrajectoryKeyframes({
     ...boundaryProgressesWithin.map(findPassageTime),
     trajectory.arrivesAt,
   ]
-    .filter((instant) => instant >= animationStartsAt && instant <= trajectory.arrivesAt)
+    .filter(
+      (instant) =>
+        (instant === animationStartsAt || instant >= correctionEndsAt) &&
+        instant <= trajectory.arrivesAt,
+    )
     .sort((left, right) => left - right)
     .filter((instant, index, all) => index === 0 || instant !== all[index - 1]);
   return times.flatMap((instant, index) => {

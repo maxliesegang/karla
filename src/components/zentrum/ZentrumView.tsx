@@ -1,8 +1,9 @@
 import { getZentrumSchematicLineIdsByStopId } from "../../lib/zentrum-schematic-plan";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { DepartureBoard, DepartureBoardCoverage } from "../../data/transit-types";
+import type { Departure, DepartureBoard, DepartureBoardCoverage } from "../../data/transit-types";
 import { useDepartureBoard } from "../../hooks/departure-board";
 import type { NearbyStopsController } from "../../hooks/nearby-stops";
+import { useSteadyValue } from "../../hooks/steady-value";
 import { useNearestZentrumStopOpening } from "../../hooks/zentrum-nearest-stop";
 import { useZentrumVehicles } from "../../hooks/zentrum-vehicles";
 import type { ObservedNetwork } from "../../lib/observed-network";
@@ -12,30 +13,20 @@ import { ObservationEmptyState } from "../ObservationEmptyState";
 import { createZentrumLineSignReader } from "./line-sign";
 import { ZentrumSchematic } from "./ZentrumSchematic";
 
+/** How long a changed plan waits for further changes, and how often it may change at most. */
+const ZENTRUM_LAYOUT_PACE = { settleMs: 1_500, intervalMs: 15_000 };
+
 /** The page heading for screen readers. */
 const zentrumPageHeading = <h1 className="visually-hidden">Experimente: Zentrum-Plan</h1>;
 
 /** Shown while nothing is on the plan yet. */
 const zentrumEmptyLabels = {
-  loading: "Haltestellen werden geladen …",
+  loading: "Linien und Fahrten werden geladen …",
   unavailable: "Zentrum derzeit nicht abrufbar",
   empty: "Derzeit keine Fahrten beobachtet",
 };
 
-/**
- * The Zentrum's plan. Following a line is a selection on the one drawing (the rest recedes), not a
- * mode that swaps the drawing out.
- */
-export function ZentrumView({
-  network,
-  coverage,
-  departureBoards,
-  selectedLineId,
-  selectedStopId,
-  isFullscreen,
-  isStacked,
-  nearbyStops,
-}: {
+type ZentrumViewProps = {
   network: ObservedNetwork;
   /** How many observation posts this reading rests on. */
   coverage: DepartureBoardCoverage;
@@ -51,19 +42,64 @@ export function ZentrumView({
   isStacked: boolean;
   /** Where the rider stands, asked only when the plan is set to open at the nearest stop. */
   nearbyStops: NearbyStopsController;
-}) {
+};
+
+/** Lines appear first; vehicles wait for the initial readings and layout. */
+export function ZentrumView(props: ZentrumViewProps) {
+  const { network, coverage, departureBoards, selectedStopId } = props;
   const { board: openedStopBoard } = useDepartureBoard(selectedStopId);
   const evidenceBoards = useMemo(
     () => (openedStopBoard ? [...departureBoards, openedStopBoard] : departureBoards),
     [departureBoards, openedStopBoard],
   );
-  // Runs named by the posts, placed from their own readings; the set changes only as runs come and
-  // go.
-  const { runDepartures, feedNow } = useZentrumVehicles(evidenceBoards);
-  // The drawing reads the marks' runs, so a line keeps its lanes while any mark is on them. The
-  // reader keeps the last layout.
+  const { runDepartures, feedNow, isLoading } = useZentrumVehicles(evidenceBoards);
+  const isInitialLoading = coverage.status === "loading" || isLoading;
+  if (network.stops.length === 0 && !isInitialLoading) {
+    return (
+      <>
+        {zentrumPageHeading}
+        <ObservationEmptyState coverage={coverage} labels={zentrumEmptyLabels} />
+      </>
+    );
+  }
+  return (
+    <ZentrumPlan
+      {...props}
+      runDepartures={runDepartures}
+      feedNow={feedNow}
+      openedStopBoard={openedStopBoard}
+      isInitialLoading={isInitialLoading}
+    />
+  );
+}
+
+/** The first vehicles wait for the settled layout; later readings keep them visible. */
+function ZentrumPlan({
+  network,
+  selectedLineId,
+  selectedStopId,
+  isFullscreen,
+  isStacked,
+  nearbyStops,
+  runDepartures,
+  feedNow,
+  openedStopBoard,
+  isInitialLoading,
+}: ZentrumViewProps & {
+  runDepartures: readonly Departure[];
+  feedNow: number;
+  openedStopBoard: DepartureBoard | null;
+  isInitialLoading: boolean;
+}) {
+  const [hasLoaded, setHasLoaded] = useState(false);
   const [readSchematic] = useState(createZentrumSchematicReader);
-  const layout = useMemo(() => readSchematic(runDepartures), [readSchematic, runDepartures]);
+  const readLayout = useMemo(() => readSchematic(runDepartures), [readSchematic, runDepartures]);
+  const layout = useSteadyValue(readLayout, readLayout.layoutKey, {
+    ...ZENTRUM_LAYOUT_PACE,
+    intervalMs: hasLoaded ? ZENTRUM_LAYOUT_PACE.intervalMs : 0,
+  });
+  const isLoading = !hasLoaded && (isInitialLoading || layout.layoutKey !== readLayout.layoutKey);
+  if (!hasLoaded && !isLoading) setHasLoaded(true);
   // Mode-based signs for lines without a verified sign.
   const getSign = useMemo(() => createZentrumLineSignReader(network.lines), [network.lines]);
   // A followed line or opened stop leaves the address once nothing drawn names it, after the first
@@ -74,7 +110,7 @@ export function ZentrumView({
     [layout.lineIdsByNodeId],
   );
   const isStopObserved = selectedStopId === undefined || lineIdsByStopId.has(selectedStopId);
-  const isReadingAnswered = layout.lineIds.length > 0;
+  const isReadingAnswered = !isLoading && layout.lineIds.length > 0;
   useEffect(() => {
     if ((!isLineObserved || !isStopObserved) && isReadingAnswered) {
       replaceCurrentRoute(routePaths.zentrum({}, isFullscreen));
@@ -86,7 +122,7 @@ export function ZentrumView({
   );
   const locationNote = useNearestZentrumStopOpening(
     nearbyStops,
-    lineIdsByStopId,
+    isLoading ? new Map() : lineIdsByStopId,
     selectedLineId !== undefined || selectedStopId !== undefined,
     openNearestStop,
   );
@@ -108,15 +144,6 @@ export function ZentrumView({
       navigateTo(routePaths.zentrum({ lineId: followedLineId, stopId: openedStopId }, next)),
     [followedLineId, openedStopId],
   );
-  if (network.stops.length === 0) {
-    return (
-      <>
-        {zentrumPageHeading}
-        <ObservationEmptyState coverage={coverage} labels={zentrumEmptyLabels} />
-      </>
-    );
-  }
-
   return (
     <>
       {zentrumPageHeading}
@@ -128,6 +155,7 @@ export function ZentrumView({
         runDepartures={runDepartures}
         stopBoard={openedStopBoard}
         feedNow={feedNow}
+        isLoading={isLoading}
         isFullscreen={isFullscreen}
         isStacked={isStacked}
         locationNote={locationNote}

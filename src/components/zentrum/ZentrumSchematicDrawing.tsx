@@ -1,5 +1,6 @@
-import { type CSSProperties, type SVGProps, memo } from "react";
+import { type CSSProperties, type SVGProps, memo, useId, useMemo } from "react";
 import type { TransitLine } from "../../data/transit-types";
+import { getPlanLineTone, needsLineOutline } from "../../data/line-signs";
 import {
   getZentrumSchematicStopId,
   ZENTRUM_SCHEMATIC_VIEWBOX,
@@ -24,7 +25,8 @@ import {
 export type ZentrumSchematicDrawnLinePath = ZentrumSchematicDrawnPath & { sign: TransitLine };
 
 /** A lit stretch's key, so its dash can follow its mark's animation. */
-export const getZentrumLitStretchKey = (markerKey: string): string => `stretch:${markerKey}`;
+export const getZentrumLitStretchKey = (markerKey: string, foregroundPathId?: string): string =>
+  `stretch:${markerKey}${foregroundPathId === undefined ? "" : `:foreground:${encodeURIComponent(foregroundPathId)}`}`;
 
 /** The dash offset lighting a `pathLength="1"` stretch from `progress` to `end`. */
 export const getZentrumLitStretchOffset = (progress: number, end: number): string =>
@@ -40,29 +42,77 @@ const getDimmedAttribute = (
     : undefined;
 
 const getLineColorStyle = (linePath: ZentrumSchematicDrawnLinePath) =>
-  ({ "--zentrum-line-color": linePath.sign.color }) as CSSProperties;
+  ({
+    "--zentrum-line-color": linePath.sign.color,
+    "--zentrum-line-tone": getPlanLineTone(linePath.sign.color),
+  }) as CSSProperties;
 
-/** A track stroke with a surface-colored gap at crossings; dimmed tracks leave no gap. */
+/** A lane with crossing clearance and a fine edge for pale colors. */
 function ZentrumTrackStroke({
   isStretch,
+  borderMask,
+  clipPath,
+  "data-dimmed": dimmed,
   ...stroke
 }: Omit<SVGProps<SVGPathElement>, "className"> & {
   "data-dimmed"?: "true";
   /** A stretch lit to its mark, dashed by its group's animated offset. */
   isStretch?: boolean;
+  borderMask?: string;
+  "data-trace"?: "true";
+  "data-unlit-style"?: ZentrumPlanOptions["unlitLineStyle"];
 }) {
   const dash = isStretch
     ? ({ pathLength: 1, strokeDasharray: "1 2", "data-stretch": "true" } as const)
     : undefined;
+  const solid = !stroke["data-trace"] && !stroke["data-unlit-style"];
+  const outlined = solid && typeof stroke.stroke === "string" && needsLineOutline(stroke.stroke);
   return (
-    <>
-      {!stroke["data-dimmed"] && (
-        <path className="zentrum-schematic-network-track-gap" d={stroke.d} {...dash} />
+    <g className="zentrum-schematic-network-track" data-dimmed={dimmed} clipPath={clipPath}>
+      {solid && !dimmed && (
+        <path
+          className="zentrum-schematic-network-track-gap"
+          d={stroke.d}
+          mask={borderMask}
+          {...dash}
+        />
       )}
-      <path className="zentrum-schematic-network-track-color" {...stroke} {...dash} />
-    </>
+      {outlined && (
+        <path
+          className="zentrum-schematic-network-track-outline"
+          mask={borderMask}
+          {...stroke}
+          {...dash}
+        />
+      )}
+      <path
+        className="zentrum-schematic-network-track-color"
+        data-pale={outlined ? "true" : undefined}
+        {...stroke}
+        {...dash}
+      />
+    </g>
   );
 }
+
+/** Borders stay outside the fill, combined where branches share a drawn track and color. */
+const getBorderMasks = (paths: readonly ZentrumSchematicDrawnLinePath[], prefix: string) => {
+  const byTrack = new Map<string, ZentrumSchematicDrawnLinePath[]>();
+  for (const path of paths) {
+    const key = `${path.trackId}\u0000${path.sign.color}`;
+    const group = byTrack.get(key) ?? [];
+    group.push(path);
+    byTrack.set(key, group);
+  }
+  return [...byTrack.values()]
+    .filter((group) => group.length > 1 || group.some((path) => path.foregroundRegions.length > 0))
+    .map((group, index) => ({
+      id: `${prefix}-merge-${index}`,
+      paths: group,
+      data: group.map((path) => path.data).join(" "),
+      pale: needsLineOutline(group[0].sign.color),
+    }));
+};
 
 /**
  * Corridors a line is lit along that its drawn pattern does not run (an S8 via the Hauptbahnhof),
@@ -108,6 +158,9 @@ export function ZentrumSchematicDrawing({
   overlay,
   unlitLineStyle = "trace",
   trackWidth,
+  selectedLineId,
+  onSelectLine,
+  onHoverLines,
 }: {
   drawnLinePaths: readonly ZentrumSchematicDrawnLinePath[];
   stopMarks: readonly ZentrumSchematicStopMark[];
@@ -121,9 +174,55 @@ export function ZentrumSchematicDrawing({
   unlitLineStyle?: ZentrumPlanOptions["unlitLineStyle"];
   /** The lane width, which is also the lane pitch. */
   trackWidth: number;
+  selectedLineId?: string;
+  onSelectLine: (lineId: string | undefined) => void;
+  onHoverLines: (lineIds: readonly string[]) => void;
 }) {
-  // Stroke width must equal lane pitch for colours to meet. Lengths are px (user units in the SVG):
-  // Firefox drops a unitless calc() as a stroke width.
+  const maskPrefix = useId().replace(/[^a-zA-Z0-9_-]/g, "");
+  const borderMasks = useMemo(
+    () => getBorderMasks(drawnLinePaths, maskPrefix),
+    [drawnLinePaths, maskPrefix],
+  );
+  const borderMaskByPathId = useMemo(
+    () =>
+      new Map(
+        borderMasks
+          .filter((mask) => mask.paths.length > 1)
+          .flatMap((mask) => mask.paths.map((path) => [path.id, `url(#${mask.id})`] as const)),
+      ),
+    [borderMasks],
+  );
+  // Foreground borders exclude the existing fill to keep clip edges invisible.
+  const foregroundBorderMaskByPathId = useMemo(
+    () =>
+      new Map(
+        borderMasks.flatMap((mask) =>
+          mask.paths.map((path) => [path.id, `url(#${mask.id})`] as const),
+        ),
+      ),
+    [borderMasks],
+  );
+  const foregroundClips = useMemo(
+    () =>
+      drawnLinePaths
+        .filter((path) => path.foregroundRegions.length > 0)
+        .map((path, index) => ({
+          id: `${maskPrefix}-turn-${index}`,
+          path,
+        })),
+    [drawnLinePaths, maskPrefix],
+  );
+  const foregroundClipByPathId = useMemo(
+    () => new Map(foregroundClips.map(({ id, path }) => [path.id, `url(#${id})`])),
+    [foregroundClips],
+  );
+  const maskBox = {
+    x: ZENTRUM_SCHEMATIC_VIEWBOX.x - 50,
+    y: ZENTRUM_SCHEMATIC_VIEWBOX.y - 50,
+    width: ZENTRUM_SCHEMATIC_VIEWBOX.width + 100,
+    height: ZENTRUM_SCHEMATIC_VIEWBOX.height + 100,
+  };
+  // Firefox requires lengths in px for calc() stroke widths inside the SVG.
   const lanes = (count: number) => `${trackWidth * count}px`;
   const trackStyle = {
     "--zentrum-schematic-track-width": lanes(1),
@@ -131,6 +230,8 @@ export function ZentrumSchematicDrawing({
     "--zentrum-stop-capsule-fill": lanes(
       ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH * ZENTRUM_SCHEMATIC_STOP_CAPSULE_FILL,
     ),
+    "--zentrum-stop-selection-ring-width": lanes(ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH + 1),
+    "--zentrum-stop-selection-gap-width": lanes(ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH + 0.55),
     "--zentrum-stop-link-width": lanes(ZENTRUM_SCHEMATIC_STOP_LINK_WIDTH),
     "--zentrum-stop-link-pitch": lanes(ZENTRUM_SCHEMATIC_STOP_LINK_PITCH),
   } as CSSProperties;
@@ -138,23 +239,98 @@ export function ZentrumSchematicDrawing({
     <svg
       viewBox={`${ZENTRUM_SCHEMATIC_VIEWBOX.x} ${ZENTRUM_SCHEMATIC_VIEWBOX.y} ${ZENTRUM_SCHEMATIC_VIEWBOX.width} ${ZENTRUM_SCHEMATIC_VIEWBOX.height}`}
       style={trackStyle}
-      aria-hidden="true"
-      focusable="false"
+      aria-label="Linien im Plan"
     >
-      <ZentrumSchematicTracks
-        drawnLinePaths={drawnLinePaths}
-        highlightedLineIds={highlightedLineIds}
-        hasOverlay={overlay !== undefined}
-        unlitLineStyle={unlitLineStyle}
-      />
-      {overlay && (
-        <ZentrumSchematicLitLayer
+      {(borderMasks.length > 0 || foregroundClips.length > 0) && (
+        <defs>
+          {foregroundClips.map(({ id, path }) => (
+            <clipPath key={id} id={id}>
+              {path.foregroundRegions.map((turn, index) => (
+                <rect key={index} {...turn} />
+              ))}
+            </clipPath>
+          ))}
+          {borderMasks.map((mask) => (
+            <mask key={mask.id} id={mask.id} maskUnits="userSpaceOnUse" {...maskBox}>
+              <rect {...maskBox} fill="white" />
+              <path
+                className="zentrum-schematic-merge-mask"
+                d={mask.data}
+                data-pale={mask.pale ? "true" : undefined}
+              />
+            </mask>
+          ))}
+        </defs>
+      )}
+      <g aria-hidden="true" pointerEvents="none">
+        <ZentrumSchematicTracks
           drawnLinePaths={drawnLinePaths}
           highlightedLineIds={highlightedLineIds}
-          overlay={overlay}
+          hasOverlay={overlay !== undefined}
+          unlitLineStyle={unlitLineStyle}
+          borderMaskByPathId={borderMaskByPathId}
         />
-      )}
-      <ZentrumSchematicStopMarks stopMarks={stopMarks} selectedStopId={selectedStopId} />
+        {!overlay && (
+          <ZentrumSchematicTracks
+            drawnLinePaths={drawnLinePaths}
+            highlightedLineIds={highlightedLineIds}
+            hasOverlay={false}
+            unlitLineStyle={unlitLineStyle}
+            borderMaskByPathId={foregroundBorderMaskByPathId}
+            foregroundClipByPathId={foregroundClipByPathId}
+          />
+        )}
+        {overlay && (
+          <ZentrumSchematicLitLayer
+            drawnLinePaths={drawnLinePaths}
+            highlightedLineIds={highlightedLineIds}
+            overlay={overlay}
+            borderMaskByPathId={borderMaskByPathId}
+          />
+        )}
+        {overlay && (
+          <ZentrumSchematicLitLayer
+            drawnLinePaths={drawnLinePaths}
+            highlightedLineIds={highlightedLineIds}
+            overlay={overlay}
+            foregroundClipByPathId={foregroundClipByPathId}
+            borderMaskByPathId={foregroundBorderMaskByPathId}
+          />
+        )}
+        <ZentrumSchematicStopMarks stopMarks={stopMarks} selectedStopId={selectedStopId} />
+      </g>
+      <g className="zentrum-schematic-line-targets" onMouseLeave={() => onHoverLines([])}>
+        {drawnLinePaths.map((linePath) => {
+          const lineId =
+            selectedLineId !== undefined && linePath.lineIds.includes(selectedLineId)
+              ? selectedLineId
+              : linePath.lineId;
+          const isSelected = selectedLineId === lineId;
+          const toggleLine = () => onSelectLine(isSelected ? undefined : lineId);
+          return (
+            <path
+              key={linePath.id}
+              d={linePath.data}
+              role="button"
+              tabIndex={0}
+              aria-label={
+                isSelected ? `Linie ${lineId} nicht mehr verfolgen` : `Linie ${lineId} verfolgen`
+              }
+              aria-pressed={isSelected}
+              onMouseEnter={() => onHoverLines(linePath.lineIds)}
+              onMouseLeave={() => onHoverLines([])}
+              onFocus={() => onHoverLines(linePath.lineIds)}
+              onBlur={() => onHoverLines([])}
+              onClick={toggleLine}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" && event.key !== " ") return;
+                event.preventDefault();
+                toggleLine();
+              }}
+            />
+          );
+        })}
+      </g>
     </svg>
   );
 }
@@ -165,29 +341,30 @@ const ZentrumSchematicTracks = memo(function ZentrumSchematicTracks({
   highlightedLineIds,
   hasOverlay,
   unlitLineStyle,
+  borderMaskByPathId,
+  foregroundClipByPathId,
 }: {
   drawnLinePaths: readonly ZentrumSchematicDrawnLinePath[];
   highlightedLineIds?: ReadonlySet<string>;
   hasOverlay: boolean;
   unlitLineStyle: ZentrumPlanOptions["unlitLineStyle"];
+  borderMaskByPathId: ReadonlyMap<string, string>;
+  foregroundClipByPathId?: ReadonlyMap<string, string>;
 }) {
   return (
     <g>
-      {drawnLinePaths.map((linePath) => (
-        <path
-          key={`casing:${linePath.id}`}
-          className="zentrum-schematic-network-track-casing"
-          d={linePath.data}
-        />
-      ))}
       {drawnLinePaths.map((linePath) => {
         const dimmedAttribute = getDimmedAttribute(highlightedLineIds, linePath.lineIds);
+        const clipPath = foregroundClipByPathId?.get(linePath.id);
+        if (foregroundClipByPathId && (!clipPath || dimmedAttribute)) return null;
         const usesUnlitLineStyle = hasOverlay && unlitLineStyle !== "trace" && !dimmedAttribute;
         const isGrayTrace = hasOverlay && !usesUnlitLineStyle;
         return (
           <ZentrumTrackStroke
             key={`base:${linePath.id}`}
             d={linePath.data}
+            borderMask={borderMaskByPathId.get(linePath.id)}
+            clipPath={clipPath}
             stroke={isGrayTrace ? undefined : linePath.sign.color}
             style={getLineColorStyle(linePath)}
             data-trace={isGrayTrace ? "true" : undefined}
@@ -205,14 +382,24 @@ function ZentrumSchematicLitLayer({
   drawnLinePaths,
   highlightedLineIds,
   overlay,
+  borderMaskByPathId,
+  foregroundClipByPathId,
 }: {
   drawnLinePaths: readonly ZentrumSchematicDrawnLinePath[];
   highlightedLineIds?: ReadonlySet<string>;
   overlay: ZentrumSchematicOverlay;
+  borderMaskByPathId: ReadonlyMap<string, string>;
+  foregroundClipByPathId?: ReadonlyMap<string, string>;
 }) {
   return (
     <g>
       {drawnLinePaths.flatMap((linePath) => {
+        const clipPath = foregroundClipByPathId?.get(linePath.id);
+        if (
+          foregroundClipByPathId &&
+          (!clipPath || getDimmedAttribute(highlightedLineIds, linePath.lineIds))
+        )
+          return [];
         // A trunk and its branches share one path, lit wherever any of them is.
         const litCorridorIds = new Set(
           linePath.lineIds.flatMap((lineId) => [
@@ -227,6 +414,8 @@ function ZentrumSchematicLitLayer({
               <ZentrumTrackStroke
                 key={`lit:${linePath.id}:${segment.corridorId}`}
                 d={segment.data}
+                borderMask={borderMaskByPathId.get(linePath.id)}
+                clipPath={clipPath}
                 stroke={linePath.sign.color}
                 style={getLineColorStyle(linePath)}
                 data-dimmed={getDimmedAttribute(highlightedLineIds, linePath.lineIds)}
@@ -244,8 +433,13 @@ function ZentrumSchematicLitLayer({
             }
             const data = getZentrumSchematicVehiclePathData(vehicle.path, 0, end);
             if (!data) return [];
-            const key = getZentrumLitStretchKey(vehicle.markerKey ?? vehicle.id);
-            // The offset is set on the group, which the gap and the colour both inherit.
+            if (foregroundClipByPathId && getDimmedAttribute(highlightedLineIds, [vehicle.lineId]))
+              return [];
+            const key = getZentrumLitStretchKey(
+              vehicle.markerKey ?? vehicle.id,
+              foregroundClipByPathId ? linePath.id : undefined,
+            );
+            // The animated lane inherits its dash offset from the group.
             return [
               <g
                 key={key}
@@ -255,6 +449,8 @@ function ZentrumSchematicLitLayer({
                 <ZentrumTrackStroke
                   d={data}
                   isStretch
+                  borderMask={borderMaskByPathId.get(linePath.id)}
+                  clipPath={clipPath}
                   stroke={linePath.sign.color}
                   style={getLineColorStyle(linePath)}
                   data-dimmed={getDimmedAttribute(highlightedLineIds, [vehicle.lineId])}
@@ -264,15 +460,24 @@ function ZentrumSchematicLitLayer({
           }),
         ];
       })}
-      {getStrayLitSegments(drawnLinePaths, overlay).map(({ lineId, linePath, segment }) => (
-        <ZentrumTrackStroke
-          key={`stray:${lineId}:${segment.corridorId}`}
-          d={segment.data}
-          stroke={linePath.sign.color}
-          style={getLineColorStyle(linePath)}
-          data-dimmed={getDimmedAttribute(highlightedLineIds, [lineId])}
-        />
-      ))}
+      {getStrayLitSegments(drawnLinePaths, overlay).flatMap(({ lineId, linePath, segment }) => {
+        const clipPath = foregroundClipByPathId?.get(linePath.id);
+        if (
+          foregroundClipByPathId &&
+          (!clipPath || getDimmedAttribute(highlightedLineIds, [lineId]))
+        )
+          return [];
+        return [
+          <ZentrumTrackStroke
+            key={`stray:${lineId}:${segment.corridorId}`}
+            d={segment.data}
+            clipPath={clipPath}
+            stroke={linePath.sign.color}
+            style={getLineColorStyle(linePath)}
+            data-dimmed={getDimmedAttribute(highlightedLineIds, [lineId])}
+          />,
+        ];
+      })}
     </g>
   );
 }
@@ -294,6 +499,7 @@ const ZentrumSchematicStopMarks = memo(function ZentrumSchematicStopMarks({
     links: getZentrumSchematicStrokeData(mark.links),
     isSelected: getZentrumSchematicStopId(mark.nodeId) === selectedStopId ? "true" : undefined,
   }));
+  const selectedMarks = marks.filter((mark) => mark.isSelected);
   return (
     <g>
       {marks.map(({ nodeId, links }) =>
@@ -301,6 +507,16 @@ const ZentrumSchematicStopMarks = memo(function ZentrumSchematicStopMarks({
           <path key={`link:${nodeId}`} className="zentrum-schematic-stop-link" d={links} />
         ) : null,
       )}
+      {selectedMarks.map(({ nodeId, capsules }) => (
+        <path
+          key={`ring:${nodeId}`}
+          className="zentrum-schematic-stop-selection-ring"
+          d={capsules}
+        />
+      ))}
+      {selectedMarks.map(({ nodeId, capsules }) => (
+        <path key={`gap:${nodeId}`} className="zentrum-schematic-stop-selection-gap" d={capsules} />
+      ))}
       {marks.map(({ nodeId, capsules }) => (
         <path
           key={`casing:${nodeId}`}

@@ -6,6 +6,7 @@ import {
   getTrajectoryKeyframes,
   isCorrectivePlacement,
   PLACEMENT_CORRECTION_MAX_LINKS,
+  TRAJECTORY_CORRECTION_MS,
 } from "../src/lib/vehicle-trajectory-animation.ts";
 
 const start = Date.parse("2026-08-23T10:00:00Z");
@@ -79,6 +80,25 @@ test("a replan starts from the paint the mark already carries", () => {
   assert.deepEqual(
     [...offsets].sort((a, b) => a - b),
     offsets,
+  );
+});
+
+test("a replan lets the trajectory catch the paint before resuming its samples", () => {
+  const animationStartsAt = start + 20_000;
+  const paintedProgress = 0.36;
+  const keyframes = getTrajectoryKeyframes({
+    trajectory,
+    animationStartsAt,
+    getValue,
+    paintedValue: getValue(paintedProgress),
+    boundaryProgresses: [0.35, 0.375, 0.5],
+  });
+  const correctionOffset = TRAJECTORY_CORRECTION_MS / (trajectory.arrivesAt - animationStartsAt);
+  assert.equal(keyframes[1]?.offset, correctionOffset);
+  const progresses = keyframes.map(({ value }) => readProgress(value));
+  assert.deepEqual(
+    progresses,
+    [...progresses].sort((a, b) => a - b),
   );
 });
 

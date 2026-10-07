@@ -27,6 +27,7 @@ import type { ZentrumPlanOptions } from "../../lib/zentrum-plan-options";
 import type { ZentrumSchematicOverlay } from "../../lib/zentrum-schematic-overlays";
 import type { ZentrumStopTravelTag } from "../../lib/zentrum-stop-view";
 import type { ZentrumLineSignReader } from "./line-sign";
+import { getZentrumVehiclePlaceLabel } from "../../lib/zentrum-presentation";
 import {
   ZentrumSchematicDrawing,
   getZentrumLitStretchKey,
@@ -69,6 +70,8 @@ export function ZentrumSchematicCanvas({
   selectedVehicleId,
   onSelectVehicle,
   onSelectStop,
+  onSelectLine,
+  onHoverLines,
   scrollRef,
   zoom,
   planWidth,
@@ -93,6 +96,8 @@ export function ZentrumSchematicCanvas({
   selectedVehicleId?: string;
   onSelectVehicle: (vehicleId: string) => void;
   onSelectStop: (stationId: string) => void;
+  onSelectLine: (lineId: string | undefined) => void;
+  onHoverLines: (lineIds: readonly string[]) => void;
   scrollRef: RefObject<HTMLDivElement | null>;
   zoom: number;
   planWidth: number | undefined;
@@ -114,8 +119,9 @@ export function ZentrumSchematicCanvas({
         planWidth,
         hasTimes,
         stopMinutesByNodeId ? new Set(stopMinutesByNodeId.keys()) : undefined,
+        selectedStopId,
       ),
-    [edges, stopMarks, trackWidth, planWidth, hasTimes, stopMinutesByNodeId],
+    [edges, stopMarks, trackWidth, planWidth, hasTimes, stopMinutesByNodeId, selectedStopId],
   );
   const canvasRef = useRef<HTMLDivElement>(null);
 
@@ -155,9 +161,8 @@ export function ZentrumSchematicCanvas({
     [schematic.drawnPaths, getSign],
   );
 
-  // One Web Animation per link, in container units, so zoom and resize keep it; a changed layout or
-  // fit restarts them.
-  const geometrySignature = `${planWidth ?? zoom}|${schematic.layoutKey}`;
+  // Path keys carry lane geometry; only a resize invalidates every mark's painted coordinates.
+  const geometrySignature = `${planWidth ?? zoom}`;
   const vehicleMarks: ZentrumVehicleMark[] = vehicles.map((vehicle) => ({
     ...vehicle,
     key: getMarkerKey(vehicle),
@@ -171,13 +176,30 @@ export function ZentrumSchematicCanvas({
     getBoundaryProgresses: getBendProgresses,
   });
   // A lit stretch uses its mark's keyframes, so the colour ends at the mark.
-  const stretchMarks: ZentrumLitStretchMark[] = (overlay?.stretches ?? []).map(
-    ({ vehicle, end }) => ({
-      ...vehicle,
-      end,
-      key: getZentrumLitStretchKey(getMarkerKey(vehicle)),
-      linkKey: `${getLinkKey(vehicle)}:${end}`,
-    }),
+  const foregroundPaths = schematic.drawnPaths.filter((path) => path.foregroundRegions.length > 0);
+  const stretchMarks: ZentrumLitStretchMark[] = (overlay?.stretches ?? []).flatMap(
+    ({ vehicle, end }) => {
+      const foregroundPathIds =
+        highlightedLineIds === undefined || highlightedLineIds.has(vehicle.lineId)
+          ? foregroundPaths
+              .filter(
+                (path) =>
+                  path.lineIds.includes(vehicle.lineId) &&
+                  path.segments.some((segment) =>
+                    vehicle.path.corridorRanges.some(
+                      (range) => range.corridorId === segment.corridorId,
+                    ),
+                  ),
+              )
+              .map((path) => path.id)
+          : [];
+      return [undefined, ...foregroundPathIds].map((foregroundPathId) => ({
+        ...vehicle,
+        end,
+        key: getZentrumLitStretchKey(getMarkerKey(vehicle), foregroundPathId),
+        linkKey: `${getLinkKey(vehicle)}:${end}`,
+      }));
+    },
   );
   useVehicleTrajectoryAnimations({
     container: canvasRef,
@@ -193,10 +215,13 @@ export function ZentrumSchematicCanvas({
       <div
         className="zentrum-schematic-canvas"
         ref={canvasRef}
-        style={{
-          aspectRatio: `${ZENTRUM_SCHEMATIC_VIEWBOX.width} / ${ZENTRUM_SCHEMATIC_VIEWBOX.height}`,
-          width: planWidth === undefined ? `${zoom * 100}%` : `${planWidth}px`,
-        }}
+        style={
+          {
+            aspectRatio: `${ZENTRUM_SCHEMATIC_VIEWBOX.width} / ${ZENTRUM_SCHEMATIC_VIEWBOX.height}`,
+            width: planWidth === undefined ? `${zoom * 100}%` : `${planWidth}px`,
+            "--zentrum-vehicle-size": toZentrumCanvasRun(trackWidth * 2.5),
+          } as CSSProperties
+        }
       >
         <ZentrumSchematicDrawing
           drawnLinePaths={drawnLinePaths}
@@ -206,6 +231,9 @@ export function ZentrumSchematicCanvas({
           overlay={overlay}
           unlitLineStyle={unlitLineStyle}
           trackWidth={schematic.trackWidth}
+          selectedLineId={selectedLineId}
+          onSelectLine={onSelectLine}
+          onHoverLines={onHoverLines}
         />
 
         <ZentrumSchematicStops
@@ -259,14 +287,6 @@ const getVehicleDimming = (
   return vehicleMinutesById !== undefined && minutes === undefined ? "dimmed" : undefined;
 };
 
-/** Where a vehicle is, in words, for the mark's label. */
-const describeVehiclePlace = ({ phase, from, to }: ZentrumSchematicVehicle): string => {
-  if (phase === "beforeStart") return `steht an ${from.label} vor Abfahrt`;
-  if (phase === "afterEnd") return `steht an ${to.label} (Fahrt endet hier)`;
-  if (from.id === to.id) return `hält an ${from.label}`;
-  return `geschätzt zwischen ${from.label} und ${to.label}`;
-};
-
 /** One tram on the plan, with the countdown the opened stop reads for it. */
 function ZentrumSchematicVehicleMark({
   vehicle,
@@ -286,7 +306,7 @@ function ZentrumSchematicVehicleMark({
 }) {
   const sign = getSign(vehicle.lineId);
   const countdown = minutes === undefined ? undefined : minutes <= 0 ? "jetzt" : `${minutes} min`;
-  const place = describeVehiclePlace(vehicle);
+  const place = getZentrumVehiclePlaceLabel(vehicle);
   // One transform in container units for paint and keyframes, so handovers are seamless.
   const style = {
     transform: getZentrumVehicleTransform(vehicle.path, vehicle.progress),
@@ -303,8 +323,8 @@ function ZentrumSchematicVehicleMark({
       data-dimmed={dimming === "dimmed" ? "true" : undefined}
       data-departed={dimming === "departed" ? "true" : undefined}
       style={style}
-      title={`Linie ${vehicle.lineId} nach ${vehicle.destination}; ${place}`}
-      aria-label={`Linie ${vehicle.lineId} nach ${vehicle.destination}, ${place}${countdown ? `, fährt an der Haltestelle ${countdown === "jetzt" ? "jetzt" : `in ${countdown}`}` : ""}`}
+      title={`Linie ${vehicle.lineId} nach ${vehicle.destination}; ${place}; Position geschätzt`}
+      aria-label={`Linie ${vehicle.lineId} nach ${vehicle.destination}, ${place}, Position geschätzt${countdown ? `, fährt an der Haltestelle ${countdown === "jetzt" ? "jetzt" : `in ${countdown}`}` : ""}`}
       aria-expanded={isSelected}
       aria-controls={isSelected ? "zentrum-vehicle-detail" : undefined}
       onClick={() => onSelect(vehicle.id)}
