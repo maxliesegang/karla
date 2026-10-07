@@ -57,10 +57,19 @@ export const ExperimentMapCanvas = memo(function ExperimentMapCanvas({
   const points = network.stops;
   const layout = useMemo(() => createExperimentMapLayout(network), [network]);
   const { linkById, runBearingByStopId } = layout;
+  const labelNow = times ? feedNow : 0;
   const { labels, placeLabels, litLineIdsByLinkId } = useMemo(
     () =>
-      layout.readLabels({ bounds, scale, places, times, feedNow, selectedStopId, quietStopIds }),
-    [layout, bounds, scale, places, times, feedNow, selectedStopId, quietStopIds],
+      layout.readLabels({
+        bounds,
+        scale,
+        places,
+        times,
+        feedNow: labelNow,
+        selectedStopId,
+        quietStopIds,
+      }),
+    [layout, bounds, scale, places, times, labelNow, selectedStopId, quietStopIds],
   );
   const toPixels = (point: { x: number; y: number }) =>
     scale === undefined

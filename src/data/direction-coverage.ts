@@ -6,6 +6,7 @@ import type {
 } from "./transit-types";
 import { createRunCollector, isDepartureWithin } from "./departure-runs";
 import { sortDeparturesByExpectedInstant } from "../lib/departure-order";
+import { ReadingCache } from "./reading-cache";
 
 /** One supplement serves every sparse direction, so it gets more rows. */
 const DIRECTION_SUPPLEMENT_LIMIT = 40;
@@ -16,6 +17,8 @@ const DIRECTION_SUPPLEMENT_LIMIT = 40;
 const MAX_DIRECTION_SUPPLEMENT_PASSES = 3;
 /** How long a supplement stands: an hourly bus found once still leaves at the same minute. */
 const DIRECTION_SUPPLEMENT_TTL_MS = 5 * 60_000;
+const DIRECTION_CACHE_CAPACITY = 256;
+const SERVING_DIRECTIONS_MAX_AGE_MS = 30 * 60_000;
 const DEFAULT_DIRECTION_COVERAGE_HORIZON_MS = 2 * 60 * 60_000;
 
 /**
@@ -48,12 +51,15 @@ type FetchSupplement = (
  */
 export class DirectionCoverageCompleter {
   /** Query candidates from the monitor's metadata; never shown without a live row. */
-  private readonly servingDirectionIdsByStopId = new Map<string, readonly string[]>();
+  private readonly servingDirectionIdsByStopId = new ReadingCache<readonly string[]>(
+    DIRECTION_CACHE_CAPACITY,
+    SERVING_DIRECTIONS_MAX_AGE_MS,
+  );
   /** The short-lived supplements for directions the board missed. */
-  private readonly supplements = new Map<
-    string,
-    { receivedAt: number; departures: readonly Departure[] }
-  >();
+  private readonly supplements = new ReadingCache<{
+    receivedAt: number;
+    departures: readonly Departure[];
+  }>(DIRECTION_CACHE_CAPACITY, DIRECTION_SUPPLEMENT_TTL_MS);
 
   /** What the stop's unfiltered board says it serves; a filtered board would shrink the set. */
   rememberServingDirections(stopId: string, directionIds: readonly string[]): void {

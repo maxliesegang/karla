@@ -11,6 +11,8 @@ import {
 import type { ZentrumLineSignReader } from "../zentrum/line-sign";
 import { ExperimentMapStage } from "./ExperimentMapStage";
 
+const EMPTY_PLACES: readonly { name: string; x: number; y: number }[] = [];
+
 /**
  * An experiment map with its band: a caption, and an opened stop's name and close. The address
  * drops a stop the drawing does not hold, once the drawing has answered.
@@ -19,7 +21,7 @@ export function ExperimentMapPage({
   map,
   label,
   drawing,
-  places = [],
+  places = EMPTY_PLACES,
   bounds,
   scale,
   selectedStopId,
@@ -103,7 +105,7 @@ export function ExperimentMapPage({
           places,
           bounds,
           times,
-          feedNow,
+          feedNow: times ? feedNow : 0,
           selectedStopId: openedStop?.id,
           getSign,
           onSelectStop: selectStop,

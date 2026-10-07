@@ -89,7 +89,11 @@ export function useDeviceNow(): number {
 export function useVehicleFeedNow(
   enabled = true,
   departureBoard: DepartureBoard | null = null,
+  { isAnimated = true }: { isAnimated?: boolean } = {},
 ): number {
   // Placements compare against the feed's call times, so this must be the feed's clock.
-  return getFeedNow(departureBoard, useClockTick(VEHICLE_TICK_MS, enabled));
+  return getFeedNow(
+    departureBoard,
+    useClockTick(isAnimated ? VEHICLE_TICK_MS : FEED_CLOCK_TICK_MS, enabled),
+  );
 }

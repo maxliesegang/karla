@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { useCallback, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import type { GeoBox } from "../lib/geo-map";
 import { useDragPan } from "./drag-pan";
 import { useElementBox } from "./element-box";
@@ -70,7 +70,7 @@ export function useExperimentMapCanvas(
     element.scrollTop = (center.current.y - bounds.y) * scale - element.clientHeight / 2;
   }, [scale, bounds]);
 
-  const readCenter = () => {
+  const readCenter = useCallback(() => {
     const element = scrollRef.current;
     const current = drawn.current;
     if (!element || !current) return;
@@ -78,7 +78,7 @@ export function useExperimentMapCanvas(
       x: current.bounds.x + (element.scrollLeft + element.clientWidth / 2) / current.scale,
       y: current.bounds.y + (element.scrollTop + element.clientHeight / 2) / current.scale,
     };
-  };
+  }, []);
 
   useWheelZoom(scrollRef, (factor, point) => {
     const element = scrollRef.current;

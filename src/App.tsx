@@ -1,7 +1,4 @@
-import { useMemo, useRef, useState } from "react";
-import { GeoMapView } from "./components/geo/GeoMapView";
-import { RegionPlanView } from "./components/region/RegionPlanView";
-import { ZentrumView } from "./components/zentrum/ZentrumView";
+import { lazy, Suspense, useMemo, useRef, useState } from "react";
 import { DataProvenanceFooter } from "./components/DataProvenanceFooter";
 import { DepartureBoardPanel } from "./components/DepartureBoardPanel";
 import { StationBoardView } from "./components/StationBoardView";
@@ -41,6 +38,18 @@ import {
   readsObservedNetwork,
   isStationBoardStopView,
 } from "./view-layout";
+
+const GeoMapView = lazy(() =>
+  import("./components/geo/GeoMapView").then((module) => ({ default: module.GeoMapView })),
+);
+const RegionPlanView = lazy(() =>
+  import("./components/region/RegionPlanView").then((module) => ({
+    default: module.RegionPlanView,
+  })),
+);
+const ZentrumView = lazy(() =>
+  import("./components/zentrum/ZentrumView").then((module) => ({ default: module.ZentrumView })),
+);
 
 export default function App() {
   const departurePanelRef = useRef<HTMLElement>(null);
@@ -238,36 +247,38 @@ export default function App() {
                   />
                 )}
                 {activeView === "nearby" && <NearbyStopsView controller={nearbyStopsController} />}
-                {activeView === "experiment" && route.experimentMap === "geo" && (
-                  <GeoMapView
-                    network={observedNetwork}
-                    coverage={zentrumCoverage}
-                    departureBoards={observationBoards}
-                    selectedStopId={route.mapStopId || undefined}
-                    isFullscreen={route.isMapFullscreen}
-                  />
-                )}
-                {activeView === "experiment" && route.experimentMap === "region" && (
-                  <RegionPlanView
-                    network={observedNetwork}
-                    coverage={zentrumCoverage}
-                    departureBoards={observationBoards}
-                    selectedStopId={route.mapStopId || undefined}
-                    isFullscreen={route.isMapFullscreen}
-                  />
-                )}
-                {activeView === "experiment" && route.experimentMap === "center" && (
-                  <ZentrumView
-                    network={observedNetwork}
-                    coverage={zentrumCoverage}
-                    departureBoards={observationBoards}
-                    selectedLineId={route.zentrumLineId || undefined}
-                    selectedStopId={route.zentrumStopId || undefined}
-                    isFullscreen={route.isMapFullscreen}
-                    isStacked={isNarrowViewport}
-                    nearbyStops={nearbyStopsController}
-                  />
-                )}
+                <Suspense fallback={<p role="status">Karte wird geladen …</p>}>
+                  {activeView === "experiment" && route.experimentMap === "geo" && (
+                    <GeoMapView
+                      network={observedNetwork}
+                      coverage={zentrumCoverage}
+                      departureBoards={observationBoards}
+                      selectedStopId={route.mapStopId || undefined}
+                      isFullscreen={route.isMapFullscreen}
+                    />
+                  )}
+                  {activeView === "experiment" && route.experimentMap === "region" && (
+                    <RegionPlanView
+                      network={observedNetwork}
+                      coverage={zentrumCoverage}
+                      departureBoards={observationBoards}
+                      selectedStopId={route.mapStopId || undefined}
+                      isFullscreen={route.isMapFullscreen}
+                    />
+                  )}
+                  {activeView === "experiment" && route.experimentMap === "center" && (
+                    <ZentrumView
+                      network={observedNetwork}
+                      coverage={zentrumCoverage}
+                      departureBoards={observationBoards}
+                      selectedLineId={route.zentrumLineId || undefined}
+                      selectedStopId={route.zentrumStopId || undefined}
+                      isFullscreen={route.isMapFullscreen}
+                      isStacked={isNarrowViewport}
+                      nearbyStops={nearbyStopsController}
+                    />
+                  )}
+                </Suspense>
                 {activeView === "network" && (
                   <NetworkView
                     network={network}

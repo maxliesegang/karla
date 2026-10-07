@@ -26,9 +26,11 @@ export function useLineRunDepartures(
   {
     includesRun,
     refreshOnEntry = true,
+    animatesVehicles = true,
   }: {
     includesRun?: (run: Departure, feedNow: number) => boolean;
     refreshOnEntry?: boolean;
+    animatesVehicles?: boolean;
   } = {},
 ): { runDepartures: readonly Departure[]; feedNow: number } {
   const [following, setFollowing] = useState<{
@@ -45,6 +47,7 @@ export function useLineRunDepartures(
   const feedNow = useVehicleFeedNow(
     observedDepartures.length > 0 || followed.length > 0 || isRide,
     departureBoard,
+    { isAnimated: animatesVehicles },
   );
 
   // The followed set accumulates across boards, so it is state, set only when it changes. Compared

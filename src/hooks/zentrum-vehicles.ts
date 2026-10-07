@@ -18,7 +18,7 @@ const ZENTRUM_VEHICLE_RETENTION_KEY = "zentrum";
 /** Discover area exits and termini, then place each run from its shared reading. */
 export function useZentrumVehicles(
   departureBoards: readonly DepartureBoard[],
-  scopeToArea = true,
+  { scopeToArea = true, animatesVehicles = true } = {},
 ): {
   runDepartures: readonly Departure[];
   feedNow: number;
@@ -38,6 +38,7 @@ export function useZentrumVehicles(
   const reading = useLineRunDepartures(ZENTRUM_VEHICLE_RETENTION_KEY, runs, clockBoard, false, {
     includesRun: scopeToArea ? includesZentrumRun : undefined,
     refreshOnEntry: false,
+    animatesVehicles,
   });
   return { ...reading, isLoading: discovery === null };
 }
@@ -47,7 +48,10 @@ export function useDailyZentrumVehicles(departureBoards: readonly DepartureBoard
   runDepartures: readonly Departure[];
   feedNow: number;
 } {
-  const { runDepartures, feedNow } = useZentrumVehicles(departureBoards, false);
+  const { runDepartures, feedNow } = useZentrumVehicles(departureBoards, {
+    scopeToArea: false,
+    animatesVehicles: false,
+  });
   const dailyRuns = useMemo(
     () => runDepartures.filter(({ lineId }) => runsEveryDay(lineId)),
     [runDepartures],

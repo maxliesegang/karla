@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { KvvTransitSource } from "../src/data/transit-source.ts";
+import { DEPARTURE_BOARD_CACHE_CAPACITY, KvvTransitSource } from "../src/data/transit-source.ts";
 import type { KvvEfaClient } from "../src/data/kvv-efa-client.ts";
 import type { KvvDeparture, KvvDepartureBoard } from "../src/data/kvv-efa-parsers.ts";
 import { kvvStopMappingByLocalStopId } from "../src/data/kvv-stop-mappings.ts";
@@ -47,6 +47,33 @@ test("a board already in hand answers a second reader without a request of its o
   await source.getDepartureBoard(STOP_ID, { includeTripCalls: true, maxAgeMs: 90_000 });
 
   assert.equal(requests.length, 1);
+});
+
+test("topology boards are reusable for thirty minutes and then require a new reading", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: 0 });
+  const { source, requests } = createRecordingSource();
+  const request = { includeTripCalls: true, maxAgeMs: 30 * 60_000 };
+  await source.getDepartureBoard(STOP_ID, request);
+  t.mock.timers.tick(29 * 60_000);
+  await source.getDepartureBoard(STOP_ID, request);
+  assert.equal(requests.length, 1);
+  t.mock.timers.tick(60_000);
+  await source.getDepartureBoard(STOP_ID, { ...request, maxAgeMs: 60 * 60_000 });
+  assert.equal(requests.length, 2);
+});
+
+test("board variants evict the least recently read board at capacity", async () => {
+  const { source, requests } = createRecordingSource();
+  const request = (id: number) => ({ routeDirectionIds: [`direction-${id}`] });
+  for (let index = 0; index < DEPARTURE_BOARD_CACHE_CAPACITY; index += 1) {
+    await source.getDepartureBoard(STOP_ID, request(index));
+  }
+  await source.getDepartureBoard(STOP_ID, request(0));
+  await source.getDepartureBoard(STOP_ID, request(DEPARTURE_BOARD_CACHE_CAPACITY));
+  await source.getDepartureBoard(STOP_ID, request(0));
+  assert.equal(requests.length, DEPARTURE_BOARD_CACHE_CAPACITY + 1);
+  await source.getDepartureBoard(STOP_ID, request(1));
+  assert.equal(requests.length, DEPARTURE_BOARD_CACHE_CAPACITY + 2);
 });
 
 const directionA = "kvv:test:A:H:s26";

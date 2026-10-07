@@ -16,6 +16,7 @@ import type {
   RunDiscoveryReading,
 } from "./transit-types";
 import { RunReadingStore } from "./run-reading-store";
+import { ReadingCache } from "./reading-cache";
 import {
   DirectionCoverageCompleter,
   readDirectionCoverage,
@@ -112,6 +113,9 @@ export interface TransitSource {
  * cached board must not outlive its rows' records in the reading store.
  */
 export const DEFAULT_BOARD_MAX_AGE_MS = 30_000;
+export const DEPARTURE_BOARD_CACHE_CAPACITY = 256;
+/** Topology and idle observation reads reuse boards for up to thirty minutes. */
+const DEPARTURE_BOARD_CACHE_MAX_AGE_MS = 30 * 60_000;
 /** How long the last live board stands in for failed refreshes. */
 const RETAINED_DEPARTURE_BOARD_LIMIT_MS = 10 * 60_000;
 /** Notices change over days and the answer covers the whole KVV area, so they are asked rarely. */
@@ -138,7 +142,10 @@ const RUN_UNDER_WAY_MINUTES = 30;
 /** Core-network stops are local data; every other stop is resolved from KVV on request. */
 export class KvvTransitSource implements TransitSource {
   /** Keyed by stop and variant. Boards date themselves. */
-  private readonly departureBoardCache = new Map<string, DepartureBoard>();
+  private readonly departureBoardCache = new ReadingCache<DepartureBoard>(
+    DEPARTURE_BOARD_CACHE_CAPACITY,
+    DEPARTURE_BOARD_CACHE_MAX_AGE_MS,
+  );
   private readonly boardRequests = new SharedRequests<DepartureBoard>();
   private readonly runRequests = new SharedRequests<RunSequence | undefined>();
   private readonly lineRouteRequests = new SharedRequests<readonly string[] | undefined>();
@@ -662,7 +669,7 @@ export class KvvTransitSource implements TransitSource {
 
   private retainAndPublishBoard(cacheKey: string, fetched: DepartureBoard): DepartureBoard {
     if (fetched.dataStatus === "live") {
-      this.departureBoardCache.set(cacheKey, fetched);
+      this.departureBoardCache.set(cacheKey, fetched, fetched.receivedAt);
       return this.publishBoard(fetched);
     }
     const lastLive = this.departureBoardCache.get(cacheKey);
