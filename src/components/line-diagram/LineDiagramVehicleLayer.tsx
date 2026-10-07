@@ -5,6 +5,8 @@ import { getVehicleRowCoordinate, type LineDiagramVehicle } from "../../lib/line
 import { classNames } from "../../lib/class-names";
 import { assignStableVehicleLanes } from "../../lib/vehicle-lanes";
 import { useVehicleTrajectoryAnimations } from "../../hooks/vehicle-trajectory-animation";
+import { useDeviceNow } from "../../hooks/clock";
+import { getVehiclePositionSourceLabel } from "../../lib/vehicle-position-presentation";
 import { getVehicleLeftOffset, type VehicleLayerGeometry } from "./layout";
 
 /**
@@ -55,6 +57,7 @@ function LineDiagramVehicleLayerView({
   /** Marks that were on the shared trunk just before entering this branch. */
   branchTransferKeys?: ReadonlySet<string>;
 }) {
+  const readingNow = useDeviceNow();
   const layerRef = useRef<HTMLDivElement>(null);
   const [laneState, setLaneState] = useState(() => ({
     source: vehicles,
@@ -161,6 +164,12 @@ function LineDiagramVehicleLayerView({
         const debugLabel = SHOW_VEHICLE_DEBUG_LABEL
           ? getVehicleDebugLabel({ rowIndex, toIndex, progress, phase, motion }, stopNames)
           : undefined;
+        const sourceLabel = getVehiclePositionSourceLabel(
+          departure,
+          readingNow,
+          vehicle.fromStopId,
+          vehicle.toStopId,
+        );
         return (
           <button
             type="button"
@@ -178,6 +187,7 @@ function LineDiagramVehicleLayerView({
               branchTransferKeys?.has(markerKey) && "branch-transfer",
             )}
             data-selected-run-marker={isSelected || undefined}
+            title={`Position geschätzt · ${sourceLabel}`}
             onClick={() =>
               setOpenMarkerKey((current) => (current === markerKey ? null : markerKey))
             }
@@ -208,6 +218,7 @@ function LineDiagramVehicleLayerView({
             {/* The chip opens across the stop names; debug mode adds the placement. */}
             <small className="line-diagram-vehicle-destination">
               {destinationLabel}
+              <span className="line-diagram-vehicle-source">{sourceLabel}</span>
               {debugLabel && <span className="line-diagram-vehicle-debug">{debugLabel}</span>}
             </small>
           </button>

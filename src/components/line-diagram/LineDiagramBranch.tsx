@@ -13,6 +13,7 @@ import { classNames } from "../../lib/class-names";
 import { LineDiagramStopRow } from "./LineDiagramStopRow";
 import { LineDiagramVehicleLayer } from "./LineDiagramVehicleLayer";
 import { useVehicleLayerGeometry } from "./layout";
+import { useDeviceNow } from "../../hooks/clock";
 
 /**
  * One leg of a forked line diagram: one bundled line past the shared stretch, with its own stop
@@ -64,7 +65,11 @@ export function LineDiagramBranch({
   const junctionIndex = branch.direction === "ahead" ? diagramStops.length - 1 : 0;
   const coordinateKey = getLineDiagramCoordinateKey(line.id, diagramStops);
   const stopNames = useMemo(() => diagramStops.map(({ stopName }) => stopName), [diagramStops]);
-  const vehicleLabelByRowIndex = useMemo(() => getVehicleLabelsByRowIndex(vehicles), [vehicles]);
+  const readingNow = useDeviceNow();
+  const vehicleLabelByRowIndex = useMemo(
+    () => getVehicleLabelsByRowIndex(vehicles, readingNow),
+    [vehicles, readingNow],
+  );
   const geometry = useVehicleLayerGeometry({ stopListRef, coordinateKey });
   // The leg never states a next call; the trunk does, so the position control has one anchor.
   const runPositionStopIndex = getRunPositionAnchorIndex(diagramStops, vehicles, undefined);

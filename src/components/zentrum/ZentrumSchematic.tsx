@@ -332,6 +332,7 @@ export function ZentrumSchematic({
       <div className="zentrum-schematic-stage">
         <ZentrumSchematicCanvas
           schematic={schematic}
+          readingNow={readingNow}
           getSign={getSign}
           selectedLineId={selectedLineId}
           selectedStopId={selectedStop?.id}

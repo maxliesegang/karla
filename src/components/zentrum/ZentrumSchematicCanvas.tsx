@@ -28,6 +28,7 @@ import type { ZentrumSchematicOverlay } from "../../lib/zentrum-schematic-overla
 import type { ZentrumStopTravelTag } from "../../lib/zentrum-stop-view";
 import type { ZentrumLineSignReader } from "./line-sign";
 import { getZentrumVehiclePlaceLabel } from "../../lib/zentrum-presentation";
+import { getVehiclePositionSourceLabel } from "../../lib/vehicle-position-presentation";
 import {
   ZentrumSchematicDrawing,
   getZentrumLitStretchKey,
@@ -62,6 +63,7 @@ export function ZentrumSchematicCanvas({
   selectedLineId,
   selectedStopId,
   vehicles,
+  readingNow,
   overlay,
   unlitLineStyle,
   vehicleMinutesById,
@@ -83,6 +85,7 @@ export function ZentrumSchematicCanvas({
   /** The opened stop. */
   selectedStopId?: string;
   vehicles: readonly ZentrumSchematicVehicle[];
+  readingNow: number;
   /** What is lit over the route traces, or nothing to draw every line whole. */
   overlay?: ZentrumSchematicOverlay;
   /** How lines calling at the opened stop are drawn where the overlay does not light them. */
@@ -253,6 +256,7 @@ export function ZentrumSchematicCanvas({
             <ZentrumSchematicVehicleMark
               key={getMarkerKey(vehicle)}
               vehicle={vehicle}
+              readingNow={readingNow}
               getSign={getSign}
               minutes={minutes}
               isSelected={selectedVehicleId === vehicle.id}
@@ -290,6 +294,7 @@ const getVehicleDimming = (
 /** One tram on the plan, with the countdown the opened stop reads for it. */
 function ZentrumSchematicVehicleMark({
   vehicle,
+  readingNow,
   getSign,
   minutes,
   isSelected,
@@ -297,6 +302,7 @@ function ZentrumSchematicVehicleMark({
   onSelect,
 }: {
   vehicle: ZentrumSchematicVehicle;
+  readingNow: number;
   getSign: ZentrumLineSignReader;
   /** Minutes until it leaves the opened stop, if the stop waits for it. */
   minutes?: number;
@@ -307,6 +313,12 @@ function ZentrumSchematicVehicleMark({
   const sign = getSign(vehicle.lineId);
   const countdown = minutes === undefined ? undefined : minutes <= 0 ? "jetzt" : `${minutes} min`;
   const place = getZentrumVehiclePlaceLabel(vehicle);
+  const source = getVehiclePositionSourceLabel(
+    vehicle.departure,
+    readingNow,
+    getZentrumSchematicStopId(vehicle.from.id),
+    getZentrumSchematicStopId(vehicle.to.id),
+  );
   // One transform in container units for paint and keyframes, so handovers are seamless.
   const style = {
     transform: getZentrumVehicleTransform(vehicle.path, vehicle.progress),
@@ -323,8 +335,8 @@ function ZentrumSchematicVehicleMark({
       data-dimmed={dimming === "dimmed" ? "true" : undefined}
       data-departed={dimming === "departed" ? "true" : undefined}
       style={style}
-      title={`Linie ${vehicle.lineId} nach ${vehicle.destination}; ${place}; Position geschätzt`}
-      aria-label={`Linie ${vehicle.lineId} nach ${vehicle.destination}, ${place}, Position geschätzt${countdown ? `, fährt an der Haltestelle ${countdown === "jetzt" ? "jetzt" : `in ${countdown}`}` : ""}`}
+      title={`Linie ${vehicle.lineId} nach ${vehicle.destination}; ${place}; Position geschätzt · ${source}`}
+      aria-label={`Linie ${vehicle.lineId} nach ${vehicle.destination}, ${place}, Position geschätzt · ${source}${countdown ? `, fährt an der Haltestelle ${countdown === "jetzt" ? "jetzt" : `in ${countdown}`}` : ""}`}
       aria-expanded={isSelected}
       aria-controls={isSelected ? "zentrum-vehicle-detail" : undefined}
       onClick={() => onSelect(vehicle.id)}

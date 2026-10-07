@@ -3,15 +3,7 @@ import { collapseTurnaroundCalls, statesRunEnd, statesRunStart } from "./trip-ca
 import { getRunTimeline } from "./run-timeline";
 import { getRunMarkKey } from "./trips";
 
-/**
- * Turns a run's timed calls into vehicle marks.
- *
- * Placement reads only the run's own calls and the clock, never a board row: the same run is merged
- * into a different row on every board, and every view must draw it in one place. The feed times
- * calls to the minute and Zentrum links last about one, so each reading is a target the mark
- * follows, never reversing; only a mark far from its reading, or just out of a stop the vehicle has
- * not left, is placed.
- */
+/** Shared vehicle motion from call times: revised station arrivals take priority over continuity. */
 
 /**
  * What a mark is doing where it stands. `beforeStart` (a monitored run due out of its first stop)
@@ -46,7 +38,7 @@ export type RunPlacementMotion = "travelled" | "placed";
 
 export type RunSegmentTrajectory = {
   startsAt: number;
-  /** Progress every `FOLLOW_STEP_MS` from `startsAt`; never decreasing. */
+  /** Monotonic samples every `FOLLOW_STEP_MS`, with the final sample at `arrivesAt`. */
   progresses: readonly number[];
   startProgress: number;
   /** When the last sample is reached: the next stop, or the end of the plan's horizon. */
@@ -71,7 +63,7 @@ const FOLLOW_TIME_CONSTANT_MS = 10_000;
 const FOLLOW_MAX_SPEEDUP = 2.5;
 /** …or at least one link in this many milliseconds, where the reading stands. */
 const FOLLOW_MIN_CATCH_UP_VELOCITY = 1 / 40_000;
-/** A mark this many links from its reading is placed there rather than followed. */
+/** A forward reading this many links away is placed rather than followed. */
 const PLACEMENT_DISTANCE_LINKS = 2;
 /**
  * A mark at most this far along its link goes back to the stop behind when the reading has the
@@ -153,10 +145,7 @@ function getStandingEnd(here: TimedCall): number {
   return Math.max(here.arrival, here.departure);
 }
 
-/**
- * Whether any call states a deviation, as a monitored call does even when on time. Only a
- * monitored run that has not started is drawn standing at its terminus.
- */
+/** A stated deviation, including zero, permits a new waiting mark at the origin. */
 const isMonitoredRun = (departure: Departure): boolean =>
   (departure.tripCalls ?? []).some(
     (call) => call.delayMinutes !== undefined || call.arrivalDelayMinutes !== undefined,
@@ -181,6 +170,7 @@ function findRunEndStops(departure: Departure): RunEndStops {
 
 type CallPositionContext = {
   isMonitored: boolean;
+  hasWaitingMark: boolean;
   /** When the stand at the first stop began, where a turnaround has been found for it. */
   standFrom: number | undefined;
   /** Only the ends of the run may carry a standing mark. */
@@ -204,7 +194,7 @@ type EmptyReading = "unplaceable" | "finished";
 function findCallPosition(
   calls: readonly TimedCall[],
   feedNow: number,
-  { isMonitored, standFrom, runEnds, originStatedShift }: CallPositionContext,
+  { isMonitored, hasWaitingMark, standFrom, runEnds, originStatedShift }: CallPositionContext,
 ): RunCallPosition | EmptyReading {
   if (calls.length < 2) return "unplaceable";
   const first = calls[0];
@@ -214,7 +204,8 @@ function findCallPosition(
   // time, so the mark does not blink across the revision.
   if (feedNow < first.arrival) {
     if (first.stopId !== runEnds.startStopId) return "unplaceable";
-    const isDueOut = isMonitored && first.departure - feedNow <= DEPARTURE_STAND_LEAD_MS;
+    const isDueOut =
+      (isMonitored || hasWaitingMark) && first.departure - feedNow <= DEPARTURE_STAND_LEAD_MS;
     const isTurning = standFrom !== undefined && feedNow >= standFrom;
     const isStatedStand =
       isMonitored &&
@@ -278,25 +269,25 @@ function findReadTarget(
  * The mark's way along one link: progress sampled every `FOLLOW_STEP_MS` from `startsAt`, ending at
  * the next stop or after `FOLLOW_HORIZON_MS`.
  */
-type LinkPlan = { startsAt: number; progresses: readonly number[] };
+type LinkPlan = { startsAt: number; arrivesAt: number; progresses: readonly number[] };
 
-const getPlanEnd = (plan: LinkPlan) =>
-  plan.startsAt + (plan.progresses.length - 1) * FOLLOW_STEP_MS;
+const getPlanEnd = (plan: LinkPlan) => plan.arrivesAt;
 
 const getPlanProgress = (plan: LinkPlan, feedNow: number): number => {
   const { progresses } = plan;
   const offset = (feedNow - plan.startsAt) / FOLLOW_STEP_MS;
   if (offset <= 0) return progresses[0];
-  if (offset >= progresses.length - 1) return progresses[progresses.length - 1];
+  if (feedNow >= plan.arrivesAt) return progresses[progresses.length - 1];
   const index = Math.floor(offset);
-  return progresses[index] + (progresses[index + 1] - progresses[index]) * (offset - index);
+  const sampleAt = plan.startsAt + index * FOLLOW_STEP_MS;
+  const nextAt = Math.min(plan.arrivesAt, sampleAt + FOLLOW_STEP_MS);
+  return (
+    progresses[index] +
+    (progresses[index + 1] - progresses[index]) * ((feedNow - sampleAt) / (nextAt - sampleAt))
+  );
 };
 
-/**
- * Follows the reading from where the mark stands: behind, it closes the gap within about
- * `FOLLOW_TIME_CONSTANT_MS`; ahead, it slows to reach the next stop when the reading does. It never
- * reverses and does not leave a stop the reading has the vehicle standing at.
- */
+/** Follows revised arrivals without reversing; standing marks wait for departure. */
 function planLink(
   calls: readonly TimedCall[],
   context: CallPositionContext,
@@ -307,50 +298,56 @@ function planLink(
   const progresses = [startProgress];
   let position = index + startProgress;
   let from = findReadTarget(calls, startsAt, context);
-  for (
-    let at = startsAt + FOLLOW_STEP_MS;
-    at <= startsAt + FOLLOW_HORIZON_MS;
-    at += FOLLOW_STEP_MS
-  ) {
+  const arrival = calls[index + 1].arrival;
+  const arrivesAt = Math.max(startsAt, Math.min(startsAt + FOLLOW_HORIZON_MS, arrival));
+  let previousAt = startsAt;
+  for (let sample = 1; previousAt < arrivesAt; sample += 1) {
+    const at = Math.min(startsAt + sample * FOLLOW_STEP_MS, arrivesAt);
+    const step = at - previousAt;
     const to = findReadTarget(calls, at, context);
+    if (at === arrival && startProgress < 1) {
+      progresses.push(1);
+      break;
+    }
     if (from && to && position > from.position + SETTLED_TOLERANCE / 10) {
       // Ahead of the reading: a mark at its stop stays there; one under way slows so it reaches
       // the next stop when the reading does, rather than stopping between stops.
       if (position === index) {
         from = to;
         progresses.push(0);
+        previousAt = at;
         continue;
       }
-      const timeLeft = Math.max(FOLLOW_STEP_MS, calls[index + 1].arrival - (at - FOLLOW_STEP_MS));
-      position = Math.min(
-        index + 1,
-        position + ((index + 1 - position) / timeLeft) * FOLLOW_STEP_MS,
-      );
-      if (index + 1 - position < SETTLED_TOLERANCE / 10) position = index + 1;
+      const timeLeft = Math.max(step, arrival - previousAt);
+      position = Math.min(index + 1, position + ((index + 1 - position) / timeLeft) * step);
     } else if (from && to) {
       let velocity = from.velocity + (from.position - position) / FOLLOW_TIME_CONSTANT_MS;
       // A small gap closes in one step rather than ever more slowly.
       if (to.position > position) {
         velocity = Math.max(
           velocity,
-          Math.min(FOLLOW_MIN_CATCH_UP_VELOCITY, (to.position - position) / FOLLOW_STEP_MS),
+          Math.min(FOLLOW_MIN_CATCH_UP_VELOCITY, (to.position - position) / step),
         );
       }
       const maxVelocity = Math.max(
         from.velocity * FOLLOW_MAX_SPEEDUP,
         FOLLOW_MIN_CATCH_UP_VELOCITY,
       );
-      let next = position + Math.min(maxVelocity, Math.max(0, velocity)) * FOLLOW_STEP_MS;
+      let next = position + Math.min(maxVelocity, Math.max(0, velocity)) * step;
       // Catching up never overtakes the reading.
       if (position <= to.position) next = Math.min(next, to.position);
       position = Math.min(next, index + 1);
-      if (index + 1 - position < SETTLED_TOLERANCE / 10) position = index + 1;
     }
     from = to;
     progresses.push(position - index);
+    previousAt = at;
     if (position >= index + 1) break;
   }
-  return { startsAt, progresses };
+  return {
+    startsAt,
+    progresses,
+    arrivesAt: Math.min(arrivesAt, startsAt + (progresses.length - 1) * FOLLOW_STEP_MS),
+  };
 }
 
 type RunMotion = {
@@ -446,11 +443,7 @@ function placementFromPlan(
   };
 }
 
-/**
- * Where the mark is drawn: it follows the run's reading and never reverses. A mark more than
- * `PLACEMENT_DISTANCE_LINKS` from its reading, or first seen, is placed there instead, and one
- * within `NEAR_STOP_RETURN_PROGRESS` of a stop the reading still stands it at is put back there.
- */
+/** Forward corrections meet arrival deadlines; backward corrections stay within the stop grace. */
 export function getRunPlacement(
   motions: RunMotions,
   departure: Departure,
@@ -468,6 +461,7 @@ export function getRunPlacement(
   const { calls, originStatedShift } = getTimedCalls(departure);
   const context: CallPositionContext = {
     isMonitored: isMonitoredRun(departure),
+    hasWaitingMark: previous?.shown.phase === "beforeStart",
     standFrom,
     runEnds: findRunEndStops(departure),
     originStatedShift,
@@ -518,7 +512,7 @@ export function getRunPlacement(
       const progress =
         feedNow < previous.shownAt ? previous.shown.progress : getPlanProgress(previous.plan, from);
       drawn =
-        progress >= 1 - SETTLED_TOLERANCE && index + 1 < calls.length - 1
+        progress >= 1 && index + 1 < calls.length - 1
           ? { index: index + 1, progress: 0, from, isPlanCurrent: false }
           : {
               index,
@@ -532,6 +526,11 @@ export function getRunPlacement(
   const readIndex = Math.min(calls.length - 2, Math.floor(reading.position));
   const readProgress = clampUnit(reading.position - readIndex);
   const distance = drawn ? reading.position - (drawn.index + drawn.progress) : undefined;
+  const hasPassedArrival =
+    drawn !== undefined &&
+    distance !== undefined &&
+    distance > 0 &&
+    calls[drawn.index + 1].arrival <= feedNow;
   const hasNotLeft =
     drawn !== undefined &&
     reading.position === drawn.index &&
@@ -544,7 +543,12 @@ export function getRunPlacement(
     index = drawn.index;
     plan = planLink(calls, context, index, 0, feedNow);
     motion = "placed";
-  } else if (drawn && distance !== undefined && Math.abs(distance) <= PLACEMENT_DISTANCE_LINKS) {
+  } else if (
+    drawn &&
+    distance !== undefined &&
+    distance <= PLACEMENT_DISTANCE_LINKS &&
+    !hasPassedArrival
+  ) {
     index = drawn.index;
     plan =
       drawn.isPlanCurrent && previous
@@ -557,6 +561,10 @@ export function getRunPlacement(
     motion = "placed";
   }
 
+  if (getPlanProgress(plan, feedNow) >= 1 && index + 1 < calls.length - 1) {
+    index += 1;
+    plan = planLink(calls, context, index, 0, feedNow);
+  }
   const shown = placementFromPlan(
     calls,
     index,
@@ -564,7 +572,9 @@ export function getRunPlacement(
     feedNow,
     reading.phase,
     motion,
-    motion === "placed" && distance !== undefined ? Math.abs(distance) : undefined,
+    motion === "placed" && distance !== undefined && (!hasPassedArrival || distance > 1)
+      ? Math.abs(distance)
+      : undefined,
   );
   rememberMotion(motions, key, {
     timelineKey,

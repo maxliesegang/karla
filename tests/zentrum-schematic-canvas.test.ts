@@ -81,6 +81,7 @@ for (const [place, lineId, stops] of [
       act(async () =>
         root.render(
           createElement(ZentrumSchematicCanvas, {
+            readingNow: start,
             schematic,
             getSign: createZentrumLineSignReader([]),
             vehicles: [],
@@ -148,6 +149,12 @@ for (const atStation of [true, false]) {
       tripInstanceId: "second",
       destination: "Anderes Ziel",
       lineId: "S2",
+      tripCalls: first.tripCalls?.map((call) => ({ ...call, delayMinutes: 0 })),
+      readAt: {
+        rowReadAt: start,
+        sequenceReadAt: start - 180_000,
+        sequenceRefreshFailedAt: start - 30_000,
+      },
     };
     const schematic = buildZentrumSchematicReading([first, second]);
     const vehicles = getZentrumSchematicVehicles(
@@ -166,6 +173,7 @@ for (const atStation of [true, false]) {
       act(async () =>
         root.render(
           createElement(ZentrumSchematicCanvas, {
+            readingNow: start,
             schematic,
             vehicles,
             selectedVehicleId,
@@ -188,6 +196,8 @@ for (const atStation of [true, false]) {
       await render();
       const marks = container.querySelectorAll<HTMLButtonElement>(".zentrum-schematic-vehicle");
       assert.equal(marks.length, 2);
+      assert.match(marks[0].title, /nach Fahrplan/);
+      assert.match(marks[1].title, /3 min alt · Aktualisierung fehlgeschlagen/);
       assert.equal(container.querySelector(".zentrum-schematic-stop-vehicles"), null);
       for (let index = 0; index < marks.length; index += 1) {
         await act(async () => marks[index].click());

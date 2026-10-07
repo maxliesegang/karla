@@ -120,6 +120,7 @@ export type Departure = {
 export type DepartureReadingTimes = {
   rowReadAt: number;
   sequenceReadAt?: number;
+  sequenceRefreshFailedAt?: number;
   coverageReadAt?: number;
 };
 

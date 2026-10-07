@@ -4628,6 +4628,14 @@ button.line-diagram-bundle-option:focus-visible {
   font-weight: 500;
   opacity: 0.72;
 }
+.line-diagram-vehicle-layer .line-diagram-vehicle-source {
+  display: block;
+  max-width: 168px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 9px;
+  font-weight: 500;
+}
 .line-diagram-vehicle-layer
   .line-diagram-vehicle:has(.line-diagram-vehicle-debug)
   .line-diagram-vehicle-destination {

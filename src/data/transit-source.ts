@@ -734,6 +734,7 @@ export class KvvTransitSource implements TransitSource {
 
   private requestRun(rowId: string, locator: KvvTripLocator): Promise<RunSequence | undefined> {
     const requestKey = this.runReadings.findRunRecordKey(rowId);
+    const requestedAt = Date.now();
     return this.runRequests.share(requestKey, () =>
       this.client
         .fetchTrip(locator)
@@ -741,12 +742,16 @@ export class KvvTransitSource implements TransitSource {
           const receivedAt = Date.now();
           const sequence = this.createSequenceReading(requestKey, trip, receivedAt);
           // An answer whose record was evicted is reported as a failure (`rememberSequence`).
-          return sequence && this.runReadings.rememberSequence(requestKey, sequence, receivedAt)
-            ? sequence
-            : undefined;
+          if (sequence && this.runReadings.rememberSequence(requestKey, sequence, receivedAt))
+            return sequence;
+          this.runReadings.markSequenceRefreshFailed(requestKey, receivedAt, requestedAt);
+          return undefined;
         })
         // Only readable runs are kept.
-        .catch(() => undefined),
+        .catch(() => {
+          this.runReadings.markSequenceRefreshFailed(requestKey, Date.now(), requestedAt);
+          return undefined;
+        }),
     );
   }
 

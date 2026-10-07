@@ -43,6 +43,7 @@ type RunReadingRecord = {
    */
   mergedByRowId: Map<string, Departure>;
   latestSequence?: RunSequenceReading;
+  sequenceRefreshFailedAt?: number;
   /** When the fullest sequence has the run reaching its last call. */
   runEndsAt?: number;
   /** The last write; the only clock a run with no known end has. */
@@ -95,6 +96,7 @@ export class RunReadingStore {
     ) {
       record.instance = withoutCalls(departure);
       record.latestSequence = undefined;
+      record.sequenceRefreshFailedAt = undefined;
       record.runEndsAt = undefined;
     }
     const compatible = isSameRunInstance(record.instance, departure);
@@ -133,6 +135,14 @@ export class RunReadingStore {
     return this.findRecord(rowId)?.rowsById.get(rowId);
   }
 
+  markSequenceRefreshFailed(runKey: string, now: number, requestedAt = now): void {
+    const record = this.records.get(runKey);
+    if (!record?.latestSequence || (record.latestSequence.sequence.readAt ?? 0) > requestedAt)
+      return;
+    record.sequenceRefreshFailedAt = now;
+    this.publish(record);
+  }
+
   /** The fullest, freshest calling sequence read for the run this row is a stop of. */
   findSequence(rowId: string): RunSequenceReading | undefined {
     const record = this.findRecord(rowId);
@@ -146,9 +156,16 @@ export class RunReadingStore {
     const record = this.findRecord(rowId);
     const row = record?.rowsById.get(rowId);
     if (!record || !row) return undefined;
+    const cached = record.mergedByRowId.get(rowId);
+    if (cached) return cached;
+    const reading = mergeRunSequence(row.departure, this.findSequence(rowId)?.sequence);
     const merged =
-      record.mergedByRowId.get(rowId) ??
-      mergeRunSequence(row.departure, this.findSequence(rowId)?.sequence);
+      reading.readAt && record.sequenceRefreshFailedAt !== undefined
+        ? {
+            ...reading,
+            readAt: { ...reading.readAt, sequenceRefreshFailedAt: record.sequenceRefreshFailedAt },
+          }
+        : reading;
     record.mergedByRowId.set(rowId, merged);
     return merged;
   }
@@ -223,6 +240,11 @@ export class RunReadingStore {
         ...reading,
         sequence: retainRunCoverage(latest?.sequence, reading.sequence),
       };
+    if (
+      record.sequenceRefreshFailedAt !== undefined &&
+      (record.latestSequence?.sequence.readAt ?? 0) >= record.sequenceRefreshFailedAt
+    )
+      record.sequenceRefreshFailedAt = undefined;
     // The end is only ever learned, never moved back by a partial sequence.
     const endsAt = findFinalCallInstant(reading.sequence.tripCalls);
     if (endsAt !== undefined) record.runEndsAt = Math.max(record.runEndsAt ?? endsAt, endsAt);

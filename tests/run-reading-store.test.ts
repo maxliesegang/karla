@@ -123,6 +123,35 @@ test("shares one complete reading between stop rows of the same run", () => {
   assert.equal(store.findSequence("row-b")?.sequence.readAt, 200);
 });
 
+test("refresh failures are shared by every row and cleared only by a newer sequence", () => {
+  const store = new RunReadingStore();
+  store.rememberRow(stamp(departure("row-a", "a"), 100), locator, 100);
+  store.rememberRow(
+    stamp(departure("row-b", "b", { scheduledDepartureTime: "2026-09-06T10:05:00.000Z" }), 110),
+    atStop("7000002", "1005"),
+    110,
+  );
+  const key = store.findRunRecordKey("row-a");
+  store.rememberSequence(key, sequence(calls(3), 200), 200);
+  store.markSequenceRefreshFailed(key, 300);
+  for (const id of ["row-a", "row-b"]) {
+    assert.equal(store.findRun(id)?.readAt?.sequenceRefreshFailedAt, 300);
+    assert.equal(store.findRun(id)?.readAt?.sequenceReadAt, 200);
+    assert.equal(store.findRun(id)?.tripCalls?.[0].delayMinutes, 3);
+  }
+  store.rememberRow(
+    { ...departure("row-a", "a"), tripCalls: undefined, readAt: { rowReadAt: 350 } },
+    locator,
+    350,
+  );
+  assert.equal(store.findRun("row-a")?.readAt?.sequenceRefreshFailedAt, 300);
+  store.rememberSequence(key, sequence(calls(0), 400), 400);
+  assert.equal(store.findRun("row-a")?.readAt?.sequenceRefreshFailedAt, undefined);
+  assert.equal(store.findRun("row-b")?.readAt?.sequenceRefreshFailedAt, undefined);
+  store.markSequenceRefreshFailed(key, 450, 350);
+  assert.equal(store.findRun("row-a")?.readAt?.sequenceRefreshFailedAt, undefined);
+});
+
 test("one run is one record from its first row, with no sequence needed to say so", () => {
   const store = new RunReadingStore();
   // Line-filtered rows carry no calls, so no dated id; only the locator names the run.

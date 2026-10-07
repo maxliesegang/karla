@@ -24,6 +24,7 @@ import {
 } from "./vehicle-positioning";
 import { getDistinctRuns, getRunMarkKey, isSameRun } from "./trips";
 import { findTurnarounds, type TurnaroundIndex } from "./line-turnarounds";
+import { getVehiclePositionSourceLabel } from "./vehicle-position-presentation";
 
 export type LineDiagramStop = {
   stopName: string;
@@ -53,6 +54,8 @@ export type LineDiagramVehicle = {
    */
   fromIndex: number;
   toIndex: number;
+  fromStopId?: string;
+  toStopId?: string;
   /** 0 at `fromIndex`, 1 at `toIndex`. */
   progress: number;
   /** The row that speaks for the mark: behind it while running, the terminus after arrival. */
@@ -435,6 +438,8 @@ function mergeJoinedPortions(
           : representative.markerKey,
       fromIndex: representative.fromIndex,
       toIndex: representative.toIndex,
+      fromStopId: representative.fromStopId,
+      toStopId: representative.toStopId,
       progress: representative.progress,
       rowIndex: representative.rowIndex,
       laneIndex,
@@ -610,9 +615,10 @@ export const getLineDiagramCoordinateKey = (
 /** One sentence per row about its vehicles; strings compare by value, so unchanged rows skip. */
 export function getVehicleLabelsByRowIndex(
   vehicles: readonly LineDiagramVehicle[],
+  readingNow?: number,
 ): ReadonlyMap<number, string> {
   const labelByRowIndex = new Map<number, string>();
-  for (const { rowIndex, departure, joinedDepartures, phase } of vehicles) {
+  for (const { rowIndex, departure, joinedDepartures, phase, fromStopId, toStopId } of vehicles) {
     const destinations = [...new Set(joinedDepartures.map((portion) => portion.destination))];
     const heading = `${departure.lineId} Richtung ${destinations.join(" und ")}`;
     // Neither end of a run is a measured position, so standing marks are not "geschätzte Position".
@@ -622,8 +628,15 @@ export function getVehicleLabelsByRowIndex(
         : phase === "afterEnd"
           ? `Fahrt von ${heading} endet hier`
           : `geschätzte Position von ${heading}`;
+    const source =
+      readingNow === undefined
+        ? ""
+        : ` · ${getVehiclePositionSourceLabel(departure, readingNow, fromStopId, toStopId)}`;
     const existing = labelByRowIndex.get(rowIndex);
-    labelByRowIndex.set(rowIndex, existing ? `${existing}, ${label}` : label);
+    labelByRowIndex.set(
+      rowIndex,
+      existing ? `${existing}, ${label}${source}` : `${label}${source}`,
+    );
   }
   return labelByRowIndex;
 }

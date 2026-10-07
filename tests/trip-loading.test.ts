@@ -1025,6 +1025,63 @@ test("a trip whose sequence cannot be read still keeps the row it was found on",
   assert.equal(boards[0].departures[0].tripCalls, undefined);
 });
 
+test("a failed run refresh retains its prediction and a scheduled recovery clears the failure", async (t) => {
+  const start = Date.parse("2026-08-26T05:29:45Z");
+  t.mock.timers.enable({ apis: ["Date"], now: start });
+  const client = new KvvEfaClient();
+  client.fetchDepartureBoard = async (stopPointId) => ({
+    stopPointId,
+    stopName: "Durlacher Tor",
+    serverTime: "2026-08-26T07:29:45",
+    servingLines: [],
+    departures: [
+      {
+        stopPointId,
+        stopPointName: "Durlacher Tor",
+        tripId: "refresh-recovery",
+        lineId: "S4",
+        transportMode: "lightRail",
+        destination: "Kronenplatz",
+        minutesUntilDeparture: 1,
+        platformCode: "1",
+        scheduledDepartureTime: "2026-08-26T05:30:00Z",
+        status: "realtime",
+        tripLocator: locator,
+      },
+    ],
+  });
+  const payload = (valid: string) => ({
+    ...tripPayload,
+    stopSeq: tripPayload.stopSeq.map((entry) => ({
+      ...entry,
+      realtimeStatus: "",
+      ref: { ...entry.ref, arrValid: valid, depValid: valid, arrDelay: "2", depDelay: "2" },
+    })),
+  });
+  client.fetchTrip = async () => parseTripResponse(payload("1"), locator);
+  const source = new KvvTransitSource(client);
+  const board = await source.getDepartureBoard("durlacher-tor");
+  const id = board.departures[0].id;
+  const predicted = await source.getRun(id, 0);
+  assert.equal(predicted?.tripCalls?.[0].delayMinutes, 2);
+  const readAt = predicted?.readAt?.sequenceReadAt;
+  t.mock.timers.tick(30_000);
+  client.fetchTrip = async () => {
+    throw new Error("offline");
+  };
+  assert.equal(await source.getRun(id, 0), undefined);
+  const held = source.findRun(id);
+  assert.equal(held?.tripCalls, predicted?.tripCalls);
+  assert.equal(held?.readAt?.sequenceReadAt, readAt);
+  assert.equal(held?.readAt?.sequenceRefreshFailedAt, start + 30_000);
+  t.mock.timers.tick(30_000);
+  client.fetchTrip = async () => parseTripResponse(payload("0"), locator);
+  const recovered = await source.getRun(id, 0);
+  assert.equal(recovered?.readAt?.sequenceRefreshFailedAt, undefined);
+  assert.equal(recovered?.readAt?.sequenceReadAt, start + 60_000);
+  assert.ok(recovered?.tripCalls?.every((call) => call.delayMinutes === undefined));
+});
+
 test("a line's reading asks for the calls of the runs out on it, not of tomorrow's departures", async () => {
   // A run whose nearest call is hours away has not set out; its sequence is not read.
   const runRequests: KvvTripLocator[] = [];

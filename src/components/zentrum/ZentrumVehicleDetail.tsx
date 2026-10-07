@@ -1,4 +1,5 @@
 import { getTripCallTimeReading } from "../../lib/departure-presentation";
+import { getVehiclePositionSourceLabel } from "../../lib/vehicle-position-presentation";
 import {
   getZentrumVehiclePlaceLabel,
   getZentrumPositionFreshness,
@@ -64,6 +65,13 @@ export function ZentrumVehicleDetail({
         <span title="Aus den Zeiten an den Haltestellen geschätzt, kein GPS">
           Position geschätzt
         </span>
+        {" · "}
+        {getVehiclePositionSourceLabel(
+          vehicle.departure,
+          readingNow,
+          getZentrumSchematicStopId(vehicle.from.id),
+          getZentrumSchematicStopId(vehicle.to.id),
+        )}
         {" · "}
         {getZentrumPositionFreshness([vehicle.departure], readingNow)}
       </p>

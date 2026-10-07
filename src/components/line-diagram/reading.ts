@@ -10,6 +10,7 @@ import type {
 import { getFarthestLineRun, getLineTermini } from "../../lib/stop-services";
 import { findTurnarounds } from "../../lib/line-turnarounds";
 import { useRunMotions } from "../../hooks/run-motions";
+import { useDeviceNow } from "../../hooks/clock";
 import { useStoredPreference } from "../../hooks/stored-preference";
 import { appSettings } from "../../lib/app-settings";
 import { useLineRunDepartures } from "../../hooks/line-run-departures";
@@ -275,7 +276,11 @@ export function useLineDiagramReading({
       isShowingOtherLineRuns,
     ],
   );
-  const vehicleLabelByRowIndex = useMemo(() => getVehicleLabelsByRowIndex(vehicles), [vehicles]);
+  const readingNow = useDeviceNow();
+  const vehicleLabelByRowIndex = useMemo(
+    () => getVehicleLabelsByRowIndex(vehicles, readingNow),
+    [vehicles, readingNow],
+  );
   const { vehiclesByBranchKey, transferKeysByBranchKey } = useLineBundleBranchVehicles({
     branches,
     lineById,
