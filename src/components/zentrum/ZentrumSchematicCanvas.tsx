@@ -146,7 +146,7 @@ export function ZentrumSchematicCanvas({
       top: getZentrumRevealScroll(scroller.scrollTop, y, scroller.clientHeight),
       behavior: reduceMotion ? "auto" : "smooth",
     });
-  }, [selectedStopId, scrollRef]);
+  }, [selectedStopId, scrollRef, planWidth]);
 
   // The lines kept at full strength: the followed one, or those calling at the opened stop.
   const { lineIdsByNodeId } = schematic;

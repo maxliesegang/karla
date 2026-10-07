@@ -1298,6 +1298,9 @@ button.brand:active .brand-mark,
    does. Nothing about the drawing itself changes — the same section, the same scrollport, the same
    toolbar — so the zoom, the scroll position and a running mark's animation all survive the step in
    and the step back out. */
+.app-shell.zentrum-fullscreen {
+  grid-template-rows: minmax(0, 1fr) auto;
+}
 .app-shell.zentrum-fullscreen .app-header {
   display: none;
 }
@@ -1370,7 +1373,7 @@ button.brand:active .brand-mark,
   height: 100%;
   overflow: visible;
 }
-/* Narrow separators keep adjacent routes distinct through their shared bends. */
+/* Separators keep adjacent routes distinct through their shared bends. */
 .zentrum-schematic-line-targets path {
   outline: none;
   fill: none;
@@ -1396,7 +1399,7 @@ button.brand:active .brand-mark,
 .zentrum-schematic-network-track-color,
 .zentrum-schematic-merge-mask,
 .zentrum-schematic-network-track-outline {
-  stroke-width: calc(var(--zentrum-schematic-track-width) * 0.81);
+  stroke-width: calc(var(--zentrum-schematic-track-width) * 0.73);
 }
 .zentrum-schematic-network-track-outline {
   stroke: var(--ink-soft);
@@ -1406,7 +1409,7 @@ button.brand:active .brand-mark,
 }
 .zentrum-schematic-network-track-color[data-pale="true"],
 .zentrum-schematic-merge-mask[data-pale="true"] {
-  stroke-width: calc(var(--zentrum-schematic-track-width) * 0.76);
+  stroke-width: calc(var(--zentrum-schematic-track-width) * 0.68);
 }
 .zentrum-schematic[data-pale-lines="original"] .zentrum-schematic-network-track-outline,
 .zentrum-schematic[data-pale-lines="tone"] .zentrum-schematic-network-track-outline {
@@ -1416,7 +1419,7 @@ button.brand:active .brand-mark,
 .zentrum-schematic[data-pale-lines="tone"] .zentrum-schematic-network-track-color[data-pale],
 .zentrum-schematic[data-pale-lines="original"] .zentrum-schematic-merge-mask[data-pale],
 .zentrum-schematic[data-pale-lines="tone"] .zentrum-schematic-merge-mask[data-pale] {
-  stroke-width: calc(var(--zentrum-schematic-track-width) * 0.81);
+  stroke-width: calc(var(--zentrum-schematic-track-width) * 0.73);
 }
 .zentrum-schematic[data-pale-lines="tone"]
   .zentrum-schematic-network-track-color:not([data-trace="true"]):not([data-unlit-style]) {
@@ -5975,17 +5978,10 @@ button.line-diagram-bundle-option:focus-visible {
     flex: 1 1 auto;
     min-height: 0;
   }
-  /* Stacked, the plan's row is no taller than the city-centre frame its box opens on; the height
-     left over goes to the panel and band below. The 2px are the scrollport's border. */
-  .zentrum-schematic {
-    --zentrum-stage-row: minmax(0, calc(var(--zentrum-frame-height, 100dvh) + 2px));
-    grid-template-rows: var(--zentrum-stage-row) auto;
-    align-content: start;
-  }
   /* An opened stop shares the screen with the map; its whole panel scrolls on a phone. */
   .zentrum-schematic[data-has-panel="true"] {
     grid-template-columns: minmax(0, 1fr);
-    grid-template-rows: minmax(0, 1fr) minmax(0, 1.1fr) auto;
+    grid-template-rows: minmax(0, 3fr) minmax(0, 2fr) auto;
     grid-template-areas: "stage" "panel" "toolbar";
   }
   .zentrum-panel {
@@ -6498,6 +6494,12 @@ button.line-diagram-bundle-option:focus-visible {
   }
   .zentrum-schematic-caption {
     display: none;
+  }
+  /* Short screens give stop details a column beside the map. */
+  .zentrum-schematic[data-has-panel="true"] {
+    grid-template-columns: minmax(0, 1fr) minmax(240px, 36%);
+    grid-template-rows: minmax(0, 1fr) auto;
+    grid-template-areas: "stage panel" "toolbar toolbar";
   }
 }
 

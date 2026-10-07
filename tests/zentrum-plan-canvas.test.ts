@@ -4,7 +4,6 @@ import {
   getNeighboringZentrumZoom,
   getZentrumOpeningScroll,
   getZentrumPlanWidth,
-  getZentrumPortraitFrameHeight,
   getZentrumRevealScroll,
   getZentrumVehicleTransform,
   toZentrumCanvasLeft,
@@ -43,13 +42,13 @@ test("the whole plan is drawn inside the box, in whichever dimension runs out fi
   assert.equal(getZentrumPlanWidth(null, 1), undefined);
 });
 
-test("a portrait box fits the city-centre frame across its width, however tall it is", () => {
-  const ratio = ZENTRUM_SCHEMATIC_VIEWBOX.width / ZENTRUM_PORTRAIT_FRAME.width;
-  assert.equal(getZentrumPlanWidth({ width: 372, height: 635 }, 1), Math.floor(372 * ratio));
-  assert.equal(getZentrumPlanWidth({ width: 372, height: 4000 }, 1), Math.floor(372 * ratio));
+test("a portrait box fills its height with the city-centre frame", () => {
+  const ratio = ZENTRUM_SCHEMATIC_VIEWBOX.width / ZENTRUM_PORTRAIT_FRAME.height;
+  assert.equal(getZentrumPlanWidth({ width: 372, height: 635 }, 1), Math.floor(635 * ratio));
+  assert.equal(getZentrumPlanWidth({ width: 372, height: 750 }, 1), Math.floor(750 * ratio));
   assert.equal(
     getZentrumPlanWidth({ width: 372, height: 635 }, 1.3),
-    Math.floor(1.3 * 372 * ratio),
+    Math.floor(1.3 * 635 * ratio),
   );
   // A landscape panel still opens on the whole plan, fitted to whichever dimension runs out first.
   const planRatio = ZENTRUM_SCHEMATIC_VIEWBOX.width / ZENTRUM_SCHEMATIC_VIEWBOX.height;
@@ -82,8 +81,6 @@ test("the portrait frame holds the city centre from Europaplatz to Werderstraße
   // on a phone.
   assert.ok(zentrumSchematicNodeById.get("europaplatz")!.x - x >= 100);
   assert.ok(zentrumSchematicNodeById.get("marktplatz")!.y - y >= 85);
-  // A portrait box is as tall as the frame, so no band of it is left empty.
-  assert.equal(getZentrumPortraitFrameHeight(width), height);
 });
 
 test("a plan opens centred on the city-centre frame", () => {

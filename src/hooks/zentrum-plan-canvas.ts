@@ -1,9 +1,8 @@
-import { useLayoutEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
 import {
   getNeighboringZentrumZoom,
   getZentrumOpeningScroll,
   getZentrumPlanWidth,
-  getZentrumPortraitFrameHeight,
   ZENTRUM_MAXIMUM_ZOOM,
   ZENTRUM_MINIMUM_ZOOM,
   ZENTRUM_ZOOM_STEPS,
@@ -20,8 +19,6 @@ export type ZentrumPlanCanvas = {
   zoom: number;
   /** The drawn width; `undefined` until measured. */
   planWidth: number | undefined;
-  /** How tall a portrait box needs to be for the city-centre frame; `undefined` until measured. */
-  frameHeight: number | undefined;
   canZoomIn: boolean;
   canZoomOut: boolean;
   changeZoom: (direction: 1 | -1) => void;
@@ -43,27 +40,46 @@ export function useZentrumPlanCanvas(): ZentrumPlanCanvas {
   const zoomAnchor = useRef<{ x: number; y: number; left: number; top: number }>(null);
   /** Whether the plan has already been opened once. */
   const hasOpened = useRef(false);
+  const center = useRef({ x: 0.5, y: 0.5 });
   const box = useElementBox(scrollRef);
   useDragPan(scrollRef);
   const planWidth = getZentrumPlanWidth(box, zoom, isWholePlanFitted);
+
+  useEffect(() => {
+    const element = scrollRef.current;
+    if (!element) return;
+    const readCenter = () => {
+      center.current = {
+        x: (element.scrollLeft + element.clientWidth / 2) / element.scrollWidth,
+        y: (element.scrollTop + element.clientHeight / 2) / element.scrollHeight,
+      };
+    };
+    element.addEventListener("scroll", readCenter);
+    return () => element.removeEventListener("scroll", readCenter);
+  }, []);
 
   useLayoutEffect(() => {
     const element = scrollRef.current;
     const anchor = zoomAnchor.current;
     zoomAnchor.current = null;
-    if (!element) return;
+    if (!element || planWidth === undefined) return;
     if (anchor) {
       element.scrollLeft = anchor.x * element.scrollWidth - anchor.left;
       element.scrollTop = anchor.y * element.scrollHeight - anchor.top;
-      return;
+    } else if (hasOpened.current) {
+      element.scrollLeft = center.current.x * element.scrollWidth - element.clientWidth / 2;
+      element.scrollTop = center.current.y * element.scrollHeight - element.clientHeight / 2;
+    } else {
+      hasOpened.current = true;
+      const { left, top } = getZentrumOpeningScroll(element);
+      element.scrollLeft = left;
+      element.scrollTop = top;
     }
-    // A plan larger than its box opens on the city centre, once; later re-measures do not move it.
-    if (hasOpened.current || planWidth === undefined) return;
-    hasOpened.current = true;
-    const { left, top } = getZentrumOpeningScroll(element);
-    element.scrollLeft = left;
-    element.scrollTop = top;
-  }, [zoom, planWidth]);
+    center.current = {
+      x: (element.scrollLeft + element.clientWidth / 2) / element.scrollWidth,
+      y: (element.scrollTop + element.clientHeight / 2) / element.scrollHeight,
+    };
+  }, [zoom, planWidth, box]);
 
   const holdAnchor = (point: { left: number; top: number }) => {
     const element = scrollRef.current;
@@ -99,7 +115,6 @@ export function useZentrumPlanCanvas(): ZentrumPlanCanvas {
     scrollRef,
     zoom,
     planWidth,
-    frameHeight: box ? Math.ceil(getZentrumPortraitFrameHeight(box.width)) : undefined,
     canZoomIn: zoom < ZENTRUM_MAXIMUM_ZOOM,
     canZoomOut: zoom > ZENTRUM_MINIMUM_ZOOM,
     changeZoom: (direction) => {

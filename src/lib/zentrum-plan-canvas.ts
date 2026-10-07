@@ -30,7 +30,7 @@ const ZENTRUM_WHOLE_PLAN_MINIMUM_WIDTH = 560;
 
 /**
  * The plan's drawn width at a zoom: a landscape box fits the whole plan; a portrait or narrow one
- * fits the frame across its width and pans to the rest. Undefined before measurement.
+ * fills the box with the city-centre frame and pans to the rest. Undefined before measurement.
  */
 export const getZentrumPlanWidth = (
   box: ZentrumPlanBox | null,
@@ -40,7 +40,10 @@ export const getZentrumPlanWidth = (
   if (!box) return undefined;
   const fitted =
     (box.height > box.width || box.width < ZENTRUM_WHOLE_PLAN_MINIMUM_WIDTH) && !fitWholePlan
-      ? (box.width * ZENTRUM_SCHEMATIC_VIEWBOX.width) / ZENTRUM_PORTRAIT_FRAME.width
+      ? Math.max(
+          box.width / ZENTRUM_PORTRAIT_FRAME.width,
+          box.height / ZENTRUM_PORTRAIT_FRAME.height,
+        ) * ZENTRUM_SCHEMATIC_VIEWBOX.width
       : Math.min(
           box.width,
           (box.height * ZENTRUM_SCHEMATIC_VIEWBOX.width) / ZENTRUM_SCHEMATIC_VIEWBOX.height,
@@ -48,10 +51,6 @@ export const getZentrumPlanWidth = (
   // Floored, so a fractional pixel does not cause a scrollbar.
   return Math.floor(zoom * fitted);
 };
-
-/** How tall a portrait box of this width draws the frame at the first zoom step. */
-export const getZentrumPortraitFrameHeight = (boxWidth: number): number =>
-  (boxWidth * ZENTRUM_PORTRAIT_FRAME.height) / ZENTRUM_PORTRAIT_FRAME.width;
 
 /** A scrollport's extent, in CSS pixels. */
 export type ZentrumScrollBox = {
