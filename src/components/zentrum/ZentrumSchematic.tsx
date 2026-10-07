@@ -1,6 +1,8 @@
 import { getZentrumSchematicStopId } from "../../lib/zentrum-schematic-plan";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Departure, DepartureBoard } from "../../data/transit-types";
+import { useDeviceNow } from "../../hooks/clock";
+import { getZentrumPositionFreshness } from "../../lib/zentrum-presentation";
 import { useStoredPreference } from "../../hooks/stored-preference";
 import { useZentrumPlanCanvas } from "../../hooks/zentrum-plan-canvas";
 import { findTurnarounds } from "../../lib/line-turnarounds";
@@ -162,6 +164,11 @@ export function ZentrumSchematic({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [isFullscreen, onChangeFullscreen]);
 
+  const readingNow = useDeviceNow();
+  const freshness = getZentrumPositionFreshness(
+    vehicles.map(({ departure }) => departure),
+    readingNow,
+  );
   const selectedVehicle = vehicles.find((vehicle) => vehicle.id === selectedVehicleId);
   const selectedStop =
     selectedStopId === undefined ? undefined : zentrumSchematicNodeById.get(selectedStopId);
@@ -259,6 +266,7 @@ export function ZentrumSchematic({
       vehicle={selectedVehicle}
       getSign={getSign}
       feedNow={feedNow}
+      readingNow={readingNow}
       returnLabel={selectedStop?.label}
       entranceMotion={panelEntranceMotion}
       onClose={() => setDetailSelection(undefined)}
@@ -342,6 +350,7 @@ export function ZentrumSchematic({
           zoom={plan.zoom}
           planWidth={plan.planWidth}
         />
+        {freshness && <p className="zentrum-position-freshness">{freshness}</p>}
         <ZentrumPlanControls
           zoom={plan.zoom}
           canZoomIn={plan.canZoomIn}

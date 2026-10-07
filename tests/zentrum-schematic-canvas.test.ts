@@ -125,3 +125,92 @@ for (const [place, lineId, stops] of [
     }
   });
 }
+
+for (const atStation of [true, false]) {
+  test(`overlapping marks ${atStation ? "at a station open individually" : "between stations open individually"}`, async (t) => {
+    t.mock.method(HTMLElement.prototype, "animate", () => new Animation());
+    const start = Date.parse("2026-10-07T12:00:00Z");
+    const first = createDeparture({
+      id: "first",
+      tripInstanceId: "first",
+      lineId: "S1",
+      transportMode: "tram",
+      tripCalls: ["kronenplatz", "durlacher-tor"].map((localStopId, index) => ({
+        localStopId,
+        stopName: localStopId,
+        scheduledArrivalTime: new Date(start + index * 60_000).toISOString(),
+        scheduledDepartureTime: new Date(start + index * 60_000).toISOString(),
+      })),
+    });
+    const second = {
+      ...first,
+      id: "second",
+      tripInstanceId: "second",
+      destination: "Anderes Ziel",
+      lineId: "S2",
+    };
+    const schematic = buildZentrumSchematicReading([first, second]);
+    const vehicles = getZentrumSchematicVehicles(
+      schematic,
+      [first, second],
+      start + (atStation ? 0 : 30_000),
+      createRunMotions(),
+    );
+    assert.equal(vehicles.length, 2);
+    const coordinates = vehicles.map(({ x, y }) => [x, y]);
+    const container = document.createElement("div");
+    const root = createRoot(container);
+    let chosenVehicle: string | undefined;
+    let chosenStop: string | undefined;
+    const render = (selectedVehicleId?: string) =>
+      act(async () =>
+        root.render(
+          createElement(ZentrumSchematicCanvas, {
+            schematic,
+            vehicles,
+            selectedVehicleId,
+            getSign: createZentrumLineSignReader([]),
+            zoom: 1,
+            planWidth: 1200,
+            scrollRef: { current: null },
+            onSelectVehicle(id) {
+              chosenVehicle = id;
+            },
+            onSelectStop(id) {
+              chosenStop = id;
+            },
+            onSelectLine() {},
+            onHoverLines() {},
+          }),
+        ),
+      );
+    try {
+      await render();
+      const marks = container.querySelectorAll<HTMLButtonElement>(".zentrum-schematic-vehicle");
+      assert.equal(marks.length, 2);
+      assert.equal(container.querySelector(".zentrum-schematic-stop-vehicles"), null);
+      for (let index = 0; index < marks.length; index += 1) {
+        await act(async () => marks[index].click());
+        assert.equal(chosenVehicle, vehicles[index].id);
+      }
+      await render("first");
+      assert.equal(container.querySelectorAll(".zentrum-schematic-vehicle").length, 2);
+      assert.equal(
+        container.querySelector('[data-marker-key="first"]')?.getAttribute("aria-expanded"),
+        "true",
+      );
+      const stop = container.querySelector<HTMLButtonElement>(
+        '.zentrum-schematic-stop[aria-label^="Kronenplatz,"]',
+      );
+      assert.ok(stop);
+      await act(async () => stop.click());
+      assert.equal(chosenStop, "kronenplatz");
+      assert.deepEqual(
+        vehicles.map(({ x, y }) => [x, y]),
+        coordinates,
+      );
+    } finally {
+      await act(async () => root.unmount());
+    }
+  });
+}

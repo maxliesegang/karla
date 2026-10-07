@@ -887,10 +887,6 @@ const getZentrumSchematicPlacedRuns = (
     const turningKey = turnarounds.turningDepartureKeyByArrivalKey.get(getRunMarkKey(departure));
     return !(phase === "afterEnd" && turningKey !== undefined && placedKeys.has(turningKey));
   });
-  const endedNodeIds = new Set(
-    afterTurnarounds.flatMap(({ phase, to }) => (phase === "afterEnd" ? [to.id] : [])),
-  );
-  // A turn's arrival still under way is the vehicle; its departure's stand waits for it.
   const arrivingTurnKeys = new Set(
     afterTurnarounds.flatMap(({ departure, phase }) => {
       const turningKey = turnarounds.turningDepartureKeyByArrivalKey.get(getRunMarkKey(departure));
@@ -899,7 +895,6 @@ const getZentrumSchematicPlacedRuns = (
   );
   return afterTurnarounds.filter((placement) => {
     if (placement.phase !== "beforeStart") return true;
-    if (endedNodeIds.has(placement.from.id)) return false;
     return !arrivingTurnKeys.has(getRunMarkKey(placement.departure));
   });
 };

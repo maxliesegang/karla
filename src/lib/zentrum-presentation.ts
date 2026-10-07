@@ -74,3 +74,15 @@ export function getZentrumRidePresentation(
     serviceNote: boardingDeparture?.serviceNote,
   };
 }
+
+export function getZentrumPositionFreshness(runs: readonly Departure[], now: number): string {
+  if (runs.length === 0) return "";
+  const stamps = runs.map((run) => run.readAt?.coverageReadAt ?? run.readAt?.sequenceReadAt);
+  if (stamps.some((stamp) => stamp === undefined)) return "Datenalter unbekannt";
+  const ageSeconds = Math.max(
+    0,
+    Math.floor((now - Math.min(...stamps.flatMap((stamp) => stamp ?? []))) / 1_000),
+  );
+  const age = ageSeconds < 60 ? `${ageSeconds} s` : `${Math.floor(ageSeconds / 60)} min`;
+  return `${ageSeconds > 90 ? "Ältere Positionsdaten" : "Positionsdaten"} · bis zu ${age} alt`;
+}

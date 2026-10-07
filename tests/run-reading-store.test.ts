@@ -368,3 +368,71 @@ test("learns a farther run end from a reading that does not replace the current 
   );
   assert.ok(store.findRow("row"), "the farther known end prevents premature retirement");
 });
+
+test("a newer unconfirmed excerpt keeps known coverage and its original age", () => {
+  const store = new RunReadingStore();
+  const full = calls(1);
+  store.rememberRow(stamp(departure("row", "a", { tripCalls: full }), 100), locator, 100);
+  store.rememberSequence(
+    store.findRunRecordKey("row"),
+    sequence([{ ...full[0], delayMinutes: 4 }], 200),
+    200,
+  );
+  const reading = store.findSequence("row")?.sequence;
+  assert.equal(reading?.tripCalls.length, full.length);
+  assert.equal(reading?.tripCalls[0]?.delayMinutes, 4);
+  assert.equal(reading?.readAt, 200);
+  assert.equal(reading?.coverageReadAt, 100);
+});
+
+test("a foreign response and future row cannot alter the active instance", () => {
+  const store = new RunReadingStore();
+  store.rememberRow(stamp(departure("today", "a", { tripCalls: calls(0) }), 100), locator, 100);
+  const future = departure("future", "a", { scheduledDepartureTime: "2026-09-07T10:00:00Z" });
+  store.rememberRow(stamp(future, 200), { ...locator, date: "20260907" }, 200);
+  assert.equal(store.canReadRun("future"), false);
+  assert.equal(store.findRun("future")?.tripCalls, undefined);
+  assert.equal(store.findRunRow(store.findRunRecordKey("today"))?.departure.id, "today");
+  assert.equal(
+    store.rememberSequence(
+      store.findRunRecordKey("today"),
+      sequence([{ ...calls(0)[0], scheduledDepartureTime: "2026-09-07T10:00:00Z" }], 300),
+      300,
+    ),
+    false,
+  );
+  assert.equal(store.findSequence("today")?.sequence.readAt, 100);
+});
+
+test("today can take ownership when tomorrow's basic row was observed first", () => {
+  const store = new RunReadingStore();
+  const now = Date.parse("2026-09-06T10:00:00Z");
+  store.rememberRow(
+    departure("future", "a", { scheduledDepartureTime: "2026-09-07T10:00:00Z" }),
+    { ...locator, date: "20260907" },
+    now,
+  );
+  store.rememberRow(
+    stamp(departure("today", "a", { tripCalls: calls(0) }), now + 1),
+    locator,
+    now + 1,
+  );
+  assert.equal(store.canReadRun("today"), true);
+  assert.equal(store.canReadRun("future"), false);
+  assert.equal(store.findRun("today")?.tripCalls?.length, 2);
+  assert.equal(store.findRun("future")?.tripCalls, undefined);
+});
+
+test("a confirmed shorter terminus replaces older coverage", () => {
+  const store = new RunReadingStore();
+  const full = calls(0);
+  store.rememberRow(stamp(departure("row", "a", { tripCalls: full }), 100), locator, 100);
+  const final = {
+    ...full[0],
+    scheduledArrivalTime: full[0].scheduledDepartureTime,
+    scheduledDepartureTime: undefined,
+  };
+  store.rememberSequence(store.findRunRecordKey("row"), sequence([final], 200), 200);
+  assert.equal(store.findSequence("row")?.sequence.tripCalls.length, 1);
+  assert.equal(store.findSequence("row")?.sequence.coverageReadAt, undefined);
+});

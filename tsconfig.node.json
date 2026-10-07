@@ -41,6 +41,7 @@
     "src/lib/geo.ts",
     "src/lib/line-turnarounds.ts",
     "src/lib/trip-calls.ts",
+    "src/lib/run-timeline.ts",
     "src/lib/trips.ts",
     "src/lib/vehicle-positioning.ts",
     "src/lib/zentrum-schematic.ts",

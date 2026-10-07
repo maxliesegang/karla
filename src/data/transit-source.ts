@@ -199,6 +199,7 @@ export class KvvTransitSource implements TransitSource {
     const rows = boards.flatMap((board) => board.departures);
     const rowsByRun = new Map<string, Departure>();
     for (const row of rows) {
+      if (!this.runReadings.canReadRun(row.id)) continue;
       const key = this.runReadings.findRunRecordKey(row.id);
       const known = rowsByRun.get(key);
       if (!known || isBetterRunReading(row, known)) rowsByRun.set(key, row);
@@ -408,6 +409,7 @@ export class KvvTransitSource implements TransitSource {
     const rows = boards.flatMap((board) => board.departures);
     const rowByRunRecordKey = new Map<string, Departure>();
     for (const row of rows) {
+      if (!this.runReadings.canReadRun(row.id)) continue;
       const recordKey = this.runReadings.findRunRecordKey(row.id);
       const known = rowByRunRecordKey.get(recordKey);
       if (!known || isBetterRunReading(row, known)) rowByRunRecordKey.set(recordKey, row);
@@ -461,7 +463,7 @@ export class KvvTransitSource implements TransitSource {
   /** This row completed by its run; both halves keep their own clock (`readAt`). */
   getRun(rowId: string, maxAgeMs = DEFAULT_BOARD_MAX_AGE_MS): Promise<Departure | undefined> {
     const row = this.runReadings.findRow(rowId);
-    if (!row) return Promise.resolve(undefined);
+    if (!row || !this.runReadings.canReadRun(rowId)) return Promise.resolve(undefined);
     const cached = this.runReadings.findSequence(rowId)?.sequence;
     const current = () => (cached ? this.findRun(rowId) : undefined);
 

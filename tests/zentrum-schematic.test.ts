@@ -1718,3 +1718,47 @@ test("a complex has one authored stop name; boarding places come from observed p
   );
   assert.ok(!ZENTRUM_SCHEMATIC_NODES.some((node) => node.label === "Tullastraße (Nord)"));
 });
+
+test("an unrelated arrival cannot hide a standing departure at its terminus", () => {
+  const arriving = departure(
+    "S8",
+    [
+      {
+        ...call("gottesauer-platz", "7000006"),
+        scheduledDepartureTime: "2026-09-04T12:00:00+02:00",
+        delayMinutes: 0,
+      },
+      {
+        ...call("tullastrasse", "7000034"),
+        scheduledArrivalTime: "2026-09-04T12:02:00+02:00",
+        delayMinutes: 0,
+      },
+    ],
+    { id: "arriving", tripInstanceId: "arriving" },
+  );
+  const waiting = departure(
+    "S12",
+    [
+      {
+        ...call("tullastrasse", "7000034"),
+        scheduledDepartureTime: "2026-09-04T12:08:00+02:00",
+        delayMinutes: 0,
+      },
+      {
+        ...call("gottesauer-platz", "7000006"),
+        scheduledArrivalTime: "2026-09-04T12:10:00+02:00",
+        delayMinutes: 0,
+      },
+    ],
+    { id: "waiting", tripInstanceId: "waiting" },
+  );
+  const schematic = buildZentrumSchematicReading([arriving, waiting]);
+  const vehicles = getZentrumSchematicVehicles(
+    schematic,
+    [arriving, waiting],
+    Date.parse("2026-09-04T12:02:30+02:00"),
+    createRunMotions(),
+  );
+  assert.equal(vehicles.find((v) => v.id === "waiting")?.phase, "beforeStart");
+  assert.equal(vehicles.find((v) => v.id === "arriving")?.phase, "afterEnd");
+});

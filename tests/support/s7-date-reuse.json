@@ -1,0 +1,2165 @@
+{
+  "14": {
+    "parameters": [
+      {
+        "name": "serverID",
+        "value": "EFA13"
+      },
+      {
+        "name": "requestID",
+        "value": "0"
+      },
+      {
+        "name": "sessionID",
+        "value": "0"
+      },
+      {
+        "name": "calcTime",
+        "value": "548.014"
+      },
+      {
+        "name": "serverTime",
+        "value": "2026-10-07T15:42:45"
+      },
+      {
+        "name": "logRequestId",
+        "value": "162211168d1c12bc"
+      }
+    ],
+    "departureList": [
+      {
+        "stopID": "7000006",
+        "x": "8.425551",
+        "y": "49.007352",
+        "mapName": "WGS84[DD.ddddd]",
+        "area": "92",
+        "platform": "2",
+        "platformName": "Gleis 2",
+        "stopName": "Karlsruhe Gottesauer Platz/BGV",
+        "nameWO": "Gottesauer Platz/BGV",
+        "pointType": "Gleis",
+        "countdown": "0",
+        "dateTime": {
+          "year": "2026",
+          "month": "10",
+          "day": "7",
+          "weekday": "4",
+          "hour": "15",
+          "minute": "38"
+        },
+        "realDateTime": {
+          "year": "2026",
+          "month": "10",
+          "day": "7",
+          "weekday": "4",
+          "hour": "15",
+          "minute": "42"
+        },
+        "realtimeTripStatus": "MONITORED",
+        "servingLine": {
+          "key": "72",
+          "code": "2",
+          "number": "S7",
+          "symbol": "S7",
+          "motType": "1",
+          "mtSubcode": "0",
+          "realtime": "1",
+          "direction": "KA Tullastraße/Alter Schlachthof",
+          "directionFrom": "Achern",
+          "trainType": "S",
+          "trainName": "S-Bahn",
+          "trainNum": "85576",
+          "name": "S-Bahn",
+          "delay": "4",
+          "hints": [
+            {
+              "content": "Stufenloses Fahrzeug, WLAN"
+            }
+          ],
+          "liErgRiProj": {
+            "line": "22307",
+            "project": "s26",
+            "direction": "R",
+            "supplement": "E",
+            "network": "kvv",
+            "gid": "de:kvv:00S07_:"
+          },
+          "destID": "7000007",
+          "stateless": "kvv:22307:E:R:s26",
+          "lineDisplay": "line"
+        },
+        "operator": {
+          "code": "01",
+          "name": "Albtal-Verkehrs-Gesellschaft mbH",
+          "publicCode": "AVG"
+        },
+        "attrs": [
+          {
+            "name": "RealtimeTripId",
+            "value": "de:kvv:00S07_:.kvv-22-307-E.10.T0.335.s26"
+          },
+          {
+            "name": "AVMSTripID",
+            "value": "85576-1"
+          }
+        ],
+        "prevStopSeq": [
+          {
+            "name": "Achern",
+            "nameWO": "Bahnhof",
+            "place": "Achern",
+            "nameWithPlace": "",
+            "omc": "8317001",
+            "placeID": "1",
+            "platformName": "Gleis 1",
+            "desc": "",
+            "ref": {
+              "id": "7433013",
+              "area": "5",
+              "platform": "1",
+              "gid": "de:08317:33013",
+              "areaGid": "de:08317:33013:5",
+              "pointGid": "de:08317:33013:5:11",
+              "zone": "kvv:830;tgo:30",
+              "attrs": [
+                {
+                  "name": "AREA_NIVEAU_DIVA",
+                  "value": "0"
+                }
+              ],
+              "coords": "8.065793,48.634116",
+              "niveau": "0",
+              "depDateTime": "20261007 14:33",
+              "depDateTimeSec": "20261007 14:33:00",
+              "arrDelay": "0",
+              "arrValid": "0",
+              "depDelay": "5",
+              "depValid": "1"
+            }
+          },
+          {
+            "name": "Bühl (Baden)",
+            "nameWO": "Bühl (Baden)",
+            "place": "Bühl (Baden)",
+            "nameWithPlace": "",
+            "omc": "8216007",
+            "placeID": "5",
+            "platformName": "Gleis 1",
+            "desc": "",
+            "ref": {
+              "id": "7032227",
+              "area": "1",
+              "platform": "1",
+              "gid": "de:08216:32227",
+              "areaGid": "de:08216:32227:1",
+              "pointGid": "de:08216:32227:1:1",
+              "zone": "kvv:391;tgo:391",
+              "attrs": [
+                {
+                  "name": "AREA_NIVEAU_DIVA",
+                  "value": "0"
+                },
+                {
+                  "name": "AREA_NIVEAU_GIS",
+                  "value": "0.00"
+                }
+              ],
+              "coords": "8.129502,48.696691",
+              "niveau": "0",
+              "arrDateTime": "20261007 14:40",
+              "arrDateTimeSec": "20261007 14:40:00",
+              "depDateTime": "20261007 14:41",
+              "depDateTimeSec": "20261007 14:41:00",
+              "arrDelay": "4",
+              "arrValid": "1",
+              "depDelay": "4",
+              "depValid": "1"
+            }
+          },
+          {
+            "name": "Baden-Baden Rebland",
+            "nameWO": "Baden-Baden Rebland",
+            "place": "Steinbach (Baden-B.)",
+            "nameWithPlace": "",
+            "omc": "8211000",
+            "placeID": "18",
+            "platformName": "Gleis 1",
+            "desc": "",
+            "ref": {
+              "id": "7035113",
+              "area": "1",
+              "platform": "1",
+              "gid": "de:08211:35113",
+              "areaGid": "de:08211:35113:1",
+              "pointGid": "de:08211:35113:1:1",
+              "zone": "kvv:480",
+              "attrs": [
+                {
+                  "name": "AREA_NIVEAU_DIVA",
+                  "value": "0"
+                },
+                {
+                  "name": "AREA_NIVEAU_GIS",
+                  "value": "0.00"
+                }
+              ],
+              "coords": "8.146678,48.733919",
+              "niveau": "0",
+              "arrDateTime": "20261007 14:44",
+              "arrDateTimeSec": "20261007 14:44:00",
+              "depDateTime": "20261007 14:45",
+              "depDateTimeSec": "20261007 14:45:00",
+              "arrDelay": "4",
+              "arrValid": "1",
+              "depDelay": "4",
+              "depValid": "1"
+            }
+          },
+          {
+            "name": "Sinzheim (b. Bühl)",
+            "nameWO": "Sinzheim (b. Bühl)",
+            "place": "Sinzheim",
+            "nameWithPlace": "",
+            "omc": "8216049",
+            "placeID": "6",
+            "platformName": "Gleis 1",
+            "desc": "",
+            "ref": {
+              "id": "7035112",
+              "area": "1",
+              "platform": "1",
+              "gid": "de:08216:35112",
+              "areaGid": "de:08216:35112:1",
+              "pointGid": "de:08216:35112:1:1",
+              "zone": "kvv:480",
+              "attrs": [
+                {
+                  "name": "AREA_NIVEAU_DIVA",
+                  "value": "0"
+                },
+                {
+                  "name": "AREA_NIVEAU_GIS",
+                  "value": "0.00"
+                }
+              ],
+              "coords": "8.158634,48.760053",
+              "niveau": "0",
+              "arrDateTime": "20261007 14:48",
+              "arrDateTimeSec": "20261007 14:48:00",
+              "depDateTime": "20261007 14:48",
+              "depDateTimeSec": "20261007 14:48:00",
+              "arrDelay": "4",
+              "arrValid": "1",
+              "depDelay": "4",
+              "depValid": "1"
+            }
+          },
+          {
+            "name": "Sinzheim (b. Bühl) Nord",
+            "nameWO": "Sinzheim (b. Bühl) Nord",
+            "place": "Sinzheim",
+            "nameWithPlace": "",
+            "omc": "8216049",
+            "placeID": "6",
+            "platformName": "Gleis 1",
+            "desc": "",
+            "ref": {
+              "id": "7035111",
+              "area": "1",
+              "platform": "1",
+              "gid": "de:08216:35111",
+              "areaGid": "de:08216:35111:1",
+              "pointGid": "de:08216:35111:1:1",
+              "zone": "kvv:480",
+              "attrs": [
+                {
+                  "name": "AREA_NIVEAU_DIVA",
+                  "value": "0"
+                },
+                {
+                  "name": "AREA_NIVEAU_GIS",
+                  "value": "0.00"
+                }
+              ],
+              "coords": "8.169845,48.770788",
+              "niveau": "0",
+              "arrDateTime": "20261007 14:50",
+              "arrDateTimeSec": "20261007 14:50:00",
+              "depDateTime": "20261007 14:50",
+              "depDateTimeSec": "20261007 14:50:00",
+              "arrDelay": "4",
+              "arrValid": "1",
+              "depDelay": "4",
+              "depValid": "1"
+            }
+          },
+          {
+            "name": "Baden-Baden",
+            "nameWO": "Baden-Baden",
+            "place": "Baden-Baden",
+            "nameWithPlace": "",
+            "omc": "8211000",
+            "placeID": "1",
+            "platformName": "Gleis 1",
+            "desc": "",
+            "ref": {
+              "id": "7001847",
+              "area": "3",
+              "platform": "1",
+              "gid": "de:08211:1847",
+              "areaGid": "de:08211:1847:3",
+              "pointGid": "de:08211:1847:3:1",
+              "zone": "cw:;kvv:480",
+              "attrs": [
+                {
+                  "name": "AREA_NIVEAU_DIVA",
+                  "value": "0"
+                },
+                {
+                  "name": "AREA_NIVEAU_GIS",
+                  "value": "0.00"
+                }
+              ],
+              "coords": "8.190884,48.790109",
+              "niveau": "0",
+              "arrDateTime": "20261007 14:53",
+              "arrDateTimeSec": "20261007 14:53:00",
+              "depDateTime": "20261007 14:54",
+              "depDateTimeSec": "20261007 14:54:00",
+              "arrDelay": "3",
+              "arrValid": "1",
+              "depDelay": "3",
+              "depValid": "1"
+            }
+          },
+          {
+            "name": "Baden-Baden Haueneberstein",
+            "nameWO": "Baden-Baden Haueneberstein",
+            "place": "Haueneberstein",
+            "nameWithPlace": "",
+            "omc": "8211000",
+            "placeID": "8",
+            "platformName": "Gleis 1",
+            "desc": "",
+            "ref": {
+              "id": "7035110",
+              "area": "1",
+              "platform": "1",
+              "gid": "de:08211:35110",
+              "areaGid": "de:08211:35110:1",
+              "pointGid": "de:08211:35110:1:1",
+              "zone": "kvv:480",
+              "attrs": [
+                {
+                  "name": "AREA_NIVEAU_DIVA",
+                  "value": "0"
+                },
+                {
+                  "name": "AREA_NIVEAU_GIS",
+                  "value": "0.00"
+                }
+              ],
+              "coords": "8.209128,48.811978",
+              "niveau": "0",
+              "arrDateTime": "20261007 14:56",
+              "arrDateTimeSec": "20261007 14:56:00",
+              "depDateTime": "20261007 14:57",
+              "depDateTimeSec": "20261007 14:57:00",
+              "arrDelay": "4",
+              "arrValid": "1",
+              "depDelay": "3",
+              "depValid": "1"
+            }
+          },
+          {
+            "name": "Rastatt",
+            "nameWO": "Rastatt",
+            "place": "Rastatt",
+            "nameWithPlace": "",
+            "omc": "8216043",
+            "placeID": "5",
+            "platformName": "Gleis 5",
+            "desc": "",
+            "ref": {
+              "id": "7001844",
+              "area": "4",
+              "platform": "5",
+              "gid": "de:08216:1844",
+              "areaGid": "de:08216:1844:4",
+              "pointGid": "de:08216:1844:4:5",
+              "zone": "kvv:361;tgo:361",
+              "attrs": [
+                {
+                  "name": "AREA_NIVEAU_DIVA",
+                  "value": "0"
+                },
+                {
+                  "name": "AREA_NIVEAU_GIS",
+                  "value": "0.00"
+                }
+              ],
+              "coords": "8.216063,48.860782",
+              "niveau": "0",
+              "arrDateTime": "20261007 15:01",
+              "arrDateTimeSec": "20261007 15:01:00",
+              "depDateTime": "20261007 15:02",
+              "depDateTimeSec": "20261007 15:02:00",
+              "arrDelay": "4",
+              "arrValid": "1",
+              "depDelay": "4",
+              "depValid": "1"
+            }
+          },
+          {
+            "name": "Ötigheim",
+            "nameWO": "Ötigheim",
+            "place": "Ötigheim",
+            "nameWithPlace": "",
+            "omc": "8216039",
+            "placeID": "1",
+            "platformName": "Gleis 2",
+            "desc": "",
+            "ref": {
+              "id": "7001821",
+              "area": "2",
+              "platform": "2",
+              "gid": "de:08216:1821",
+              "areaGid": "de:08216:1821:2",
+              "pointGid": "de:08216:1821:2:2",
+              "zone": "kvv:352",
+              "attrs": [
+                {
+                  "name": "AREA_NIVEAU_DIVA",
+                  "value": "0"
+                },
+                {
+                  "name": "AREA_NIVEAU_GIS",
+                  "value": "0.00"
+                }
+              ],
+              "coords": "8.240318,48.888256",
+              "niveau": "0",
+              "arrDateTime": "20261007 15:05",
+              "arrDateTimeSec": "20261007 15:05:00",
+              "depDateTime": "20261007 15:06",
+              "depDateTimeSec": "20261007 15:06:00",
+              "arrDelay": "4",
+              "arrValid": "1",
+              "depDelay": "4",
+              "depValid": "1"
+            }
+          },
+          {
+            "name": "Bietigheim (Baden)",
+            "nameWO": "Bietigheim (Baden)",
+            "place": "Bietigheim (Baden)",
+            "nameWithPlace": "",
+            "omc": "8216005",
+            "placeID": "1",
+            "platformName": "Gleis 2",
+            "desc": "",
+            "ref": {
+              "id": "7001820",
+              "area": "2",
+              "platform": "2",
+              "gid": "de:08216:1820",
+              "areaGid": "de:08216:1820:2",
+              "pointGid": "de:08216:1820:2:2",
+              "zone": "kvv:342",
+              "attrs": [
+                {
+                  "name": "AREA_NIVEAU_DIVA",
+                  "value": "0"
+                },
+                {
+                  "name": "AREA_NIVEAU_GIS",
+                  "value": "0.00"
+                }
+              ],
+              "coords": "8.258212,48.910755",
+              "niveau": "0",
+              "arrDateTime": "20261007 15:08",
+              "arrDateTimeSec": "20261007 15:08:00",
+              "depDateTime": "20261007 15:09",
+              "depDateTimeSec": "20261007 15:09:00",
+              "arrDelay": "4",
+              "arrValid": "1",
+              "depDelay": "4",
+              "depValid": "1"
+            }
+          },
+          {
+            "name": "Durmersheim",
+            "nameWO": "Durmersheim",
+            "place": "Durmersheim",
+            "nameWithPlace": "",
+            "omc": "8216009",
+            "placeID": "1",
+            "platformName": "Gleis 3",
+            "desc": "",
+            "ref": {
+              "id": "7001819",
+              "area": "2",
+              "platform": "3",
+              "gid": "de:08216:1819",
+              "areaGid": "de:08216:1819:2",
+              "pointGid": "de:08216:1819:2:3",
+              "zone": "kvv:342",
+              "attrs": [
+                {
+                  "name": "AREA_NIVEAU_DIVA",
+                  "value": "0"
+                },
+                {
+                  "name": "AREA_NIVEAU_GIS",
+                  "value": "0.00"
+                }
+              ],
+              "coords": "8.272909,48.929090",
+              "niveau": "0",
+              "arrDateTime": "20261007 15:12",
+              "arrDateTimeSec": "20261007 15:12:00",
+              "depDateTime": "20261007 15:12",
+              "depDateTimeSec": "20261007 15:12:00",
+              "arrDelay": "4",
+              "arrValid": "1",
+              "depDelay": "4",
+              "depValid": "1"
+            }
+          },
+          {
+            "name": "Durmersheim Nord",
+            "nameWO": "Durmersheim Nord",
+            "place": "Durmersheim",
+            "nameWithPlace": "",
+            "omc": "8216009",
+            "placeID": "1",
+            "platformName": "Gleis 2",
+            "desc": "",
+            "ref": {
+              "id": "7035109",
+              "area": "2",
+              "platform": "2",
+              "gid": "de:08216:35109",
+              "areaGid": "de:08216:35109:2",
+              "pointGid": "de:08216:35109:2:2",
+              "zone": "kvv:342",
+              "attrs": [
+                {
+                  "name": "AREA_NIVEAU_DIVA",
+                  "value": "0"
+                },
+                {
+                  "name": "AREA_NIVEAU_GIS",
+                  "value": "0.00"
+                }
+              ],
+              "coords": "8.280913,48.938042",
+              "niveau": "0",
+              "arrDateTime": "20261007 15:14",
+              "arrDateTimeSec": "20261007 15:14:00",
+              "depDateTime": "20261007 15:15",
+              "depDateTimeSec": "20261007 15:15:00",
+              "arrDelay": "4",
+              "arrValid": "1",
+              "depDelay": "4",
+              "depValid": "1"
+            }
+          },
+          {
+            "name": "Forchheim (b Karlsruhe)",
+            "nameWO": "Forchheim (b Karlsruhe)",
+            "place": "Forchheim (b Karlsr)",
+            "nameWithPlace": "",
+            "omc": "8215108",
+            "placeID": "1",
+            "platformName": "Gleis 2",
+            "desc": "",
+            "ref": {
+              "id": "7001818",
+              "area": "2",
+              "platform": "2",
+              "gid": "de:08215:1818",
+              "areaGid": "de:08215:1818:2",
+              "pointGid": "de:08215:1818:2:2",
+              "zone": "kvv:232",
+              "attrs": [
+                {
+                  "name": "AREA_NIVEAU_DIVA",
+                  "value": "0"
+                },
+                {
+                  "name": "AREA_NIVEAU_GIS",
+                  "value": "0.00"
+                }
+              ],
+              "coords": "8.338863,48.964730",
+              "niveau": "0",
+              "arrDateTime": "20261007 15:19",
+              "arrDateTimeSec": "20261007 15:19:00",
+              "depDateTime": "20261007 15:19",
+              "depDateTimeSec": "20261007 15:19:00",
+              "arrDelay": "4",
+              "arrValid": "1",
+              "depDelay": "4",
+              "depValid": "1"
+            }
+          },
+          {
+            "name": "Karlsruhe Albtalbahnhof",
+            "nameWO": "Karlsruhe Albtalbahnhof",
+            "place": "Karlsruhe",
+            "nameWithPlace": "",
+            "omc": "8212000",
+            "placeID": "15",
+            "platformName": "Gleis 2",
+            "desc": "",
+            "ref": {
+              "id": "7001201",
+              "area": "2",
+              "platform": "2",
+              "gid": "de:08212:1201",
+              "areaGid": "de:08212:1201:2",
+              "pointGid": "de:08212:1201:3:2",
+              "zone": "hnv:;kvv:100",
+              "attrs": [
+                {
+                  "name": "AREA_NIVEAU_DIVA",
+                  "value": "0"
+                },
+                {
+                  "name": "AREA_NIVEAU_GIS",
+                  "value": "0.00"
+                }
+              ],
+              "coords": "8.396077,48.993862",
+              "niveau": "0",
+              "arrDateTime": "20261007 15:24",
+              "arrDateTimeSec": "20261007 15:24:00",
+              "depDateTime": "20261007 15:25",
+              "depDateTimeSec": "20261007 15:25:00",
+              "arrDelay": "4",
+              "arrValid": "1",
+              "depDelay": "4",
+              "depValid": "1"
+            }
+          },
+          {
+            "name": "Karlsruhe Hauptbahnhof (Vorplatz)",
+            "nameWO": "Hauptbahnhof (Vorplatz)",
+            "place": "Karlsruhe",
+            "nameWithPlace": "",
+            "omc": "8212000",
+            "placeID": "15",
+            "platformName": "Gleis 21",
+            "desc": "",
+            "ref": {
+              "id": "7000089",
+              "area": "21",
+              "platform": "21",
+              "gid": "de:08212:89",
+              "areaGid": "de:08212:89:3",
+              "pointGid": "de:08212:89:3:1",
+              "zone": "hnv:;kvv:100;vvs:",
+              "attrs": [
+                {
+                  "name": "AREA_NIVEAU_DIVA",
+                  "value": "0"
+                },
+                {
+                  "name": "AREA_NIVEAU_GIS",
+                  "value": "0.00"
+                }
+              ],
+              "coords": "8.400092,48.994410",
+              "niveau": "0",
+              "arrDateTime": "20261007 15:26",
+              "arrDateTimeSec": "20261007 15:26:00",
+              "depDateTime": "20261007 15:27",
+              "depDateTimeSec": "20261007 15:27:00",
+              "arrDelay": "4",
+              "arrValid": "1",
+              "depDelay": "4",
+              "depValid": "1"
+            }
+          },
+          {
+            "name": "Karlsruhe Poststraße",
+            "nameWO": "Poststraße",
+            "place": "Karlsruhe",
+            "nameWithPlace": "",
+            "omc": "8212000",
+            "placeID": "15",
+            "platformName": "Gleis 2",
+            "desc": "",
+            "ref": {
+              "id": "7000098",
+              "area": "2",
+              "platform": "2",
+              "gid": "de:08212:98",
+              "areaGid": "de:08212:98:2",
+              "pointGid": "de:08212:98:2:2",
+              "zone": "hnv:;kvv:100",
+              "attrs": [
+                {
+                  "name": "AREA_NIVEAU_DIVA",
+                  "value": "0"
+                },
+                {
+                  "name": "AREA_NIVEAU_GIS",
+                  "value": "0.00"
+                }
+              ],
+              "coords": "8.403964,48.995247",
+              "niveau": "0",
+              "arrDateTime": "20261007 15:28",
+              "arrDateTimeSec": "20261007 15:28:00",
+              "depDateTime": "20261007 15:28",
+              "depDateTimeSec": "20261007 15:28:00",
+              "arrDelay": "4",
+              "arrValid": "1",
+              "depDelay": "4",
+              "depValid": "1"
+            }
+          },
+          {
+            "name": "Karlsruhe Augartenstraße",
+            "nameWO": "Augartenstraße",
+            "place": "Karlsruhe",
+            "nameWithPlace": "",
+            "omc": "8212000",
+            "placeID": "15",
+            "platformName": "Gleis 2",
+            "desc": "",
+            "ref": {
+              "id": "7000074",
+              "area": "92",
+              "platform": "2",
+              "gid": "de:08212:74",
+              "areaGid": "de:08212:74:92",
+              "pointGid": "de:08212:74:92:2",
+              "zone": "hnv:;kvv:100",
+              "attrs": [
+                {
+                  "name": "AREA_NIVEAU_DIVA",
+                  "value": "0"
+                },
+                {
+                  "name": "AREA_NIVEAU_GIS",
+                  "value": "0.00"
+                }
+              ],
+              "coords": "8.403479,48.999131",
+              "niveau": "0",
+              "arrDateTime": "20261007 15:29",
+              "arrDateTimeSec": "20261007 15:29:00",
+              "depDateTime": "20261007 15:30",
+              "depDateTimeSec": "20261007 15:30:00",
+              "arrDelay": "4",
+              "arrValid": "1",
+              "depDelay": "4",
+              "depValid": "1"
+            }
+          },
+          {
+            "name": "Karlsruhe Kongresszentrum (U)",
+            "nameWO": "Kongresszentrum (U)",
+            "place": "Karlsruhe",
+            "nameWithPlace": "",
+            "omc": "8212000",
+            "placeID": "15",
+            "platformName": "Gleis 4(U)",
+            "desc": "",
+            "ref": {
+              "id": "7001013",
+              "area": "94",
+              "platform": "4(U)",
+              "gid": "de:08212:1013",
+              "areaGid": "de:08212:1013:94",
+              "pointGid": "de:08212:1013:94:4",
+              "zone": "hnv:;kvv:100",
+              "attrs": [
+                {
+                  "name": "AREA_NIVEAU_DIVA",
+                  "value": "-1"
+                },
+                {
+                  "name": "AREA_NIVEAU_GIS",
+                  "value": "-1.00"
+                }
+              ],
+              "coords": "8.403227,49.003003",
+              "niveau": "-1",
+              "arrDateTime": "20261007 15:30",
+              "arrDateTimeSec": "20261007 15:30:00",
+              "depDateTime": "20261007 15:31",
+              "depDateTimeSec": "20261007 15:31:00",
+              "arrDelay": "4",
+              "arrValid": "1",
+              "depDelay": "4",
+              "depValid": "1"
+            }
+          },
+          {
+            "name": "KA Ettlinger Tor/Staatstheater (U)",
+            "nameWO": "Ettlinger Tor/Staatstheater (U)",
+            "place": "Karlsruhe",
+            "nameWithPlace": "",
+            "omc": "8212000",
+            "placeID": "15",
+            "platformName": "Gleis 4(U)",
+            "desc": "",
+            "ref": {
+              "id": "7001012",
+              "area": "94",
+              "platform": "4(U)",
+              "gid": "de:08212:1012",
+              "areaGid": "de:08212:1012:94",
+              "pointGid": "de:08212:1012:94:4",
+              "zone": "hnv:;kvv:100",
+              "attrs": [
+                {
+                  "name": "AREA_NIVEAU_DIVA",
+                  "value": "-2"
+                },
+                {
+                  "name": "AREA_NIVEAU_GIS",
+                  "value": "-2.00"
+                }
+              ],
+              "coords": "8.403587,49.005926",
+              "niveau": "-2",
+              "arrDateTime": "20261007 15:32",
+              "arrDateTimeSec": "20261007 15:32:00",
+              "depDateTime": "20261007 15:32",
+              "depDateTimeSec": "20261007 15:32:00",
+              "arrDelay": "4",
+              "arrValid": "1",
+              "depDelay": "4",
+              "depValid": "1"
+            }
+          },
+          {
+            "name": "KA Marktplatz (Pyramide U)",
+            "nameWO": "Marktplatz (Pyramide U)",
+            "place": "Karlsruhe",
+            "nameWithPlace": "",
+            "omc": "8212000",
+            "placeID": "15",
+            "platformName": "Gleis 4(U)",
+            "desc": "",
+            "ref": {
+              "id": "7001011",
+              "area": "94",
+              "platform": "4(U)",
+              "gid": "de:08212:1011",
+              "areaGid": "de:08212:1011:94",
+              "pointGid": "de:08212:1011:94:4",
+              "zone": "hnv:;kvv:100",
+              "attrs": [
+                {
+                  "name": "AREA_NIVEAU_DIVA",
+                  "value": "-2"
+                },
+                {
+                  "name": "AREA_NIVEAU_GIS",
+                  "value": "-2.00"
+                }
+              ],
+              "coords": "8.403766,49.009120",
+              "niveau": "-2",
+              "arrDateTime": "20261007 15:33",
+              "arrDateTimeSec": "20261007 15:33:00",
+              "depDateTime": "20261007 15:34",
+              "depDateTimeSec": "20261007 15:34:00",
+              "arrDelay": "4",
+              "arrValid": "1",
+              "depDelay": "4",
+              "depValid": "1"
+            }
+          },
+          {
+            "name": "Karlsruhe Kronenplatz (U)",
+            "nameWO": "Kronenplatz (U)",
+            "place": "Karlsruhe",
+            "nameWithPlace": "",
+            "omc": "8212000",
+            "placeID": "15",
+            "platformName": "Gleis 2(U)",
+            "desc": "",
+            "ref": {
+              "id": "7001002",
+              "area": "92",
+              "platform": "2(U)",
+              "gid": "de:08212:1002",
+              "areaGid": "de:08212:1002:92",
+              "pointGid": "de:08212:1002:92:2",
+              "zone": "hnv:;kvv:100",
+              "attrs": [
+                {
+                  "name": "AREA_NIVEAU_DIVA",
+                  "value": "-2"
+                },
+                {
+                  "name": "AREA_NIVEAU_GIS",
+                  "value": "-2.00"
+                }
+              ],
+              "coords": "8.411079,49.009285",
+              "niveau": "-2",
+              "arrDateTime": "20261007 15:35",
+              "arrDateTimeSec": "20261007 15:35:00",
+              "depDateTime": "20261007 15:35",
+              "depDateTimeSec": "20261007 15:35:00",
+              "arrDelay": "4",
+              "arrValid": "1",
+              "depDelay": "4",
+              "depValid": "1"
+            }
+          },
+          {
+            "name": "KA Durlacher Tor/KIT-Campus Süd (U)",
+            "nameWO": "Durlacher Tor/KIT-Campus Süd (U)",
+            "place": "Karlsruhe",
+            "nameWithPlace": "",
+            "omc": "8212000",
+            "placeID": "15",
+            "platformName": "Gleis 2(U)",
+            "desc": "",
+            "ref": {
+              "id": "7001001",
+              "area": "92",
+              "platform": "2(U)",
+              "gid": "de:08212:1001",
+              "areaGid": "de:08212:1001:92",
+              "pointGid": "de:08212:1001:92:2",
+              "zone": "hnv:;kvv:100",
+              "attrs": [
+                {
+                  "name": "AREA_NIVEAU_DIVA",
+                  "value": "-2"
+                },
+                {
+                  "name": "AREA_NIVEAU_GIS",
+                  "value": "-2.00"
+                }
+              ],
+              "coords": "8.417735,49.008825",
+              "niveau": "-2",
+              "arrDateTime": "20261007 15:36",
+              "arrDateTimeSec": "20261007 15:36:00",
+              "depDateTime": "20261007 15:37",
+              "depDateTimeSec": "20261007 15:37:00",
+              "arrDelay": "4",
+              "arrValid": "1",
+              "depDelay": "4",
+              "depValid": "1"
+            }
+          }
+        ],
+        "onwardStopSeq": {
+          "name": "KA Tullastraße/Alter Schlachthof",
+          "nameWO": "Tullastraße/Alter Schlachthof",
+          "place": "Karlsruhe",
+          "nameWithPlace": "",
+          "omc": "8212000",
+          "placeID": "15",
+          "platformName": "Gleis 4",
+          "desc": "",
+          "ref": {
+            "id": "7000007",
+            "area": "4",
+            "platform": "4",
+            "gid": "de:08212:7",
+            "areaGid": "de:08212:7:6",
+            "pointGid": "de:08212:7:6:6",
+            "zone": "hnv:;kvv:100",
+            "attrs": [
+              {
+                "name": "AREA_NIVEAU_DIVA",
+                "value": "0"
+              },
+              {
+                "name": "AREA_NIVEAU_GIS",
+                "value": "0.00"
+              }
+            ],
+            "coords": "8.431542,49.007335",
+            "niveau": "0",
+            "arrDateTime": "20261007 15:40",
+            "arrDateTimeSec": "20261007 15:40:00",
+            "arrDelay": "4",
+            "arrValid": "1",
+            "depDelay": "0",
+            "depValid": "0"
+          }
+        }
+      }
+    ]
+  },
+  "340": {
+    "parameters": [
+      {
+        "name": "serverID",
+        "value": "EFA13"
+      },
+      {
+        "name": "requestID",
+        "value": "0"
+      },
+      {
+        "name": "sessionID",
+        "value": "0"
+      },
+      {
+        "name": "calcTime",
+        "value": "119.427"
+      },
+      {
+        "name": "serverTime",
+        "value": "2026-10-07T15:42:48"
+      },
+      {
+        "name": "logRequestId",
+        "value": "162211168d1c1340"
+      }
+    ],
+    "arrivalList": [
+      {
+        "stopID": "7001011",
+        "x": "8.403766",
+        "y": "49.009120",
+        "mapName": "WGS84[DD.ddddd]",
+        "area": "94",
+        "platform": "4(U)",
+        "platformName": "Gleis 4(U)",
+        "stopName": "KA Marktplatz (Pyramide U)",
+        "nameWO": "Marktplatz (Pyramide U)",
+        "pointType": "Gleis",
+        "countdown": "1431",
+        "dateTime": {
+          "year": "2026",
+          "month": "10",
+          "day": "8",
+          "weekday": "5",
+          "hour": "15",
+          "minute": "33"
+        },
+        "servingLine": {
+          "key": "72",
+          "code": "2",
+          "number": "S7",
+          "symbol": "S7",
+          "motType": "1",
+          "mtSubcode": "0",
+          "realtime": "0",
+          "direction": "KA Tullastraße/Alter Schlachthof",
+          "directionFrom": "Achern",
+          "trainNum": "85576",
+          "name": "S-Bahn",
+          "hints": [
+            {
+              "content": "Stufenloses Fahrzeug, WLAN"
+            }
+          ],
+          "liErgRiProj": {
+            "line": "22307",
+            "project": "s26",
+            "direction": "R",
+            "supplement": "E",
+            "network": "kvv",
+            "gid": "de:kvv:00S07_:"
+          },
+          "destID": "7000007",
+          "stateless": "kvv:22307:E:R:s26",
+          "lineDisplay": "line"
+        },
+        "operator": {
+          "code": "01",
+          "name": "Albtal-Verkehrs-Gesellschaft mbH",
+          "publicCode": "AVG"
+        },
+        "attrs": [
+          {
+            "name": "RealtimeTripId",
+            "value": "de:kvv:00S07_:.kvv-22-307-E.10.T0.335.s26"
+          }
+        ]
+      }
+    ]
+  },
+  "363": {
+    "parameters": [
+      {
+        "name": "serverID",
+        "value": "EFA12"
+      },
+      {
+        "name": "requestID",
+        "value": "0"
+      },
+      {
+        "name": "sessionID",
+        "value": "0"
+      },
+      {
+        "name": "calcTime",
+        "value": "70.300"
+      },
+      {
+        "name": "serverTime",
+        "value": "2026-10-07T15:43:19"
+      },
+      {
+        "name": "logRequestId",
+        "value": "8e817006992b9e7b"
+      }
+    ],
+    "vehicleCallAtStop": {
+      "stopID": "7001011",
+      "tC": "72",
+      "t10": "15330",
+      "time": "15:33",
+      "line": "kvv:22307:E:R:s26"
+    },
+    "mode": {
+      "name": "S-Bahn S7",
+      "number": "S7",
+      "symbol": "S7",
+      "product": "S-Bahn",
+      "productId": "11",
+      "type": "2",
+      "code": "1",
+      "destination": "KA Tullastraße/Alter Schlachthof",
+      "destID": "-1",
+      "desc": "Achern - Karlsruhe",
+      "timetablePeriod": "Gültig vom 14.06.26 bis 12.12.26 (S)",
+      "realtime": "0",
+      "diva": {
+        "branch": "22",
+        "line": "22307",
+        "supplement": "E",
+        "dir": "R",
+        "project": "s26",
+        "network": "kvv",
+        "stateless": "kvv:22307:E:R:s26",
+        "globalId": "de:kvv:00S07_:",
+        "tripCode": "72",
+        "operator": "Albtal-Verkehrs-Gesellschaft mbH",
+        "opPublicCode": "AVG",
+        "opCode": "01",
+        "vF": "20260614",
+        "vTo": "20261212",
+        "lineDisplay": "line",
+        "attrs": [
+          {
+            "name": "OperatorURL",
+            "value": "https://www.avg.info"
+          }
+        ]
+      }
+    },
+    "stopSeq": [
+      {
+        "name": "Achern",
+        "nameWO": "Bahnhof",
+        "place": "Achern",
+        "nameWithPlace": "",
+        "omc": "8317001",
+        "placeID": "1",
+        "platformName": "Gleis 1",
+        "desc": "",
+        "ref": {
+          "id": "7433013",
+          "area": "5",
+          "platform": "1",
+          "gid": "de:08317:33013",
+          "areaGid": "de:08317:33013:5",
+          "pointGid": "de:08317:33013:5:11",
+          "attrs": [
+            {
+              "name": "AREA_NIVEAU_DIVA",
+              "value": "0"
+            },
+            {
+              "name": "DestinationText",
+              "value": "KA Tullastraße/Alter Schlachthof"
+            }
+          ],
+          "coords": "8.065793,48.634116",
+          "niveau": "0",
+          "depDateTime": "20261008 14:33",
+          "depDateTimeSec": "20261008 14:33:00",
+          "arrDelay": "0",
+          "arrValid": "0",
+          "depDelay": "0",
+          "depValid": "0"
+        }
+      },
+      {
+        "name": "Bühl (Baden)",
+        "nameWO": "Bühl (Baden)",
+        "place": "Bühl (Baden)",
+        "nameWithPlace": "",
+        "omc": "8216007",
+        "placeID": "5",
+        "platformName": "Gleis 1",
+        "desc": "",
+        "ref": {
+          "id": "7032227",
+          "area": "1",
+          "platform": "1",
+          "gid": "de:08216:32227",
+          "areaGid": "de:08216:32227:1",
+          "pointGid": "de:08216:32227:1:1",
+          "attrs": [
+            {
+              "name": "AREA_NIVEAU_DIVA",
+              "value": "0"
+            },
+            {
+              "name": "AREA_NIVEAU_GIS",
+              "value": "0.00"
+            },
+            {
+              "name": "DestinationText",
+              "value": "KA Tullastraße/Alter Schlachthof"
+            }
+          ],
+          "coords": "8.129502,48.696691",
+          "niveau": "0",
+          "arrDateTime": "20261008 14:40",
+          "arrDateTimeSec": "20261008 14:40:00",
+          "depDateTime": "20261008 14:41",
+          "depDateTimeSec": "20261008 14:41:00",
+          "arrDelay": "0",
+          "arrValid": "0",
+          "depDelay": "0",
+          "depValid": "0"
+        }
+      },
+      {
+        "name": "Baden-Baden Rebland",
+        "nameWO": "Baden-Baden Rebland",
+        "place": "Steinbach (Baden-B.)",
+        "nameWithPlace": "",
+        "omc": "8211000",
+        "placeID": "18",
+        "platformName": "Gleis 1",
+        "desc": "",
+        "ref": {
+          "id": "7035113",
+          "area": "1",
+          "platform": "1",
+          "gid": "de:08211:35113",
+          "areaGid": "de:08211:35113:1",
+          "pointGid": "de:08211:35113:1:1",
+          "attrs": [
+            {
+              "name": "AREA_NIVEAU_DIVA",
+              "value": "0"
+            },
+            {
+              "name": "AREA_NIVEAU_GIS",
+              "value": "0.00"
+            },
+            {
+              "name": "DestinationText",
+              "value": "KA Tullastraße/Alter Schlachthof"
+            }
+          ],
+          "coords": "8.146678,48.733919",
+          "niveau": "0",
+          "arrDateTime": "20261008 14:44",
+          "arrDateTimeSec": "20261008 14:44:00",
+          "depDateTime": "20261008 14:45",
+          "depDateTimeSec": "20261008 14:45:00",
+          "arrDelay": "0",
+          "arrValid": "0",
+          "depDelay": "0",
+          "depValid": "0"
+        }
+      },
+      {
+        "name": "Sinzheim (b. Bühl)",
+        "nameWO": "Sinzheim (b. Bühl)",
+        "place": "Sinzheim",
+        "nameWithPlace": "",
+        "omc": "8216049",
+        "placeID": "6",
+        "platformName": "Gleis 1",
+        "desc": "",
+        "ref": {
+          "id": "7035112",
+          "area": "1",
+          "platform": "1",
+          "gid": "de:08216:35112",
+          "areaGid": "de:08216:35112:1",
+          "pointGid": "de:08216:35112:1:1",
+          "attrs": [
+            {
+              "name": "AREA_NIVEAU_DIVA",
+              "value": "0"
+            },
+            {
+              "name": "AREA_NIVEAU_GIS",
+              "value": "0.00"
+            },
+            {
+              "name": "DestinationText",
+              "value": "KA Tullastraße/Alter Schlachthof"
+            }
+          ],
+          "coords": "8.158634,48.760053",
+          "niveau": "0",
+          "arrDateTime": "20261008 14:48",
+          "arrDateTimeSec": "20261008 14:48:00",
+          "depDateTime": "20261008 14:48",
+          "depDateTimeSec": "20261008 14:48:00",
+          "arrDelay": "0",
+          "arrValid": "0",
+          "depDelay": "0",
+          "depValid": "0"
+        }
+      },
+      {
+        "name": "Sinzheim (b. Bühl) Nord",
+        "nameWO": "Sinzheim (b. Bühl) Nord",
+        "place": "Sinzheim",
+        "nameWithPlace": "",
+        "omc": "8216049",
+        "placeID": "6",
+        "platformName": "Gleis 1",
+        "desc": "",
+        "ref": {
+          "id": "7035111",
+          "area": "1",
+          "platform": "1",
+          "gid": "de:08216:35111",
+          "areaGid": "de:08216:35111:1",
+          "pointGid": "de:08216:35111:1:1",
+          "attrs": [
+            {
+              "name": "AREA_NIVEAU_DIVA",
+              "value": "0"
+            },
+            {
+              "name": "AREA_NIVEAU_GIS",
+              "value": "0.00"
+            },
+            {
+              "name": "DestinationText",
+              "value": "KA Tullastraße/Alter Schlachthof"
+            }
+          ],
+          "coords": "8.169845,48.770788",
+          "niveau": "0",
+          "arrDateTime": "20261008 14:50",
+          "arrDateTimeSec": "20261008 14:50:00",
+          "depDateTime": "20261008 14:50",
+          "depDateTimeSec": "20261008 14:50:00",
+          "arrDelay": "0",
+          "arrValid": "0",
+          "depDelay": "0",
+          "depValid": "0"
+        }
+      },
+      {
+        "name": "Baden-Baden",
+        "nameWO": "Baden-Baden",
+        "place": "Baden-Baden",
+        "nameWithPlace": "",
+        "omc": "8211000",
+        "placeID": "1",
+        "platformName": "Gleis 1",
+        "desc": "",
+        "ref": {
+          "id": "7001847",
+          "area": "3",
+          "platform": "1",
+          "gid": "de:08211:1847",
+          "areaGid": "de:08211:1847:3",
+          "pointGid": "de:08211:1847:3:1",
+          "attrs": [
+            {
+              "name": "AREA_NIVEAU_DIVA",
+              "value": "0"
+            },
+            {
+              "name": "AREA_NIVEAU_GIS",
+              "value": "0.00"
+            },
+            {
+              "name": "DestinationText",
+              "value": "KA Tullastraße/Alter Schlachthof"
+            }
+          ],
+          "coords": "8.190884,48.790109",
+          "niveau": "0",
+          "arrDateTime": "20261008 14:53",
+          "arrDateTimeSec": "20261008 14:53:00",
+          "depDateTime": "20261008 14:54",
+          "depDateTimeSec": "20261008 14:54:00",
+          "arrDelay": "0",
+          "arrValid": "0",
+          "depDelay": "0",
+          "depValid": "0"
+        }
+      },
+      {
+        "name": "Baden-Baden Haueneberstein",
+        "nameWO": "Baden-Baden Haueneberstein",
+        "place": "Haueneberstein",
+        "nameWithPlace": "",
+        "omc": "8211000",
+        "placeID": "8",
+        "platformName": "Gleis 1",
+        "desc": "",
+        "ref": {
+          "id": "7035110",
+          "area": "1",
+          "platform": "1",
+          "gid": "de:08211:35110",
+          "areaGid": "de:08211:35110:1",
+          "pointGid": "de:08211:35110:1:1",
+          "attrs": [
+            {
+              "name": "AREA_NIVEAU_DIVA",
+              "value": "0"
+            },
+            {
+              "name": "AREA_NIVEAU_GIS",
+              "value": "0.00"
+            },
+            {
+              "name": "DestinationText",
+              "value": "KA Tullastraße/Alter Schlachthof"
+            }
+          ],
+          "coords": "8.209128,48.811978",
+          "niveau": "0",
+          "arrDateTime": "20261008 14:56",
+          "arrDateTimeSec": "20261008 14:56:00",
+          "depDateTime": "20261008 14:57",
+          "depDateTimeSec": "20261008 14:57:00",
+          "arrDelay": "0",
+          "arrValid": "0",
+          "depDelay": "0",
+          "depValid": "0"
+        }
+      },
+      {
+        "name": "Rastatt",
+        "nameWO": "Rastatt",
+        "place": "Rastatt",
+        "nameWithPlace": "",
+        "omc": "8216043",
+        "placeID": "5",
+        "platformName": "Gleis 5",
+        "desc": "",
+        "ref": {
+          "id": "7001844",
+          "area": "4",
+          "platform": "5",
+          "gid": "de:08216:1844",
+          "areaGid": "de:08216:1844:4",
+          "pointGid": "de:08216:1844:4:5",
+          "attrs": [
+            {
+              "name": "AREA_NIVEAU_DIVA",
+              "value": "0"
+            },
+            {
+              "name": "AREA_NIVEAU_GIS",
+              "value": "0.00"
+            },
+            {
+              "name": "DestinationText",
+              "value": "KA Tullastraße/Alter Schlachthof"
+            }
+          ],
+          "coords": "8.216063,48.860782",
+          "niveau": "0",
+          "arrDateTime": "20261008 15:01",
+          "arrDateTimeSec": "20261008 15:01:00",
+          "depDateTime": "20261008 15:02",
+          "depDateTimeSec": "20261008 15:02:00",
+          "arrDelay": "0",
+          "arrValid": "0",
+          "depDelay": "0",
+          "depValid": "0"
+        }
+      },
+      {
+        "name": "Ötigheim",
+        "nameWO": "Ötigheim",
+        "place": "Ötigheim",
+        "nameWithPlace": "",
+        "omc": "8216039",
+        "placeID": "1",
+        "platformName": "Gleis 2",
+        "desc": "",
+        "ref": {
+          "id": "7001821",
+          "area": "2",
+          "platform": "2",
+          "gid": "de:08216:1821",
+          "areaGid": "de:08216:1821:2",
+          "pointGid": "de:08216:1821:2:2",
+          "attrs": [
+            {
+              "name": "AREA_NIVEAU_DIVA",
+              "value": "0"
+            },
+            {
+              "name": "AREA_NIVEAU_GIS",
+              "value": "0.00"
+            },
+            {
+              "name": "DestinationText",
+              "value": "KA Tullastraße/Alter Schlachthof"
+            }
+          ],
+          "coords": "8.240318,48.888256",
+          "niveau": "0",
+          "arrDateTime": "20261008 15:05",
+          "arrDateTimeSec": "20261008 15:05:00",
+          "depDateTime": "20261008 15:06",
+          "depDateTimeSec": "20261008 15:06:00",
+          "arrDelay": "0",
+          "arrValid": "0",
+          "depDelay": "0",
+          "depValid": "0"
+        }
+      },
+      {
+        "name": "Bietigheim (Baden)",
+        "nameWO": "Bietigheim (Baden)",
+        "place": "Bietigheim (Baden)",
+        "nameWithPlace": "",
+        "omc": "8216005",
+        "placeID": "1",
+        "platformName": "Gleis 2",
+        "desc": "",
+        "ref": {
+          "id": "7001820",
+          "area": "2",
+          "platform": "2",
+          "gid": "de:08216:1820",
+          "areaGid": "de:08216:1820:2",
+          "pointGid": "de:08216:1820:2:2",
+          "attrs": [
+            {
+              "name": "AREA_NIVEAU_DIVA",
+              "value": "0"
+            },
+            {
+              "name": "AREA_NIVEAU_GIS",
+              "value": "0.00"
+            },
+            {
+              "name": "DestinationText",
+              "value": "KA Tullastraße/Alter Schlachthof"
+            }
+          ],
+          "coords": "8.258212,48.910755",
+          "niveau": "0",
+          "arrDateTime": "20261008 15:08",
+          "arrDateTimeSec": "20261008 15:08:00",
+          "depDateTime": "20261008 15:09",
+          "depDateTimeSec": "20261008 15:09:00",
+          "arrDelay": "0",
+          "arrValid": "0",
+          "depDelay": "0",
+          "depValid": "0"
+        }
+      },
+      {
+        "name": "Durmersheim",
+        "nameWO": "Durmersheim",
+        "place": "Durmersheim",
+        "nameWithPlace": "",
+        "omc": "8216009",
+        "placeID": "1",
+        "platformName": "Gleis 3",
+        "desc": "",
+        "ref": {
+          "id": "7001819",
+          "area": "2",
+          "platform": "3",
+          "gid": "de:08216:1819",
+          "areaGid": "de:08216:1819:2",
+          "pointGid": "de:08216:1819:2:3",
+          "attrs": [
+            {
+              "name": "AREA_NIVEAU_DIVA",
+              "value": "0"
+            },
+            {
+              "name": "AREA_NIVEAU_GIS",
+              "value": "0.00"
+            },
+            {
+              "name": "DestinationText",
+              "value": "KA Tullastraße/Alter Schlachthof"
+            }
+          ],
+          "coords": "8.272909,48.929090",
+          "niveau": "0",
+          "arrDateTime": "20261008 15:12",
+          "arrDateTimeSec": "20261008 15:12:00",
+          "depDateTime": "20261008 15:12",
+          "depDateTimeSec": "20261008 15:12:00",
+          "arrDelay": "0",
+          "arrValid": "0",
+          "depDelay": "0",
+          "depValid": "0"
+        }
+      },
+      {
+        "name": "Durmersheim Nord",
+        "nameWO": "Durmersheim Nord",
+        "place": "Durmersheim",
+        "nameWithPlace": "",
+        "omc": "8216009",
+        "placeID": "1",
+        "platformName": "Gleis 2",
+        "desc": "",
+        "ref": {
+          "id": "7035109",
+          "area": "2",
+          "platform": "2",
+          "gid": "de:08216:35109",
+          "areaGid": "de:08216:35109:2",
+          "pointGid": "de:08216:35109:2:2",
+          "attrs": [
+            {
+              "name": "AREA_NIVEAU_DIVA",
+              "value": "0"
+            },
+            {
+              "name": "AREA_NIVEAU_GIS",
+              "value": "0.00"
+            },
+            {
+              "name": "DestinationText",
+              "value": "KA Tullastraße/Alter Schlachthof"
+            }
+          ],
+          "coords": "8.280913,48.938042",
+          "niveau": "0",
+          "arrDateTime": "20261008 15:14",
+          "arrDateTimeSec": "20261008 15:14:00",
+          "depDateTime": "20261008 15:15",
+          "depDateTimeSec": "20261008 15:15:00",
+          "arrDelay": "0",
+          "arrValid": "0",
+          "depDelay": "0",
+          "depValid": "0"
+        }
+      },
+      {
+        "name": "Forchheim (b Karlsruhe)",
+        "nameWO": "Forchheim (b Karlsruhe)",
+        "place": "Forchheim (b Karlsr)",
+        "nameWithPlace": "",
+        "omc": "8215108",
+        "placeID": "1",
+        "platformName": "Gleis 2",
+        "desc": "",
+        "ref": {
+          "id": "7001818",
+          "area": "2",
+          "platform": "2",
+          "gid": "de:08215:1818",
+          "areaGid": "de:08215:1818:2",
+          "pointGid": "de:08215:1818:2:2",
+          "attrs": [
+            {
+              "name": "AREA_NIVEAU_DIVA",
+              "value": "0"
+            },
+            {
+              "name": "AREA_NIVEAU_GIS",
+              "value": "0.00"
+            },
+            {
+              "name": "DestinationText",
+              "value": "KA Tullastraße/Alter Schlachthof"
+            }
+          ],
+          "coords": "8.338863,48.964730",
+          "niveau": "0",
+          "arrDateTime": "20261008 15:19",
+          "arrDateTimeSec": "20261008 15:19:00",
+          "depDateTime": "20261008 15:19",
+          "depDateTimeSec": "20261008 15:19:00",
+          "arrDelay": "0",
+          "arrValid": "0",
+          "depDelay": "0",
+          "depValid": "0"
+        }
+      },
+      {
+        "name": "Karlsruhe Albtalbahnhof",
+        "nameWO": "Karlsruhe Albtalbahnhof",
+        "place": "Karlsruhe",
+        "nameWithPlace": "",
+        "omc": "8212000",
+        "placeID": "15",
+        "platformName": "Gleis 2",
+        "desc": "",
+        "ref": {
+          "id": "7001201",
+          "area": "2",
+          "platform": "2",
+          "gid": "de:08212:1201",
+          "areaGid": "de:08212:1201:2",
+          "pointGid": "de:08212:1201:3:2",
+          "attrs": [
+            {
+              "name": "AREA_NIVEAU_DIVA",
+              "value": "0"
+            },
+            {
+              "name": "AREA_NIVEAU_GIS",
+              "value": "0.00"
+            },
+            {
+              "name": "DestinationText",
+              "value": "KA Tullastraße/Alter Schlachthof"
+            }
+          ],
+          "coords": "8.396077,48.993862",
+          "niveau": "0",
+          "arrDateTime": "20261008 15:24",
+          "arrDateTimeSec": "20261008 15:24:00",
+          "depDateTime": "20261008 15:25",
+          "depDateTimeSec": "20261008 15:25:00",
+          "arrDelay": "0",
+          "arrValid": "0",
+          "depDelay": "0",
+          "depValid": "0"
+        }
+      },
+      {
+        "name": "Karlsruhe Hauptbahnhof (Vorplatz)",
+        "nameWO": "Hauptbahnhof (Vorplatz)",
+        "place": "Karlsruhe",
+        "nameWithPlace": "",
+        "omc": "8212000",
+        "placeID": "15",
+        "platformName": "Gleis 21",
+        "desc": "",
+        "ref": {
+          "id": "7000089",
+          "area": "21",
+          "platform": "21",
+          "gid": "de:08212:89",
+          "areaGid": "de:08212:89:3",
+          "pointGid": "de:08212:89:3:1",
+          "attrs": [
+            {
+              "name": "AREA_NIVEAU_DIVA",
+              "value": "0"
+            },
+            {
+              "name": "AREA_NIVEAU_GIS",
+              "value": "0.00"
+            },
+            {
+              "name": "DestinationText",
+              "value": "KA Tullastraße/Alter Schlachthof"
+            }
+          ],
+          "coords": "8.400092,48.994410",
+          "niveau": "0",
+          "arrDateTime": "20261008 15:26",
+          "arrDateTimeSec": "20261008 15:26:00",
+          "depDateTime": "20261008 15:27",
+          "depDateTimeSec": "20261008 15:27:00",
+          "arrDelay": "0",
+          "arrValid": "0",
+          "depDelay": "0",
+          "depValid": "0"
+        }
+      },
+      {
+        "name": "Karlsruhe Poststraße",
+        "nameWO": "Poststraße",
+        "place": "Karlsruhe",
+        "nameWithPlace": "",
+        "omc": "8212000",
+        "placeID": "15",
+        "platformName": "Gleis 2",
+        "desc": "",
+        "ref": {
+          "id": "7000098",
+          "area": "2",
+          "platform": "2",
+          "gid": "de:08212:98",
+          "areaGid": "de:08212:98:2",
+          "pointGid": "de:08212:98:2:2",
+          "attrs": [
+            {
+              "name": "AREA_NIVEAU_DIVA",
+              "value": "0"
+            },
+            {
+              "name": "AREA_NIVEAU_GIS",
+              "value": "0.00"
+            },
+            {
+              "name": "DestinationText",
+              "value": "KA Tullastraße/Alter Schlachthof"
+            }
+          ],
+          "coords": "8.403964,48.995247",
+          "niveau": "0",
+          "arrDateTime": "20261008 15:28",
+          "arrDateTimeSec": "20261008 15:28:00",
+          "depDateTime": "20261008 15:28",
+          "depDateTimeSec": "20261008 15:28:00",
+          "arrDelay": "0",
+          "arrValid": "0",
+          "depDelay": "0",
+          "depValid": "0"
+        }
+      },
+      {
+        "name": "Karlsruhe Augartenstraße",
+        "nameWO": "Augartenstraße",
+        "place": "Karlsruhe",
+        "nameWithPlace": "",
+        "omc": "8212000",
+        "placeID": "15",
+        "platformName": "Gleis 2",
+        "desc": "",
+        "ref": {
+          "id": "7000074",
+          "area": "92",
+          "platform": "2",
+          "gid": "de:08212:74",
+          "areaGid": "de:08212:74:92",
+          "pointGid": "de:08212:74:92:2",
+          "attrs": [
+            {
+              "name": "AREA_NIVEAU_DIVA",
+              "value": "0"
+            },
+            {
+              "name": "AREA_NIVEAU_GIS",
+              "value": "0.00"
+            },
+            {
+              "name": "DestinationText",
+              "value": "KA Tullastraße/Alter Schlachthof"
+            }
+          ],
+          "coords": "8.403479,48.999131",
+          "niveau": "0",
+          "arrDateTime": "20261008 15:29",
+          "arrDateTimeSec": "20261008 15:29:00",
+          "depDateTime": "20261008 15:30",
+          "depDateTimeSec": "20261008 15:30:00",
+          "arrDelay": "0",
+          "arrValid": "0",
+          "depDelay": "0",
+          "depValid": "0"
+        }
+      },
+      {
+        "name": "Karlsruhe Kongresszentrum (U)",
+        "nameWO": "Kongresszentrum (U)",
+        "place": "Karlsruhe",
+        "nameWithPlace": "",
+        "omc": "8212000",
+        "placeID": "15",
+        "platformName": "Gleis 4(U)",
+        "desc": "",
+        "ref": {
+          "id": "7001013",
+          "area": "94",
+          "platform": "4(U)",
+          "gid": "de:08212:1013",
+          "areaGid": "de:08212:1013:94",
+          "pointGid": "de:08212:1013:94:4",
+          "attrs": [
+            {
+              "name": "AREA_NIVEAU_DIVA",
+              "value": "-1"
+            },
+            {
+              "name": "AREA_NIVEAU_GIS",
+              "value": "-1.00"
+            },
+            {
+              "name": "DestinationText",
+              "value": "KA Tullastraße/Alter Schlachthof"
+            }
+          ],
+          "coords": "8.403227,49.003003",
+          "niveau": "-1",
+          "arrDateTime": "20261008 15:30",
+          "arrDateTimeSec": "20261008 15:30:00",
+          "depDateTime": "20261008 15:31",
+          "depDateTimeSec": "20261008 15:31:00",
+          "arrDelay": "0",
+          "arrValid": "0",
+          "depDelay": "0",
+          "depValid": "0"
+        }
+      },
+      {
+        "name": "KA Ettlinger Tor/Staatstheater (U)",
+        "nameWO": "Ettlinger Tor/Staatstheater (U)",
+        "place": "Karlsruhe",
+        "nameWithPlace": "",
+        "omc": "8212000",
+        "placeID": "15",
+        "platformName": "Gleis 4(U)",
+        "desc": "",
+        "ref": {
+          "id": "7001012",
+          "area": "94",
+          "platform": "4(U)",
+          "gid": "de:08212:1012",
+          "areaGid": "de:08212:1012:94",
+          "pointGid": "de:08212:1012:94:4",
+          "attrs": [
+            {
+              "name": "AREA_NIVEAU_DIVA",
+              "value": "-2"
+            },
+            {
+              "name": "AREA_NIVEAU_GIS",
+              "value": "-2.00"
+            },
+            {
+              "name": "DestinationText",
+              "value": "KA Tullastraße/Alter Schlachthof"
+            }
+          ],
+          "coords": "8.403587,49.005926",
+          "niveau": "-2",
+          "arrDateTime": "20261008 15:32",
+          "arrDateTimeSec": "20261008 15:32:00",
+          "depDateTime": "20261008 15:32",
+          "depDateTimeSec": "20261008 15:32:00",
+          "arrDelay": "0",
+          "arrValid": "0",
+          "depDelay": "0",
+          "depValid": "0"
+        }
+      },
+      {
+        "name": "KA Marktplatz (Pyramide U)",
+        "nameWO": "Marktplatz (Pyramide U)",
+        "place": "Karlsruhe",
+        "nameWithPlace": "",
+        "omc": "8212000",
+        "placeID": "15",
+        "platformName": "Gleis 4(U)",
+        "desc": "",
+        "ref": {
+          "id": "7001011",
+          "area": "94",
+          "platform": "4(U)",
+          "gid": "de:08212:1011",
+          "areaGid": "de:08212:1011:94",
+          "pointGid": "de:08212:1011:94:4",
+          "attrs": [
+            {
+              "name": "AREA_NIVEAU_DIVA",
+              "value": "-2"
+            },
+            {
+              "name": "AREA_NIVEAU_GIS",
+              "value": "-2.00"
+            },
+            {
+              "name": "DestinationText",
+              "value": "KA Tullastraße/Alter Schlachthof"
+            }
+          ],
+          "coords": "8.403766,49.009120",
+          "niveau": "-2",
+          "arrDateTime": "20261008 15:33",
+          "arrDateTimeSec": "20261008 15:33:00",
+          "depDateTime": "20261008 15:34",
+          "depDateTimeSec": "20261008 15:34:00",
+          "arrDelay": "0",
+          "arrValid": "0",
+          "depDelay": "0",
+          "depValid": "0"
+        }
+      },
+      {
+        "name": "Karlsruhe Kronenplatz (U)",
+        "nameWO": "Kronenplatz (U)",
+        "place": "Karlsruhe",
+        "nameWithPlace": "",
+        "omc": "8212000",
+        "placeID": "15",
+        "platformName": "Gleis 2(U)",
+        "desc": "",
+        "ref": {
+          "id": "7001002",
+          "area": "92",
+          "platform": "2(U)",
+          "gid": "de:08212:1002",
+          "areaGid": "de:08212:1002:92",
+          "pointGid": "de:08212:1002:92:2",
+          "attrs": [
+            {
+              "name": "AREA_NIVEAU_DIVA",
+              "value": "-2"
+            },
+            {
+              "name": "AREA_NIVEAU_GIS",
+              "value": "-2.00"
+            },
+            {
+              "name": "DestinationText",
+              "value": "KA Tullastraße/Alter Schlachthof"
+            }
+          ],
+          "coords": "8.411079,49.009285",
+          "niveau": "-2",
+          "arrDateTime": "20261008 15:35",
+          "arrDateTimeSec": "20261008 15:35:00",
+          "depDateTime": "20261008 15:35",
+          "depDateTimeSec": "20261008 15:35:00",
+          "arrDelay": "0",
+          "arrValid": "0",
+          "depDelay": "0",
+          "depValid": "0"
+        }
+      },
+      {
+        "name": "KA Durlacher Tor/KIT-Campus Süd (U)",
+        "nameWO": "Durlacher Tor/KIT-Campus Süd (U)",
+        "place": "Karlsruhe",
+        "nameWithPlace": "",
+        "omc": "8212000",
+        "placeID": "15",
+        "platformName": "Gleis 2(U)",
+        "desc": "",
+        "ref": {
+          "id": "7001001",
+          "area": "92",
+          "platform": "2(U)",
+          "gid": "de:08212:1001",
+          "areaGid": "de:08212:1001:92",
+          "pointGid": "de:08212:1001:92:2",
+          "attrs": [
+            {
+              "name": "AREA_NIVEAU_DIVA",
+              "value": "-2"
+            },
+            {
+              "name": "AREA_NIVEAU_GIS",
+              "value": "-2.00"
+            },
+            {
+              "name": "DestinationText",
+              "value": "KA Tullastraße/Alter Schlachthof"
+            }
+          ],
+          "coords": "8.417735,49.008825",
+          "niveau": "-2",
+          "arrDateTime": "20261008 15:36",
+          "arrDateTimeSec": "20261008 15:36:00",
+          "depDateTime": "20261008 15:37",
+          "depDateTimeSec": "20261008 15:37:00",
+          "arrDelay": "0",
+          "arrValid": "0",
+          "depDelay": "0",
+          "depValid": "0"
+        }
+      },
+      {
+        "name": "Karlsruhe Gottesauer Platz/BGV",
+        "nameWO": "Gottesauer Platz/BGV",
+        "place": "Karlsruhe",
+        "nameWithPlace": "",
+        "omc": "8212000",
+        "placeID": "15",
+        "platformName": "Gleis 2",
+        "desc": "",
+        "ref": {
+          "id": "7000006",
+          "area": "92",
+          "platform": "2",
+          "gid": "de:08212:6",
+          "areaGid": "de:08212:6:92",
+          "pointGid": "de:08212:6:2:4",
+          "attrs": [
+            {
+              "name": "AREA_NIVEAU_DIVA",
+              "value": "0"
+            },
+            {
+              "name": "AREA_NIVEAU_GIS",
+              "value": "0.00"
+            },
+            {
+              "name": "DestinationText",
+              "value": "KA Tullastraße/Alter Schlachthof"
+            }
+          ],
+          "coords": "8.425551,49.007352",
+          "niveau": "0",
+          "arrDateTime": "20261008 15:38",
+          "arrDateTimeSec": "20261008 15:38:00",
+          "depDateTime": "20261008 15:38",
+          "depDateTimeSec": "20261008 15:38:00",
+          "arrDelay": "0",
+          "arrValid": "0",
+          "depDelay": "0",
+          "depValid": "0"
+        }
+      },
+      {
+        "name": "KA Tullastraße/Alter Schlachthof",
+        "nameWO": "Tullastraße/Alter Schlachthof",
+        "place": "Karlsruhe",
+        "nameWithPlace": "",
+        "omc": "8212000",
+        "placeID": "15",
+        "platformName": "Gleis 4",
+        "desc": "",
+        "ref": {
+          "id": "7000007",
+          "area": "4",
+          "platform": "4",
+          "gid": "de:08212:7",
+          "areaGid": "de:08212:7:6",
+          "pointGid": "de:08212:7:6:6",
+          "attrs": [
+            {
+              "name": "AREA_NIVEAU_DIVA",
+              "value": "0"
+            },
+            {
+              "name": "AREA_NIVEAU_GIS",
+              "value": "0.00"
+            },
+            {
+              "name": "DestinationText",
+              "value": "KA Tullastraße/Alter Schlachthof"
+            }
+          ],
+          "coords": "8.431542,49.007335",
+          "niveau": "0",
+          "arrDateTime": "20261008 15:40",
+          "arrDateTimeSec": "20261008 15:40:00",
+          "arrDelay": "0",
+          "arrValid": "0",
+          "depDelay": "0",
+          "depValid": "0"
+        }
+      }
+    ]
+  }
+}

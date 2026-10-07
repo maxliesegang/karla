@@ -6531,3 +6531,17 @@ button.line-diagram-bundle-option:focus-visible {
   cursor: grabbing;
   pointer-events: none;
 }
+
+.zentrum-position-freshness {
+  position: absolute;
+  bottom: 12px;
+  left: 12px;
+  z-index: 6;
+  margin: 0;
+  padding: 4px 8px;
+  border-radius: var(--radius-s);
+  background: var(--surface);
+  color: var(--ink-soft);
+  font-size: 11px;
+  pointer-events: none;
+}

@@ -1,5 +1,8 @@
 import { getTripCallTimeReading } from "../../lib/departure-presentation";
-import { getZentrumVehiclePlaceLabel } from "../../lib/zentrum-presentation";
+import {
+  getZentrumVehiclePlaceLabel,
+  getZentrumPositionFreshness,
+} from "../../lib/zentrum-presentation";
 import type { ZentrumSchematicVehicle } from "../../lib/zentrum-schematic";
 import {
   getZentrumSchematicStopId,
@@ -19,6 +22,7 @@ export function ZentrumVehicleDetail({
   vehicle,
   getSign,
   feedNow,
+  readingNow,
   returnLabel,
   entranceMotion,
   onClose,
@@ -26,6 +30,7 @@ export function ZentrumVehicleDetail({
   vehicle: ZentrumSchematicVehicle;
   getSign: ZentrumLineSignReader;
   feedNow: number;
+  readingNow: number;
   /** The stop that closing this returns to, if it was opened from one. */
   returnLabel?: string;
   entranceMotion: ZentrumPanelEntranceMotion;
@@ -59,6 +64,8 @@ export function ZentrumVehicleDetail({
         <span title="Aus den Zeiten an den Haltestellen geschätzt, kein GPS">
           Position geschätzt
         </span>
+        {" · "}
+        {getZentrumPositionFreshness([vehicle.departure], readingNow)}
       </p>
       {aheadStops.length > 0 && (
         <ol className="zentrum-panel-calls" aria-label="Nächste Halte im Zentrum">

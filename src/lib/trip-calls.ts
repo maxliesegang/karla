@@ -1,3 +1,4 @@
+import { getRunTimeline } from "./run-timeline";
 import type {
   Departure,
   DepartureReadingTimes,
@@ -243,7 +244,8 @@ export const statesRunEnd = (call: TripCall | undefined): boolean =>
  * each caller decides how long a finished run is worth holding.
  */
 export function findFinalCallInstant(calls: readonly TripCall[] | undefined): number | undefined {
-  return getTripCallInstant(calls?.[calls.length - 1]);
+  const last = getRunTimeline(calls ?? []).at(-1);
+  return last?.call === calls?.at(-1) ? last?.departure : undefined;
 }
 
 /**
@@ -341,6 +343,9 @@ export function toRunSequence(departure: Departure): RunSequence | undefined {
     tripCalls: departure.tripCalls,
     ...(departure.tripInstanceId ? { tripInstanceId: departure.tripInstanceId } : {}),
     status: departure.status,
+    ...(departure.readAt?.coverageReadAt !== undefined
+      ? { coverageReadAt: departure.readAt.coverageReadAt }
+      : {}),
     ...(departure.readAt?.sequenceReadAt !== undefined
       ? { readAt: departure.readAt.sequenceReadAt }
       : {}),
@@ -377,5 +382,34 @@ function resolveMergedReadingTimes(
   return {
     rowReadAt,
     ...(sequence.readAt !== undefined ? { sequenceReadAt: sequence.readAt } : {}),
+    ...(sequence.coverageReadAt !== undefined ? { coverageReadAt: sequence.coverageReadAt } : {}),
+  };
+}
+
+/** An unconfirmed contiguous excerpt updates its calls without deleting known route coverage. */
+export function retainRunCoverage(
+  previous: RunSequence | undefined,
+  incoming: RunSequence,
+): RunSequence {
+  if (!previous || statesRunEnd(incoming.tripCalls.at(-1))) return incoming;
+  const anchors = alignSameRouteCalls(previous.tripCalls, incoming.tripCalls);
+  if (anchors.length !== incoming.tripCalls.length || anchors.length === 0) return incoming;
+  const first = anchors[0][0];
+  const last = anchors.at(-1)![0];
+  if (
+    last - first + 1 !== incoming.tripCalls.length ||
+    incoming.tripCalls.length >= previous.tripCalls.length
+  )
+    return incoming;
+  const coverageReadAt = previous.coverageReadAt ?? previous.readAt;
+  return {
+    ...incoming,
+    ...(first > 0 && previous.tripInstanceId ? { tripInstanceId: previous.tripInstanceId } : {}),
+    tripCalls: [
+      ...previous.tripCalls.slice(0, first),
+      ...incoming.tripCalls,
+      ...previous.tripCalls.slice(last + 1),
+    ],
+    ...(coverageReadAt !== undefined ? { coverageReadAt } : {}),
   };
 }

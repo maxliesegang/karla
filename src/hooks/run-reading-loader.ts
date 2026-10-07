@@ -1,14 +1,11 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { transitSource } from "../data/transit-source";
 import type { Departure } from "../data/transit-types";
 import { toSortedIds } from "../lib/collections";
-import {
-  getRunReadingRequests,
-  readRunBatch,
-  type RunReadingBatchResult,
-} from "../lib/run-reading-requests";
+import { getRunReadingRequests } from "../lib/run-reading-requests";
 import { DEPARTURE_BOARD_REFRESH_MS } from "./departure-board";
-import { useKeyedLoad, type KeyedLoadOptions } from "./keyed-load";
+import { RunReadingPoller } from "./run-reading-poller";
+import { isAwayEvidence, isVisibleResumeEvent, type ResumeEventType } from "./refresh-backoff";
 import { useRuns } from "./run-reading-store";
 
 /**
@@ -39,29 +36,51 @@ export function useRunReadingsByRowId(
   }: RunReadingOptions = {},
 ): readonly Departure[] {
   const sortedRowIds = useMemo(() => toSortedIds(rowIds), [rowIds]);
-  // Each run under its own tolerance (`getRunReadingRequests`).
-  const key = sortedRowIds.length > 0 ? JSON.stringify([sortedRowIds, selectedRowId]) : null;
-  const loadOptions = useMemo<KeyedLoadOptions<RunReadingBatchResult<Departure>>>(
-    () => ({ refreshMs, isFailure: (result) => result.failedRowIds.length > 0 }),
-    [refreshMs],
+  const requests = useMemo(
+    () =>
+      getRunReadingRequests({
+        rowIds: sortedRowIds,
+        maxAgeMs,
+        ...(selectedRowId ? { selectedRowId, selectedMaxAgeMs: refreshMs } : {}),
+      }),
+    [sortedRowIds, maxAgeMs, selectedRowId, refreshMs],
   );
-  useKeyedLoad(
-    key,
-    (_key, isEntryRead) =>
-      readRunBatch(
-        getRunReadingRequests(
-          {
-            rowIds: sortedRowIds,
-            maxAgeMs,
-            ...(selectedRowId ? { selectedRowId, selectedMaxAgeMs: refreshMs } : {}),
-          },
-          // A view's first read looks past the source's cache, so its first marks are not stale.
-          isEntryRead && refreshOnEntry,
-        ),
-        (rowId, maxAgeMs) => transitSource.getRun(rowId, maxAgeMs),
-      ),
-    loadOptions,
-  );
+  const pollerRef = useRef<RunReadingPoller | null>(null);
+  useEffect(() => {
+    const poller = new RunReadingPoller(
+      (rowId, age) => transitSource.getRun(rowId, age),
+      refreshMs,
+      refreshOnEntry,
+    );
+    pollerRef.current = poller;
+    let resumeTimer = 0;
+    let hasBeenAway = false;
+    const resume = (event: Event) => {
+      const type = event.type as ResumeEventType;
+      if (document.visibilityState === "hidden" && type === "visibilitychange") {
+        hasBeenAway = true;
+        poller.pause();
+        return;
+      }
+      hasBeenAway ||= isAwayEvidence(type);
+      window.clearTimeout(resumeTimer);
+      resumeTimer = window.setTimeout(() => {
+        if (!isVisibleResumeEvent(type, document.visibilityState)) return;
+        poller.resume(hasBeenAway);
+        hasBeenAway = false;
+      });
+    };
+    for (const event of ["visibilitychange", "pageshow", "focus", "online"])
+      window.addEventListener(event, resume);
+    return () => {
+      poller.stop();
+      pollerRef.current = null;
+      window.clearTimeout(resumeTimer);
+      for (const event of ["visibilitychange", "pageshow", "focus", "online"])
+        window.removeEventListener(event, resume);
+    };
+  }, [refreshMs, refreshOnEntry]);
+  useEffect(() => pollerRef.current?.update(requests), [requests, refreshMs, refreshOnEntry]);
   // Read back in the order asked for, not the key's sorted order.
   const runs = useRuns(rowIds);
   // Only runs with calls; others stand on their board row meanwhile.

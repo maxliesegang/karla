@@ -117,7 +117,11 @@ export type Departure = {
 };
 
 /** `sequenceReadAt` only where there are calls; a row without them has nothing to go stale. */
-export type DepartureReadingTimes = { rowReadAt: number; sequenceReadAt?: number };
+export type DepartureReadingTimes = {
+  rowReadAt: number;
+  sequenceReadAt?: number;
+  coverageReadAt?: number;
+};
 
 /**
  * A run's calling sequence from one reading. Not a `Departure`: the row it was discovered through
@@ -130,6 +134,8 @@ export type RunSequence = {
   status: DepartureStatus;
   /** When these calls were read, on the device's clock. Absent only on a fixture. */
   readAt?: number;
+  /** Oldest reading retained where a newer response supplied only part of the route. */
+  coverageReadAt?: number;
 };
 
 export type TransitLine = {

@@ -1,8 +1,64 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { readFileSync } from "node:fs";
 import { KvvEfaClient } from "../src/data/kvv-efa-client.ts";
-import { parseDepartureBoardResponse } from "../src/data/kvv-efa-parsers.ts";
+import { parseDepartureBoardResponse, parseTripResponse } from "../src/data/kvv-efa-parsers.ts";
 import { KvvTransitSource } from "../src/data/transit-source.ts";
+import type { KvvTripLocator } from "../src/data/kvv-efa-parsers.ts";
+
+test("tomorrow's reused S7 code never replaces or refreshes today's active run", async (t) => {
+  const fixture = JSON.parse(
+    readFileSync(new URL("./support/s7-date-reuse.json", import.meta.url), "utf8"),
+  );
+  let now = Date.parse("2026-10-07T13:42:45Z");
+  t.mock.method(Date, "now", () => now);
+  const today = parseDepartureBoardResponse(fixture[14], "7000006");
+  const tomorrow = parseDepartureBoardResponse(fixture[340], "7001011", "arrival");
+  const requests: KvvTripLocator[] = [];
+  const client = new KvvEfaClient();
+  client.fetchDepartureBoard = async (_stop, options) => {
+    if (options?.eventKind === "arrival") {
+      now += 1_000;
+      return tomorrow;
+    }
+    return today;
+  };
+  client.fetchTrip = async (locator) => {
+    requests.push(locator);
+    return locator.date === "20261008"
+      ? parseTripResponse(fixture[363], locator)
+      : { serverTime: new Date(now).toISOString(), tripCalls: today.departures[0].tripCalls ?? [] };
+  };
+  const source = new KvvTransitSource(client);
+  const board = await source.getDepartureBoard("gottesauer-platz");
+  const active = board.departures[0];
+  const discovery = await source.getRunDiscoveryReading(
+    [{ stopId: "marktplatz", eventKind: "arrival" }],
+    {
+      maxAgeMs: 0,
+      runMaxAgeMs: 60_000,
+      topologyMaxAgeMs: 0,
+      horizonMs: 110_000,
+    },
+  );
+  assert.equal(discovery.runDepartures.length, 0, "tomorrow's row does not acquire today's calls");
+  const mixed = await source.getRunDiscoveryReading(
+    [
+      { stopId: "gottesauer-platz", eventKind: "departure" },
+      { stopId: "marktplatz", eventKind: "arrival" },
+    ],
+    { maxAgeMs: 0, runMaxAgeMs: 60_000, topologyMaxAgeMs: 0, horizonMs: 110_000 },
+  );
+  assert.deepEqual(
+    mixed.runDepartures.map((run) => run.id),
+    [active.id],
+  );
+  now += 40_000;
+  const refreshed = await source.getRun(active.id, 30_000);
+  assert.equal(refreshed?.tripInstanceId, active.tripInstanceId);
+  assert.equal(requests[0]?.date, "20261007");
+  assert.ok(requests.every((request) => request.date === "20261007"));
+});
 
 const at = { year: "2026", month: "10", day: "5", hour: "14", minute: "02" };
 const row = {

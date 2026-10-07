@@ -1,6 +1,7 @@
 /** Observation posts and run lifetimes for an explicitly bounded area. */
-import type { Departure, RunDiscoveryPost, TripCall } from "../data/transit-types";
-import { getTripCallInstant, statesRunEnd } from "./trip-calls";
+import type { Departure, RunDiscoveryPost } from "../data/transit-types";
+import { statesRunEnd } from "./trip-calls";
+import { getRunTimeline } from "./run-timeline";
 import { isRailDeparture } from "./zentrum-schematic-plan";
 
 export const RUN_DISCOVERY_APPROACH_MS = 10 * 60_000;
@@ -34,21 +35,19 @@ export function getRunDiscoveryPosts(
   );
 }
 
-const getCallTime = (call: TripCall, kind: "arrival" | "departure") =>
-  getTripCallInstant(call, kind) ?? getTripCallInstant(call);
-
 export function isRunInArea(
   run: Departure,
   feedNow: number,
   areaStopIds: ReadonlySet<string>,
 ): boolean {
   const calls = run.tripCalls ?? [];
+  const timeline = new Map(getRunTimeline(calls).map((entry) => [entry.call, entry]));
   for (let index = 0; index < calls.length; index += 1) {
     if (!areaStopIds.has(calls[index].localStopId ?? "")) continue;
-    const startsAt = getCallTime(calls[index], "arrival");
+    const startsAt = timeline.get(calls[index])?.arrival;
     let end = index;
     while (end + 1 < calls.length && areaStopIds.has(calls[end + 1].localStopId ?? "")) end += 1;
-    const endsAt = getCallTime(calls[end], "departure");
+    const endsAt = timeline.get(calls[end])?.departure;
     if (
       startsAt !== undefined &&
       endsAt !== undefined &&

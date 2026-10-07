@@ -1,5 +1,6 @@
 import type { Departure } from "../data/transit-types";
 import { collapseTurnaroundCalls, statesRunEnd, statesRunStart } from "./trip-calls";
+import { getRunTimeline } from "./run-timeline";
 import { getRunMarkKey } from "./trips";
 
 /**
@@ -95,11 +96,6 @@ const DEPARTURE_STAND_LEAD_MS = 9 * 60_000;
  */
 const TERMINUS_STAND_MS = 90_000;
 
-const toInstant = (value: string | undefined): number | undefined => {
-  const parsed = value ? Date.parse(value) : Number.NaN;
-  return Number.isFinite(parsed) ? parsed : undefined;
-};
-
 const clampUnit = (value: number) => Math.min(1, Math.max(0, value));
 
 type TimedCall = {
@@ -110,111 +106,38 @@ type TimedCall = {
   isPublishedCurrentCall: boolean;
 };
 
-/** Shifts in milliseconds: one pair per calling point, one number for each end of the call. */
-type CallShift = { arrival: number; departure: number };
-
-/** One calling point before its deviations are resolved: the schedule, and what the feed said. */
-type ScheduledCall = {
-  stopId: string;
-  scheduledArrival: number;
-  scheduledDeparture: number;
-  /**
-   * What the feed states for this call. A deviation for one end applies to both until the feed
-   * separates them.
-   */
-  statedShift?: CallShift;
-  /** Marks a duplicate board call, as opposed to real travel between platforms of one stop. */
-  isPublishedCurrentCall: boolean;
-};
-
-/** Calls with a known stop and a known time. */
-function getScheduledCalls(departure: Departure): ScheduledCall[] {
-  // Only a repeated call marked as a run boundary is one stand reported twice; other repeats of a
-  // stop can be real travel between its platforms.
-  const calls = collapseTurnaroundCalls(departure.tripCalls ?? []);
-  return calls.flatMap((call) => {
-    if (!call.localStopId) return [];
-    const arrival = toInstant(call.scheduledArrivalTime);
-    const departureTime = toInstant(call.scheduledDepartureTime);
-    const time = departureTime ?? arrival;
-    if (time === undefined) return [];
-    // One stated end applies to both. A run's first call has no arrival and its last no departure,
-    // so there the one side is the whole statement.
-    const arrivalDelay = call.arrivalDelayMinutes ?? call.delayMinutes;
-    const departureDelay = call.delayMinutes ?? call.arrivalDelayMinutes;
-    return [
-      {
-        stopId: call.localStopId,
-        scheduledArrival: arrival ?? time,
-        scheduledDeparture: departureTime ?? time,
-        statedShift:
-          arrivalDelay === undefined && departureDelay === undefined
-            ? undefined
-            : {
-                arrival: (arrivalDelay ?? departureDelay ?? 0) * 60_000,
-                departure: (departureDelay ?? arrivalDelay ?? 0) * 60_000,
-              },
-        isPublishedCurrentCall: call.isCurrentStop === true,
-      },
-    ];
-  });
-}
-
-/**
- * A deviation for every call: the feed monitors only calls near the vehicle, and a delay persists
- * until recovered, so the last stated deviation carries forward and the first carries back.
- */
-function resolveCallShifts(calls: readonly ScheduledCall[]): CallShift[] {
-  const shifts: CallShift[] = [];
-  let carried = 0;
-  for (const call of calls) {
-    const shift = call.statedShift ?? { arrival: carried, departure: carried };
-    carried = shift.departure;
-    shifts.push({ ...shift });
-  }
-  const firstStated = calls.findIndex((call) => call.statedShift !== undefined);
-  for (let index = 0; index < firstStated; index += 1) {
-    shifts[index] = { ...shifts[firstStated] };
-  }
-  return shifts;
-}
-
-/**
- * The calls a mark travels along, clamped so times never run backwards: deviations from readings of
- * different ages can time a call before the one behind it.
- *
- * `originStatedShift` is the delay the feed states for the first call itself, not one carried back
- * from further along; only that says the vehicle is standing at its terminus.
- */
+/** Placement adds a bounded dwell grace to the shared expected timeline. */
 function getTimedCalls(departure: Departure): {
   calls: TimedCall[];
   originStatedShift: number | undefined;
 } {
-  const calls = getScheduledCalls(departure);
-  const shifts = resolveCallShifts(calls);
-  const originShift = calls[0]?.statedShift?.departure;
-  const originStatedShift = originShift !== undefined && originShift > 0 ? originShift : undefined;
-
+  const localCalls = collapseTurnaroundCalls(departure.tripCalls ?? []).filter(
+    (call) => call.localStopId,
+  );
+  const timeline = getRunTimeline(localCalls);
+  const first = timeline[0]?.call;
+  const originShift = first?.delayMinutes ?? first?.arrivalDelayMinutes;
+  const originStatedShift =
+    originShift !== undefined && originShift > 0 ? originShift * 60_000 : undefined;
   const timed: TimedCall[] = [];
-  let earliest = Number.NEGATIVE_INFINITY;
-  for (const [index, call] of calls.entries()) {
-    const arrival = Math.max(earliest, call.scheduledArrival + shifts[index].arrival);
-    const callDeparture = Math.max(arrival, call.scheduledDeparture + shifts[index].departure);
-    earliest = callDeparture;
-    const previous = timed[timed.length - 1];
-    const isDuplicateBoardCall =
-      previous?.stopId === call.stopId &&
-      (previous.isPublishedCurrentCall || call.isPublishedCurrentCall);
-    if (isDuplicateBoardCall) {
+  for (const { call, arrival, departure: callDeparture } of timeline) {
+    if (!call.localStopId) continue;
+    const previous = timed.at(-1);
+    const isPublishedCurrentCall = call.isCurrentStop === true;
+    if (
+      previous &&
+      previous.stopId === call.localStopId &&
+      (previous.isPublishedCurrentCall || isPublishedCurrentCall)
+    ) {
       previous.arrival = Math.min(previous.arrival, arrival);
       previous.departure = Math.max(previous.departure, callDeparture);
-      previous.isPublishedCurrentCall ||= call.isPublishedCurrentCall;
+      previous.isPublishedCurrentCall ||= isPublishedCurrentCall;
     } else {
       timed.push({
-        stopId: call.stopId,
+        stopId: call.localStopId,
         arrival,
         departure: callDeparture,
-        isPublishedCurrentCall: call.isPublishedCurrentCall,
+        isPublishedCurrentCall,
       });
     }
   }

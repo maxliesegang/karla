@@ -309,3 +309,45 @@ test("the map frame stays mounted as the first observation arrives", async (t) =
     await view.unmount();
   }
 });
+
+test("overlapping trains at a station open their own details directly", async (t) => {
+  const view = setup(t);
+  for (const run of [view.first, view.second]) {
+    run.tripInstanceId = `station-overlap-${run.id}`;
+    run.tripCalls![0].scheduledArrivalTime = run.tripCalls![0].scheduledDepartureTime;
+    run.tripCalls![0].scheduledDepartureTime = new Date(
+      Date.parse(run.scheduledDepartureTime) - 30_000,
+    ).toISOString();
+  }
+  document.body.appendChild(view.container);
+  try {
+    await view.render();
+    await act(async () => view.discovery.resolve(view.reading()));
+    await view.advance(1_500);
+    await view.paint();
+    await view.paint();
+    const marks = view.container.querySelectorAll<HTMLButtonElement>(".zentrum-schematic-vehicle");
+    assert.equal(marks.length, 2);
+    assert.equal(view.container.querySelector(".zentrum-schematic-stop-vehicles"), null);
+    for (let index = 0; index < marks.length; index += 1) {
+      await act(async () => marks[index].click());
+      const detail = view.container.querySelector("#zentrum-vehicle-detail");
+      assert.ok(detail);
+      assert.ok(
+        detail
+          .querySelector("a")
+          ?.getAttribute("href")
+          ?.endsWith(`/${index === 0 ? "first" : "second"}`),
+      );
+      assert.equal(view.container.querySelector("#zentrum-vehicle-chooser"), null);
+      const close = detail.querySelector<HTMLButtonElement>(".zentrum-panel-close");
+      assert.ok(close);
+      await act(async () => close.click());
+      assert.equal(view.container.querySelector("#zentrum-vehicle-detail"), null);
+      assert.equal(view.container.querySelectorAll(".zentrum-schematic-vehicle").length, 2);
+    }
+  } finally {
+    await view.unmount();
+    view.container.remove();
+  }
+});

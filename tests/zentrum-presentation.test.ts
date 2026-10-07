@@ -6,6 +6,7 @@ import {
   getZentrumBoardingPlatformLabel,
   getZentrumTravelSourceLabel,
   getZentrumVehiclePlaceLabel,
+  getZentrumPositionFreshness,
 } from "../src/lib/zentrum-presentation.ts";
 import {
   getZentrumDirectRides,
@@ -140,4 +141,17 @@ test("every run's direct ride between two stops is listed, soonest departure fir
     rides.map(({ departure }) => departure.id),
     ["sooner", "later"],
   );
+});
+
+test("position freshness uses sequence age and retained coverage rather than board age", () => {
+  const run = createDeparture({ readAt: { rowReadAt: 0, sequenceReadAt: 100_000 } });
+  assert.equal(getZentrumPositionFreshness([run], 120_000), "Positionsdaten · bis zu 20 s alt");
+  assert.equal(
+    getZentrumPositionFreshness(
+      [{ ...run, readAt: { ...run.readAt!, rowReadAt: 119_000, coverageReadAt: 10_000 } }],
+      120_000,
+    ),
+    "Ältere Positionsdaten · bis zu 1 min alt",
+  );
+  assert.equal(getZentrumPositionFreshness([createDeparture()], 120_000), "Datenalter unbekannt");
 });
