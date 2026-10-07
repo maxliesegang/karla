@@ -6,10 +6,7 @@ import type {
 import { formatClockTime } from "../lib/departure-presentation";
 import { navigateTo, routePaths } from "../routing";
 
-/**
- * Provenance in every state: the source left, its condition right. Also links the full notice
- * list, a reference rather than a step in a journey.
- */
+/** Data source, reading status and provider disclaimer. */
 export function DataProvenanceFooter({
   departureBoard,
   departureBoards,
@@ -35,7 +32,7 @@ export function DataProvenanceFooter({
           : `Meldungen · Stand ${formatClockTime(new Date(serviceNoticeBoard.receivedAt))}`;
     return (
       <footer className="data-provenance-footer">
-        <span>KVV · {statusLabel}</span>
+        <span>Kein offizielles KVV-Angebot · {statusLabel}</span>
       </footer>
     );
   }
@@ -75,7 +72,7 @@ export function DataProvenanceFooter({
 
   return (
     <footer className="data-provenance-footer">
-      <span>KVV · {statusLabel}</span>
+      <span>Kein offizielles KVV-Angebot · {statusLabel}</span>
       {showsNoticesLink && (
         <button
           type="button"

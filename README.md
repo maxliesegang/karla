@@ -5,6 +5,8 @@ public transport network: the stops served in the Zentrum, a line index, and sto
 departures from the KVV realtime feed. It is not a journey planner: no routing, no ticketing, no
 accounts.
 
+KARLA is not an official KVV service.
+
 The rider-facing copy is German; the code and this document are English.
 
 ## Development

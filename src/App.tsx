@@ -153,6 +153,7 @@ export default function App() {
           onShowNearbyStops={() => showNearbyStops()}
         />
         <StopNotFoundView isFailed={selection.isStopFailed} onRetry={selection.retryStop} />
+        <DataProvenanceFooter />
       </main>
     );
   }
