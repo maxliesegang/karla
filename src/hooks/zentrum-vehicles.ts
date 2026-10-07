@@ -7,6 +7,7 @@ import { useRunDiscovery } from "./run-discovery";
 import { zentrumStopIds } from "../data/zentrum-stops";
 import { isRunInArea } from "../lib/run-discovery";
 import { getDistinctRuns } from "../lib/trips";
+import { DEPARTURE_BOARD_REFRESH_MS } from "./departure-board";
 
 const areaStops = new Set(zentrumStopIds);
 const includesZentrumRun = (run: Departure, feedNow: number) =>
@@ -38,6 +39,7 @@ export function useZentrumVehicles(
   const reading = useLineRunDepartures(ZENTRUM_VEHICLE_RETENTION_KEY, runs, clockBoard, false, {
     includesRun: scopeToArea ? includesZentrumRun : undefined,
     refreshOnEntry: false,
+    runMaxAgeMs: animatesVehicles ? DEPARTURE_BOARD_REFRESH_MS : undefined,
     animatesVehicles,
   });
   return { ...reading, isLoading: discovery === null };

@@ -21,6 +21,7 @@ export type RunReadingOptions = {
   /** The chosen run, re-read on every board refresh. */
   selectedRowId?: string;
   refreshMs?: number;
+  maxAgeMs?: number;
   refreshOnEntry?: boolean;
 };
 
@@ -33,6 +34,7 @@ export function useRunReadingsByRowId(
   {
     selectedRowId,
     refreshMs = DEPARTURE_BOARD_REFRESH_MS,
+    maxAgeMs = LINE_RUN_READING_MAX_AGE_MS,
     refreshOnEntry = true,
   }: RunReadingOptions = {},
 ): readonly Departure[] {
@@ -50,7 +52,7 @@ export function useRunReadingsByRowId(
         getRunReadingRequests(
           {
             rowIds: sortedRowIds,
-            maxAgeMs: LINE_RUN_READING_MAX_AGE_MS,
+            maxAgeMs,
             ...(selectedRowId ? { selectedRowId, selectedMaxAgeMs: refreshMs } : {}),
           },
           // A view's first read looks past the source's cache, so its first marks are not stale.

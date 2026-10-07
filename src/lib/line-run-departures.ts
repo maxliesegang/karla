@@ -82,9 +82,8 @@ export function areFollowedRunsEqual(
 }
 
 /**
- * The current board entries plus still-running vehicles the boards stopped listing. Current entries
- * win. Followed runs resolve through `findRun` and match by their draw-time mark key; a run the
- * source can no longer name was evicted and leaves the plan.
+ * Listed and retained runs read their latest calls from the source. Retained runs match by their
+ * current mark key; an evicted run leaves the plan.
  */
 export function getLineRunDepartures(
   followed: readonly FollowedRun[],
@@ -92,7 +91,9 @@ export function getLineRunDepartures(
   feedNow: number,
   findRun: (rowId: string) => Departure | undefined,
 ): Departure[] {
-  const current = observedDepartures.filter((departure) => departure.status !== "cancelled");
+  const current = observedDepartures
+    .map((departure) => findRun(departure.id) ?? departure)
+    .filter((departure) => departure.status !== "cancelled");
   const claimedKeys = new Set(current.map(getRunMarkKey));
   const unlisted: Departure[] = [];
   for (const entry of followed) {

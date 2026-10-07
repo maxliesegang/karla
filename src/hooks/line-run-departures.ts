@@ -27,10 +27,12 @@ export function useLineRunDepartures(
     includesRun,
     refreshOnEntry = true,
     animatesVehicles = true,
+    runMaxAgeMs,
   }: {
     includesRun?: (run: Departure, feedNow: number) => boolean;
     refreshOnEntry?: boolean;
     animatesVehicles?: boolean;
+    runMaxAgeMs?: number;
   } = {},
 ): { runDepartures: readonly Departure[]; feedNow: number } {
   const [following, setFollowing] = useState<{
@@ -43,7 +45,10 @@ export function useLineRunDepartures(
   );
   const followedRowIds = useMemo(() => followed.map(({ rowId }) => rowId), [followed]);
   // Followed runs are re-read on their own cadence; answers land in the store.
-  const followedRuns = useRunReadingsByRowId(followedRowIds, { refreshOnEntry });
+  const followedRuns = useRunReadingsByRowId(followedRowIds, {
+    refreshOnEntry,
+    maxAgeMs: runMaxAgeMs,
+  });
   const feedNow = useVehicleFeedNow(
     observedDepartures.length > 0 || followed.length > 0 || isRide,
     departureBoard,
