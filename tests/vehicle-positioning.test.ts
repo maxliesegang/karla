@@ -381,6 +381,46 @@ function dwellCall(
   };
 }
 
+test("a minute timetable's one-minute stand is a short dwell, so the next link is travelled", () => {
+  // As AVG states the Kaiserstraße: at Marktplatz 20:23–20:24, at Ettlinger Tor from 20:24.
+  const trip = departure("position-minute-grain", [
+    call("a", 0),
+    dwellCall("b", 1, 2, {}),
+    dwellCall("c", 2, 3, {}),
+    call("d", 4),
+  ]);
+
+  // At B from the middle of its arrival minute, so the link to C is travelled.
+  const nearing = getSmoothTripPlacement(motions, trip, start + 80_000);
+  assert.equal(nearing?.fromStopId, "a");
+  assert.ok(nearing && nearing.progress > 0.85 && nearing.progress < 1);
+  assert.equal(nearing.trajectory?.arrivesAt, start + 90_000);
+
+  const travelling = getSmoothTripPlacement(motions, trip, start + 140_000);
+  assert.equal(travelling?.fromStopId, "b");
+  assert.ok(travelling && travelling.progress > 0.2 && travelling.progress < 0.8);
+});
+
+test("a stand longer than a minute, or stated to the second, keeps its arrival", () => {
+  const minuteTrip = departure("position-minute-layover", [
+    call("a", 0),
+    dwellCall("b", 1, 3, {}),
+    call("c", 4),
+  ]);
+  const layover = getSmoothTripPlacement(motions, minuteTrip, start + 90_000);
+  assert.equal(layover?.fromStopId, "b");
+  assert.equal(layover?.progress, 0);
+
+  const secondTrip = departure("position-second-grain", [
+    call("a", 0.5),
+    dwellCall("b", 1.5, 2.5, {}),
+    call("c", 3.5),
+  ]);
+  const standing = getSmoothTripPlacement(motions, secondTrip, start + 120_000);
+  assert.equal(standing?.fromStopId, "b");
+  assert.equal(standing?.progress, 0);
+});
+
 test("carries the last stated deviation across the calls the feed does not monitor", () => {
   // Four minutes late where monitored, unstated after; read as on time, the run would read as over.
   const trip = departure("position-unmonitored", [
@@ -399,11 +439,11 @@ test("carries the last stated deviation across the calls the feed does not monit
 });
 
 test("keeps the two ends of a call apart: a late arrival is not a late departure", () => {
-  // Four minutes late into B, five minutes' layover, leaving on time: short of B while late.
+  // Four minutes late into B, six minutes' layover, leaving on time: short of B while late.
   const trip = departure("position-recovering-dwell", [
     call("a", 0, 4),
-    dwellCall("b", 5, 10, { arrivalDelayMinutes: 4, delayMinutes: 0 }),
-    call("c", 12, 0),
+    dwellCall("b", 5, 11, { arrivalDelayMinutes: 4, delayMinutes: 0 }),
+    call("c", 13, 0),
   ]);
 
   const running = getSmoothTripPlacement(motions, trip, start + 6 * 60_000);
@@ -420,7 +460,7 @@ test("keeps the two ends of a call apart: a late arrival is not a late departure
     phase: "running",
     motion: "placed",
   });
-  const away = getSmoothTripPlacement(motions, trip, start + 11 * 60_000);
+  const away = getSmoothTripPlacement(motions, trip, start + 12 * 60_000);
   assert.ok(away && away.progress > 0);
 });
 

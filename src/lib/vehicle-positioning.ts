@@ -1,4 +1,4 @@
-import type { Departure } from "../data/transit-types";
+import type { Departure, TripCall } from "../data/transit-types";
 import { collapseTurnaroundCalls, statesRunEnd, statesRunStart } from "./trip-calls";
 import { getRunTimeline } from "./run-timeline";
 import { getRunMarkKey } from "./trips";
@@ -77,6 +77,11 @@ export const NEAR_STOP_RETURN_PROGRESS = 0.1;
  */
 const DEPARTURE_GRACE_MS = 10_000;
 /**
+ * Where a call is stated only to the minute, a stand of at most a minute is drawn from the middle
+ * of the arrival minute: within half a minute of the truth whether the feed rounds or truncates.
+ */
+const MINUTE_GRAIN_STAND_MS = 30_000;
+/**
  * How long before a monitored run is due out of its first stop it is drawn standing there without
  * a known arrival. Measured against the delayed departure, and long enough for line 3's
  * eleven-minute turn at Forststraße. A found turnaround (`standFrom`) can stand it longer.
@@ -133,6 +138,13 @@ function getTimedCalls(departure: Departure): {
       });
     }
   }
+  if (isMinuteGrain(localCalls)) {
+    for (const here of timed.slice(1, -1)) {
+      if (here.departure - here.arrival <= 60_000) {
+        here.arrival = Math.max(here.arrival, here.departure - MINUTE_GRAIN_STAND_MS);
+      }
+    }
+  }
   for (const [index, here] of timed.entries()) {
     const next = timed[index + 1];
     if (!next) break;
@@ -140,6 +152,14 @@ function getTimedCalls(departure: Departure): {
   }
   return { calls: timed, originStatedShift };
 }
+
+/** AVG publishes its timetable to the minute; VBK's has seconds. */
+const isMinuteGrain = (calls: readonly TripCall[]): boolean =>
+  calls.every((call) =>
+    [call.scheduledArrivalTime, call.scheduledDepartureTime].every(
+      (time) => time === undefined || Date.parse(time) % 60_000 === 0,
+    ),
+  );
 
 function getStandingEnd(here: TimedCall): number {
   return Math.max(here.arrival, here.departure);
