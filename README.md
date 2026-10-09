@@ -29,7 +29,8 @@ refines the one above it:
 - `#/network` — the line index
 - `#/nearby` — the six nearest observed stops after a location reading
 - `#/notices` — KVV's published notices relevant to the KARLA network
-- `#/settings` — where the app opens, whether it remembers stops, whether diagrams show other vehicles
+- `#/settings` — where the app opens, whether it remembers stops, whether diagrams show other
+  vehicles, and the KVV data terms (not official, no KVV liability)
 - `#/stop/europaplatz` — a stop with its departure board
 - `#/stop/europaplatz/line/2` — a line calling there, beside the board
 - `#/stop/hochstetten/line/S1+S11` — two lines read together over the stretch they share

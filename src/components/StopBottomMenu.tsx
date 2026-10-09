@@ -36,7 +36,7 @@ export function StopBottomMenu({
           <summary
             aria-label={`${ordered.length} ${ordered.length === 1 ? "Meldung" : "Meldungen"} des KVV zu ${stop.name}`}
           >
-            <span>KVV-Meldungen · {ordered.length}</span>
+            <span>Meldungen · {ordered.length}</span>
             <svg
               className="disclosure-chevron"
               viewBox="0 0 16 16"

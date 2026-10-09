@@ -109,6 +109,26 @@ export function SettingsView() {
         allein im Browser benutzt, um Haltestellen in der Nähe zu finden und deine Position auf der
         Linie zu zeigen.
       </p>
+      <section className="settings-about" aria-labelledby="settings-about-title">
+        <h2 id="settings-about-title">Daten & Haftung</h2>
+        <p>
+          KARLA ist kein offizielles Angebot des Karlsruher Verkehrsverbunds (KVV). Der KVV haftet
+          nicht für die Inhalte dieser App.
+        </p>
+        <p>
+          Abfahrten, Meldungen und Haltestellen stammen aus der elektronischen Fahrplanauskunft des
+          KVV, Linien und Linienfarben aus seinen{" "}
+          <a
+            href="https://www.kvv.de/fahrplan/fahrplaene/open-data.html"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Open Data
+          </a>{" "}
+          (CC0). Der KVV kann den Zugang zu diesen Daten jederzeit beschränken, ändern oder
+          einstellen.
+        </p>
+      </section>
     </section>
   );
 }

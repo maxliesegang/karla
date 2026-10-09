@@ -1224,6 +1224,23 @@ button.brand:active .brand-mark,
   color: var(--ink-soft);
   font-size: 12px;
 }
+.settings-about {
+  margin: 18px 4px 0;
+  color: var(--ink-soft);
+  font-size: 12px;
+}
+.settings-about h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 750;
+}
+.settings-about p {
+  margin: 4px 0 0;
+}
+.settings-about a {
+  color: inherit;
+}
 
 /* The Zentrum is a stable drawing surface under an observed reading. Its geometry names places;
    only the coloured traversals claim that a line is currently using the connection.
