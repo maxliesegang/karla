@@ -67,7 +67,8 @@ test("failed and slow runs cannot delay healthy runs, including after the run se
     assert.equal(healthy[2].age, 30_000);
     assert.deepEqual(
       reads.filter((r) => r.rowId === "failed").map((r) => r.at),
-      [0, 60_000, 150_000, 240_000],
+      // A lost read is retried within seconds, then ever less often.
+      [0, 5_000, 20_000, 65_000, 155_000],
     );
     assert.equal(reads.filter((r) => r.rowId === "slow").length, 1);
     assert.equal(healthy[0].age, 0);

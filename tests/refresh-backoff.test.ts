@@ -5,28 +5,38 @@ import {
   getBackoffDelayMs,
   isAwayEvidence,
   isVisibleResumeEvent,
+  FIRST_TRANSIENT_RETRY_MS,
   MAX_TRANSIENT_BACKOFF_MS,
   MAX_UNAVAILABLE_BACKOFF_MS,
 } from "../src/hooks/refresh-backoff.ts";
 
 const REFRESH_MS = 30_000;
 
-test("a first failure doubles the cadence, whichever kind it is", () => {
-  assert.equal(getBackoffDelayMs(REFRESH_MS, extendFailureStreak(undefined, "transient")), 60_000);
+test("a lost request is retried within seconds, and an unavailable feed after a doubled cadence", () => {
+  assert.equal(
+    getBackoffDelayMs(REFRESH_MS, extendFailureStreak(undefined, "transient")),
+    FIRST_TRANSIENT_RETRY_MS,
+  );
+  assert.equal(FIRST_TRANSIENT_RETRY_MS, 5_000);
   assert.equal(
     getBackoffDelayMs(REFRESH_MS, extendFailureStreak(undefined, "unavailable")),
     60_000,
   );
 });
 
-test("a transient streak caps within a couple of steps and stays there", () => {
-  const first = extendFailureStreak(undefined, "transient");
-  const second = extendFailureStreak(first, "transient");
-  const third = extendFailureStreak(second, "transient");
-  assert.equal(getBackoffDelayMs(REFRESH_MS, first), 60_000);
-  assert.equal(getBackoffDelayMs(REFRESH_MS, second), MAX_TRANSIENT_BACKOFF_MS);
-  assert.equal(getBackoffDelayMs(REFRESH_MS, third), MAX_TRANSIENT_BACKOFF_MS);
+test("a transient streak triples to its ceiling and stays there", () => {
+  let streak = extendFailureStreak(undefined, "transient");
+  const delays = [getBackoffDelayMs(REFRESH_MS, streak)];
+  for (let step = 0; step < 4; step += 1) {
+    streak = extendFailureStreak(streak, "transient");
+    delays.push(getBackoffDelayMs(REFRESH_MS, streak));
+  }
+  assert.deepEqual(delays, [5_000, 15_000, 45_000, 90_000, 90_000]);
   assert.equal(MAX_TRANSIENT_BACKOFF_MS, 90_000);
+});
+
+test("a first retry is never slower than the cadence itself", () => {
+  assert.equal(getBackoffDelayMs(2_000, extendFailureStreak(undefined, "transient")), 2_000);
 });
 
 test("an unavailable feed earns the full ceiling", () => {
@@ -48,7 +58,7 @@ test("a change of kind starts its own count", () => {
   streak = extendFailureStreak(streak, "unavailable");
   streak = extendFailureStreak(streak, "transient");
   assert.deepEqual(streak, { kind: "transient", count: 1 });
-  assert.equal(getBackoffDelayMs(REFRESH_MS, streak), 60_000);
+  assert.equal(getBackoffDelayMs(REFRESH_MS, streak), FIRST_TRANSIENT_RETRY_MS);
 });
 
 test("a page or connection that was away forgives the streak", () => {

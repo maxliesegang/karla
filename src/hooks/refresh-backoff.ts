@@ -1,7 +1,7 @@
 /**
- * Failure streaks for the refresh cadence. A resolved "unavailable" answer (the feed spoke) backs
- * off to five minutes; a rejected request (the connection) tops out under ninety seconds, so it
- * recovers as soon as the radio does.
+ * Failure streaks for the refresh cadence. An "unavailable" answer (nothing usable) backs off to
+ * five minutes; a lost request (the connection) is retried within seconds and tops out at ninety,
+ * so it recovers as soon as the radio does.
  */
 
 export type LoadFailureKind =
@@ -12,8 +12,10 @@ export type LoadFailureKind =
 
 /** The cadence an unavailable feed slows to, however long it stays down. */
 export const MAX_UNAVAILABLE_BACKOFF_MS = 5 * 60_000;
-/** The ceiling a flaky connection earns, reached within a couple of steps. */
+/** The ceiling a flaky connection earns, reached within a few steps. */
 export const MAX_TRANSIENT_BACKOFF_MS = 90_000;
+/** How soon a first lost request is retried, at most; each further loss triples the wait. */
+export const FIRST_TRANSIENT_RETRY_MS = 5_000;
 
 export type FailureStreak = { kind: LoadFailureKind; count: number };
 
@@ -27,9 +29,11 @@ export function extendFailureStreak(
 
 /** The delay before the next refresh while a failure streak stands. */
 export function getBackoffDelayMs(refreshMs: number, streak: FailureStreak): number {
-  const ceiling =
-    streak.kind === "transient" ? MAX_TRANSIENT_BACKOFF_MS : MAX_UNAVAILABLE_BACKOFF_MS;
-  return Math.min(refreshMs * 2 ** streak.count, ceiling);
+  if (streak.kind === "transient") {
+    const firstRetryMs = Math.min(refreshMs, FIRST_TRANSIENT_RETRY_MS);
+    return Math.min(firstRetryMs * 3 ** (streak.count - 1), MAX_TRANSIENT_BACKOFF_MS);
+  }
+  return Math.min(refreshMs * 2 ** streak.count, MAX_UNAVAILABLE_BACKOFF_MS);
 }
 
 /** The events a page's way back is heard through. */

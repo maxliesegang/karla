@@ -7,6 +7,20 @@ import type { DepartureBoard, DepartureBoardCoverage } from "../data/transit-typ
 export const isFailedBoard = (board: DepartureBoard): boolean =>
   board.dataStatus === "unavailable" || board.refreshFailedAt !== undefined;
 
+/**
+ * How boards failed, for the refresh cadence. A refresh that failed while a live board stands in
+ * (`refreshFailedAt`) is retried like a lost request, which it usually is; only a board with
+ * nothing usable backs off as unavailable.
+ */
+export function getBoardsFailureKind(
+  boards: readonly DepartureBoard[],
+): "unavailable" | "transient" | undefined {
+  if (boards.some((board) => board.dataStatus === "unavailable")) return "unavailable";
+  return boards.some((board) => board.dataStatus === "live" && board.refreshFailedAt !== undefined)
+    ? "transient"
+    : undefined;
+}
+
 export function getDepartureBoardCoverage(
   stopIds: readonly string[],
   loaded: readonly DepartureBoard[] | undefined | null,

@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useLiveBoard } from "./run-reading-store";
 import { transitSource, type DepartureBoardRequest } from "../data/transit-source";
 import type { DepartureBoard, ServiceNoticeBoard } from "../data/transit-types";
-import { isFailedBoard } from "../lib/departure-board-collection";
+import { getBoardsFailureKind } from "../lib/departure-board-collection";
 import { createSortedKey } from "../lib/collections";
 import { useKeyedLoad, type KeyedLoadOptions } from "./keyed-load";
 
@@ -35,12 +35,12 @@ const STOP_TOPOLOGY_REQUEST: DepartureBoardRequest = {
 
 const SINGLE_BOARD_LOAD_OPTIONS: KeyedLoadOptions<DepartureBoard> = {
   refreshMs: DEPARTURE_BOARD_REFRESH_MS,
-  isFailure: isFailedBoard,
+  getFailureKind: (board) => getBoardsFailureKind([board]),
 };
 
 const SERVICE_NOTICE_LOAD_OPTIONS: KeyedLoadOptions<ServiceNoticeBoard> = {
   refreshMs: SERVICE_NOTICE_REFRESH_MS,
-  isFailure: (board) => board.dataStatus === "unavailable",
+  getFailureKind: (board) => (board.dataStatus === "unavailable" ? "unavailable" : undefined),
 };
 
 /**
@@ -105,7 +105,7 @@ export function useStopTopologyBoard(stopId: string | undefined): DepartureBoard
       (key) => transitSource.getDepartureBoard(key, STOP_TOPOLOGY_REQUEST),
       {
         refreshMs: STOP_TOPOLOGY_REFRESH_MS,
-        isFailure: isFailedBoard,
+        getFailureKind: (board) => getBoardsFailureKind([board]),
       },
     ) ?? null;
   // No age limit: a route does not go wrong by sitting there, and nothing here is shown as a time.

@@ -28,7 +28,7 @@ export type RetainedRun = {
 const RETAINED_RUN_LOAD_OPTIONS: KeyedLoadOptions<Departure | undefined> = {
   refreshMs: DEPARTURE_BOARD_REFRESH_MS,
   // An evicted run backs off; the stored observation answers meanwhile.
-  isFailure: (reading) => reading === undefined,
+  getFailureKind: (reading) => (reading === undefined ? "unavailable" : undefined),
 };
 
 /** Re-reads the ride's run on the board cadence while no board does. */

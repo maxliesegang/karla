@@ -126,7 +126,10 @@ test("a resolved failure counts as a failure", async () => {
   const loaded = await render({
     key: "a",
     load,
-    options: { refreshMs: REFRESH_MS, isFailure: (value) => value === "unavailable" },
+    options: {
+      refreshMs: REFRESH_MS,
+      getFailureKind: (value) => (value === "unavailable" ? "unavailable" : undefined),
+    },
   });
   await wait(REFRESH_MS * 10);
   // The answer is still shown; only the cadence slows.

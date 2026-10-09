@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { DepartureBoard } from "../src/data/transit-types.ts";
-import { getDepartureBoardCoverage, isFailedBoard } from "../src/lib/departure-board-collection.ts";
+import {
+  getBoardsFailureKind,
+  getDepartureBoardCoverage,
+  isFailedBoard,
+} from "../src/lib/departure-board-collection.ts";
 
 const createBoard = (
   stopId: string,
@@ -36,4 +40,15 @@ test("a board nothing could be read for is unavailable coverage", () => {
 
   assert.equal(isFailedBoard(failed), true);
   assert.equal(getDepartureBoardCoverage(["a"], [failed]).status, "unavailable");
+});
+
+test("a refresh that failed behind a live board is retried like a lost request", () => {
+  const live = createBoard("a", 1_000, "live");
+  const retained = { ...live, refreshFailedAt: 31_000 };
+  const unavailable = createBoard("b", 1_000, "unavailable");
+
+  assert.equal(getBoardsFailureKind([live]), undefined);
+  assert.equal(getBoardsFailureKind([live, retained]), "transient");
+  // Nothing usable outranks a board still standing in.
+  assert.equal(getBoardsFailureKind([retained, unavailable]), "unavailable");
 });

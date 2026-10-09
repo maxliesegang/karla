@@ -20,11 +20,10 @@ export type KeyedLoad<T> = (key: string, isEntryRead: boolean) => Promise<T>;
 export type KeyedLoadOptions<T> = {
   refreshMs?: number;
   /**
-   * Whether a resolved value is a failure, for resources that resolve to an unavailable state
-   * rather than reject. Resolved failures back off further than rejections, which may be one lost
-   * packet.
+   * What kind of failure a resolved value is, for resources that resolve to a failed state rather
+   * than reject. A rejection is always `transient`.
    */
-  isFailure?: (value: T) => boolean;
+  getFailureKind?: (value: T) => LoadFailureKind | undefined;
   /**
    * Bumping it re-runs the load for the same key; the last value stays and the backoff is forgiven.
    */
@@ -33,7 +32,7 @@ export type KeyedLoadOptions<T> = {
 
 /**
  * Loads a keyed resource and exposes only a value for the current key. `null`: nothing resolved
- * yet; `undefined` is a valid resolved "nothing". The latest `load` and `isFailure` are always
+ * yet; `undefined` is a valid resolved "nothing". The latest `load` and `getFailureKind` are always
  * used.
  *
  * Refreshes chain timeouts after each settled load, so a slow source never queues. Hidden pages
@@ -44,7 +43,7 @@ export type KeyedLoadOptions<T> = {
 export function useKeyedLoad<T>(
   key: string | null,
   load: KeyedLoad<T>,
-  { refreshMs, isFailure, reloadNonce }: KeyedLoadOptions<T> = {},
+  { refreshMs, getFailureKind, reloadNonce }: KeyedLoadOptions<T> = {},
 ): T | undefined | null {
   const [loaded, setLoaded] = useState<LoadedValue<T> | null>(null);
   const hasEntryRead = useRef(false);
@@ -53,7 +52,7 @@ export function useKeyedLoad<T>(
     hasEntryRead.current = true;
     return load(key, isEntryRead);
   });
-  const isFailedValue = useEffectEvent((value: T) => isFailure?.(value) ?? false);
+  const findFailureKind = useEffectEvent((value: T) => getFailureKind?.(value));
 
   useEffect(() => {
     if (key === null) return;
@@ -94,7 +93,7 @@ export function useKeyedLoad<T>(
       const sequence = ++loadSequence;
       lastLoadStartedAt = Date.now();
       read(key).then(
-        (value) => settle(sequence, value, isFailedValue(value) ? "unavailable" : undefined),
+        (value) => settle(sequence, value, findFailureKind(value)),
         () => settle(sequence, undefined, "transient"),
       );
     };

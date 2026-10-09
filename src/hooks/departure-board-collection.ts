@@ -6,7 +6,7 @@ import {
   type ObservedNetwork,
 } from "../lib/observed-network";
 import { transitSource } from "../data/transit-source";
-import { getDepartureBoardCoverage, isFailedBoard } from "../lib/departure-board-collection";
+import { getBoardsFailureKind, getDepartureBoardCoverage } from "../lib/departure-board-collection";
 import { toSortedIds } from "../lib/collections";
 import { useKeyedLoad, type KeyedLoadOptions } from "./keyed-load";
 import { useLiveBoards } from "./run-reading-store";
@@ -25,8 +25,6 @@ export const IDLE_OBSERVATION_REFRESH_MS = 30 * 60_000;
 
 const EMPTY_ROUTE_DIRECTION_IDS: readonly string[] = [];
 const EMPTY_DEPARTURE_BOARDS: readonly DepartureBoard[] = [];
-
-const hasFailedBoard = (boards: readonly DepartureBoard[]) => boards.some(isFailedBoard);
 
 export type DepartureBoardCollection = {
   departureBoards: readonly DepartureBoard[];
@@ -54,7 +52,7 @@ export function useDepartureBoardCollection(
   const key =
     sortedStopIds.length > 0 ? `${sortedStopIds.join(",")}|${sortedDirectionIds.join(",")}` : null;
   const loadOptions = useMemo<KeyedLoadOptions<DepartureBoard[]>>(
-    () => ({ refreshMs, isFailure: hasFailedBoard }),
+    () => ({ refreshMs, getFailureKind: getBoardsFailureKind }),
     [refreshMs],
   );
   // A stop board asks for the trips behind its rows, since the network is observed from them. A

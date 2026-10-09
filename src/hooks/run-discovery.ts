@@ -83,7 +83,7 @@ export function useRunDiscovery(
     },
     {
       refreshMs: LINE_OBSERVATION_REFRESH_MS,
-      isFailure: (value) => value.failedStopIds.length > 0,
+      getFailureKind: (value) => (value.failedStopIds.length > 0 ? "unavailable" : undefined),
     },
   );
 }
