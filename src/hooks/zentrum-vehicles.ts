@@ -41,6 +41,7 @@ export function useZentrumVehicles(
     refreshOnEntry: false,
     runMaxAgeMs: animatesVehicles ? DEPARTURE_BOARD_REFRESH_MS : undefined,
     animatesVehicles,
+    readsBeforeMerges: animatesVehicles,
   });
   return { ...reading, isLoading: discovery === null };
 }

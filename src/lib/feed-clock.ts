@@ -14,6 +14,10 @@ export function getFeedNow(departureBoard: DepartureBoard | null, now: number): 
   return serverTime + (now - departureBoard.receivedAt);
 }
 
+/** The feed's clock minus the device's, as fixed by the board. */
+export const getFeedOffsetMs = (departureBoard: DepartureBoard | null): number =>
+  getFeedNow(departureBoard, 0);
+
 /** How long ago the board was read, on the feed's clock, so a wrong device clock cancels out. */
 export function getBoardAgeMs(departureBoard: DepartureBoard | null, feedNow: number): number {
   if (!departureBoard || departureBoard.dataStatus !== "live") return 0;

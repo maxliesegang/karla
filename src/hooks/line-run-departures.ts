@@ -8,6 +8,7 @@ import {
   updateFollowedRuns,
   type FollowedRun,
 } from "../lib/line-run-departures";
+import { getFeedOffsetMs } from "../lib/feed-clock";
 import { getRunMarkKey } from "../lib/trips";
 import { useDeviceNow, useVehicleFeedNow } from "./clock";
 import { useRunReadingsByRowId } from "./run-reading-loader";
@@ -28,11 +29,14 @@ export function useLineRunDepartures(
     refreshOnEntry = true,
     animatesVehicles = true,
     runMaxAgeMs,
+    readsBeforeMerges = false,
   }: {
     includesRun?: (run: Departure, feedNow: number) => boolean;
     refreshOnEntry?: boolean;
     animatesVehicles?: boolean;
     runMaxAgeMs?: number;
+    /** Re-read each run shortly before it leaves for a merge (`useRunReadingsByRowId`). */
+    readsBeforeMerges?: boolean;
   } = {},
 ): { runDepartures: readonly Departure[]; feedNow: number } {
   const [following, setFollowing] = useState<{
@@ -45,9 +49,15 @@ export function useLineRunDepartures(
   );
   const followedRowIds = useMemo(() => followed.map(({ rowId }) => rowId), [followed]);
   // Followed runs are re-read on their own cadence; answers land in the store.
+  const feedOffsetMs = getFeedOffsetMs(departureBoard);
+  const mergeReads = useMemo(
+    () => (readsBeforeMerges ? { feedOffsetMs } : undefined),
+    [readsBeforeMerges, feedOffsetMs],
+  );
   const followedRuns = useRunReadingsByRowId(followedRowIds, {
     refreshOnEntry,
     maxAgeMs: runMaxAgeMs,
+    readsBeforeMerges: mergeReads,
   });
   const feedNow = useVehicleFeedNow(
     observedDepartures.length > 0 || followed.length > 0 || isRide,

@@ -566,8 +566,12 @@ coordinates. `XML_STOPSEQCOORD_REQUEST` is used for its stop sequence (above), n
 
 KVV's map calls `https://projekte.kvv-efa.de/json?CoordSystem=WGS84` with a viewport (`MinY`,
 `MinX`, `MaxY`, `MaxX`, `ts`) or a `JourneyKey`, every five seconds. Both forms returned HTTP 400,
-including a key built exactly as KVV's JavaScript builds it. KARLA's marks are estimated from call
-times and must never be presented as GPS positions.
+including a key built exactly as KVV's JavaScript builds it. Rechecked 8 October 2026: the viewport,
+`JourneyKey` and `vid` forms all answer 400, with or without kvv.de's referrer, origin and session
+cookie, as do `/json/` and `/veloc`; an unknown path answers 404. CORS echoes any origin, so the
+browser could read it if it answered. KVV's open data offers static GTFS and keyed TRIAS, neither
+with positions. KARLA's marks are estimated from call times and must never be presented as GPS
+positions.
 
 ## Payload observations
 

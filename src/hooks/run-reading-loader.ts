@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from "react";
 import { transitSource } from "../data/transit-source";
 import type { Departure } from "../data/transit-types";
 import { toSortedIds } from "../lib/collections";
+import { getMergeDepartureInstants } from "../lib/merge-departures";
 import { getRunReadingRequests } from "../lib/run-reading-requests";
 import { DEPARTURE_BOARD_REFRESH_MS } from "./departure-board";
 import { RunReadingPoller } from "./run-reading-poller";
@@ -20,6 +21,11 @@ export type RunReadingOptions = {
   refreshMs?: number;
   maxAgeMs?: number;
   refreshOnEntry?: boolean;
+  /**
+   * Re-read each run shortly before it leaves for a merge, given the feed's clock minus the
+   * device's.
+   */
+  readsBeforeMerges?: { feedOffsetMs: number };
 };
 
 /**
@@ -33,6 +39,7 @@ export function useRunReadingsByRowId(
     refreshMs = DEPARTURE_BOARD_REFRESH_MS,
     maxAgeMs = LINE_RUN_READING_MAX_AGE_MS,
     refreshOnEntry = true,
+    readsBeforeMerges,
   }: RunReadingOptions = {},
 ): readonly Departure[] {
   const sortedRowIds = useMemo(() => toSortedIds(rowIds), [rowIds]);
@@ -83,6 +90,26 @@ export function useRunReadingsByRowId(
   useEffect(() => pollerRef.current?.update(requests), [requests, refreshMs, refreshOnEntry]);
   // Read back in the order asked for, not the key's sorted order.
   const runs = useRuns(rowIds);
+  const feedOffsetMs = readsBeforeMerges?.feedOffsetMs;
+  useEffect(() => {
+    if (feedOffsetMs === undefined) return;
+    const instants = getMergeDepartureInstants(
+      rowIds.flatMap((rowId) => {
+        const run = transitSource.findRun(rowId);
+        return run ? [[rowId, run] as const] : [];
+      }),
+    );
+    pollerRef.current?.setCheckpoints(
+      new Map(
+        [...instants].map(([rowId, feedInstants]) => [
+          rowId,
+          feedInstants.map((instant) => instant - feedOffsetMs),
+        ]),
+      ),
+    );
+    // `runs` changes whenever a reading lands.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [runs, feedOffsetMs, refreshMs, refreshOnEntry]);
   // Only runs with calls; others stand on their board row meanwhile.
   return useMemo(() => runs.filter((run) => run.tripCalls?.length), [runs]);
 }

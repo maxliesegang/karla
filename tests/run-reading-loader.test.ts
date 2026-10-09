@@ -57,17 +57,20 @@ test("failed and slow runs cannot delay healthy runs, including after the run se
     await hook.rerender(["healthy", "failed", "slow", "new"]);
     await flush();
     await advance(240_000);
-    assert.deepEqual(
-      reads.filter((r) => r.rowId === "healthy").map((r) => r.at),
-      [0, 30_000, 60_000, 90_000, 120_000, 150_000, 180_000, 210_000, 240_000],
-    );
+    const healthy = reads.filter((r) => r.rowId === "healthy");
+    const gaps = healthy.slice(1).map((r, index) => r.at - healthy[index].at);
+    // The first refresh is set apart within the second half of a cadence, then every cadence.
+    assert.ok(gaps[0] >= 15_000 && gaps[0] < 30_000);
+    assert.ok(gaps.slice(1).every((gap) => gap === 30_000));
+    assert.equal(healthy.length, 9);
+    assert.equal(healthy[1].age, gaps[0]);
+    assert.equal(healthy[2].age, 30_000);
     assert.deepEqual(
       reads.filter((r) => r.rowId === "failed").map((r) => r.at),
       [0, 60_000, 150_000, 240_000],
     );
     assert.equal(reads.filter((r) => r.rowId === "slow").length, 1);
-    assert.equal(reads.find((r) => r.rowId === "healthy" && r.at === 30_000)?.age, 30_000);
-    assert.equal(reads.find((r) => r.rowId === "healthy")?.age, 0);
+    assert.equal(healthy[0].age, 0);
     await act(async () => window.dispatchEvent(new Event("visibilitychange")));
     await advance(240_000);
     assert.equal(reads.filter((r) => r.rowId === "failed").at(-1)?.at, 240_000);
