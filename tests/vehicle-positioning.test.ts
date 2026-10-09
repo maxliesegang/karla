@@ -3,7 +3,12 @@ import test from "node:test";
 import type { Departure, TripCall } from "../src/data/transit-types.ts";
 import { getRunPlacement as getSmoothTripPlacement } from "../src/lib/vehicle-positioning.ts";
 import { createCall, run } from "./support/calls.ts";
-import { createRunMotions, NEAR_STOP_RETURN_PROGRESS } from "../src/lib/vehicle-positioning.ts";
+import {
+  createRunMotions,
+  type DelayChange,
+  getSteadyDelayMinutes,
+  NEAR_STOP_RETURN_PROGRESS,
+} from "../src/lib/vehicle-positioning.ts";
 import { createDeparture } from "./support/fixtures.ts";
 
 /** One drawing's motion record, shared across this file. */
@@ -381,6 +386,39 @@ function dwellCall(
   };
 }
 
+test("a delay switching between two minutes is drawn halfway, until it holds or moves on", () => {
+  const changes: DelayChange[] = [];
+  const steady = (minutes: number, seconds: number) =>
+    getSteadyDelayMinutes(changes, minutes, start + seconds * 1_000);
+
+  assert.equal(steady(1, 0), 1);
+  // A first change is taken at once.
+  assert.equal(steady(2, 30), 2);
+  // Back again: the delay sits between the two minutes.
+  assert.equal(steady(1, 60), 1.5);
+  assert.equal(steady(2, 90), 1.5);
+  assert.equal(steady(2, 200), 1.5);
+  // Held for the whole window, the stated minute counts again.
+  assert.equal(steady(2, 271), 2);
+  assert.equal(steady(1, 300), 1);
+  assert.equal(steady(2, 310), 1.5);
+  // A third minute ends the midpoint at once.
+  assert.equal(steady(3, 320), 3);
+});
+
+test("a run whose delay switches back is placed to arrive halfway between the two minutes", () => {
+  const delayed = (minutes: number) =>
+    departure("position-flapping", [call("a", 0), call("b", 1, minutes), call("c", 3, minutes)]);
+  const arrivalAt = (minutes: number, seconds: number) =>
+    getSmoothTripPlacement(motions, delayed(minutes), start + seconds * 1_000)?.trajectory
+      ?.arrivesAt;
+
+  assert.equal(arrivalAt(0, 20), start + 60_000);
+  assert.equal(arrivalAt(1, 25), start + 120_000);
+  assert.equal(arrivalAt(0, 30), start + 90_000);
+  assert.equal(arrivalAt(1, 35), start + 90_000);
+});
+
 test("a minute timetable's one-minute stand is a short dwell, so the next link is travelled", () => {
   // As AVG states the Kaiserstraße: at Marktplatz 20:23–20:24, at Ettlinger Tor from 20:24.
   const trip = departure("position-minute-grain", [
@@ -508,7 +546,7 @@ test("a waiting mark stays at its terminus while the sequence around it is re-ti
   for (const minutesOut of [4, 3, 2, 1]) {
     const held = getSmoothTripPlacement(
       motions,
-      reading(minutesOut % 2),
+      reading(4 - minutesOut),
       start - minutesOut * 60_000,
     );
     assert.deepEqual(placementOnly(held), {

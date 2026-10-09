@@ -81,6 +81,8 @@ const DEPARTURE_GRACE_MS = 10_000;
  * of the arrival minute: within half a minute of the truth whether the feed rounds or truncates.
  */
 const MINUTE_GRAIN_STAND_MS = 30_000;
+/** A stated delay that switched back within this long is drawn midway between its two minutes. */
+const DELAY_FLAP_WINDOW_MS = 180_000;
 /**
  * How long before a monitored run is due out of its first stop it is drawn standing there without
  * a known arrival. Measured against the delayed departure, and long enough for line 3's
@@ -103,13 +105,69 @@ type TimedCall = {
   isPublishedCurrentCall: boolean;
 };
 
+/** A stated delay, from when it was first read. */
+export type DelayChange = { at: number; minutes: number };
+/** Each call end's recent delay changes, so a switching delay can be drawn steady. */
+type DelayHistory = Map<string, DelayChange[]>;
+
+/**
+ * The delay to draw: the midpoint while the feed switches between two neighbouring minutes and has
+ * switched back within the window, else the stated minute. Records `minutes` in `changes`.
+ */
+export function getSteadyDelayMinutes(
+  changes: DelayChange[],
+  minutes: number,
+  feedNow: number,
+): number {
+  if (changes.at(-1)?.minutes !== minutes) changes.push({ at: feedNow, minutes });
+  const windowStart = feedNow - DELAY_FLAP_WINDOW_MS;
+  const firstInWindow = changes.findIndex((change) => change.at > windowStart);
+  // Keep the change still in force when the window opens.
+  changes.splice(0, (firstInWindow < 0 ? changes.length : firstInWindow) - 1);
+  const values = changes.map((change) => change.minutes);
+  const low = Math.min(...values);
+  const high = Math.max(...values);
+  return changes.length >= 3 && high - low === 1 ? (low + high) / 2 : minutes;
+}
+
+function steadyDelays(
+  calls: readonly TripCall[],
+  delays: DelayHistory,
+  feedNow: number,
+): TripCall[] {
+  const seen = new Set<string>();
+  const steady = (key: string, minutes: number | undefined) => {
+    if (minutes === undefined) return undefined;
+    seen.add(key);
+    const changes = delays.get(key) ?? [];
+    delays.set(key, changes);
+    return getSteadyDelayMinutes(changes, minutes, feedNow);
+  };
+  const steadied = calls.map((call) => {
+    const key = `${call.localStopId}|${call.scheduledArrivalTime ?? call.scheduledDepartureTime}`;
+    return {
+      ...call,
+      delayMinutes: steady(`${key}|departure`, call.delayMinutes),
+      arrivalDelayMinutes: steady(`${key}|arrival`, call.arrivalDelayMinutes),
+    };
+  });
+  for (const key of delays.keys()) if (!seen.has(key)) delays.delete(key);
+  return steadied;
+}
+
 /** Placement adds a bounded dwell grace to the shared expected timeline. */
-function getTimedCalls(departure: Departure): {
+function getTimedCalls(
+  departure: Departure,
+  delays: DelayHistory,
+  feedNow: number,
+): {
   calls: TimedCall[];
   originStatedShift: number | undefined;
 } {
-  const localCalls = collapseTurnaroundCalls(departure.tripCalls ?? []).filter(
-    (call) => call.localStopId,
+  const localCalls = steadyDelays(
+    collapseTurnaroundCalls(departure.tripCalls ?? []).filter((call) => call.localStopId),
+    delays,
+    feedNow,
   );
   const timeline = getRunTimeline(localCalls);
   const first = timeline[0]?.call;
@@ -382,6 +440,7 @@ type RunMotion = {
    */
   readAt: number;
   shown: RunPlacement;
+  delays: DelayHistory;
 };
 
 /**
@@ -478,7 +537,8 @@ export function getRunPlacement(
     return null;
   }
 
-  const { calls, originStatedShift } = getTimedCalls(departure);
+  const delays: DelayHistory = previous?.delays ?? new Map();
+  const { calls, originStatedShift } = getTimedCalls(departure, delays, feedNow);
   const context: CallPositionContext = {
     isMonitored: isMonitoredRun(departure),
     hasWaitingMark: previous?.shown.phase === "beforeStart",
@@ -602,6 +662,7 @@ export function getRunPlacement(
     shownAt: Math.max(previous?.shownAt ?? feedNow, feedNow),
     readAt: feedNow,
     shown,
+    delays,
   });
   sweepRunMotions(motions, feedNow);
   return shown;
