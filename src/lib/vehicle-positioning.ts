@@ -572,9 +572,7 @@ export function getRunPlacement(
     feedNow,
     reading.phase,
     motion,
-    motion === "placed" && distance !== undefined && (!hasPassedArrival || distance > 1)
-      ? Math.abs(distance)
-      : undefined,
+    motion === "placed" && distance !== undefined ? Math.abs(distance) : undefined,
   );
   rememberMotion(motions, key, {
     timelineKey,

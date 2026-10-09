@@ -7,7 +7,10 @@ import {
   getRunPlacement,
   getRunTrajectoryProgress,
 } from "../src/lib/vehicle-positioning";
-import { getTrajectoryKeyframes } from "../src/lib/vehicle-trajectory-animation";
+import {
+  getTrajectoryKeyframes,
+  isCorrectivePlacement,
+} from "../src/lib/vehicle-trajectory-animation";
 
 const start = Date.parse("2026-10-07T10:00:00Z");
 const call = createCall(start);
@@ -81,12 +84,14 @@ test("a revision more than two links behind never relocates a departed marker ba
   assert.ok(before && after && after.progress >= before.progress);
 });
 
-test("a revised arrival already in the past permits a forward placement immediately", () => {
+test("a revised arrival already in the past places the mark forward at once, drawn as a slide", () => {
   const motions = createRunMotions();
   getRunPlacement(motions, reading(4), start + 60_000);
   const corrected = getRunPlacement(motions, reading(1), start + 61_000);
   assert.equal(corrected?.fromStopId, "b");
   assert.equal(corrected?.progress, 0);
   assert.equal(corrected?.motion, "placed");
-  assert.equal(corrected?.placedAfterLinks, undefined);
+  // Within a link, so the drawing corrects over a few seconds rather than snapping.
+  assert.ok((corrected?.placedAfterLinks ?? 0) > 0);
+  assert.ok(isCorrectivePlacement(corrected?.placedAfterLinks));
 });
