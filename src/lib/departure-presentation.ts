@@ -182,15 +182,19 @@ export function getViaSummary(departure: Departure, callCount = 3): string {
   return via.slice(0, callCount).join(" · ");
 }
 
-/** The board's age, stated only once it is old enough to matter. */
+/** The board's age once it is old enough to matter, and a failed refresh as soon as it happens. */
 export function getStaleBoardLabel(
   departureBoard: DepartureBoard | null,
   feedNow: number,
 ): string | undefined {
   if (!departureBoard || departureBoard.dataStatus !== "live") return undefined;
   const ageMinutes = Math.floor(getBoardAgeMs(departureBoard, feedNow) / 60_000);
-  if (ageMinutes < 2) return undefined;
-  return `Stand ${formatClockTime(departureBoard.feedUpdatedAt)} · seit ${ageMinutes} Min ohne Aktualisierung`;
+  const readAt = `Stand ${formatClockTime(departureBoard.feedUpdatedAt)}`;
+  if (ageMinutes >= 2) return `${readAt} · seit ${ageMinutes} Min ohne Aktualisierung`;
+  // A failed refresh is said at once, before the board is old enough to count as stale.
+  return departureBoard.refreshFailedAt !== undefined
+    ? `${readAt} · Aktualisierung fehlgeschlagen`
+    : undefined;
 }
 
 /** Compact exception status for the line diagram. */

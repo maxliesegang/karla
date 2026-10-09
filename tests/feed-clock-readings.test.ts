@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { Departure } from "../src/data/transit-types.ts";
+import type { Departure, DepartureBoard } from "../src/data/transit-types.ts";
 import { getCountdownMinutes } from "../src/lib/feed-clock.ts";
 import {
   getDepartureStatusLabel,
   getDepartureTimeReading,
+  getStaleBoardLabel,
   getTripCallTimeReading,
 } from "../src/lib/departure-presentation.ts";
 import { parseDepartureBoardResponse } from "../src/data/kvv-efa-parsers.ts";
@@ -133,4 +134,26 @@ test("the call a row completes carries the same published time as the row itself
 
   assert.equal(getDepartureTimeReading(departure)?.expectedTime, "17:33");
   assert.equal(getTripCallTimeReading(ownCall!, feedNow)?.expectedTime, "17:33");
+});
+
+test("a failed refresh is said at once, and the board's age once it is old", () => {
+  const readAt = Date.parse("2026-08-30T17:27:00+02:00");
+  const board: DepartureBoard = {
+    stopId: "marktplatz",
+    dataStatus: "live",
+    feedUpdatedAt: new Date(readAt).toISOString(),
+    receivedAt: readAt,
+    departures: [],
+  };
+  assert.equal(getStaleBoardLabel(board, readAt + 30_000), undefined);
+
+  const retained = { ...board, refreshFailedAt: readAt + 30_000 };
+  assert.equal(
+    getStaleBoardLabel(retained, readAt + 31_000),
+    "Stand 17:27 · Aktualisierung fehlgeschlagen",
+  );
+  assert.equal(
+    getStaleBoardLabel(retained, readAt + 150_000),
+    "Stand 17:27 · seit 2 Min ohne Aktualisierung",
+  );
 });
