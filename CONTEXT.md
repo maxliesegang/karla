@@ -46,7 +46,8 @@ tracked and drawn.
 **TripCall**: one stop in a run's sequence, with its times and platform.
 
 **RunSequence**: a run's calls as the feed stated them, read at a single moment. It holds nothing
-specific to one stop.
+specific to one stop. Only a trip request yields one; a board's embedded calls are that board's
+observation.
 
 **RunReadingStore**: inside `TransitSource`, it holds the latest rows and sequence for each run.
 Every view reads runs from it.

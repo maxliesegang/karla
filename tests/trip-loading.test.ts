@@ -496,7 +496,7 @@ test("TransitSource merges one trip into the latest stop row and caches its sequ
   assert.equal(source.resolveBoard(cachedBoard), cachedBoard);
 });
 
-test("a detailed ordinary board publishes the canonical run object", async (t) => {
+test("a detailed board keeps its own calls as observation, never as the run's reading", async (t) => {
   // Before the run's last call, or the network would have dropped the trip.
   t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-08-26T05:29:45.000Z") });
   const source = createBoardSource({
@@ -506,7 +506,9 @@ test("a detailed ordinary board publishes the canonical run object", async (t) =
   const board = await source.getDepartureBoard("durlacher-tor", { includeTripCalls: true });
   const [row] = board.departures;
 
-  assert.equal(row, source.findRun(row.id));
+  assert.equal(row.tripCalls?.length, 2);
+  assert.equal(source.findRun(row.id)?.tripCalls, undefined);
+  assert.equal(await source.getRun(row.id), undefined);
   assert.deepEqual(
     source.getObservedNetwork().lines.map(({ id }) => id),
     ["S4"],
@@ -558,10 +560,7 @@ test("a trip nobody selected is re-read on its own terms, not on the board's", a
   assert.equal(runRequests, 2);
 });
 
-/**
- * A row carrying its sequence, so `getRun` answers without a request: a probe for whether the row
- * is remembered.
- */
+/** A row with its board's calls and no locator: a probe (`findRun`) for whether it is remembered. */
 function createRememberedDeparture(
   index: number,
   finalCallTime: string,
@@ -601,8 +600,8 @@ function createBoardSource(boardsByProviderStopId: Record<string, KvvDeparture[]
 }
 
 /**
- * Readings answered from memory (within tolerance, or a row with calls and no locator) keep their
- * read time, so a retained ride never claims an old reading is fresh.
+ * Readings answered from memory keep their read time, so a retained ride never claims an old
+ * reading is fresh.
  */
 test("a reading answered from memory is dated when it was taken, not when it was asked for", async (t) => {
   t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-08-26T05:29:45.000Z") });
@@ -647,22 +646,6 @@ test("a reading answered from memory is dated when it was taken, not when it was
   assert.equal((await source.getRun(rowId, 90_000))?.readAt?.sequenceReadAt, Date.now());
 });
 
-test("a row that carries its own calls is dated by the board it arrived on", async (t) => {
-  t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-08-26T05:29:45.000Z") });
-  const source = createBoardSource({
-    "7001001": [createRememberedDeparture(0, "2026-08-26T06:30:00.000Z")],
-  });
-  const boardReadAt = Date.now();
-  const rowId = (await source.getDepartureBoard("durlacher-tor")).departures[0].id;
-
-  // Never re-read: ten minutes on, it is ten minutes old.
-  t.mock.timers.tick(600_000);
-  const read = await source.getRun(rowId);
-
-  assert.equal(read?.tripCalls?.length, 2);
-  assert.equal(read?.readAt?.sequenceReadAt, boardReadAt);
-});
-
 test("board churn spends the cap on finished runs before the vehicles still out", async (t) => {
   t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-08-26T05:30:00.000Z") });
   const stillRunning = "2026-08-26T06:30:00.000Z";
@@ -686,13 +669,13 @@ test("board churn spends the cap on finished runs before the vehicles still out"
   assert.equal(board.departures.length, RUN_READING_STORE_CAPACITY);
   const [oldestRunningId, finishedId] = board.departures.map((departure) => departure.id);
   assert.notEqual(oldestRunningId, finishedId);
-  assert.ok(await source.getRun(finishedId));
+  assert.ok(source.findRun(finishedId));
 
   // One over the cap: one run must go.
   await source.getDepartureBoard("kronenplatz");
 
-  assert.equal(await source.getRun(finishedId), undefined);
-  assert.ok(await source.getRun(oldestRunningId));
+  assert.equal(source.findRun(finishedId), undefined);
+  assert.ok(source.findRun(oldestRunningId));
 });
 
 test("the cap is a bound, not a preference: all-running churn still evicts the oldest", async (t) => {
@@ -707,11 +690,11 @@ test("the cap is a bound, not a preference: all-running churn still evicts the o
 
   const board = await source.getDepartureBoard("durlacher-tor");
   const oldestId = board.departures[0].id;
-  assert.ok(await source.getRun(oldestId));
+  assert.ok(source.findRun(oldestId));
 
   await source.getDepartureBoard("kronenplatz");
 
-  assert.equal(await source.getRun(oldestId), undefined);
+  assert.equal(source.findRun(oldestId), undefined);
 });
 
 /**
@@ -1267,7 +1250,7 @@ test("a board can never be served from cache after its rows have been forgotten"
 
   const [row] = (await source.getDepartureBoard("durlacher-tor")).departures;
   assert.equal(boardFetches, 1);
-  assert.ok(await source.getRun(row.id));
+  assert.ok(source.findRun(row.id));
 
   // Past the run's end plus grace: the next write sweeps it.
   t.mock.timers.tick(Date.parse("2026-08-26T05:35:00.000Z") - Date.now() + RUN_ENDED_GRACE_MS + 1);
@@ -1276,7 +1259,7 @@ test("a board can never be served from cache after its rows have been forgotten"
   const [reread] = (await source.getDepartureBoard("durlacher-tor")).departures;
   assert.equal(boardFetches, 2);
   assert.equal(reread.id, row.id);
-  assert.ok(await source.getRun(row.id));
+  assert.ok(source.findRun(row.id));
 });
 
 test("a failed refresh answers with the last live board until it is too old to act on", async (t) => {

@@ -43,6 +43,13 @@ export function isBetterSequence(reading: RunSequence, best: RunSequence): boole
   return reading.tripCalls.length > best.tripCalls.length;
 }
 
+/** A row with only its stop's facts: a board's calls are that board's observation, not the run's. */
+export const withoutRunCalls = ({ readAt, ...departure }: Departure): Departure => ({
+  ...departure,
+  tripCalls: undefined,
+  ...(readAt ? { readAt: { rowReadAt: readAt.rowReadAt } } : {}),
+});
+
 /**
  * When the calls were read: the clock for deciding whether to re-read them, as opposed to
  * `getDepartureReadInstant`, which ranks copies.

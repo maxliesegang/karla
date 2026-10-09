@@ -13,7 +13,7 @@ const flush = () =>
     for (let index = 0; index < 32; index += 1) await Promise.resolve();
   });
 
-test("a discovered Zentrum run shows new predictions on the next 30-second refresh", async (t) => {
+test("a discovered Zentrum run is placed from its own reads, never its board's calls", async (t) => {
   const start = Date.parse("2026-10-07T13:20:00Z");
   let now = start;
   t.mock.method(Date, "now", () => now);
@@ -51,7 +51,8 @@ test("a discovered Zentrum run shows new predictions on the next 30-second refre
     platformCode: "2(U)",
     status: "realtime",
     scheduledDepartureTime: new Date(start).toISOString(),
-    tripCalls: calls,
+    // The board's own observation, which must never place the mark.
+    tripCalls: calls.map((call) => ({ ...call, delayMinutes: 5 })),
     tripLocator: {
       tripCode: "531",
       line: "kvv:21012:E:R:s26",
@@ -73,7 +74,7 @@ test("a discovered Zentrum run shows new predictions on the next 30-second refre
     tripFetches += 1;
     return {
       serverTime: new Date(now).toISOString(),
-      tripCalls: calls.map((call) => ({ ...call, delayMinutes: 2 })),
+      tripCalls: calls.map((call) => ({ ...call, delayMinutes: tripFetches === 1 ? 0 : 2 })),
     };
   };
   const source = new KvvTransitSource(client);
@@ -90,6 +91,7 @@ test("a discovered Zentrum run shows new predictions on the next 30-second refre
   const vehicles = await renderHook(() => useZentrumVehicles([]), {});
   try {
     await flush();
+    assert.equal(tripFetches, 1);
     assert.equal(vehicles.current.runDepartures[0]?.tripCalls?.[0].delayMinutes, 0);
     const end = start + 30_000;
     while (true) {
@@ -100,7 +102,7 @@ test("a discovered Zentrum run shows new predictions on the next 30-second refre
       pending[1].callback();
       await flush();
     }
-    assert.equal(tripFetches, 1);
+    assert.equal(tripFetches, 2);
     assert.equal(source.findRun(board.departures[0].id)?.tripCalls?.[0].delayMinutes, 2);
     assert.equal(vehicles.current.runDepartures[0]?.tripCalls?.[0].delayMinutes, 2);
   } finally {

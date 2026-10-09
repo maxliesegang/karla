@@ -7,7 +7,7 @@ import { useLineReading } from "./hooks/line-reading";
 import { useRetainedRun } from "./hooks/retained-run";
 import { useTransitStop } from "./hooks/transit-network";
 import { useRunReadings } from "./hooks/run-reading-loader";
-import { mergeRunReading } from "./lib/trip-calls";
+import { mergeAddressedRun } from "./lib/trip-calls";
 import { findBestRunReading } from "./lib/trips";
 import { findLineForRoute } from "./lib/line-families";
 import { createLineSelection, type LineSelection } from "./lib/line-bundles";
@@ -157,23 +157,18 @@ export function useSelectionChain(
     [lineDepartureBoards, observationBoards],
   );
   const observedRunReading = findRunInDepartureBoards(observedBoards, route.addressId);
-  // A run not yet under way has no calls from the line's boards, so the addressed run is read
-  // alone.
+  // The addressed run is always read alone: a board's calls never stand in for its reading.
   const addressedRunRows = useMemo(
-    () =>
-      observedRunReading && !observedRunReading.tripCalls?.length
-        ? [observedRunReading]
-        : EMPTY_DEPARTURES,
+    () => (observedRunReading ? [observedRunReading] : EMPTY_DEPARTURES),
     [observedRunReading],
   );
   const [addressedRunReading] = useRunReadings(addressedRunRows, {
     selectedRowId: addressedRunRows[0]?.id,
   });
   // The stop row owns countdown, platform and destination; the run reading adds the full sequence.
-  const observedRun = addressedRunReading ?? observedRunReading;
   const observedDeparture = useMemo(
-    () => (addressedDeparture ? mergeRunReading(addressedDeparture, observedRun) : observedRun),
-    [addressedDeparture, observedRun],
+    () => mergeAddressedRun(addressedDeparture, observedRunReading, addressedRunReading),
+    [addressedDeparture, observedRunReading, addressedRunReading],
   );
   // A ride keeps the last reading once boards stop listing the run; its age comes from the
   // departure's own read times.

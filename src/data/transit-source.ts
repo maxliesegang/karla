@@ -464,11 +464,11 @@ export class KvvTransitSource implements TransitSource {
   getRun(rowId: string, maxAgeMs = DEFAULT_BOARD_MAX_AGE_MS): Promise<Departure | undefined> {
     const row = this.runReadings.findRow(rowId);
     if (!row || !this.runReadings.canReadRun(rowId)) return Promise.resolve(undefined);
-    const cached = this.runReadings.findSequence(rowId)?.sequence;
+    const cached = this.runReadings.findSequence(rowId);
     const current = () => (cached ? this.findRun(rowId) : undefined);
 
-    // Without a locator the board's own sequence is the only reading.
-    if (!row.locator) return Promise.resolve(current());
+    // Without a locator the run cannot be requested, and a board's calls are not its reading.
+    if (!row.locator) return Promise.resolve(undefined);
 
     // Rows of a run share one record and request. Staleness is the calls' own clock, not the row's.
     const readAt = cached?.readAt;
@@ -663,7 +663,10 @@ export class KvvTransitSource implements TransitSource {
 
   resolveBoard(board: DepartureBoard): DepartureBoard {
     if (board.dataStatus !== "live") return board;
-    const departures = board.departures.map((row) => this.findRun(row.id) ?? row);
+    // A row keeps its board's calls as that board's observation until its run has been requested.
+    const departures = board.departures.map((row) =>
+      this.runReadings.findSequence(row.id) ? (this.findRun(row.id) ?? row) : row,
+    );
     return departures.every((departure, index) => departure === board.departures[index])
       ? board
       : { ...board, departures };

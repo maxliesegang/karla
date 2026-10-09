@@ -1,6 +1,6 @@
 import type { Departure } from "../data/transit-types";
 import { findFinalCallInstant } from "./trip-calls";
-import { getRunMarkKey, getSequenceReadInstant } from "./trips";
+import { getRunMarkKey, getSequenceReadInstant, withoutRunCalls } from "./trips";
 
 /**
  * How long a finished run's mark is kept past its final call; must stay inside
@@ -8,7 +8,7 @@ import { getRunMarkKey, getSequenceReadInstant } from "./trips";
  */
 export const RUN_MARK_RETENTION_GRACE_MS = 2 * 60_000;
 /**
- * A run is first drawn only from calls read this recently, so a cached board does not place it
+ * A run is first drawn only from calls read this recently, so a cached trip reading does not place it
  * before its own re-read (`LINE_RUN_READING_MAX_AGE_MS`) lands.
  */
 export const RUN_FIRST_PLACEMENT_MAX_AGE_MS = 90_000;
@@ -92,7 +92,8 @@ export function getLineRunDepartures(
   findRun: (rowId: string) => Departure | undefined,
 ): Departure[] {
   const current = observedDepartures
-    .map((departure) => findRun(departure.id) ?? departure)
+    // A row the store no longer holds still stands, but its board's calls never place it.
+    .map((departure) => findRun(departure.id) ?? withoutRunCalls(departure))
     .filter((departure) => departure.status !== "cancelled");
   const claimedKeys = new Set(current.map(getRunMarkKey));
   const unlisted: Departure[] = [];

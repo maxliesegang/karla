@@ -50,6 +50,10 @@ const sequence = (tripCalls: readonly TripCall[], readAt: number): RunSequence =
   readAt,
 });
 
+/** The run this row is a stop of, requested and answered with these calls. */
+const read = (store: RunReadingStore, rowId: string, tripCalls: readonly TripCall[], at: number) =>
+  store.rememberSequence(store.findRunRecordKey(rowId), sequence(tripCalls, at), at);
+
 const departure = (id: string, stopId: string, overrides: Partial<Departure> = {}): Departure =>
   createDeparture({
     id,
@@ -67,26 +71,26 @@ const departure = (id: string, stopId: string, overrides: Partial<Departure> = {
 
 const RUN_ENDS_AT = Date.parse("2026-09-06T10:05:00.000Z");
 
-test("keeps row evidence separate while the freshest complete trip wins", () => {
+test("a board's embedded calls never become the run's reading; a requested sequence does", () => {
   const store = new RunReadingStore();
-  const row = departure("row", "a", { tripCalls: calls(1) });
-  store.rememberRow(stamp(row, 100), locator, 100);
+  store.rememberRow(stamp(departure("row", "a", { tripCalls: calls(1) }), 100), locator, 100);
+  assert.equal(store.findSequence("row"), undefined);
+  assert.equal(store.findRun("row")?.tripCalls, undefined);
+  assert.equal(store.findRun("row")?.readAt?.sequenceReadAt, undefined);
 
-  // A newer basic row owns the stop facts, but cannot erase the last complete observation.
+  // A newer basic row owns the stop facts.
   store.rememberRow(stamp(departure("row", "a", { destination: "C" }), 200), locator, 200);
   assert.equal(store.findRow("row")?.departure.destination, "C");
-  assert.equal(store.findSequence("row")?.sequence.tripCalls[0]?.delayMinutes, 1);
 
   assert.equal(
     store.rememberSequence(store.findRunRecordKey("row"), sequence(calls(4), 300), 300),
     true,
   );
-  assert.equal(store.findSequence("row")?.sequence.tripCalls[0]?.delayMinutes, 4);
-  assert.equal(store.findSequence("row")?.source, "request");
+  assert.equal(store.findSequence("row")?.tripCalls[0]?.delayMinutes, 4);
 
-  // A late-arriving older board response cannot put the vehicle back on its older timeline.
-  store.rememberRow(stamp(departure("row", "a", { tripCalls: calls(2) }), 250), locator, 250);
-  assert.equal(store.findSequence("row")?.sequence.tripCalls[0]?.delayMinutes, 4);
+  // A later board with its own calls leaves the requested reading in place.
+  store.rememberRow(stamp(departure("row", "a", { tripCalls: calls(2) }), 400), locator, 400);
+  assert.equal(store.findSequence("row")?.tripCalls[0]?.delayMinutes, 4);
 
   // The run's calls are held once by the record, not per row.
   assert.equal(store.findRow("row")?.departure.tripCalls, undefined);
@@ -120,7 +124,7 @@ test("shares one complete reading between stop rows of the same run", () => {
   store.rememberSequence(store.findRunRecordKey("row-a"), sequence(calls(3), 200), 200);
 
   assert.equal(store.findRunRecordKey("row-a"), store.findRunRecordKey("row-b"));
-  assert.equal(store.findSequence("row-b")?.sequence.readAt, 200);
+  assert.equal(store.findSequence("row-b")?.readAt, 200);
 });
 
 test("refresh failures are shared by every row and cleared only by a newer sequence", () => {
@@ -171,20 +175,19 @@ test("a run crossing midnight is one record at the stops on either side of it", 
   const store = new RunReadingStore();
   // A run out at 23:50 states different days before and after midnight; the store reads no day, so
   // both stops are the same run.
-  const before = departure("before", "o", {
-    scheduledDepartureTime: "2026-09-06T23:50:00.000Z",
-    tripCalls: [
-      { stopName: "O", localStopId: "o", scheduledDepartureTime: "2026-09-06T23:50:00.000Z" },
-      { stopName: "C", localStopId: "c", scheduledArrivalTime: "2026-09-07T00:30:00.000Z" },
-    ],
-  });
+  const before = departure("before", "o", { scheduledDepartureTime: "2026-09-06T23:50:00.000Z" });
+  const runCalls: TripCall[] = [
+    { stopName: "O", localStopId: "o", scheduledDepartureTime: "2026-09-06T23:50:00.000Z" },
+    { stopName: "C", localStopId: "c", scheduledArrivalTime: "2026-09-07T00:30:00.000Z" },
+  ];
   const after = departure("after", "c", { scheduledDepartureTime: "2026-09-07T00:30:00.000Z" });
   store.rememberRow(stamp(before, 100), locator, 100);
   store.rememberRow(stamp(after, 110), atStop("7000003", "0030"), 110);
+  read(store, "before", runCalls, 120);
 
   assert.equal(store.findRunRecordKey("after"), store.findRunRecordKey("before"));
   // The stop after midnight gets only the sequence, never the other stop's facts.
-  assert.deepEqual(store.findSequence("after")?.sequence.tripCalls, before.tripCalls);
+  assert.deepEqual(store.findSequence("after")?.tripCalls, runCalls);
   assert.equal(store.findRun("after")?.id, "after");
   assert.equal(store.findRun("after")?.boardingLocalStopId, "c");
 });
@@ -192,7 +195,8 @@ test("a run crossing midnight is one record at the stops on either side of it", 
 test("a run is retired before its trip code is issued again the next day", () => {
   const store = new RunReadingStore();
   const today = Date.parse("2026-09-06T09:55:00.000Z");
-  store.rememberRow(stamp(departure("today", "a", { tripCalls: calls(0) }), today), locator, today);
+  store.rememberRow(stamp(departure("today", "a"), today), locator, today);
+  read(store, "today", calls(0), today);
   assert.ok(store.findSequence("today"));
 
   // Tomorrow's run of the same trip shares `line|tripCode`; only the first record's retirement
@@ -212,11 +216,8 @@ test("a run still being read is never retired, however far behind its last call 
   const store = new RunReadingStore();
   const wellAfterTheRun = RUN_ENDS_AT + 6 * 60 * 60_000;
   // A vehicle standing at its final stop is still on boards, so its record is kept.
-  store.rememberRow(
-    stamp(departure("row", "a", { tripCalls: calls(0) }), wellAfterTheRun),
-    locator,
-    wellAfterTheRun,
-  );
+  store.rememberRow(stamp(departure("row", "a"), wellAfterTheRun), locator, wellAfterTheRun);
+  read(store, "row", calls(0), wellAfterTheRun);
 
   assert.ok(store.findRow("row"), "a reading is never evicted by the sweep its arrival triggered");
   assert.ok(store.findSequence("row"));
@@ -227,17 +228,17 @@ test("spends the cap on runs that are over before the vehicles still out", () =>
   const now = Date.parse("2026-09-06T10:01:00.000Z");
   const endingAt = (id: string, arrival: string, code: string) => {
     store.rememberRow(
-      stamp(
-        departure(id, "a", {
-          tripId: id,
-          tripCalls: [
-            { stopName: "A", localStopId: "a", scheduledDepartureTime: arrival },
-            { stopName: "B", localStopId: "b", scheduledArrivalTime: arrival },
-          ],
-        }),
-        now,
-      ),
+      stamp(departure(id, "a", { tripId: id }), now),
       { ...locator, tripCode: code },
+      now,
+    );
+    read(
+      store,
+      id,
+      [
+        { stopName: "A", localStopId: "a", scheduledDepartureTime: arrival },
+        { stopName: "B", localStopId: "b", scheduledArrivalTime: arrival },
+      ],
       now,
     );
   };
@@ -255,11 +256,12 @@ test("spends the cap on runs that are over before the vehicles still out", () =>
 test("keeps the fuller sequence when two readings of one instant disagree in length", () => {
   const store = new RunReadingStore();
   const full = [...calls(1), { stopName: "C", localStopId: "c", delayMinutes: 1 }];
-  store.rememberRow(stamp(departure("row", "a", { tripCalls: full }), 100), locator, 100);
-  // A trip reading of the same instant outranks a board row only where it says more.
-  store.rememberSequence(store.findRunRecordKey("row"), sequence(calls(1), 100), 100);
+  store.rememberRow(stamp(departure("row", "a"), 100), locator, 100);
+  read(store, "row", full, 100);
+  // A reading of the same instant replaces another only where it says more.
+  read(store, "row", calls(1), 100);
 
-  assert.equal(store.findSequence("row")?.sequence.tripCalls.length, 3);
+  assert.equal(store.findSequence("row")?.tripCalls.length, 3);
 });
 
 test("a sequence lands on the run it was asked for, whatever the boards did meanwhile", () => {
@@ -273,13 +275,14 @@ test("a sequence lands on the run it was asked for, whatever the boards did mean
 
   store.rememberSequence(requestKey, sequence(calls(2), 300), 300);
 
-  assert.equal(store.findSequence("row-a")?.sequence.readAt, 300);
-  assert.equal(store.findSequence("row-b")?.sequence.readAt, 300);
+  assert.equal(store.findSequence("row-a")?.readAt, 300);
+  assert.equal(store.findSequence("row-b")?.readAt, 300);
 });
 
 test("a row that learns its locator moves onto the run it names", () => {
   const store = new RunReadingStore();
-  store.rememberRow(stamp(departure("known", "a", { tripCalls: calls(1) }), 100), locator, 100);
+  store.rememberRow(stamp(departure("known", "a"), 100), locator, 100);
+  read(store, "known", calls(1), 100);
   // From a board without a locator, so only its id addresses it.
   store.rememberRow(stamp(departure("late", "b"), 110), undefined, 110);
   assert.notEqual(store.findRunRecordKey("late"), store.findRunRecordKey("known"));
@@ -287,7 +290,7 @@ test("a row that learns its locator moves onto the run it names", () => {
   store.rememberRow(stamp(departure("late", "b"), 120), atStop("7000002", "1005"), 120);
 
   assert.equal(store.findRunRecordKey("late"), store.findRunRecordKey("known"));
-  assert.deepEqual(store.findSequence("late")?.sequence.tripCalls, calls(1));
+  assert.deepEqual(store.findSequence("late")?.tripCalls, calls(1));
   // It is on one record only.
   assert.equal(store.findRow("late")?.departure.readAt?.rowReadAt, 120);
 });
@@ -401,13 +404,10 @@ test("learns a farther run end from a reading that does not replace the current 
 test("a newer unconfirmed excerpt keeps known coverage and its original age", () => {
   const store = new RunReadingStore();
   const full = calls(1);
-  store.rememberRow(stamp(departure("row", "a", { tripCalls: full }), 100), locator, 100);
-  store.rememberSequence(
-    store.findRunRecordKey("row"),
-    sequence([{ ...full[0], delayMinutes: 4 }], 200),
-    200,
-  );
-  const reading = store.findSequence("row")?.sequence;
+  store.rememberRow(stamp(departure("row", "a"), 100), locator, 100);
+  read(store, "row", full, 100);
+  read(store, "row", [{ ...full[0], delayMinutes: 4 }], 200);
+  const reading = store.findSequence("row");
   assert.equal(reading?.tripCalls.length, full.length);
   assert.equal(reading?.tripCalls[0]?.delayMinutes, 4);
   assert.equal(reading?.readAt, 200);
@@ -416,7 +416,8 @@ test("a newer unconfirmed excerpt keeps known coverage and its original age", ()
 
 test("a foreign response and future row cannot alter the active instance", () => {
   const store = new RunReadingStore();
-  store.rememberRow(stamp(departure("today", "a", { tripCalls: calls(0) }), 100), locator, 100);
+  store.rememberRow(stamp(departure("today", "a"), 100), locator, 100);
+  read(store, "today", calls(0), 100);
   const future = departure("future", "a", { scheduledDepartureTime: "2026-09-07T10:00:00Z" });
   store.rememberRow(stamp(future, 200), { ...locator, date: "20260907" }, 200);
   assert.equal(store.canReadRun("future"), false);
@@ -430,7 +431,7 @@ test("a foreign response and future row cannot alter the active instance", () =>
     ),
     false,
   );
-  assert.equal(store.findSequence("today")?.sequence.readAt, 100);
+  assert.equal(store.findSequence("today")?.readAt, 100);
 });
 
 test("today can take ownership when tomorrow's basic row was observed first", () => {
@@ -441,11 +442,8 @@ test("today can take ownership when tomorrow's basic row was observed first", ()
     { ...locator, date: "20260907" },
     now,
   );
-  store.rememberRow(
-    stamp(departure("today", "a", { tripCalls: calls(0) }), now + 1),
-    locator,
-    now + 1,
-  );
+  store.rememberRow(stamp(departure("today", "a"), now + 1), locator, now + 1);
+  read(store, "today", calls(0), now + 1);
   assert.equal(store.canReadRun("today"), true);
   assert.equal(store.canReadRun("future"), false);
   assert.equal(store.findRun("today")?.tripCalls?.length, 2);
@@ -455,13 +453,14 @@ test("today can take ownership when tomorrow's basic row was observed first", ()
 test("a confirmed shorter terminus replaces older coverage", () => {
   const store = new RunReadingStore();
   const full = calls(0);
-  store.rememberRow(stamp(departure("row", "a", { tripCalls: full }), 100), locator, 100);
+  store.rememberRow(stamp(departure("row", "a"), 100), locator, 100);
+  read(store, "row", full, 100);
   const final = {
     ...full[0],
     scheduledArrivalTime: full[0].scheduledDepartureTime,
     scheduledDepartureTime: undefined,
   };
   store.rememberSequence(store.findRunRecordKey("row"), sequence([final], 200), 200);
-  assert.equal(store.findSequence("row")?.sequence.tripCalls.length, 1);
-  assert.equal(store.findSequence("row")?.sequence.coverageReadAt, undefined);
+  assert.equal(store.findSequence("row")?.tripCalls.length, 1);
+  assert.equal(store.findSequence("row")?.coverageReadAt, undefined);
 });

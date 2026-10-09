@@ -1,4 +1,5 @@
 import { getRunTimeline } from "./run-timeline";
+import { withoutRunCalls } from "./trips";
 import type {
   Departure,
   DepartureReadingTimes,
@@ -332,6 +333,19 @@ export function mergeRunReading(row: Departure, reading: Departure | undefined):
     tripInstanceId: reading.tripInstanceId ?? merged.tripInstanceId,
     status: isExceptionalStatus(reading.status) ? reading.status : merged.status,
   };
+}
+
+/**
+ * The addressed run: the stop's row, completed only by the run's own reading. Board calls on the
+ * row or the observed copy never stand in for it.
+ */
+export function mergeAddressedRun(
+  row: Departure | undefined,
+  observed: Departure | undefined,
+  reading: Departure | undefined,
+): Departure | undefined {
+  const run = reading ?? (observed && withoutRunCalls(observed));
+  return row ? mergeRunReading(withoutRunCalls(row), run) : run;
 }
 
 /**

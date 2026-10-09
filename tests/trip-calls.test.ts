@@ -3,7 +3,7 @@ import test from "node:test";
 import type { Departure, TripCall } from "../src/data/transit-types.ts";
 import { getViaSummary } from "../src/lib/departure-presentation.ts";
 import { findHomePlaceName } from "../src/lib/stop-naming.ts";
-import { getCallsAfterStop, mergeRunReading } from "../src/lib/trip-calls.ts";
+import { getCallsAfterStop, mergeAddressedRun, mergeRunReading } from "../src/lib/trip-calls.ts";
 import { createDeparture } from "./support/fixtures.ts";
 
 test("keeps every published call after the current stop", () => {
@@ -115,6 +115,34 @@ test("a row stands when no reading has arrived", () => {
   const stopRow = row("a", "Europaplatz");
 
   assert.equal(mergeRunReading(stopRow, undefined), stopRow);
+});
+
+test("an addressed run takes its calls only from its own reading, never a board's", () => {
+  const boardCalls: TripCall[] = [
+    { stopName: "Karlstor", isCurrentStop: true, delayMinutes: 2 },
+    { stopName: "Europaplatz", scheduledDepartureTime: "2026-09-05T10:04:00", delayMinutes: 2 },
+  ];
+  const stopRow = createDeparture({
+    ...row("b", "Karlstor"),
+    tripCalls: boardCalls,
+    readAt: { rowReadAt: 100, sequenceReadAt: 100 },
+  });
+  const observed = createDeparture({ ...stopRow, readAt: { rowReadAt: 90, sequenceReadAt: 90 } });
+
+  const unread = mergeAddressedRun(stopRow, observed, undefined);
+  assert.equal(unread?.tripCalls, undefined);
+  assert.equal(unread?.readAt?.sequenceReadAt, undefined);
+  assert.equal(mergeAddressedRun(undefined, observed, undefined)?.tripCalls, undefined);
+
+  const reading = createDeparture({
+    ...row("b", "Karlstor"),
+    tripCalls: boardCalls.map((call) => ({ ...call, delayMinutes: 0 })),
+    readAt: { rowReadAt: 200, sequenceReadAt: 200 },
+  });
+  const read = mergeAddressedRun(stopRow, observed, reading);
+  assert.equal(read?.tripCalls?.[1]?.delayMinutes, 0);
+  assert.equal(read?.readAt?.sequenceReadAt, 200);
+  assert.equal(read?.destination, "Hochstetten");
 });
 
 /**

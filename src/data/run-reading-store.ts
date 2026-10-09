@@ -1,10 +1,5 @@
-import {
-  findFinalCallInstant,
-  mergeRunSequence,
-  retainRunCoverage,
-  toRunSequence,
-} from "../lib/trip-calls";
-import { getDepartureReadInstant, isBetterSequence } from "../lib/trips";
+import { findFinalCallInstant, mergeRunSequence, retainRunCoverage } from "../lib/trip-calls";
+import { getDepartureReadInstant, isBetterSequence, withoutRunCalls } from "../lib/trips";
 import { getRunScheduleInstant, isSameRunInstance } from "../lib/run-instance";
 import type { KvvTripLocator } from "./kvv-efa-parsers";
 import type { Departure, RunSequence } from "./transit-types";
@@ -27,11 +22,11 @@ const RUN_RECORD_ROW_CAPACITY = 64;
 /** How far into the least-recent end the cap looks for a finished run first. */
 const ENDED_RUN_SCAN_DEPTH = 32;
 
-/** One stop's row of a run and its locator, without calls (those move to the record's sequence). */
+/**
+ * One stop's row of a run and its locator, without calls: a board's embedded calls are its own
+ * observation, never the run's reading (`rememberSequence` is the only source).
+ */
 export type RunRowReading = { departure: Departure; locator?: KvvTripLocator };
-
-/** A run's sequence, and whether it came off a board or a request. */
-export type RunSequenceReading = { sequence: RunSequence; source: "board" | "request" };
 
 type RunReadingRecord = {
   key: string;
@@ -42,7 +37,7 @@ type RunReadingRecord = {
    * write.
    */
   mergedByRowId: Map<string, Departure>;
-  latestSequence?: RunSequenceReading;
+  latestSequence?: RunSequence;
   sequenceRefreshFailedAt?: number;
   /** When the fullest sequence has the run reaching its last call. */
   runEndsAt?: number;
@@ -94,20 +89,21 @@ export class RunReadingStore {
       instanceAt !== undefined &&
       Math.abs(incomingAt - now) < Math.abs(instanceAt - now)
     ) {
-      record.instance = withoutCalls(departure);
+      record.instance = withoutRunCalls(departure);
       record.latestSequence = undefined;
       record.sequenceRefreshFailedAt = undefined;
       record.runEndsAt = undefined;
     }
-    const compatible = isSameRunInstance(record.instance, departure);
-    if (compatible) this.touchRecord(record, now);
-    const sequence = toRunSequence(departure);
-    if (sequence && compatible) this.rememberSequenceReading(record, { sequence, source: "board" });
+    if (isSameRunInstance(record.instance, departure)) {
+      this.touchRecord(record, now);
+      // A board's calls are only its observation, but they still say how long the run lasts.
+      this.learnRunEnd(record, departure.tripCalls);
+    }
 
     // Re-inserted so the row cap drops the least recently read first.
     record.rowsById.delete(departure.id);
     record.rowsById.set(departure.id, {
-      departure: sequence ? withoutCalls(departure) : departure,
+      departure: withoutRunCalls(departure),
       ...(locator ? { locator } : {}),
     });
     this.rowRecordKeys.set(departure.id, recordKey);
@@ -126,7 +122,7 @@ export class RunReadingStore {
     if (!record || sequence.tripCalls.length === 0 || !isSameRunInstance(record.instance, sequence))
       return false;
     this.touchRecord(record, now);
-    this.rememberSequenceReading(record, { sequence, source: "request" });
+    this.rememberSequenceReading(record, sequence);
     this.publish(record);
     return true;
   }
@@ -137,14 +133,13 @@ export class RunReadingStore {
 
   markSequenceRefreshFailed(runKey: string, now: number, requestedAt = now): void {
     const record = this.records.get(runKey);
-    if (!record?.latestSequence || (record.latestSequence.sequence.readAt ?? 0) > requestedAt)
-      return;
+    if (!record?.latestSequence || (record.latestSequence.readAt ?? 0) > requestedAt) return;
     record.sequenceRefreshFailedAt = now;
     this.publish(record);
   }
 
-  /** The fullest, freshest calling sequence read for the run this row is a stop of. */
-  findSequence(rowId: string): RunSequenceReading | undefined {
+  /** The fullest, freshest calling sequence requested for the run this row is a stop of. */
+  findSequence(rowId: string): RunSequence | undefined {
     const record = this.findRecord(rowId);
     return this.canReadRun(rowId) ? record?.latestSequence : undefined;
   }
@@ -158,7 +153,7 @@ export class RunReadingStore {
     if (!record || !row) return undefined;
     const cached = record.mergedByRowId.get(rowId);
     if (cached) return cached;
-    const reading = mergeRunSequence(row.departure, this.findSequence(rowId)?.sequence);
+    const reading = mergeRunSequence(row.departure, this.findSequence(rowId));
     const merged =
       reading.readAt && record.sequenceRefreshFailedAt !== undefined
         ? {
@@ -224,7 +219,7 @@ export class RunReadingStore {
     if (existing) return existing;
     const record: RunReadingRecord = {
       key: recordKey,
-      instance: withoutCalls(departure),
+      instance: withoutRunCalls(departure),
       rowsById: new Map(),
       mergedByRowId: new Map(),
       writtenAt: now,
@@ -233,20 +228,21 @@ export class RunReadingStore {
     return record;
   }
 
-  private rememberSequenceReading(record: RunReadingRecord, reading: RunSequenceReading): void {
+  private rememberSequenceReading(record: RunReadingRecord, sequence: RunSequence): void {
     const latest = record.latestSequence;
-    if (!latest || isBetterSequence(reading.sequence, latest.sequence))
-      record.latestSequence = {
-        ...reading,
-        sequence: retainRunCoverage(latest?.sequence, reading.sequence),
-      };
+    if (!latest || isBetterSequence(sequence, latest))
+      record.latestSequence = retainRunCoverage(latest, sequence);
     if (
       record.sequenceRefreshFailedAt !== undefined &&
-      (record.latestSequence?.sequence.readAt ?? 0) >= record.sequenceRefreshFailedAt
+      (record.latestSequence?.readAt ?? 0) >= record.sequenceRefreshFailedAt
     )
       record.sequenceRefreshFailedAt = undefined;
-    // The end is only ever learned, never moved back by a partial sequence.
-    const endsAt = findFinalCallInstant(reading.sequence.tripCalls);
+    this.learnRunEnd(record, sequence.tripCalls);
+  }
+
+  /** The end is only ever learned, never moved back by a partial sequence. */
+  private learnRunEnd(record: RunReadingRecord, tripCalls: Departure["tripCalls"]): void {
+    const endsAt = findFinalCallInstant(tripCalls);
     if (endsAt !== undefined) record.runEndsAt = Math.max(record.runEndsAt ?? endsAt, endsAt);
   }
 
@@ -356,9 +352,6 @@ export class RunReadingStore {
     if (record.rowsById.size === 0) this.records.delete(record.key);
   }
 }
-
-/** This row as the store keeps it: its stop's facts, and none of the run's calls. */
-const withoutCalls = (departure: Departure): Departure => ({ ...departure, tripCalls: undefined });
 
 /**
  * Whether nobody can still see the run: past last call plus grace, or past max age with no known

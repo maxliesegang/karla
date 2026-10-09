@@ -93,7 +93,18 @@ test("a followed run is recognised under the identity its reading states now", (
   known.set("drift", refined);
   const listed = { ...refined, id: "drift-next" };
 
-  assert.deepEqual(getLineRunDepartures(followed, [listed], start + 90_000, findRun), [listed]);
+  const drawn = getLineRunDepartures(followed, [listed], start + 90_000, findRun);
+  assert.deepEqual(
+    drawn.map(({ id }) => id),
+    ["drift-next"],
+  );
+});
+
+test("a listed row the store no longer holds never brings its board's calls", () => {
+  const forgotten = departure("forgotten", [call("a", 0), call("b", 10)]);
+  const [drawn] = getLineRunDepartures([], [forgotten], start + 60_000, () => undefined);
+  assert.equal(drawn.id, "forgotten");
+  assert.equal(drawn.tripCalls, undefined);
 });
 
 test("one run followed under two row ids is still drawn once", () => {

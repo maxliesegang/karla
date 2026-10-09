@@ -170,7 +170,7 @@ test("a crowded board discovers a rail direction named only in serving metadata"
       if (url.pathname.endsWith("XML_TRIPSTOPTIMES_REQUEST"))
         return Response.json({
           vehicleCallAtStop: {
-            tC: url.searchParams.get("tC"),
+            tC: url.searchParams.get("tripCode"),
             line: url.searchParams.get("line"),
             stopID: "7000064",
           },
