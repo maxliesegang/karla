@@ -560,6 +560,50 @@ test("a trip nobody selected is re-read on its own terms, not on the board's", a
   assert.equal(runRequests, 2);
 });
 
+test("a requested run teaches the network its route as soon as it lands", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"] });
+  const client = {
+    fetchDepartureBoard: async (providerStopId: string): Promise<KvvDepartureBoard> => ({
+      stopPointId: providerStopId,
+      stopName: "Durlacher Tor/KIT-Campus Süd (U)",
+      serverTime: "2026-08-26T05:29:45.000Z",
+      servingLines: [],
+      departures: [
+        {
+          stopPointId: "7001001",
+          stopPointName: "Durlacher Tor/KIT-Campus Süd (U)",
+          tripId: "de:kvv:00S04_:.trip",
+          lineId: "S4",
+          transportMode: "lightRail",
+          destination: "Karlsruhe Albtalbahnhof",
+          minutesUntilDeparture: 1,
+          platformCode: "1(U)",
+          status: "realtime",
+          scheduledDepartureTime: "2026-08-26T05:30:00.000Z",
+          tripLocator: locator,
+        },
+      ],
+    }),
+    // The fixture trip is cancelled, and a cancelled run teaches nothing.
+    fetchTrip: async (): Promise<KvvTrip> => ({
+      ...parseTripResponse(tripPayload, locator),
+      status: undefined,
+    }),
+  } as unknown as KvvEfaClient;
+  const source = new KvvTransitSource(client);
+  const rowId = (await source.getDepartureBoard("durlacher-tor")).departures[0].id;
+  // A plain row names the run but says nothing of its route.
+  assert.equal(source.getObservedNetwork().tripCount, 0);
+
+  await source.getRun(rowId);
+
+  assert.equal(source.getObservedNetwork().tripCount, 1);
+  assert.deepEqual(
+    source.getObservedNetwork().lines.map(({ id }) => id),
+    ["S4"],
+  );
+});
+
 /** A row with its board's calls and no locator: a probe (`findRun`) for whether it is remembered. */
 function createRememberedDeparture(
   index: number,

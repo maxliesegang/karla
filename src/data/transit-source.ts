@@ -745,8 +745,11 @@ export class KvvTransitSource implements TransitSource {
           const receivedAt = Date.now();
           const sequence = this.createSequenceReading(requestKey, trip, receivedAt);
           // An answer whose record was evicted is reported as a failure (`rememberSequence`).
-          if (sequence && this.runReadings.rememberSequence(requestKey, sequence, receivedAt))
+          if (sequence && this.runReadings.rememberSequence(requestKey, sequence, receivedAt)) {
+            const run = this.findRun(rowId);
+            if (run) this.observedNetwork.rememberTrips([run], receivedAt);
             return sequence;
+          }
           this.runReadings.markSequenceRefreshFailed(requestKey, receivedAt, requestedAt);
           return undefined;
         })

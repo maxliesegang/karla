@@ -237,6 +237,7 @@ A three-departure sample grew from 37 kB to 88 kB with sequences. KARLA's rules:
   where they are further away than the reading is old.
 - A line is read as rows, and its runs as trips, never as a detailed board per stop.
 - A board's sequences are observation (topology, `via`, how long a run lasts), never a run's reading.
+  Each requested run also teaches the observed network its route when it lands.
   The row's own call is `realDateTime` to the minute with no arrival, while the other calls are
   scheduled seconds plus a whole-minute delay; on 9 October 2026 the two disagreed for 38% of rows,
   by up to two minutes. A run's calls come only from `XML_TRIPSTOPTIMES_REQUEST`.

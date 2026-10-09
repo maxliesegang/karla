@@ -48,8 +48,9 @@ const getTopologyExpiry = (departure: Departure, now: number): number =>
   (findFinalCallInstant(departure.tripCalls) ?? now + RUN_READING_MAX_AGE_MS) + RUN_ENDED_GRACE_MS;
 
 /**
- * Topology learned from live boards, whichever view fetched them: one record per distinct route,
- * until the trip has run, so stopped lines leave by themselves. No run readings are kept.
+ * Topology learned from live boards and requested runs, whichever view fetched them: one record per
+ * distinct route, until the trip has run, so stopped lines leave by themselves. No run readings are
+ * kept.
  */
 export class ObservedNetworkStore {
   private readonly tripsByKey = new Map<
@@ -60,9 +61,13 @@ export class ObservedNetworkStore {
   private snapshot = EMPTY_OBSERVED_NETWORK;
 
   rememberBoard(board: DepartureBoard, now = Date.now()): void {
-    if (board.dataStatus !== "live") return;
+    if (board.dataStatus === "live") this.rememberTrips(board.departures, now);
+  }
+
+  /** Every route a run's own reading states teaches the network as soon as it lands. */
+  rememberTrips(departures: readonly Departure[], now = Date.now()): void {
     let changed = false;
-    for (const departure of board.departures) {
+    for (const departure of departures) {
       const topology = toTopology(departure);
       if (!topology) continue;
       const key = getTopologyKey(topology);

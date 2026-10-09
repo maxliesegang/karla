@@ -77,7 +77,7 @@ one time a row is read against.
 (`line/S1+S11`). They are never merged automatically.
 
 **Observed network**: the lines and stops seen live at the observation posts, the fixed stops read
-to learn the network.
+to learn the network, and in every run requested for its calls.
 
 **Line observation**: the stops and directions learned for one line, which decide which boards to
 read for it.
