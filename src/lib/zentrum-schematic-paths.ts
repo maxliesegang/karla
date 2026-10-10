@@ -566,16 +566,55 @@ const getStopLineCrossing = (
 };
 
 /**
+ * A pattern's stroke across one stop from the first capsule it crosses to the last, which a run
+ * calling at both places in turn rides between its two calls.
+ */
+export type ZentrumSchematicStopStretch = {
+  nodeId: string;
+  /** The stops either side (not junctions), in the line path's order. */
+  fromNodeId: string;
+  toNodeId: string;
+  points: readonly SchematicPoint[];
+  steps: readonly number[];
+};
+
+/** A stop stretch's key: the stop and the stops either side, in either order. */
+export const getZentrumSchematicStopStretchKey = (
+  nodeId: string,
+  sideNodeId: string,
+  otherSideNodeId: string,
+): string => `${nodeId}\u0001${getEdgeKey(sideNodeId, otherSideNodeId)}`;
+
+/** A stop stretch, read in the direction of a run arriving from `fromNodeId`. */
+export const orientZentrumSchematicStopStretch = (
+  stretch: ZentrumSchematicStopStretch,
+  fromNodeId: string,
+): ZentrumSchematicStopStretch =>
+  stretch.fromNodeId === fromNodeId
+    ? stretch
+    : {
+        ...stretch,
+        fromNodeId: stretch.toNodeId,
+        toNodeId: stretch.fromNodeId,
+        points: [...stretch.points].reverse(),
+        steps: stretch.steps.map((step) => 1 - step).reverse(),
+      };
+
+/**
  * One pattern's vehicle paths by corridor, stop to stop, cut where the stroke crosses each stop's
  * capsule so marks halt on it. Without a capsule crossing, the cut falls where the bend starts, or
- * at the stop. A corridor through a junction is one path.
+ * at the stop. A corridor through a junction is one path. Where the stroke crosses two or more of a
+ * stop's capsules, the stretch between the outermost crossings is kept as well.
  */
-export function getZentrumSchematicVehiclePathsByCorridorId(
+export function getZentrumSchematicVehiclePaths(
   linePath: ZentrumSchematicLinePath,
   edges: readonly ZentrumSchematicEdge[],
   trackWidth: number | undefined,
   stopLinesByNodeId: ReadonlyMap<string, readonly ZentrumSchematicStroke[]>,
-): ReadonlyMap<string, ZentrumSchematicCorridorPath> {
+): {
+  pathsByCorridorId: ReadonlyMap<string, ZentrumSchematicCorridorPath>;
+  stopStretches: readonly ZentrumSchematicStopStretch[];
+} {
   const { legs, bends } = getZentrumSchematicLaneLegs(
     linePath,
     edges,
@@ -583,7 +622,8 @@ export function getZentrumSchematicVehiclePathsByCorridorId(
     stopLinesByNodeId,
   );
   const pathsByCorridorId = new Map<string, ZentrumSchematicCorridorPath>();
-  if (legs.length === 0) return pathsByCorridorId;
+  const stopStretches: ZentrumSchematicStopStretch[] = [];
+  if (legs.length === 0) return { pathsByCorridorId, stopStretches };
 
   // The whole stroke as one polyline, with each point's distance along it.
   const points: SchematicPoint[] = [];
@@ -606,13 +646,15 @@ export function getZentrumSchematicVehiclePathsByCorridorId(
   push(legs[legs.length - 1].to);
   const total = distances.at(-1) ?? 0;
   fallbacks.push(total);
-  if (points.length < 2) return pathsByCorridorId;
+  if (points.length < 2) return { pathsByCorridorId, stopStretches };
 
   // Each stop is looked for between the middles of the stretches either side of it.
   const nodeIds = [legs[0].fromNodeId, ...legs.map(({ toNodeId }) => toNodeId)];
   const stopIndices = nodeIds.flatMap((nodeId, index) =>
     stopLinesByNodeId.has(nodeId) ? [index] : [],
   );
+  // Where each stop is cut, and the first and last capsule crossings where two capsules are crossed.
+  const crossingSpans: ({ first: number; last: number } | undefined)[] = [];
   const cuts = stopIndices.map((index, at) => {
     const nodeId = nodeIds[index];
     const fallback = fallbacks[index];
@@ -620,17 +662,28 @@ export function getZentrumSchematicVehiclePathsByCorridorId(
     const latest =
       at === stopIndices.length - 1 ? total : (fallback + fallbacks[stopIndices[at + 1]]) / 2;
     let cut = fallback;
+    const crossings: number[] = [];
+    let crossedCapsules = 0;
     for (const line of stopLinesByNodeId.get(nodeId) ?? []) {
+      let crossesLine = false;
       for (let point = 1; point < points.length; point += 1) {
         const along = getStopLineCrossing(points[point - 1], points[point], line);
         if (along === undefined) continue;
         const distance = distances[point - 1] + (distances[point] - distances[point - 1]) * along;
         if (distance < earliest || distance > latest) continue;
+        crossings.push(distance);
+        crossesLine = true;
         if (cut === fallback || Math.abs(distance - fallback) < Math.abs(cut - fallback)) {
           cut = distance;
         }
       }
+      if (crossesLine) crossedCapsules += 1;
     }
+    crossingSpans.push(
+      crossedCapsules >= 2
+        ? { first: Math.min(...crossings), last: Math.max(...crossings) }
+        : undefined,
+    );
     return cut;
   });
 
@@ -644,24 +697,70 @@ export function getZentrumSchematicVehiclePathsByCorridorId(
       y: points[index - 1].y + (points[index].y - points[index - 1].y) * share,
     };
   };
-  stopIndices.slice(1).forEach((index, at) => {
-    const [start, end] = [cuts[at], cuts[at + 1]];
+  const getStretch = (start: number, end: number) => {
     const stretch = [
       pointAt(start),
       ...points.filter((_, point) => distances[point] > start && distances[point] < end),
       pointAt(end),
     ];
     const steps = getZentrumSchematicPathSteps(stretch);
+    return steps && { points: stretch, steps };
+  };
+  stopIndices.slice(1).forEach((index, at) => {
+    const stretch = getStretch(cuts[at], cuts[at + 1]);
     const [fromNodeId, toNodeId] = [nodeIds[stopIndices[at]], nodeIds[index]];
-    if (steps)
+    if (stretch)
       pathsByCorridorId.set(getEdgeKey(fromNodeId, toNodeId), {
         fromNodeId,
         toNodeId,
-        points: stretch,
-        steps,
+        ...stretch,
       });
   });
-  return pathsByCorridorId;
+  stopIndices.forEach((index, at) => {
+    const span = crossingSpans[at];
+    const [fromNodeId, toNodeId] = [nodeIds[stopIndices[at - 1]], nodeIds[stopIndices[at + 1]]];
+    const stretch = span && getStretch(span.first, span.last);
+    if (stretch && fromNodeId && toNodeId)
+      stopStretches.push({ nodeId: nodeIds[index], fromNodeId, toNodeId, ...stretch });
+  });
+  return { pathsByCorridorId, stopStretches };
+}
+
+/**
+ * A vehicle path cut back to where it meets a point on it: the part after `start`, or the part
+ * before `end`. The point is taken at the nearest place along the path.
+ */
+export function trimZentrumSchematicCorridorPath(
+  path: ZentrumSchematicCorridorPath,
+  { start, end }: { start?: SchematicPoint; end?: SchematicPoint },
+): ZentrumSchematicCorridorPath {
+  const nearest = (points: readonly SchematicPoint[], target: SchematicPoint) => {
+    let best = { segment: 1, point: points[0], distance: Number.POSITIVE_INFINITY };
+    for (let segment = 1; segment < points.length; segment += 1) {
+      const from = points[segment - 1];
+      const run = subtractPoints(points[segment], from);
+      const length = dotProduct(run, run);
+      const share =
+        length > 0
+          ? Math.max(0, Math.min(1, dotProduct(subtractPoints(target, from), run) / length))
+          : 0;
+      const point = { x: from.x + run.x * share, y: from.y + run.y * share };
+      const distance = Math.hypot(point.x - target.x, point.y - target.y);
+      if (distance < best.distance) best = { segment, point, distance };
+    }
+    return best;
+  };
+  let points = path.points;
+  if (end) {
+    const { segment, point } = nearest(points, end);
+    points = [...points.slice(0, segment), point];
+  }
+  if (start) {
+    const { segment, point } = nearest(points, start);
+    points = [point, ...points.slice(segment)];
+  }
+  const steps = getZentrumSchematicPathSteps(points);
+  return steps ? { ...path, points, steps } : path;
 }
 
 /** Each point's share of the run's length; undefined for no length. */

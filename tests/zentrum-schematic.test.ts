@@ -1321,9 +1321,9 @@ test("hands a mark over between corridors exactly where its line's stroke turns"
   assert.ok(Math.hypot(arriving.x - first.x, arriving.y - first.y) < 4);
 });
 
-test("parks a mark inside a stop complex, pointing the way out", () => {
-  // The S1 crossing between Marktplatz's tunnels has no corridor; the mark parks where the leaving
-  // corridor's lane begins, facing its way out.
+test("parks a mark inside a stop complex its reading starts in, pointing the way out", () => {
+  // The S1 crossing between Marktplatz's tunnels, with no call before it to say which way it came
+  // in: the mark parks where the leaving corridor's lane begins, facing its way out.
   const timedCall = (
     localStopId: string,
     providerStopPointId: string,
@@ -1337,15 +1337,24 @@ test("parks a mark inside a stop complex, pointing the way out", () => {
   const crossing = departure(
     "S1",
     [
-      timedCall("ettlinger-tor", "7001012", 0),
       timedCall("marktplatz", "7001011", 2),
       timedCall("marktplatz", "7001003", 4),
       timedCall("europaplatz", "7001004", 6),
     ],
     { id: "tunnel-crossing", tripInstanceId: "tunnel-crossing", delayMinutes: 0 },
   );
+  const through = departure(
+    "S1",
+    [
+      timedCall("ettlinger-tor", "7001012", 0),
+      timedCall("marktplatz", "7001011", 2),
+      timedCall("marktplatz", "7001003", 4),
+      timedCall("europaplatz", "7001004", 6),
+    ],
+    { id: "tunnel-through", tripInstanceId: "tunnel-through", delayMinutes: 0 },
+  );
 
-  const reading = buildZentrumSchematicReading(drawn([board(crossing)]));
+  const reading = buildZentrumSchematicReading(drawn([board(crossing, through)]));
   const [parked] = getZentrumSchematicVehicles(
     reading,
     [crossing],
@@ -1372,6 +1381,96 @@ test("parks a mark inside a stop complex, pointing the way out", () => {
   assert.ok(parked.angle !== 0);
   const heading = getZentrumSchematicVehiclePathPlacement(oriented, 0).angle;
   assert.equal(parked.angle, heading);
+});
+
+test("stands at each of a complex's two capsules in turn and rides between them", () => {
+  // The S1 calls at Marktplatz's Kaiserstraße tunnel, then beneath the Pyramide, a minute apart.
+  const located = (
+    localStopId: string,
+    providerStopPointId: string,
+    platformCode: string,
+    [latitude, longitude]: readonly [number, number],
+    [arrival, departure]: readonly [string, string],
+  ): TripCall => ({
+    ...call(localStopId, providerStopPointId, platformCode),
+    latitude,
+    longitude,
+    scheduledArrivalTime: `2026-09-04T12:${arrival}:00+02:00`,
+    scheduledDepartureTime: `2026-09-04T12:${departure}:00+02:00`,
+    delayMinutes: 0,
+  });
+  const southbound = departure(
+    "S1",
+    [
+      located("muehlburger-tor", "7000039", "2a", [49.010552, 8.383653], ["00", "01"]),
+      located("europaplatz", "7001004", "2(U)", [49.009998, 8.39464], ["02", "03"]),
+      located("marktplatz", "7001003", "2(U)", [49.009615, 8.402958], ["04", "05"]),
+      located("marktplatz", "7001011", "3(U)", [49.008301, 8.403766], ["07", "08"]),
+      located("ettlinger-tor", "7001012", "3(U)", [49.005078, 8.403434], ["09", "09"]),
+      located("kongresszentrum", "7001013", "3(U)", [49.0023, 8.4035], ["10", "10"]),
+    ],
+    { id: "s1-south", tripInstanceId: "s1-south", delayMinutes: 0 },
+  );
+  const northbound = departure(
+    "S1",
+    [
+      located("kongresszentrum", "7001013", "4(U)", [49.0025, 8.4037], ["00", "00"]),
+      located("ettlinger-tor", "7001012", "4(U)", [49.005773, 8.403569], ["01", "01"]),
+      located("marktplatz", "7001011", "4(U)", [49.009008, 8.403757], ["02", "03"]),
+      located("marktplatz", "7001003", "1(U)", [49.009709, 8.401673], ["04", "05"]),
+      located("europaplatz", "7001004", "1(U)", [49.010069, 8.393714], ["06", "07"]),
+      located("muehlburger-tor", "7000039", "1a", [49.010617, 8.382764], ["08", "08"]),
+    ],
+    { id: "s1-north", tripInstanceId: "s1-north", delayMinutes: 0 },
+  );
+  const reading = buildZentrumSchematicReading(drawn([board(southbound, northbound)]));
+  const capsules = reading.stopMarks.find(({ nodeId }) => nodeId === "marktplatz")?.capsules ?? [];
+  assert.equal(capsules.length, 2);
+  const nearestCapsule = (point: { x: number; y: number }) => {
+    const distances = capsules.map(({ from, to }) => {
+      const run = { x: to.x - from.x, y: to.y - from.y };
+      const share = Math.max(
+        0,
+        Math.min(
+          1,
+          ((point.x - from.x) * run.x + (point.y - from.y) * run.y) /
+            (run.x * run.x + run.y * run.y),
+        ),
+      );
+      return Math.hypot(point.x - from.x - share * run.x, point.y - from.y - share * run.y);
+    });
+    const distance = Math.min(...distances);
+    return { index: distances.indexOf(distance), distance };
+  };
+
+  const stands = (run: Departure, firstStand: string, secondStand: string) => {
+    const drawnAt = new Map<number, { x: number; y: number }>();
+    const runMotions = createRunMotions();
+    const start = Date.parse(`2026-09-04T12:${firstStand}:00+02:00`) - 60_000;
+    const end = Date.parse(`2026-09-04T12:${secondStand}:00+02:00`) + 60_000;
+    for (let at = start; at <= end; at += 1_000) {
+      const [vehicle] = getZentrumSchematicVehicles(reading, [run], at, runMotions);
+      assert.ok(vehicle);
+      const previous = drawnAt.get(at - 1_000);
+      // Every second's step is travel, never a hop.
+      if (previous) assert.ok(Math.hypot(vehicle.x - previous.x, vehicle.y - previous.y) < 6);
+      drawnAt.set(at, vehicle);
+    }
+    const at = (time: string) =>
+      nearestCapsule(drawnAt.get(Date.parse(`2026-09-04T12:${time}+02:00`))!);
+    // Late in each stand: a minute-grain stand of a minute is drawn from the middle of it.
+    return [at(`${firstStand}:45`), at(`${secondStand}:45`)];
+  };
+
+  for (const [run, first, second] of [
+    [southbound, "04", "07"],
+    [northbound, "02", "04"],
+  ] as const) {
+    const [atFirst, atSecond] = stands(run, first, second);
+    assert.ok(atFirst.distance < 1, `${run.id} stands on a capsule at its first call`);
+    assert.ok(atSecond.distance < 1, `${run.id} stands on a capsule at its second call`);
+    assert.notEqual(atFirst.index, atSecond.index);
+  }
 });
 
 test("rides the line's lane through a stop the feed left untimed", () => {

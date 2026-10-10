@@ -47,10 +47,14 @@ import {
   getZentrumSchematicDrawnPaths,
   getZentrumSchematicPathSteps,
   getZentrumSchematicVehiclePathPlacement,
-  getZentrumSchematicVehiclePathsByCorridorId,
+  getZentrumSchematicStopStretchKey,
+  getZentrumSchematicVehiclePaths,
   joinZentrumSchematicCorridorPaths,
   orientZentrumSchematicCorridorPath,
+  orientZentrumSchematicStopStretch,
+  trimZentrumSchematicCorridorPath,
   type ZentrumSchematicCorridorPath,
+  type ZentrumSchematicStopStretch,
 } from "./zentrum-schematic-paths";
 import { getTrackBandOffsetByEdgeId, getTrackIdsByEdgeId } from "./zentrum-schematic-lanes";
 import {
@@ -99,7 +103,8 @@ export type ZentrumSchematicAheadStop = {
 
 /**
  * The stretch of lane a mark follows, in the run's direction. A link inside one complex (its two
- * tunnel calls) is a single point, where the mark parks while the vehicle crosses.
+ * tunnel calls) runs from one place's capsule to the other's, or is a single point where the line
+ * crosses no two.
  */
 export type ZentrumSchematicVehiclePath = {
   /** The first point is where the mark stands at progress 0. */
@@ -148,6 +153,8 @@ export type ZentrumSchematicReading = ZentrumSchematicLayout & {
   drawnPaths: readonly ZentrumSchematicDrawnPath[];
   /** The stretch a mark follows, by line and corridor, so placing a vehicle is a lookup. */
   vehiclePathsByLineId: ReadonlyMap<string, ReadonlyMap<string, ZentrumSchematicCorridorPath>>;
+  /** The stretch across a stop between two of its capsules, by line and stretch key. */
+  stopStretchesByLineId: ReadonlyMap<string, ReadonlyMap<string, ZentrumSchematicStopStretch>>;
   stopMarks: readonly ZentrumSchematicStopMark[];
 };
 
@@ -627,20 +634,35 @@ export function createZentrumSchematicDrawer(): (
     // From the final edges, so marks ride the painted geometry and halt at the capsules, where
     // the strokes end too.
     const stopLinesByNodeId = new Map(stopMarks.map(({ nodeId, capsules }) => [nodeId, capsules]));
-    const vehiclePathsByPathId = new Map(
+    const vehiclePathsAndStretchesByPathId = new Map(
       linePaths.map((linePath) => [
         linePath.id,
-        getZentrumSchematicVehiclePathsByCorridorId(linePath, edges, trackWidth, stopLinesByNodeId),
+        getZentrumSchematicVehiclePaths(linePath, edges, trackWidth, stopLinesByNodeId),
+      ]),
+    );
+    const vehiclePathsByPathId = new Map(
+      [...vehiclePathsAndStretchesByPathId].map(([id, { pathsByCorridorId }]) => [
+        id,
+        pathsByCorridorId,
       ]),
     );
     // A corridor the main path shares with a branch keeps the main path's stretch.
     const vehiclePathsByLineId = new Map<string, Map<string, ZentrumSchematicCorridorPath>>();
+    const stopStretchesByLineId = new Map<string, Map<string, ZentrumSchematicStopStretch>>();
     for (const linePath of [...linePaths].reverse()) {
+      const { pathsByCorridorId, stopStretches } =
+        vehiclePathsAndStretchesByPathId.get(linePath.id) ?? {};
       const paths = vehiclePathsByLineId.get(linePath.lineId) ?? new Map();
-      for (const [corridorId, path] of vehiclePathsByPathId.get(linePath.id) ?? []) {
-        paths.set(corridorId, path);
-      }
+      for (const [corridorId, path] of pathsByCorridorId ?? []) paths.set(corridorId, path);
       vehiclePathsByLineId.set(linePath.lineId, paths);
+      const stretches = stopStretchesByLineId.get(linePath.lineId) ?? new Map();
+      for (const stretch of stopStretches ?? []) {
+        stretches.set(
+          getZentrumSchematicStopStretchKey(stretch.nodeId, stretch.fromNodeId, stretch.toNodeId),
+          stretch,
+        );
+      }
+      stopStretchesByLineId.set(linePath.lineId, stretches);
     }
     last = {
       ...layout,
@@ -653,6 +675,7 @@ export function createZentrumSchematicDrawer(): (
         stopLinesByNodeId,
       ),
       vehiclePathsByLineId,
+      stopStretchesByLineId,
       stopMarks,
     };
     lastKey = { layout, branchKey };
@@ -753,6 +776,12 @@ type ZentrumSchematicPlacedRun = {
   leaving?: { from: ZentrumSchematicNode; to: ZentrumSchematicNode };
   /** The arriving corridor for a complex with no drawn way out. */
   entering?: { from: ZentrumSchematicNode; to: ZentrumSchematicNode };
+  /** For a link between two places of one stop: the stroke from the first's capsule to the next's. */
+  crossing?: ZentrumSchematicStopStretch;
+  /** The crossing of a stop the run calls at twice next, which its link ends at the start of. */
+  crossingAhead?: ZentrumSchematicStopStretch;
+  /** The crossing of a stop the run has just called at twice, which its link starts at the end of. */
+  crossingBehind?: ZentrumSchematicStopStretch;
 };
 
 const getZentrumSchematicPlacedRuns = (
@@ -780,8 +809,8 @@ const getZentrumSchematicPlacedRuns = (
     if (!placement) continue;
 
     const calls = collapseTurnaroundCalls(departure.tripCalls ?? []);
-    const nodeOf = (call: (typeof calls)[number]): ZentrumSchematicNode | undefined =>
-      reading.nodesById.get(reading.resolveNodeId(call) ?? "");
+    const nodeOf = (call: (typeof calls)[number] | undefined): ZentrumSchematicNode | undefined =>
+      call && reading.nodesById.get(reading.resolveNodeId(call) ?? "");
     let selectedLink:
       | {
           index: number;
@@ -821,7 +850,36 @@ const getZentrumSchematicPlacedRuns = (
       }
     }
     if (!selectedLink) continue;
-    const { index, from, to, via } = selectedLink;
+    const { index, toIndex, from, to, via } = selectedLink;
+    // The stroke between the capsules of a stop the run calls at in two places in turn.
+    const getCrossing = (callIndex: number): ZentrumSchematicStopStretch | undefined => {
+      const node = nodeOf(calls[callIndex]);
+      if (!node) return undefined;
+      let first = callIndex;
+      while (first > 0 && nodeOf(calls[first - 1])?.id === node.id) first -= 1;
+      let last = callIndex;
+      while (last < calls.length - 1 && nodeOf(calls[last + 1])?.id === node.id) last += 1;
+      const placeOf = (call: TripCall) => `${call.providerStopPointId}|${call.platformCode}`;
+      if (last - first !== 1 || placeOf(calls[first]) === placeOf(calls[last])) return undefined;
+      const before = nodeOf(calls[first - 1]);
+      const after = nodeOf(calls[last + 1]);
+      const stretch =
+        before &&
+        after &&
+        reading.stopStretchesByLineId
+          .get(departure.lineId)
+          ?.get(getZentrumSchematicStopStretchKey(node.id, before.id, after.id));
+      return stretch ? orientZentrumSchematicStopStretch(stretch, before.id) : undefined;
+    };
+    const crossing = from.id === to.id ? getCrossing(index) : undefined;
+    const crossingBehind =
+      from.id !== to.id && nodeOf(calls[index - 1])?.id === from.id
+        ? getCrossing(index)
+        : undefined;
+    const crossingAhead =
+      from.id !== to.id && nodeOf(calls[toIndex + 1])?.id === to.id
+        ? getCrossing(toIndex)
+        : undefined;
     const aheadCorridorIds: string[] = [];
     const aheadStops: Omit<ZentrumSchematicAheadStop, "pathProgress">[] = [];
     let leaving: { from: ZentrumSchematicNode; to: ZentrumSchematicNode } | undefined;
@@ -879,6 +937,9 @@ const getZentrumSchematicPlacedRuns = (
       via,
       ...(leaving ? { leaving } : {}),
       ...(entering ? { entering } : {}),
+      ...(crossing ? { crossing } : {}),
+      ...(crossingAhead ? { crossingAhead } : {}),
+      ...(crossingBehind ? { crossingBehind } : {}),
     });
   }
 
@@ -911,12 +972,26 @@ const getVehiclePath = (
     via,
     leaving,
     entering,
+    crossing,
+    crossingAhead,
+    crossingBehind,
   }: Pick<
     ZentrumSchematicPlacedRun,
-    "departure" | "trackId" | "edge" | "from" | "to" | "via" | "leaving" | "entering"
+    | "departure"
+    | "trackId"
+    | "edge"
+    | "from"
+    | "to"
+    | "via"
+    | "leaving"
+    | "entering"
+    | "crossing"
+    | "crossingAhead"
+    | "crossingBehind"
   >,
 ): ZentrumSchematicVehiclePath => {
   const paths = reading.vehiclePathsByLineId.get(departure.lineId);
+  if (crossing) return { points: crossing.points, steps: crossing.steps, corridorRanges: [] };
   // Inside a complex the mark parks on its way out, or where it arrived if the way out is undrawn.
   if (from.id === to.id) {
     const leavingPath = getRunCorridorPath(reading, departure, leaving);
@@ -936,6 +1011,17 @@ const getVehiclePath = (
       corridorId: getEdgeKey(stops[index].id, stops[index + 1].id),
       path: orientZentrumSchematicCorridorPath(piece, stops[index].id),
     });
+  }
+  // Around a stop called at in two places, the link ends and starts at those places' capsules.
+  const first = pieces[0];
+  if (first && crossingBehind) {
+    first.path = trimZentrumSchematicCorridorPath(first.path, {
+      start: crossingBehind.points.at(-1),
+    });
+  }
+  const last = pieces.at(-1);
+  if (last && pieces.length === stops.length - 1 && crossingAhead) {
+    last.path = trimZentrumSchematicCorridorPath(last.path, { end: crossingAhead.points[0] });
   }
   const joined =
     pieces.length === stops.length - 1
@@ -1059,6 +1145,9 @@ export function getZentrumSchematicVehicles(
       via,
       leaving,
       entering,
+      crossing,
+      crossingAhead,
+      crossingBehind,
     }) => {
       const path = getVehiclePath(reading, {
         departure,
@@ -1069,6 +1158,9 @@ export function getZentrumSchematicVehicles(
         via,
         leaving,
         entering,
+        crossing,
+        crossingAhead,
+        crossingBehind,
       });
       const placement = getZentrumSchematicVehiclePathPlacement(path, progress);
       return {
