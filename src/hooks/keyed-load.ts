@@ -13,9 +13,10 @@ type LoadedValue<T> = { key: string; value: T | undefined };
 
 /**
  * Reads the resource `key` names. `isEntryRead` is true for a mounted caller's first read, where a
- * stale answer costs most; a loader may then ask for a fresh one.
+ * stale answer costs most; a loader may then ask for a fresh one. `isReload` is true for the first
+ * read after `reloadNonce` moved, which the rider asked for and which must not answer from a cache.
  */
-export type KeyedLoad<T> = (key: string, isEntryRead: boolean) => Promise<T>;
+export type KeyedLoad<T> = (key: string, isEntryRead: boolean, isReload: boolean) => Promise<T>;
 
 export type KeyedLoadOptions<T> = {
   refreshMs?: number;
@@ -47,10 +48,13 @@ export function useKeyedLoad<T>(
 ): T | undefined | null {
   const [loaded, setLoaded] = useState<LoadedValue<T> | null>(null);
   const hasEntryRead = useRef(false);
+  const readNonce = useRef(reloadNonce);
   const read = useEffectEvent((key: string) => {
     const isEntryRead = !hasEntryRead.current;
     hasEntryRead.current = true;
-    return load(key, isEntryRead);
+    const isReload = readNonce.current !== reloadNonce;
+    readNonce.current = reloadNonce;
+    return load(key, isEntryRead, isReload);
   });
   const findFailureKind = useEffectEvent((value: T) => getFailureKind?.(value));
 

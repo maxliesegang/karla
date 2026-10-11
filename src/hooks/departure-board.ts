@@ -80,7 +80,11 @@ export function useDepartureBoard(
   // `null`, so an empty answer still counts.
   const loaded = useKeyedLoad(
     stopId ? `${stopId}|${variant}` : null,
-    () => transitSource.getDepartureBoard(stopId!, departureBoardRequestByVariant[variant]),
+    (_key, _isEntryRead, isReload) =>
+      transitSource.getDepartureBoard(stopId!, {
+        ...departureBoardRequestByVariant[variant],
+        ...(isReload ? { maxAgeMs: 0 } : {}),
+      }),
     { ...SINGLE_BOARD_LOAD_OPTIONS, reloadNonce },
   );
   const lastLive = useLastLiveBoard(stopId, loaded ?? null);

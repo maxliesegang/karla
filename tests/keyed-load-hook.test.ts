@@ -14,7 +14,7 @@ const setVisibility = (state: "visible" | "hidden") =>
 
 type Props = {
   key: string | null;
-  load: (key: string, isEntryRead: boolean) => Promise<string>;
+  load: (key: string, isEntryRead: boolean, isReload: boolean) => Promise<string>;
   options?: KeyedLoadOptions<string>;
 };
 const render = (props: Props) =>
@@ -182,4 +182,22 @@ test("only a mounted caller's first read is its entry read", async () => {
   await wait(0);
   assert.deepEqual(entries, [true, false]);
   await loaded.unmount();
+});
+
+test("only the first read after the reload nonce moves is a reload", async () => {
+  const reloads: boolean[] = [];
+  const load = async (key: string, _isEntryRead: boolean, isReload: boolean) => {
+    reloads.push(isReload);
+    return key;
+  };
+  const loaded = await render({
+    key: "a",
+    load,
+    options: { refreshMs: REFRESH_MS, reloadNonce: 0 },
+  });
+  await loaded.rerender({ key: "a", load, options: { refreshMs: REFRESH_MS, reloadNonce: 1 } });
+  await wait(REFRESH_MS * 1.5);
+  await loaded.unmount();
+  assert.deepEqual(reloads.slice(0, 2), [false, true]);
+  assert.ok(reloads.length > 2 && reloads.slice(2).every((isReload) => !isReload));
 });
