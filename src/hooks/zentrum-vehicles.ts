@@ -16,15 +16,19 @@ const includesZentrumRun = (run: Departure, feedNow: number) =>
 /** One retention for the whole Zentrum, so following a line keeps what was observed of the others. */
 const ZENTRUM_VEHICLE_RETENTION_KEY = "zentrum";
 
+export type ZentrumRunReading = {
+  /** The runs to draw. */
+  runDepartures: readonly Departure[];
+  /** The drawn runs and every other run the posts name, including those not near the plan yet. */
+  travelRuns: readonly Departure[];
+  feedNow: number;
+};
+
 /** Discover area exits and termini, then place each run from its shared reading. */
 export function useZentrumVehicles(
   departureBoards: readonly DepartureBoard[],
   { scopeToArea = true, animatesVehicles = true } = {},
-): {
-  runDepartures: readonly Departure[];
-  feedNow: number;
-  isLoading: boolean;
-} {
+): ZentrumRunReading & { isLoading: boolean } {
   const observation = useMemo(() => getZentrumRunObservation(departureBoards), [departureBoards]);
   const discovery = useRunDiscovery(zentrumStopIds, departureBoards);
   const runs = useMemo(
@@ -43,7 +47,11 @@ export function useZentrumVehicles(
     animatesVehicles,
     readsBeforeMerges: animatesVehicles,
   });
-  return { ...reading, isLoading: discovery === null };
+  const travelRuns = useMemo(
+    () => getDistinctRuns([...reading.runDepartures, ...runs]),
+    [reading.runDepartures, runs],
+  );
+  return { ...reading, travelRuns, isLoading: discovery === null };
 }
 
 /** The Zentrum's runs on lines that run every day: the network maps leave out the rest. */

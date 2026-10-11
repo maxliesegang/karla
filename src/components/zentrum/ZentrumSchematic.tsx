@@ -79,6 +79,7 @@ export function ZentrumSchematic({
   selectedLineId,
   selectedStopId,
   runDepartures,
+  travelRuns,
   stopBoard,
   feedNow,
   isLoading,
@@ -95,8 +96,10 @@ export function ZentrumSchematic({
   selectedLineId?: string;
   /** The opened stop, as the address names it. */
   selectedStopId?: string;
-  /** Every run the posts name, including those not on the plan yet. */
+  /** The runs on or near the plan. */
   runDepartures: readonly Departure[];
+  /** Every run the posts name, including those not near the plan yet: a stop's destinations. */
+  travelRuns: readonly Departure[];
   /** The opened stop's own board, or null until it answers. */
   stopBoard: DepartureBoard | null;
   feedNow: number;
@@ -180,12 +183,12 @@ export function ZentrumSchematic({
             selectedStop.id,
             stopBoard,
             vehicles,
-            runDepartures,
+            travelRuns,
             feedNow,
             options.travelMeasure,
           )
         : undefined,
-    [stopReading, selectedStop, stopBoard, vehicles, runDepartures, feedNow, options.travelMeasure],
+    [stopReading, selectedStop, stopBoard, vehicles, travelRuns, feedNow, options.travelMeasure],
   );
   const isShowingVehiclePaths = !selectedStop && options.vehiclePathMode === "ahead";
   // With Fahrwege on, an opened stop keeps the trams that have left it half visible.
@@ -242,9 +245,9 @@ export function ZentrumSchematic({
   const destinationRides = useMemo(
     () =>
       selectedStop && destinationNodeId
-        ? getZentrumDirectRides(runDepartures, selectedStop.id, destinationNodeId, feedNow)
+        ? getZentrumDirectRides(travelRuns, selectedStop.id, destinationNodeId, feedNow)
         : [],
-    [selectedStop, destinationNodeId, runDepartures, feedNow],
+    [selectedStop, destinationNodeId, travelRuns, feedNow],
   );
   const isStopPanelOpen = !selectedVehicle && !selectedDestination && stopPanelState === "expanded";
   const selectDestination = (nodeId: string) => {

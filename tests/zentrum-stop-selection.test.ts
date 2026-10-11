@@ -44,6 +44,7 @@ test("stop selection follows the opened stop without offering style choices", as
           getSign: createZentrumLineSignReader([]),
           selectedStopId,
           runDepartures: [],
+          travelRuns: [],
           stopBoard: null,
           feedNow: 0,
           isLoading: false,

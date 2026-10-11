@@ -1,11 +1,11 @@
 import { getZentrumSchematicLineIdsByStopId } from "../../lib/zentrum-schematic-plan";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Departure, DepartureBoard, DepartureBoardCoverage } from "../../data/transit-types";
+import type { DepartureBoard, DepartureBoardCoverage } from "../../data/transit-types";
 import { useDepartureBoard } from "../../hooks/departure-board";
 import type { NearbyStopsController } from "../../hooks/nearby-stops";
 import { useSteadyValue } from "../../hooks/steady-value";
 import { useNearestZentrumStopOpening } from "../../hooks/zentrum-nearest-stop";
-import { useZentrumVehicles } from "../../hooks/zentrum-vehicles";
+import { type ZentrumRunReading, useZentrumVehicles } from "../../hooks/zentrum-vehicles";
 import type { ObservedNetwork } from "../../lib/observed-network";
 import { createZentrumSchematicReader } from "../../lib/zentrum-schematic";
 import { navigateTo, replaceCurrentRoute, routePaths } from "../../routing";
@@ -52,7 +52,7 @@ export function ZentrumView(props: ZentrumViewProps) {
     () => (openedStopBoard ? [...departureBoards, openedStopBoard] : departureBoards),
     [departureBoards, openedStopBoard],
   );
-  const { runDepartures, feedNow, isLoading } = useZentrumVehicles(evidenceBoards);
+  const { isLoading, ...runReading } = useZentrumVehicles(evidenceBoards);
   const isInitialLoading = coverage.status === "loading" || isLoading;
   if (network.stops.length === 0 && !isInitialLoading) {
     return (
@@ -65,8 +65,7 @@ export function ZentrumView(props: ZentrumViewProps) {
   return (
     <ZentrumPlan
       {...props}
-      runDepartures={runDepartures}
-      feedNow={feedNow}
+      {...runReading}
       openedStopBoard={openedStopBoard}
       isInitialLoading={isInitialLoading}
     />
@@ -82,15 +81,15 @@ function ZentrumPlan({
   isStacked,
   nearbyStops,
   runDepartures,
+  travelRuns,
   feedNow,
   openedStopBoard,
   isInitialLoading,
-}: ZentrumViewProps & {
-  runDepartures: readonly Departure[];
-  feedNow: number;
-  openedStopBoard: DepartureBoard | null;
-  isInitialLoading: boolean;
-}) {
+}: ZentrumViewProps &
+  ZentrumRunReading & {
+    openedStopBoard: DepartureBoard | null;
+    isInitialLoading: boolean;
+  }) {
   const [hasLoaded, setHasLoaded] = useState(false);
   const [readSchematic] = useState(createZentrumSchematicReader);
   const readLayout = useMemo(() => readSchematic(runDepartures), [readSchematic, runDepartures]);
@@ -153,6 +152,7 @@ function ZentrumPlan({
         selectedLineId={followedLineId}
         selectedStopId={openedStopId}
         runDepartures={runDepartures}
+        travelRuns={travelRuns}
         stopBoard={openedStopBoard}
         feedNow={feedNow}
         isLoading={isLoading}

@@ -73,6 +73,7 @@ for (const isStacked of [false, true]) {
         getSign,
         selectedStopId,
         runDepartures: departures,
+        travelRuns: departures,
         stopBoard: board,
         feedNow: now,
         isLoading: false,
