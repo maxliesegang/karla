@@ -105,7 +105,7 @@ function setup(t: TestContext, { measureOnRender = true } = {}) {
     departureBoards: [board],
     isFullscreen: false,
     isStacked: false,
-    nearbyStops: { status: "idle" as const, stops: [], locate: () => {} },
+    nearbyStops: { status: "idle" as const, stops: [], locate: async () => {} },
   };
   return {
     container,

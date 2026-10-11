@@ -9,6 +9,8 @@ import type {
 } from "../data/transit-types";
 import { getDepartureAddressId, getSelectionPath, navigateTo, routePaths } from "../routing";
 import { useTransientScrollbar } from "../hooks/scrollbar";
+import { usePullToRefresh } from "../hooks/pull-to-refresh";
+import { getLineRefreshLabel, PullToRefreshStrip } from "./PullToRefreshStrip";
 import { classNames } from "../lib/class-names";
 import {
   getLineBundleBranchKey,
@@ -71,6 +73,10 @@ type LineDiagramPanelProps = {
    * so the position control scrolls to the stop the card names.
    */
   rideNextCall?: TripCall;
+  /** Stacked, the page owns the pull. */
+  isStacked?: boolean;
+  /** Reads the runs in view again (pull down past the first stop); settles the pull when done. */
+  onRefresh?: () => Promise<unknown>;
 };
 
 export function LineDiagramPanel({
@@ -91,8 +97,17 @@ export function LineDiagramPanel({
   onToggleAlighting,
   runPositionRequest = 0,
   rideNextCall,
+  isStacked = false,
+  onRefresh,
 }: LineDiagramPanelProps) {
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const pullStripRef = useRef<HTMLDivElement>(null);
+  usePullToRefresh({
+    listRef: scrollContainerRef,
+    indicatorRef: pullStripRef,
+    onRefresh: onRefresh ?? (() => {}),
+    isEnabled: !isStacked && Boolean(onRefresh),
+  });
   const stopListRef = useRef<HTMLDivElement>(null);
   // What is drawn; everything below is where it goes.
   const {
@@ -329,6 +344,9 @@ export function LineDiagramPanel({
         </p>
       )}
 
+      {!isStacked && (
+        <PullToRefreshStrip stripRef={pullStripRef} busyLabel={getLineRefreshLabel(isRide)} />
+      )}
       <div ref={scrollContainerRef} className="line-diagram-stops">
         {/* The fork at the end the line runs towards: one leg per line past the junction. */}
         {fork.terminatingAhead && (

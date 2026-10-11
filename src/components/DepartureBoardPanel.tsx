@@ -47,6 +47,7 @@ import { appSettings } from "../lib/app-settings";
 import { useBoardingPlaceSections } from "../hooks/boarding-place-sections";
 import { departureBoardOrder, type DepartureBoardOrder } from "../lib/departure-board-order";
 import { usePullToRefresh } from "../hooks/pull-to-refresh";
+import { BOARD_REFRESH_LABEL, PullToRefreshStrip } from "./PullToRefreshStrip";
 import { useTransientScrollbar } from "../hooks/scrollbar";
 import {
   findJoinedRunPortionPair,
@@ -84,6 +85,8 @@ type DepartureBoardPanelProps = {
   boardReadingCount?: number;
   /** Reads the board again (pull down past the first row); the board stays while reading. */
   onRefresh?: () => void;
+  /** Stacked, the page owns the pull; its refresh, for the status chip. */
+  onPageRefresh?: () => void;
   /** The stop's menu, at the board's foot, since both its parts are about the board. */
   bottomMenu?: ReactNode;
 };
@@ -323,6 +326,7 @@ export function DepartureBoardPanel({
   isStacked = false,
   boardReadingCount = 0,
   onRefresh,
+  onPageRefresh,
   bottomMenu,
 }: DepartureBoardPanelProps) {
   // The panel is keyed by stop, so a new stop starts collapsed.
@@ -332,16 +336,15 @@ export function DepartureBoardPanel({
   const departureListRef = useRef<HTMLDivElement>(null);
   useTransientScrollbar(departureListRef);
   const pullIndicatorRef = useRef<HTMLDivElement>(null);
-  // The pull reads its gesture on the list and scrolls whichever element holds the board; it does
-  // nothing before a board is read.
-  usePullToRefresh({
+  // A panel that scrolls itself has its own pull; stacked, the page's pull refreshes the board.
+  const pull = usePullToRefresh({
     listRef: departureListRef,
     indicatorRef: pullIndicatorRef,
-    isPageScrollport: isStacked,
     onRefresh: onRefresh ?? (() => {}),
     readingCount: boardReadingCount,
-    isEnabled: Boolean(onRefresh) && departureBoard !== null,
+    isEnabled: !isStacked && Boolean(onRefresh) && departureBoard !== null,
   });
+  const requestRefresh = isStacked ? onPageRefresh : onRefresh && pull.refresh;
   const isGroupedByPlatform = departureOrder === "platform";
   const isGroupedByLine = departureOrder === "line";
   // Live only in platform order, where the sections exist.
@@ -414,7 +417,11 @@ export function DepartureBoardPanel({
         </div>
         <div className="departure-board-heading-actions">
           <DepartureOrderControl order={departureOrder} onOrderChange={departureBoardOrder.write} />
-          <DepartureBoardStatusChip departureBoard={departureBoard} feedNow={feedNow} />
+          <DepartureBoardStatusChip
+            departureBoard={departureBoard}
+            feedNow={feedNow}
+            onRefresh={requestRefresh}
+          />
         </div>
       </div>
 
@@ -435,19 +442,9 @@ export function DepartureBoardPanel({
       )}
 
       {/* The pull strip, outside the list so it does not scroll away. */}
-      <div ref={pullIndicatorRef} className="departure-board-pull" role="status">
-        <div className="departure-board-pull-inner">
-          <span className="departure-board-pull-label" data-pull="hint">
-            Zum Aktualisieren ziehen
-          </span>
-          <span className="departure-board-pull-label" data-pull="ready">
-            Loslassen zum Aktualisieren
-          </span>
-          <span className="departure-board-pull-label" data-pull="busy">
-            Abfahrten werden aktualisiert …
-          </span>
-        </div>
-      </div>
+      {!isStacked && (
+        <PullToRefreshStrip stripRef={pullIndicatorRef} busyLabel={BOARD_REFRESH_LABEL} />
+      )}
 
       <div
         ref={departureListRef}

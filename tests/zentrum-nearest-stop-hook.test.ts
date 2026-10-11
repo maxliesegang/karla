@@ -25,7 +25,9 @@ type Props = { state: NearbyStopsState; hasRouteSelection: boolean };
 async function renderOpening(initial: Props) {
   const asked: string[] = [];
   const opened: string[] = [];
-  const locate = () => asked.push("locate");
+  const locate = async () => {
+    asked.push("locate");
+  };
   const onOpenStop = (stopId: string) => opened.push(stopId);
   const hook = await renderHook<Props, string | undefined>(
     ({ state, hasRouteSelection }) =>

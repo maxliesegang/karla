@@ -827,6 +827,14 @@ button.brand:active .brand-mark,
 .chip-muted i {
   background: var(--ink-soft);
 }
+.chip-action {
+  border: 0;
+  font-family: inherit;
+  cursor: pointer;
+}
+.chip-action b {
+  font-weight: 800;
+}
 /* ---------- Line badges ---------- */
 .line-badge {
   display: grid;
@@ -3288,12 +3296,10 @@ button.brand:active .brand-mark,
 }
 
 /* ---------- Pull to refresh ----------
-   A board is asked again by pulling it down past its first row. The strip grows above the rows
-   while the finger holds it and states what the pull is about to do — the same honest prose the
-   board states everything else — and holds one mark's worth of height while the reading answers.
-   It is drawn by `usePullToRefresh` through the DOM, so a finger moving down a board re-renders
-   nothing; these rules only give the states it names their shape. */
-.departure-board-pull {
+   A list is read again by pulling it down past its first row. The strip grows above the rows,
+   states what the pull is about to do, and holds one mark's height while the reading answers.
+   `usePullToRefresh` draws it through the DOM; these rules give its states their shape. */
+.pull-refresh {
   position: relative;
   flex: 0 0 auto;
   height: 0;
@@ -3302,10 +3308,10 @@ button.brand:active .brand-mark,
 }
 /* While the finger holds the strip it follows the finger directly; the easing is only for the
    settle back after a release. */
-.departure-board-pull.is-pulling {
+.pull-refresh.is-pulling {
   transition: none;
 }
-.departure-board-pull-inner {
+.pull-refresh-inner {
   position: absolute;
   inset-inline: 0;
   bottom: 0;
@@ -3316,19 +3322,19 @@ button.brand:active .brand-mark,
   align-items: center;
   justify-content: center;
 }
-.departure-board-pull-label {
+.pull-refresh-label {
   display: none;
   color: var(--ink-soft);
   font-size: 12px;
   font-weight: 650;
 }
-.departure-board-pull.is-pulling:not(.is-armed) [data-pull="hint"] {
+.pull-refresh.is-pulling:not(.is-armed) [data-pull="hint"] {
   display: block;
 }
-.departure-board-pull.is-armed:not(.is-refreshing) [data-pull="ready"] {
+.pull-refresh.is-armed:not(.is-refreshing) [data-pull="ready"] {
   display: block;
 }
-.departure-board-pull.is-refreshing [data-pull="busy"] {
+.pull-refresh.is-refreshing [data-pull="busy"] {
   display: block;
 }
 

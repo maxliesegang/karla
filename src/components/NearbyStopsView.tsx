@@ -1,8 +1,28 @@
+import { useRef } from "react";
 import type { NearbyStopsController } from "../hooks/nearby-stops";
+import { usePullToRefresh } from "../hooks/pull-to-refresh";
 import { navigateTo, routePaths } from "../routing";
 import { formatDistance } from "../lib/geo";
+import { NEARBY_REFRESH_LABEL, PullToRefreshStrip } from "./PullToRefreshStrip";
 
-export function NearbyStopsView({ controller }: { controller: NearbyStopsController }) {
+export function NearbyStopsView({
+  controller,
+  isStacked = false,
+}: {
+  controller: NearbyStopsController;
+  /** Stacked, the page owns the pull. */
+  isStacked?: boolean;
+}) {
+  const listRef = useRef<HTMLElement>(null);
+  const pullStripRef = useRef<HTMLDivElement>(null);
+  // Only a list can be pulled; it locates again.
+  const hasList = controller.stops.length > 0;
+  usePullToRefresh({
+    listRef,
+    indicatorRef: pullStripRef,
+    onRefresh: controller.locate,
+    isEnabled: !isStacked && hasList,
+  });
   const message =
     controller.status === "denied" || controller.status === "unavailable"
       ? controller.message
@@ -19,7 +39,7 @@ export function NearbyStopsView({ controller }: { controller: NearbyStopsControl
         </div>
       </div>
 
-      {controller.status === "idle" || controller.status === "locating" ? (
+      {(controller.status === "idle" || controller.status === "locating") && !hasList ? (
         <button
           type="button"
           className="nearby-locate-action"
@@ -31,7 +51,11 @@ export function NearbyStopsView({ controller }: { controller: NearbyStopsControl
       ) : message ? (
         <p className="nearby-stops-message">{message}</p>
       ) : (
-        <nav className="nearby-stops" aria-label="Nächste Haltestellen">
+        <nav ref={listRef} className="nearby-stops" aria-label="Nächste Haltestellen">
+          {/* Inside the list, so a closed strip adds no gap to the view. */}
+          {!isStacked && (
+            <PullToRefreshStrip stripRef={pullStripRef} busyLabel={NEARBY_REFRESH_LABEL} />
+          )}
           <ul>
             {controller.stops.map(({ stop, distanceMeters }) => (
               <li key={stop.id}>

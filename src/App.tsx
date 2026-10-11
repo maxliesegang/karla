@@ -13,12 +13,19 @@ import { RideStatusPanel } from "./components/RideStatusPanel";
 import { HomeEntry } from "./components/HomeEntry";
 import { ServiceNoticesView } from "./components/ServiceNoticesView";
 import { SettingsView } from "./components/SettingsView";
+import {
+  BOARD_REFRESH_LABEL,
+  getLineRefreshLabel,
+  NEARBY_REFRESH_LABEL,
+  PullToRefreshStrip,
+} from "./components/PullToRefreshStrip";
 import { useZentrumNetwork } from "./hooks/departure-board-collection";
 import { useAppRoute } from "./hooks/route";
 import { useFeedNow } from "./hooks/clock";
 import { useInitialLanding, useStopRecall } from "./hooks/stop-recall";
 import { useIsNarrowViewport } from "./hooks/viewport";
 import { useStationBoardReload, usePanelChange, useViewShortcuts } from "./hooks/shell";
+import { usePullToRefresh } from "./hooks/pull-to-refresh";
 import { useLocatableStops, useTransitNetwork } from "./hooks/transit-network";
 import { useNearbyStops } from "./hooks/nearby-stops";
 import { useRidePosition } from "./hooks/ride-position";
@@ -50,6 +57,17 @@ const RegionPlanView = lazy(() =>
 const ZentrumView = lazy(() =>
   import("./components/zentrum/ZentrumView").then((module) => ({ default: module.ZentrumView })),
 );
+
+/** Stacked, the document is the one scrollport, so the page's pull is read on all of it. */
+const DOCUMENT_REF = { current: document.documentElement };
+
+/** What a pull on the stacked page reads again, for the views it does anything in. */
+type PageRefresh = {
+  onRefresh: () => void | Promise<unknown>;
+  readingCount?: number;
+  label: string;
+  isReady: boolean;
+};
 
 export default function App() {
   const departurePanelRef = useRef<HTMLElement>(null);
@@ -130,6 +148,40 @@ export default function App() {
     nearbyReturnStopId,
   });
   const panelChange = usePanelChange(layout);
+
+  // Stacked, a pull anywhere on the page refreshes everything it shows; maps keep their drag.
+  const pageRefresh: PageRefresh | undefined =
+    !isNarrowViewport || isStationBoardMode
+      ? undefined
+      : layout.isLineInView
+        ? {
+            onRefresh: selection.refreshLine,
+            label: getLineRefreshLabel(layout.isRideInView),
+            isReady: selection.departureBoard !== null || Boolean(selection.selectedDeparture),
+          }
+        : layout.activeView === "stop"
+          ? {
+              onRefresh: selection.refreshBoard,
+              readingCount: selection.boardReadingCount,
+              label: BOARD_REFRESH_LABEL,
+              isReady: selection.departureBoard !== null,
+            }
+          : layout.activeView === "nearby"
+            ? {
+                onRefresh: nearbyStopsController.locate,
+                label: NEARBY_REFRESH_LABEL,
+                isReady: nearbyStopsController.stops.length > 0,
+              }
+            : undefined;
+  const pageStripRef = useRef<HTMLDivElement>(null);
+  const pagePull = usePullToRefresh({
+    listRef: DOCUMENT_REF,
+    indicatorRef: pageStripRef,
+    isPageScrollport: true,
+    onRefresh: pageRefresh?.onRefresh ?? (() => {}),
+    readingCount: pageRefresh?.readingCount,
+    isEnabled: Boolean(pageRefresh?.isReady),
+  });
 
   useViewShortcuts({ searchInputRef, isEnabled: !isStationBoardMode });
   useStationBoardReload(stationBoardConfig?.reloadMinutes);
@@ -218,6 +270,7 @@ export default function App() {
         onShowNearbyStops={() => showNearbyStops(selection.stopId)}
         showsNearbyStopButton={activeView !== "home"}
       />
+      {pageRefresh && <PullToRefreshStrip stripRef={pageStripRef} busyLabel={pageRefresh.label} />}
       <div
         className={classNames(...getDashboardClassNames(layout))}
         /* Which half changed; only read when both did, so the board can follow the panel. */
@@ -247,7 +300,12 @@ export default function App() {
                     onShowNearbyStops={() => showNearbyStops()}
                   />
                 )}
-                {activeView === "nearby" && <NearbyStopsView controller={nearbyStopsController} />}
+                {activeView === "nearby" && (
+                  <NearbyStopsView
+                    controller={nearbyStopsController}
+                    isStacked={isNarrowViewport}
+                  />
+                )}
                 <Suspense fallback={<p role="status">Karte wird geladen …</p>}>
                   {activeView === "experiment" && route.experimentMap === "geo" && (
                     <GeoMapView
@@ -358,6 +416,8 @@ export default function App() {
                       onToggleAlighting={isRideInView ? toggleAlighting : undefined}
                       runPositionRequest={runPositionRequest}
                       rideNextCall={rideProgress?.nextCall}
+                      isStacked={isNarrowViewport}
+                      onRefresh={selection.refreshLine}
                     />
                   </>
                 )}
@@ -381,6 +441,7 @@ export default function App() {
                 isStacked={isNarrowViewport}
                 boardReadingCount={selection.boardReadingCount}
                 onRefresh={selection.refreshBoard}
+                onPageRefresh={pageRefresh && pagePull.refresh}
                 /* The stop's notices at the board's foot, kept while one of its lines shows. */
                 bottomMenu={
                   activeView === "stop" || isLineInView ? (

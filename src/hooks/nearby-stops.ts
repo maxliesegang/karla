@@ -9,7 +9,8 @@ export type NearbyStopsState =
   /** Denied: the button goes away; the browser would refuse again anyway. */
   | { status: "denied"; stops: readonly NearbyStop[]; message: string }
   | { status: "unavailable"; stops: readonly NearbyStop[]; message: string };
-export type NearbyStopsController = NearbyStopsState & { locate: () => void };
+/** `locate` settles once the position has answered. */
+export type NearbyStopsController = NearbyStopsState & { locate: () => Promise<void> };
 
 /**
  * Stops the rider could be standing at. Location only after the rider asks, or silently if already
@@ -27,41 +28,50 @@ export function useNearbyStops(
     stopsRef.current = stops;
   }, [stops]);
 
-  const locate = useCallback(() => {
-    if (!IS_GEOLOCATION_SUPPORTED) {
-      setState({
-        status: "unavailable",
-        stops: [],
-        message: "Standort ist in diesem Browser nicht verfügbar.",
-      });
-      return;
-    }
-    setState({ status: "locating", stops: [] });
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        positionRef.current = { latitude: coords.latitude, longitude: coords.longitude };
-        setState({
-          status: "ready",
-          stops: getNearbyStops(stopsRef.current, coords.latitude, coords.longitude),
-        });
-      },
-      (error) =>
-        setState(
-          isPermissionDenied(error)
-            ? {
-                status: "denied",
-                stops: [],
-                message: "Ohne Standortfreigabe: Haltestelle bitte selbst wählen.",
-              }
-            : {
-                status: "unavailable",
-                stops: [],
-                message: "Standort konnte nicht bestimmt werden.",
-              },
-        ),
-      { enableHighAccuracy: false, timeout: 8_000, maximumAge: 0 },
-    );
-  }, []);
+  const locate = useCallback(
+    () =>
+      new Promise<void>((resolve) => {
+        if (!IS_GEOLOCATION_SUPPORTED) {
+          setState({
+            status: "unavailable",
+            stops: [],
+            message: "Standort ist in diesem Browser nicht verfügbar.",
+          });
+          resolve();
+          return;
+        }
+        // Locating again keeps the last list until the new fix answers.
+        setState((current) => ({ status: "locating", stops: current.stops }));
+        navigator.geolocation.getCurrentPosition(
+          ({ coords }) => {
+            positionRef.current = { latitude: coords.latitude, longitude: coords.longitude };
+            setState({
+              status: "ready",
+              stops: getNearbyStops(stopsRef.current, coords.latitude, coords.longitude),
+            });
+            resolve();
+          },
+          (error) => {
+            setState(
+              isPermissionDenied(error)
+                ? {
+                    status: "denied",
+                    stops: [],
+                    message: "Ohne Standortfreigabe: Haltestelle bitte selbst wählen.",
+                  }
+                : {
+                    status: "unavailable",
+                    stops: [],
+                    message: "Standort konnte nicht bestimmt werden.",
+                  },
+            );
+            resolve();
+          },
+          { enableHighAccuracy: false, timeout: 8_000, maximumAge: 0 },
+        );
+      }),
+    [],
+  );
 
   // Re-rank against the same fix as more stops become known.
   useEffect(() => {

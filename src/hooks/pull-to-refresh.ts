@@ -8,11 +8,14 @@ import {
 
 /** The strip's height while a refresh runs. */
 const PULL_TO_REFRESH_REST_PX = PULL_TO_REFRESH_TRIGGER_PX;
+/** A sideways move past this, before the pull engages, makes the gesture a sideways scroll. */
+const SIDEWAYS_SLOP_PX = 8;
 
 type PullGestureState = {
   /** Where the finger started. */
+  startX: number;
   startY: number;
-  /** Whether the scrollport left its top during the gesture, making it a scroll. */
+  /** Whether the gesture is a scroll: the scrollport left its top, or it went sideways. */
   hasScrolled: boolean;
   /** Whether the gesture was taken from the browser's scrolling. */
   isEngaged: boolean;
@@ -21,14 +24,17 @@ type PullGestureState = {
   isRefreshing: boolean;
   /** The reading count when the refresh was asked for. */
   refreshedFrom: number | undefined;
+  /** Counts refreshes, so a late answer never settles a newer one. */
+  refreshSequence: number;
   settleTimer: number;
 };
 
 /**
- * Pulling a board down from its top asks the feed again. Read on the list, pulled from whichever
+ * Pulling a list down from its top asks the feed again. Read on the list, pulled from whichever
  * scrollport holds it; once engaged the app handles it, keeping out Android's reload and iOS's
  * rubber band. Drawn through the DOM, not state, so a drag re-renders nothing. Settles when the
- * reading count moves, or after a timeout.
+ * reading count moves or `onRefresh`'s promise settles, or after a timeout. `refresh` starts one
+ * without a pull.
  */
 export function usePullToRefresh({
   listRef,
@@ -38,25 +44,28 @@ export function usePullToRefresh({
   readingCount,
   isEnabled,
 }: {
-  /** The board's list, where the gesture is read. */
+  /** The list, where the gesture is read. */
   listRef: React.RefObject<HTMLElement | null>;
   /** The strip, drawn through the DOM. */
   indicatorRef: React.RefObject<HTMLDivElement | null>;
   /** Whether the document is the scrollport (stacked layout). */
   isPageScrollport?: boolean;
-  onRefresh: () => void;
-  /** Readings answered, failures included. */
-  readingCount: number | undefined;
-  /** Off until a board has been read. */
+  /** A returned promise settles the strip when it settles. */
+  onRefresh: () => void | Promise<unknown>;
+  /** Readings answered, failures included; a change settles the strip. */
+  readingCount?: number;
+  /** Off until there is something to refresh. */
   isEnabled: boolean;
-}): void {
+}): { refresh: () => void } {
   const gesture = useRef<PullGestureState>({
+    startX: 0,
     startY: 0,
     hasScrolled: false,
     isEngaged: false,
     distance: 0,
     isRefreshing: false,
     refreshedFrom: undefined,
+    refreshSequence: 0,
     settleTimer: 0,
   });
   // Handlers attach once per mount, so they read props through refs.
@@ -91,7 +100,11 @@ export function usePullToRefresh({
       indicator.style.height = `${PULL_TO_REFRESH_REST_PX}px`;
     }
     state.settleTimer = window.setTimeout(finishRefresh, PULL_TO_REFRESH_SETTLE_TIMEOUT_MS);
-    onRefreshRef.current();
+    const sequence = ++state.refreshSequence;
+    const settle = () => {
+      if (sequence === gesture.current.refreshSequence) finishRefresh();
+    };
+    onRefreshRef.current()?.then(settle, settle);
   }, [finishRefresh, indicatorRef]);
 
   useEffect(() => {
@@ -107,8 +120,9 @@ export function usePullToRefresh({
     const onTouchStart = (event: TouchEvent) => {
       if (event.touches.length !== 1) return;
       const state = gesture.current;
+      state.startX = event.touches[0].clientX;
       state.startY = event.touches[0].clientY;
-      state.hasScrolled = false;
+      state.hasScrolled = isHeldByInnerSurface(event.target, element);
       state.isEngaged = false;
       state.distance = 0;
     };
@@ -120,6 +134,10 @@ export function usePullToRefresh({
       const offset = getScrollOffset();
       if (offset > 0) state.hasScrolled = true;
       if (!state.isEngaged) {
+        const sideways = Math.abs(touch.clientX - state.startX);
+        if (sideways > SIDEWAYS_SLOP_PX && sideways > touch.clientY - state.startY) {
+          state.hasScrolled = true;
+        }
         if (state.hasScrolled || offset > 0 || touch.clientY <= state.startY) return;
         // The gesture is ours; the browser's reload or rubber band never starts.
         state.isEngaged = true;
@@ -172,6 +190,7 @@ export function usePullToRefresh({
       window.clearTimeout(gestureState.settleTimer);
       gestureState.isRefreshing = false;
       gestureState.refreshedFrom = undefined;
+      gestureState.refreshSequence++;
       if (indicator) {
         indicator.classList.remove("is-pulling", "is-armed", "is-refreshing");
         indicator.style.height = "0px";
@@ -185,4 +204,27 @@ export function usePullToRefresh({
     if (!state.isRefreshing || readingCount === state.refreshedFrom) return;
     finishRefresh();
   }, [readingCount, finishRefresh]);
+
+  const refresh = useCallback(() => {
+    if (!gesture.current.isRefreshing) startRefresh();
+  }, [startRefresh]);
+  return { refresh };
+}
+
+/**
+ * Whether the touch began on a surface of its own below `root`: an inner scrollport, which scrolls
+ * itself, or a fixed sheet, which a downward swipe closes rather than refreshes.
+ */
+function isHeldByInnerSurface(target: EventTarget | null, root: HTMLElement): boolean {
+  for (
+    let node = target instanceof Element ? target : null;
+    node && node !== root;
+    node = node.parentElement
+  ) {
+    const { overflowY, position } = getComputedStyle(node);
+    if (position === "fixed") return true;
+    const scrolls = overflowY === "auto" || overflowY === "scroll";
+    if (scrolls && node.scrollHeight > node.clientHeight) return true;
+  }
+  return false;
 }

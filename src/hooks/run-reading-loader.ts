@@ -114,6 +114,11 @@ export function useRunReadingsByRowId(
   return useMemo(() => runs.filter((run) => run.tripCalls?.length), [runs]);
 }
 
+/** Reads the named runs now, whatever their age; settles once every read has answered. */
+export async function readRunsNow(rowIds: readonly string[]): Promise<void> {
+  await Promise.allSettled(rowIds.map((rowId) => transitSource.getRun(rowId, 0)));
+}
+
 /** Row-based adapter over `useRunReadingsByRowId`. */
 export function useRunReadings(
   departures: readonly Departure[],

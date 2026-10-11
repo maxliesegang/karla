@@ -6,7 +6,7 @@ import { useHeldRun } from "./hooks/run-reading-store";
 import { useLineReading } from "./hooks/line-reading";
 import { useRetainedRun } from "./hooks/retained-run";
 import { useTransitStop } from "./hooks/transit-network";
-import { useRunReadings } from "./hooks/run-reading-loader";
+import { readRunsNow, useRunReadings } from "./hooks/run-reading-loader";
 import { mergeAddressedRun } from "./lib/trip-calls";
 import { findBestRunReading } from "./lib/trips";
 import { findLineForRoute } from "./lib/line-families";
@@ -51,6 +51,11 @@ export type ResolvedSelectionChain = {
   retryStop: () => void;
   /** Reads the board again (pull to refresh); the board in view stays until the answer. */
   refreshBoard: () => void;
+  /**
+   * Reads the line's runs at this stop again, or on a ride the ride's own run (pull to refresh);
+   * settles when they have answered.
+   */
+  refreshLine: () => Promise<void>;
   departureBoard: DepartureBoard | null;
   /** How many board readings have answered, however they answered. */
   boardReadingCount: number;
@@ -222,6 +227,16 @@ export function useSelectionChain(
     isStopFailed,
     retryStop: () => setStopReloadNonce((nonce) => nonce + 1),
     refreshBoard: () => setBoardReloadNonce((nonce) => nonce + 1),
+    refreshLine: () => {
+      if (isRide) return readRunsNow(selectedDeparture ? [selectedDeparture.id] : []);
+      setBoardReloadNonce((nonce) => nonce + 1);
+      return readRunsNow([
+        ...new Set([
+          ...(selectedDeparture ? [selectedDeparture.id] : []),
+          ...lineRunDepartures.map(({ id }) => id),
+        ]),
+      ]);
+    },
     departureBoard,
     boardReadingCount: departureBoardReading.readingCount,
     departures,
