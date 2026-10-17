@@ -36,13 +36,16 @@ GitHub Actions tests, builds and deploys `dist` on push to `main`; don't commit 
 | [src/components/](src/components/) | views; German copy |
 | [src/data/](src/data/) | `TransitSource` boundary, run store, EFA client and parsers |
 | [src/data/generated/](src/data/generated/) | written by [scripts/](scripts/); never edited by hand |
+| [proxy/](proxy/) | the PHP TRIAS proxy: holds the requestor ref, caches, passes XML through |
 | [tests/](tests/) | `node --test`; no network. Type-checked by `npm run build`. Fixtures in `tests/support/fixtures.ts`; hooks are tested with `tests/support/render-hook.ts` (happy-dom) |
 
 ## Constraints
 
 These describe outcomes, not implementations. If a simpler design meets them, prefer it.
 
-- **No backend, no secrets.** The site must deploy to GitHub Pages as plain files.
+- **Static site, one thin proxy.** The site deploys as plain files. The only server code is the PHP
+  TRIAS proxy in `proxy/`; its requestor ref is the only secret and never reaches the client or the
+  repo.
 - **Views never touch the provider.** Fetching, id resolution and merging live behind
   `TransitSource`.
 - **The network is observed.** The stops and lines shown come from live trips, so a line that stops

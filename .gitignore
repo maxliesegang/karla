@@ -33,3 +33,7 @@ yarn-error.log*
 /.next/
 /.vinext/
 /.wrangler/
+
+# TRIAS proxy
+/proxy/trias-config.php
+/proxy/cache/
