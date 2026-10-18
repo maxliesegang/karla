@@ -20,6 +20,7 @@ test("resizing the map preserves the center after panning and zooming", async (t
   const ratio = ZENTRUM_SCHEMATIC_VIEWBOX.height / ZENTRUM_SCHEMATIC_VIEWBOX.width;
   const root = createRoot(document.createElement("div"));
   function Probe() {
+    // oxlint-disable-next-line react/globals -- the probe hands the hook's result to the test
     plan = useZentrumPlanCanvas();
     return createElement("div", { ref: plan.scrollRef });
   }

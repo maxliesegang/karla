@@ -13,7 +13,7 @@
     "probe:run-identity": "node --experimental-strip-types --import ./tests/register-resolver.js scripts/probe-run-identity.ts",
     "test": "node --experimental-strip-types --import ./tests/register-resolver.js --test tests/*.test.ts",
     "preview": "vite preview",
-    "lint": "eslint .",
+    "lint": "oxlint",
     "format": "biome format --write .",
     "format:check": "biome format .",
     "solve:region": "node --experimental-strip-types --import ./tests/register-resolver.js scripts/solve-region-plan.ts",
@@ -23,24 +23,19 @@
   },
   "dependencies": {
     "@xmldom/xmldom": "0.9.12",
-    "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react": "19.3.1",
+    "react-dom": "19.3.1"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.10",
-    "@eslint/js": "9.39.5",
-    "@happy-dom/global-registrator": "^20.14.5",
-    "@types/node": "^26.4.0",
-    "@types/react": "19.2.18",
-    "@types/react-dom": "19.2.5",
-    "@vitejs/plugin-react": "6.1.0",
-    "eslint": "9.39.5",
-    "eslint-plugin-jsx-a11y": "6.10.2",
-    "eslint-plugin-react": "7.37.5",
-    "eslint-plugin-react-hooks": "7.1.1",
-    "globals": "17.11.0",
-    "typescript": "6.0.3",
-    "typescript-eslint": "8.68.0",
-    "vite": "8.2.2"
+    "@biomejs/biome": "2.5.15",
+    "@happy-dom/global-registrator": "^21.0.3",
+    "@types/node": "^26.6.5",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "oxlint": "1.88.0",
+    "rolldown": "1.2.14",
+    "typescript": "7.0.2",
+    "vite": "8.3.4"
   }
 }

@@ -108,7 +108,7 @@ export function useRunReadingsByRowId(
       ),
     );
     // `runs` changes whenever a reading lands.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
   }, [runs, feedOffsetMs, refreshMs, refreshOnEntry]);
   // Only runs with calls; others stand on their board row meanwhile.
   return useMemo(() => runs.filter((run) => run.tripCalls?.length), [runs]);

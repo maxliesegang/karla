@@ -24,7 +24,7 @@ export function useRuns(rowIds: readonly string[]): readonly Departure[] {
         return run ? [run] : [];
       }),
     // The version is the whole of the dependency on the store.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
     [rowIds, version],
   );
 }
@@ -66,7 +66,7 @@ export function useLiveBoards(boards: readonly DepartureBoard[]): readonly Depar
       return live.every((board, index) => board === boards[index]) ? boards : live;
     },
     // The version is the whole of the dependency on the store, as in `useRuns`.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
     [boards, version],
   );
 }

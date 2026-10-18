@@ -82,10 +82,10 @@ export function useLineRunDepartures(
       setFollowing({ lineId, followed: next });
     }
   };
-  // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
+  // oxlint-disable-next-line react-hooks/exhaustive-deps, react/set-state-in-effect
   useEffect(() => update(observedDepartures), [lineId, observedDepartures]);
   // A feed tick only drops runs that have ended; it must not re-read the same board.
-  // eslint-disable-next-line react-hooks/exhaustive-deps, react-hooks/set-state-in-effect
+  // oxlint-disable-next-line react-hooks/exhaustive-deps, react/set-state-in-effect
   useEffect(() => update([]), [feedNow]);
 
   // Memoized on content, not the tick, so drawings are not handed a new set every second. A run
@@ -102,13 +102,13 @@ export function useLineRunDepartures(
         handedOverKeys,
       );
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // oxlint-disable-next-line react-hooks/exhaustive-deps
     [followed, observedDepartures, followedRuns, handedOverKeys, includesRun, scopeNow],
   );
   useEffect(() => {
     const keys = runDepartures.map(getRunMarkKey);
     if (keys.length !== handedOverKeys.size || keys.some((key) => !handedOverKeys.has(key))) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
+      // oxlint-disable-next-line react/set-state-in-effect
       setHandedOverKeys(new Set(keys));
     }
   }, [runDepartures, handedOverKeys]);

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { registerHooks } from "node:module";
 import { fileURLToPath } from "node:url";
-import { JsxEmit, ModuleKind, transpileModule } from "typescript";
+import { transformSync } from "rolldown/utils";
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
@@ -20,10 +20,11 @@ registerHooks({
   },
   load(url, context, nextLoad) {
     if (!url.endsWith(".tsx")) return nextLoad(url, context);
-    const source = transpileModule(readFileSync(fileURLToPath(url), "utf8"), {
-      compilerOptions: { jsx: JsxEmit.ReactJSX, module: ModuleKind.ESNext },
-      fileName: fileURLToPath(url),
-    }).outputText;
-    return { format: "module", source, shortCircuit: true };
+    const fileName = fileURLToPath(url);
+    const { code, errors } = transformSync(fileName, readFileSync(fileName, "utf8"), {
+      jsx: { runtime: "automatic" },
+    });
+    if (errors.length > 0) throw new Error(`${fileName}: ${errors[0].message}`);
+    return { format: "module", source: code, shortCircuit: true };
   },
 });

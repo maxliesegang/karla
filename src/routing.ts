@@ -227,8 +227,8 @@ export function parseRoute(hash: string): AppRoute {
         alightingStopId: to,
       };
     }
+    // Legacy ride address.
     case "ride":
-    // Legacy ride address; falls through.
     case "departure": {
       // Legacy trip links: `/departure/:trip/:stop` (line recovered from the board) and
       // `/departure/:trip/:line/:stop`.
