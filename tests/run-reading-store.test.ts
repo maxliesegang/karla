@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { KvvTripLocator } from "../src/data/kvv-efa-parsers.ts";
+import type { KvvTripLocator } from "../src/data/kvv-feed.ts";
 import type { Departure, RunSequence, TripCall } from "../src/data/transit-types.ts";
 import { RunReadingStore } from "../src/data/run-reading-store.ts";
 import { createDeparture } from "./support/fixtures.ts";

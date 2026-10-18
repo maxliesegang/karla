@@ -5,12 +5,14 @@ import {
   KvvEfaError,
   parseDepartureBoardResponse,
   parseTripResponse,
+} from "../src/data/kvv-efa-parsers.ts";
+import {
   type KvvDeparture,
   type KvvDepartureBoard,
   type KvvTrip,
   type KvvTripCall,
   type KvvTripLocator,
-} from "../src/data/kvv-efa-parsers.ts";
+} from "../src/data/kvv-feed.ts";
 import { KvvTransitSource } from "../src/data/transit-source.ts";
 import {
   RUN_ENDED_GRACE_MS,
@@ -421,10 +423,13 @@ test("the departure monitor repeats exact line filters and disables proximity ex
     departureEndpoint: "https://example.test/XSLT_DM_REQUEST",
     fetchFn: async (input) => {
       requestedUrl = new URL(String(input));
-      return new Response(JSON.stringify({ departureList: [] }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ parameters: tripPayload.parameters, departureList: [] }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
     },
   });
 
@@ -1333,4 +1338,19 @@ test("a failed refresh answers with the last live board until it is too old to a
 
   t.mock.timers.tick(10 * 60_000);
   assert.equal((await source.getDepartureBoard("durlacher-tor")).dataStatus, "unavailable");
+});
+
+test("EFA boards and trips reject missing or malformed feed timestamps", () => {
+  for (const parameters of [
+    undefined,
+    [],
+    [{ name: "serverTime", value: "broken" }],
+    [{ name: "serverTime", value: "2026-02-30T07:30:45" }],
+  ]) {
+    assert.throws(
+      () => parseDepartureBoardResponse({ parameters, departureList: [] }, "7001001"),
+      KvvEfaError,
+    );
+    assert.throws(() => parseTripResponse({ ...tripPayload, parameters }, locator), KvvEfaError);
+  }
 });

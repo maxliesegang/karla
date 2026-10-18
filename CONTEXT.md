@@ -65,7 +65,7 @@ Every view reads runs from it.
 countdowns and staleness checks use it.
 
 **Expected departure instant**: the prediction if there is one, otherwise the schedule. It is the
-one time a row is read against.
+one time a row is read against. TRIAS predicts to the second; delays print as whole minutes.
 
 ## Lines
 
@@ -128,5 +128,11 @@ lighting and travel times.
 ## Boundary
 
 **TransitSource**: the only module that talks to the provider. Views use it and nothing else.
+
+**KvvFeed**: what a KVV feed answers, in one model (`kvv-feed.ts`). Read from TRIAS while the proxy
+answers, else from EFA.
+
+**KvvTrias**: the operator's TRIAS interface, read through `proxy/`. See
+[docs/kvv-trias-api.md](docs/kvv-trias-api.md).
 
 **KvvEfa**: the operator's EFA feed. See [docs/kvv-efa-api.md](docs/kvv-efa-api.md).

@@ -1,12 +1,24 @@
 /** Pure decoding of the KVV EFA wire format; the HTTP transport is `kvv-efa-client.ts`. */
-import { EXCEPTIONAL_OPERATION_WORDS } from "./operational-exceptions";
-import type {
-  DepartureStatus,
-  PlatformKind,
-  TransportMode,
-  TripCall,
-  VehicleAccess,
-} from "./transit-types";
+import {
+  isLocalNetworkPool,
+  joinServiceNotes,
+  parsePlatformKind,
+  readOperatingNote,
+  readVehicleAccess,
+  splitDestination,
+} from "./kvv-conventions";
+import {
+  getTripInstanceId,
+  type KvvDeparture,
+  type KvvDepartureBoard,
+  type KvvServiceNotice,
+  type KvvServingLine,
+  type KvvStopSearchResult,
+  type KvvTrip,
+  type KvvTripCall,
+  type KvvTripLocator,
+} from "./kvv-feed";
+import type { DepartureStatus, TransportMode, VehicleAccess } from "./transit-types";
 
 /** The timezone the feed states its times in, and the one riders read off a KVV clock. */
 const NETWORK_TIME_ZONE = "Europe/Berlin";
@@ -36,100 +48,6 @@ export class KvvEfaError extends Error {
   }
 }
 
-/** A calling point as the feed states it, still carrying the provider stop id it was read from. */
-export type KvvTripCall = TripCall & { providerId?: string };
-
-/** The provider tuple that identifies one dated trip; every field is copied from its DM row. */
-export type KvvTripLocator = {
-  tripCode: string;
-  /** The provider's own key for the service designation (`servingLine.stateless`), not the sign. */
-  line: string;
-  stopPointId: string;
-  date: string;
-  time: string;
-};
-
-export type KvvTrip = {
-  serverTime: string;
-  tripCalls: KvvTripCall[];
-  /** Only exceptional whole-trip states override the fresher stop-specific DM row. */
-  status?: Extract<DepartureStatus, "cancelled" | "diverted">;
-};
-
-export type KvvDeparture = {
-  /** EFA stop point the vehicle departs from; a complex reports several of these. */
-  stopPointId: string;
-  stopPointName: string;
-  /** EFA's timetable-trip identity, with the operational AVMS identity as fallback. */
-  tripId?: string;
-  /** Dated identity, for matching older shared links and deduplicating operating instances. */
-  tripInstanceId?: string;
-  /** `servingLine.trainNum`, including where two separately addressed portions share one train. */
-  trainNumber?: string;
-  lineId: string;
-  /** Opaque EFA identity for this line and operating direction (`H`/`R`). */
-  routeDirectionId?: string;
-  transportMode: TransportMode;
-  destination: string;
-  minutesUntilDeparture: number;
-  delayMinutes?: number;
-  platformCode: string;
-  platformKind?: PlatformKind;
-  status: DepartureStatus;
-  scheduledDepartureTime: string;
-  predictedDepartureTime?: string;
-  serviceNote?: string;
-  /** What the feed states about boarding this vehicle, where it states anything at all. */
-  vehicleAccess?: VehicleAccess;
-  /** Opaque provider state used below `TransitSource` to load only this trip. */
-  tripLocator?: KvvTripLocator;
-  tripCalls?: KvvTripCall[];
-};
-
-export type KvvDepartureBoard = {
-  stopPointId: string;
-  stopName: string;
-  /** Server time of the feed, so countdowns are anchored to the source, not the browser clock. */
-  serverTime: string;
-  /** Scheduled line-directions the stop monitor can query; never evidence of a departure itself. */
-  servingLines: KvvServingLine[];
-  departures: KvvDeparture[];
-};
-
-/**
- * A line-direction a stop serves, paired with the line's name. Direction ids are opaque, so this
- * pairing is the only way to name a line with no departure on the board.
- */
-export type KvvServingLine = {
-  lineId?: string;
-  directionId: string;
-  transportMode?: TransportMode;
-};
-
-export type KvvStopSearchResult = {
-  providerId: string;
-  name: string;
-  /** The municipality the stop is in, as the feed states it. */
-  placeName?: string;
-  /** Where the stop stands, so the source can tell what is inside the network's area. */
-  latitude?: number;
-  longitude?: number;
-};
-
-/** A published notice in the operator's terms: its line spellings and provider stop ids. */
-export type KvvServiceNotice = {
-  id: string;
-  title: string;
-  /** Line numbers as published, normalised to the form a departure states (`007` is line 7). */
-  lineNumbers: string[];
-  concernedStops: { providerId?: string; name: string }[];
-  /** The operator's own wording, as the paragraphs it published it in. */
-  details: string[];
-  validFrom?: string;
-  validUntil?: string;
-  priority: "normal" | "high";
-};
-
 /** Today's date in the network's own calendar, as the notice feed's `filterDateValid` wants it. */
 export const formatNetworkCalendarDay = (now: Date): string => networkDateFormat.format(now);
 
@@ -143,7 +61,8 @@ function readStopFinderPoints(points: unknown): Record<string, unknown>[] {
 }
 
 export function parseStopSearchResponse(payload: unknown): KvvStopSearchResult[] {
-  if (!isRecord(payload) || !isRecord(payload.stopFinder)) return [];
+  if (!isRecord(payload) || !isRecord(payload.stopFinder))
+    throw new KvvEfaError("Haltestellensuche: unerwartete Antwort");
   return readStopFinderPoints(payload.stopFinder.points).flatMap((result) => {
     if (result.anyType !== "stop") return [];
     const reference = isRecord(result.ref) ? result.ref : undefined;
@@ -186,7 +105,7 @@ export function parseDepartureBoardResponse(
   return {
     stopPointId,
     stopName,
-    serverTime: parseServerTime(payload.parameters) ?? new Date().toISOString(),
+    serverTime: requireServerTime(payload.parameters),
     servingLines: parseServingLines(servingLines),
     departures: departureEntries
       .filter(isRecord)
@@ -195,47 +114,18 @@ export function parseDepartureBoardResponse(
   };
 }
 
-/**
- * Boarding as the hints state it. The negation is matched first because it contains the positive
- * word; a trip whose hints say nothing about boarding stays unanswered, not `notStepFree`.
- */
-const NOT_STEP_FREE_PATTERN = /nicht\s+(barrierefrei|stufenlos|rollstuhl)/i;
-const STEP_FREE_PATTERN = /stufenlos|niederflur|barrierefrei|behindertengerecht|einstiegshilfe/i;
-
-/**
- * Hints about how the trip is running (`Verspätung eines vorausfahrenden Zuges`), as opposed to
- * equipment (`WLAN`, `Bordrestaurant`), which shares the field and is dropped.
- */
-const OPERATING_HINT_PATTERN = new RegExp(
-  `verspätung|störung|${EXCEPTIONAL_OPERATION_WORDS}|entfällt|ausfall|behinderung|gleiswechsel`,
-  "i",
-);
-
 function readHintContents(hints: unknown): string[] {
   return readRecordList(hints)
     .map((hint) => readOptionalString(hint.content))
     .filter((content): content is string => Boolean(content));
 }
 
-export function findVehicleAccess(hints: unknown): VehicleAccess | undefined {
-  const contents = readHintContents(hints);
-  if (contents.some((content) => NOT_STEP_FREE_PATTERN.test(content))) return "notStepFree";
-  return contents.some((content) => STEP_FREE_PATTERN.test(content)) ? "stepFree" : undefined;
-}
+export const findVehicleAccess = (hints: unknown): VehicleAccess | undefined =>
+  readVehicleAccess(readHintContents(hints));
 
 /** The operating remarks among the hints, as one note. */
-export function findOperatingHint(hints: unknown): string | undefined {
-  const operating = readHintContents(hints).filter((content) =>
-    OPERATING_HINT_PATTERN.test(content),
-  );
-  return operating.length > 0 ? [...new Set(operating)].join(" · ") : undefined;
-}
-
-/** Two remarks about one trip read as one note; either may be missing. */
-function joinServiceNotes(...notes: (string | undefined)[]): string | undefined {
-  const stated = [...new Set(notes.filter((note): note is string => Boolean(note)))];
-  return stated.length > 0 ? stated.join(" · ") : undefined;
-}
+export const findOperatingHint = (hints: unknown): string | undefined =>
+  readOperatingNote(readHintContents(hints));
 
 /**
  * The row's deviation, measured against the prediction where there is one: `delay` is truncated to
@@ -433,7 +323,7 @@ export function parseTripResponse(payload: unknown, locator: KvvTripLocator): Kv
       ? "diverted"
       : undefined;
   return {
-    serverTime: parseServerTime(payload.parameters) ?? new Date().toISOString(),
+    serverTime: requireServerTime(payload.parameters),
     tripCalls,
     status,
   };
@@ -460,23 +350,6 @@ function findRowCallIndex(
     return departure !== undefined && departure.startsWith(minute);
   });
   return rowCallIndex >= 0 ? rowCallIndex : entries.findIndex(atStop);
-}
-
-/**
- * A dated run id: `RealtimeTripId` is reused on later dates, so it is paired with the first
- * scheduled call. Exported so a single-trip reading yields the same id as a board's.
- */
-export function getTripInstanceId(
-  tripId: string | undefined,
-  tripCalls:
-    | readonly { scheduledArrivalTime?: string; scheduledDepartureTime?: string }[]
-    | undefined,
-): string | undefined {
-  if (!tripId) return undefined;
-  const firstCall = tripCalls?.[0];
-  const tripStartTime = firstCall?.scheduledDepartureTime ?? firstCall?.scheduledArrivalTime;
-  // To the minute: rows publish the first call to the minute, sequences to the second.
-  return tripStartTime ? `${tripId}@${tripStartTime.slice(0, 16)}` : tripId;
 }
 
 function findAttributeValue(attributes: unknown, name: string): string | undefined {
@@ -763,20 +636,6 @@ function isLocalNetworkMode(motType: string | undefined): boolean {
   return motType === undefined || LOCAL_NETWORK_MOT_TYPES.has(motType);
 }
 
-/**
- * The data pool of KVV's own lines, the first segment of a line id (`kvv:22304:E:H:s26`). The
- * server also answers for other pools that share KVV's modes: DB's S-Bahn Rhein-Neckar (S3, S6, S9,
- * since December 2025) and `rab:` rail replacement. Measured 5 September 2026.
- */
-const LOCAL_NETWORK_POOL = "kvv";
-
-/** An unstated pool is unknown, not foreign. */
-function isLocalNetworkPool(lineStatelessId: string | undefined): boolean {
-  if (lineStatelessId === undefined) return true;
-  const pool = lineStatelessId.slice(0, lineStatelessId.indexOf(":"));
-  return !lineStatelessId.includes(":") || pool === LOCAL_NETWORK_POOL;
-}
-
 /** A line of the local network: a local mode and the operator's own pool. */
 function isLocalNetworkLine(
   motType: string | undefined,
@@ -790,43 +649,6 @@ function parseTransportMode(motType: string | undefined): TransportMode {
   if (motType === "4") return "tram";
   if (motType === "5" || motType === "6" || motType === "11") return "bus";
   return "other";
-}
-
-/**
- * `Gleis` (rail) or `Bstg.` (bus stand); anything else is left unstated, not guessed from the mode.
- */
-function parsePlatformKind(pointType: string | undefined): PlatformKind | undefined {
-  const stated = pointType?.trim().toLowerCase();
-  if (stated === "gleis" || stated === "bahnsteig") return "track";
-  if (stated === "bstg" || stated === "bstg." || stated === "bussteig") return "stand";
-  return undefined;
-}
-
-/**
- * Operational remarks KVV appends to destinations (`Waldstadt > SEV ab Hirtenweg`,
- * `Heide (Umleitung)`). A parenthesis counts only with operational vocabulary: `Söllingen (b.
- * Karlsruhe)` is part of the place name.
- */
-const OPERATIONAL_REMARK_PATTERN = new RegExp(
-  `${EXCEPTIONAL_OPERATION_WORDS}|entfällt|sonderfahrt|verstärker|nur bis|ab \\S`,
-  "i",
-);
-
-function splitDestination(destination: string): [string, string | undefined] {
-  const chevron = destination.indexOf(">");
-  if (chevron > 0) {
-    return [
-      destination.slice(0, chevron).trim(),
-      destination.slice(chevron + 1).trim() || undefined,
-    ];
-  }
-
-  const suffix = /\s*\(([^()]+)\)\s*$/.exec(destination);
-  if (suffix && OPERATIONAL_REMARK_PATTERN.test(suffix[1])) {
-    return [destination.slice(0, suffix.index).trim(), suffix[1].trim()];
-  }
-
-  return [destination.trim(), undefined];
 }
 
 function parseDelayMinutes(value: unknown): number | undefined {
@@ -864,6 +686,12 @@ function getNetworkOffsetMs(instant: number): number {
   return (sign === "-" ? -1 : 1) * (Number(hours) * 60 + Number(minutes)) * 60_000;
 }
 
+function requireServerTime(parameters: unknown): string {
+  const time = parseServerTime(parameters);
+  if (!time) throw new KvvEfaError("Ungültige Feed-Zeit");
+  return time;
+}
+
 /**
  * The feed's clock as an instant. It has no offset, like `parseDateTime`'s input, and every
  * countdown is counted from it. Seconds are kept for the board's age.
@@ -878,7 +706,17 @@ function parseServerTime(parameters: unknown): string | undefined {
   );
   if (!match) return undefined;
   const [, year, month, day, hour, minute, second] = match.map(Number);
-  return resolveNetworkWallTime(Date.UTC(year, month - 1, day, hour, minute, second || 0));
+  const instant = new Date(Date.UTC(year, month - 1, day, hour, minute, second || 0));
+  if (
+    instant.getUTCFullYear() !== year ||
+    instant.getUTCMonth() !== month - 1 ||
+    instant.getUTCDate() !== day ||
+    hour > 23 ||
+    minute > 59 ||
+    (second || 0) > 59
+  )
+    return undefined;
+  return resolveNetworkWallTime(instant.getTime());
 }
 
 /** EFA prefixes names with the municipality, which the views already show. */

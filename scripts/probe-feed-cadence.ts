@@ -18,7 +18,7 @@
 
 import { appendFile } from "node:fs/promises";
 import { KvvEfaClient } from "../src/data/kvv-efa-client.ts";
-import type { KvvDeparture, KvvTripCall } from "../src/data/kvv-efa-parsers.ts";
+import type { KvvDeparture, KvvTripCall } from "../src/data/kvv-feed.ts";
 
 const DEFAULT_STOP_POINT_IDS = ["7000037", "7000090"];
 const DEFAULT_INTERVAL_SECONDS = 10;

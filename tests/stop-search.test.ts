@@ -3,7 +3,8 @@ import test from "node:test";
 
 import { KvvEfaClient } from "../src/data/kvv-efa-client.ts";
 import { isWithinKvvArea } from "../src/data/kvv-area.ts";
-import { parseStopSearchResponse, type KvvStopSearchResult } from "../src/data/kvv-efa-parsers.ts";
+import { parseStopSearchResponse } from "../src/data/kvv-efa-parsers.ts";
+import { type KvvStopSearchResult } from "../src/data/kvv-feed.ts";
 import { KvvTransitSource } from "../src/data/transit-source.ts";
 import type { KvvEfaClient as KvvEfaClientType } from "../src/data/kvv-efa-client.ts";
 import type { TransitNetwork } from "../src/data/transit-types.ts";
@@ -104,6 +105,28 @@ const network: TransitNetwork = {
 
 const clientWith = (matches: KvvStopSearchResult[]): KvvEfaClientType =>
   ({ searchStops: async () => matches }) as unknown as KvvEfaClientType;
+
+test("a link with an unmatched digest cannot resolve to another stop with the same name", async () => {
+  const source = new KvvTransitSource(
+    clientWith([{ providerId: "de:08235:9711", name: "Bahnhof", placeName: "Anderer Ort" }]),
+    { stops: [], lines: [] },
+  );
+  assert.equal(await source.resolveStop("bahnhof--wrongdigest"), undefined);
+  assert.equal(source.getKnownStop("bahnhof--wrongdigest"), undefined);
+});
+
+test("a legacy name-only link requires one exact stop match", async () => {
+  for (const matches of [
+    [{ providerId: "1", name: "Bahnhof West" }],
+    [
+      { providerId: "1", name: "Bahnhof" },
+      { providerId: "2", name: "Bahnhof" },
+    ],
+  ]) {
+    const source = new KvvTransitSource(clientWith(matches), { stops: [], lines: [] });
+    assert.equal(await source.resolveStop("bahnhof"), undefined);
+  }
+});
 
 test("the search answers with local matches first and keeps only in-area provider matches", async () => {
   const source = new KvvTransitSource(

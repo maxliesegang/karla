@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { KvvEfaClient } from "../src/data/kvv-efa-client.ts";
 import { parseDepartureBoardResponse, parseTripResponse } from "../src/data/kvv-efa-parsers.ts";
 import { KvvTransitSource } from "../src/data/transit-source.ts";
-import type { KvvTripLocator } from "../src/data/kvv-efa-parsers.ts";
+import type { KvvTripLocator } from "../src/data/kvv-feed.ts";
 
 test("tomorrow's reused S7 code never replaces or refreshes today's active run", async (t) => {
   const fixture = JSON.parse(
@@ -86,7 +86,11 @@ const row = {
 
 test("arrival parsing accepts array and singleton rows without inventing a departure at the terminus", () => {
   for (const arrivalList of [[row], row]) {
-    const parsed = parseDepartureBoardResponse({ arrivalList }, "7000064", "arrival");
+    const parsed = parseDepartureBoardResponse(
+      { parameters: [{ name: "serverTime", value: "2026-10-05T14:00:00" }], arrivalList },
+      "7000064",
+      "arrival",
+    );
     assert.equal(parsed.departures.length, 1);
     const final = parsed.departures[0].tripCalls?.at(-1);
     assert.equal(final?.scheduledArrivalTime, "2026-10-05T12:02:00.000Z");
@@ -96,11 +100,19 @@ test("arrival parsing accepts array and singleton rows without inventing a depar
   }
   for (const arrivalList of [undefined, null, {}, [null, { servingLine: {} }]])
     assert.equal(
-      parseDepartureBoardResponse({ arrivalList }, "7000064", "arrival").departures.length,
+      parseDepartureBoardResponse(
+        { parameters: [{ name: "serverTime", value: "2026-10-05T14:00:00" }], arrivalList },
+        "7000064",
+        "arrival",
+      ).departures.length,
       0,
     );
   assert.equal(
-    parseDepartureBoardResponse({ departureList: [row] }, "7000064", "arrival").departures.length,
+    parseDepartureBoardResponse(
+      { parameters: [{ name: "serverTime", value: "2026-10-05T14:00:00" }], departureList: [row] },
+      "7000064",
+      "arrival",
+    ).departures.length,
     0,
   );
 });
@@ -169,6 +181,7 @@ test("a crowded board discovers a rail direction named only in serving metadata"
       requests.push(url);
       if (url.pathname.endsWith("XML_TRIPSTOPTIMES_REQUEST"))
         return Response.json({
+          parameters: [{ name: "serverTime", value: "2026-10-05T14:00:00" }],
           vehicleCallAtStop: {
             tC: url.searchParams.get("tripCode"),
             line: url.searchParams.get("line"),

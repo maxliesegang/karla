@@ -1,6 +1,6 @@
 import type { Departure, TripCall } from "../data/transit-types";
 import { collapseTurnaroundCalls, statesRunEnd, statesRunStart } from "./trip-calls";
-import { getRunTimeline } from "./run-timeline";
+import { getCallShiftMs, getRunTimeline } from "./run-timeline";
 import { getRunMarkKey } from "./trips";
 
 /** Shared vehicle motion from call times: revised station arrivals take priority over continuity. */
@@ -145,10 +145,15 @@ function steadyDelays(
   };
   const steadied = calls.map((call) => {
     const key = `${call.localStopId}|${call.scheduledArrivalTime ?? call.scheduledDepartureTime}`;
+    // A prediction to the second does not flap between minutes; the timeline reads it instead.
     return {
       ...call,
-      delayMinutes: steady(`${key}|departure`, call.delayMinutes),
-      arrivalDelayMinutes: steady(`${key}|arrival`, call.arrivalDelayMinutes),
+      delayMinutes: call.predictedDepartureTime
+        ? call.delayMinutes
+        : steady(`${key}|departure`, call.delayMinutes),
+      arrivalDelayMinutes: call.predictedArrivalTime
+        ? call.arrivalDelayMinutes
+        : steady(`${key}|arrival`, call.arrivalDelayMinutes),
     };
   });
   for (const key of delays.keys()) if (!seen.has(key)) delays.delete(key);
@@ -171,9 +176,8 @@ function getTimedCalls(
   );
   const timeline = getRunTimeline(localCalls);
   const first = timeline[0]?.call;
-  const originShift = first?.delayMinutes ?? first?.arrivalDelayMinutes;
-  const originStatedShift =
-    originShift !== undefined && originShift > 0 ? originShift * 60_000 : undefined;
+  const originShift = first && getCallShiftMs(first, "departure");
+  const originStatedShift = originShift !== undefined && originShift > 0 ? originShift : undefined;
   const timed: TimedCall[] = [];
   for (const { call, arrival, departure: callDeparture } of timeline) {
     if (!call.localStopId) continue;

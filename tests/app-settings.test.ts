@@ -24,6 +24,7 @@ test("a rider who has chosen nothing is given the defaults", () => {
     isRememberingStops: true,
     isShowingOtherLineRuns: true,
     stackedDepartureLimit: 8,
+    isShowingLastMinuteSeconds: false,
   });
 });
 
@@ -49,12 +50,14 @@ test("a stored value is read field by field, and an unreadable one is the defaul
       isRememberingStops: false,
       isShowingOtherLineRuns: false,
       stackedDepartureLimit: 5,
+      isShowingLastMinuteSeconds: true,
     }),
     {
       landing: "home",
       isRememberingStops: false,
       isShowingOtherLineRuns: false,
       stackedDepartureLimit: 5,
+      isShowingLastMinuteSeconds: true,
     },
   );
   // Nothing kept is every default.

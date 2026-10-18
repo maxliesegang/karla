@@ -69,10 +69,14 @@ not in the feed, it names the platforms actually reported.
 
 ## Data
 
-`src/data/transit-source.ts` is the boundary between views and data; `KvvTransitSource` reads the
-EFA departure monitor, stop search, and published notices at `https://projekte.kvv-efa.de/sl3-alone/`.
-Those endpoints allow cross-origin reads, so the site needs no backend, proxy, or secret. Verified
-endpoint behaviour is recorded in [`docs/kvv-efa-api.md`](docs/kvv-efa-api.md).
+`src/data/transit-source.ts` is the boundary between views and data. `KvvTransitSource` reads KVV's
+TRIAS interface through a thin PHP proxy (`proxy/`, deployed with the site to
+`karla.liesegang.info`), which holds the access key: boards, single runs and stop search, with
+times to the second. Serving lines, line routes and published notices come from the EFA endpoints
+at `https://projekte.kvv-efa.de/sl3-alone/`, which allow cross-origin reads. Two consecutive
+availability failures select EFA for five minutes; denied proxy access selects it immediately.
+Isolated failures retain the last complete reading and its age. Verified behaviour is recorded in
+[`docs/kvv-trias-api.md`](docs/kvv-trias-api.md) and [`docs/kvv-efa-api.md`](docs/kvv-efa-api.md).
 
 Boards are asked for the local network only (Stadtbahn, S-Bahn, tram, bus). Long-distance coaches
 and lines from other operators' data pools, which share those mode groups, are dropped when the

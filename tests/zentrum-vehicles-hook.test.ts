@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { renderHook } from "./support/render-hook.ts";
 import { KvvEfaClient } from "../src/data/kvv-efa-client.ts";
-import type { KvvDeparture, KvvTrip } from "../src/data/kvv-efa-parsers.ts";
+import type { KvvDeparture, KvvTrip } from "../src/data/kvv-feed.ts";
 import { KvvTransitSource, transitSource } from "../src/data/transit-source.ts";
 import type { Departure, DepartureBoard } from "../src/data/transit-types.ts";
 import { useZentrumVehicles } from "../src/hooks/zentrum-vehicles.ts";

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { getRunTimeline } from "../src/lib/run-timeline.ts";
-import { findFinalCallInstant } from "../src/lib/trip-calls.ts";
+import { findFinalCallInstant, getTripCallInstant } from "../src/lib/trip-calls.ts";
 import { isRunInArea } from "../src/lib/run-discovery.ts";
 import { createDeparture } from "./support/fixtures.ts";
 
@@ -53,4 +53,20 @@ test("carrying a later prediction backwards preserves separate arrival and depar
   ];
   assert.equal(getRunTimeline(calls)[0].arrival, Date.parse("2026-10-07T12:04:00Z"));
   assert.equal(getRunTimeline(calls)[0].departure, Date.parse("2026-10-07T12:04:00Z"));
+});
+
+test("a prediction to the second wins over its rounded delay and carries on to unmonitored calls", () => {
+  const calls = [
+    {
+      stopName: "first",
+      scheduledDepartureTime: "2026-10-17T21:01:00Z",
+      predictedDepartureTime: "2026-10-17T21:05:12Z",
+      delayMinutes: 4,
+    },
+    { stopName: "second", scheduledArrivalTime: "2026-10-17T21:03:00Z" },
+  ];
+  const [first, second] = getRunTimeline(calls);
+  assert.equal(first.departure, Date.parse("2026-10-17T21:05:12Z"));
+  assert.equal(second.arrival, Date.parse("2026-10-17T21:07:12Z"));
+  assert.equal(getTripCallInstant(calls[0]), Date.parse("2026-10-17T21:05:12Z"));
 });

@@ -5,6 +5,7 @@ import {
   getVehicleAccessLabel,
   getDepartureAccessibilityLabel,
   getCountdownReading,
+  type CountdownOptions,
   getDepartureTimeReading,
   isDeparturePinned,
   isDepartureSelected,
@@ -28,6 +29,8 @@ import {
   type StopServiceCorridorPlace,
 } from "../lib/stop-corridor-way";
 import { getDepartureOpenPath, navigateTo, routePaths } from "../routing";
+import { useStoredPreference } from "../hooks/stored-preference";
+import { appSettings } from "../lib/app-settings";
 import type { LineSelection } from "../lib/line-bundles";
 import { DepartureCountdown } from "./DepartureCountdown";
 import { DepartureTime } from "./DepartureTime";
@@ -88,6 +91,7 @@ function CorridorDepartureChip({
   isSelected,
   isPinned,
   feedNow,
+  countdownOptions,
 }: {
   departure: Departure;
   /** What the heading cannot say for this trip. */
@@ -100,6 +104,7 @@ function CorridorDepartureChip({
   isSelected: boolean;
   isPinned: boolean;
   feedNow: number;
+  countdownOptions: CountdownOptions;
 }) {
   return (
     <button
@@ -113,12 +118,12 @@ function CorridorDepartureChip({
       )}
       aria-current={isSelected ? "true" : undefined}
       onClick={() => navigateTo(getDepartureOpenPath(departure, stopId, isPinned, lineSelection))}
-      aria-label={`${getDepartureAccessibilityLabel(departure, feedNow)}, ${
+      aria-label={`${getDepartureAccessibilityLabel(departure, feedNow, countdownOptions)}, ${
         isPinned ? "Auswahl aufheben" : "Fahrtverlauf öffnen"
       }`}
     >
       <span className="corridor-departure-countdown">
-        <DepartureCountdown reading={getCountdownReading(departure, feedNow)} />
+        <DepartureCountdown reading={getCountdownReading(departure, feedNow, countdownOptions)} />
       </span>
       {/* Spoken in full in the button's label. */}
       {note.time && (
@@ -428,6 +433,8 @@ export function DepartureBoardLineOrder({
   selectedDeparture: Departure | undefined;
   feedNow: number;
 }) {
+  const { isShowingLastMinuteSeconds } = useStoredPreference(appSettings);
+  const countdownOptions = { isShowingLastMinuteSeconds };
   const renderChip = (departure: Departure, note: CorridorDepartureNote, isLead: boolean) => (
     <CorridorDepartureChip
       key={departure.id}
@@ -439,6 +446,7 @@ export function DepartureBoardLineOrder({
       isSelected={isDepartureSelected(departure, selectedDeparture, lineSelection)}
       isPinned={isDeparturePinned(departure, selectedDeparture)}
       feedNow={feedNow}
+      countdownOptions={countdownOptions}
     />
   );
 

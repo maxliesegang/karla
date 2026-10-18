@@ -103,6 +103,7 @@ test("uses the generic word when reports disagree about one platform", () => {
 test("reads the word from the feed and keeps the bare code as the platform's identity", () => {
   const board = parseDepartureBoardResponse(
     {
+      parameters: [{ name: "serverTime", value: "2026-08-24T14:30:00" }],
       departureList: [
         createFeedDeparture("1(U)", "Gleis"),
         createFeedDeparture("A", "Bstg"),

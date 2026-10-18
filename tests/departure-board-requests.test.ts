@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { DEPARTURE_BOARD_CACHE_CAPACITY, KvvTransitSource } from "../src/data/transit-source.ts";
 import type { KvvEfaClient } from "../src/data/kvv-efa-client.ts";
-import type { KvvDeparture, KvvDepartureBoard } from "../src/data/kvv-efa-parsers.ts";
+import type { KvvDeparture, KvvDepartureBoard } from "../src/data/kvv-feed.ts";
 import { kvvStopMappingByLocalStopId } from "../src/data/kvv-stop-mappings.ts";
 
 const STOP_ID = "europaplatz";

@@ -12,6 +12,7 @@ import {
   getStaleBoardLabel,
   getVehicleAccessLabel,
   getCountdownReading,
+  type CountdownOptions,
   getDepartureAccessibilityLabel,
   getDepartureStatusLabel,
   getDepartureTimeReading,
@@ -103,6 +104,7 @@ function DepartureRow({
   feedNow,
   showsPlatform,
   joinedPortionPair,
+  countdownOptions,
 }: {
   departure: Departure;
   /** The next trip on the same route, shown only when this one is cancelled. */
@@ -125,12 +127,13 @@ function DepartureRow({
    */
   isPinned: boolean;
   feedNow: number;
+  countdownOptions: CountdownOptions;
 }) {
   // A row tap gives the same address at every width; the diagram it opens can start the ride.
   const timeReading = getDepartureTimeReading(departure);
   const vehicleAccessLabel = getVehicleAccessLabel(departure);
   const nextCompatibleReading = nextCompatibleDeparture
-    ? getCountdownReading(nextCompatibleDeparture, feedNow)
+    ? getCountdownReading(nextCompatibleDeparture, feedNow, countdownOptions)
     : undefined;
   const nextCompatibleLabel =
     nextCompatibleReading?.kind === "minutes"
@@ -157,7 +160,7 @@ function DepartureRow({
       style={{ "--departure-index": index } as CSSProperties}
       aria-current={isSelected ? "true" : undefined}
       onClick={() => navigateTo(getDepartureOpenPath(departure, stopId, isPinned, lineSelection))}
-      aria-label={`${getDepartureAccessibilityLabel(departure, feedNow)}${
+      aria-label={`${getDepartureAccessibilityLabel(departure, feedNow, countdownOptions)}${
         joinedLabel ? `, ${joinedLabel}` : ""
       }${
         departure.status === "cancelled" && nextCompatibleLabel
@@ -167,7 +170,7 @@ function DepartureRow({
     >
       <LineBadge line={line} />
       <span className="departure-countdown">
-        <DepartureCountdown reading={getCountdownReading(departure, feedNow)} />
+        <DepartureCountdown reading={getCountdownReading(departure, feedNow, countdownOptions)} />
       </span>
       <span className="departure-destination">
         {departure.destination}
@@ -353,7 +356,8 @@ export function DepartureBoardPanel({
     isPageScrollport: isStacked,
   });
   // The rider's setting for where a stacked board stops.
-  const { stackedDepartureLimit } = useStoredPreference(appSettings);
+  const { stackedDepartureLimit, isShowingLastMinuteSeconds } = useStoredPreference(appSettings);
+  const countdownOptions = { isShowingLastMinuteSeconds };
   const visibleDepartures = useMemo(
     () => (!isStacked || isExpanded ? departures : departures.slice(0, stackedDepartureLimit)),
     [departures, isExpanded, isStacked, stackedDepartureLimit],
@@ -400,6 +404,7 @@ export function DepartureBoardPanel({
       feedNow={feedNow}
       showsPlatform={!isGroupedByPlatform}
       joinedPortionPair={findJoinedRunPortionPair(departure, joinedPortionPairs)}
+      countdownOptions={countdownOptions}
     />
   );
 

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { KvvDeparture } from "../src/data/kvv-efa-parsers.ts";
+import type { KvvDeparture } from "../src/data/kvv-feed.ts";
 import { createDepartureId } from "../src/data/transit-source.ts";
 
 /**

@@ -1,7 +1,8 @@
-import type { KvvTripCall } from "./kvv-efa-parsers";
+import type { KvvTripCall } from "./kvv-feed";
 import { kvvStopMappingByLocalStopId } from "./kvv-stop-mappings";
 import type { TransitStop, TripCall } from "./transit-types";
 import { createStopSlug } from "../lib/stop-slug";
+import { findCatalogStop } from "./generated/kvv-stop-catalog";
 
 /** A dynamic stop id: name slug plus a short digest of the provider id (`hbf--1a2b3c`). */
 export const DYNAMIC_STOP_ID_PATTERN = /^(.*?)--([a-z0-9]+)$/;
@@ -110,16 +111,34 @@ export class StopRegistry {
     return stop;
   }
 
-  /** Provider calls with every stop resolved to a local one. */
+  /**
+   * Provider calls with every stop resolved to a local one, and located where the feed left them
+   * unlocated (a board's own call; every TRIAS call).
+   */
   toTripCalls(tripCalls: readonly KvvTripCall[]): TripCall[] {
-    return tripCalls.map(({ providerId, ...tripStop }) => ({
-      ...tripStop,
-      // Kept alongside the local id: which part of the page the rider is sent to.
-      providerStopPointId: providerId,
-      localStopId: providerId
+    return tripCalls.map(({ providerId, ...tripStop }) => {
+      const localStopId = providerId
         ? this.resolveTripCallStopId(providerId, tripStop)
-        : createStopSlug(tripStop.stopName),
-    }));
+        : createStopSlug(tripStop.stopName);
+      return {
+        ...tripStop,
+        ...(providerId && tripStop.latitude === undefined ? this.findPosition(providerId) : {}),
+        // Kept alongside the local id: which part of the page the rider is sent to.
+        providerStopPointId: providerId,
+        localStopId,
+      };
+    });
+  }
+
+  /** The catalog's position for a city stop, else the one its stop was registered with. */
+  private findPosition(providerId: string): { latitude?: number; longitude?: number } {
+    const catalogStop = findCatalogStop(providerId);
+    if (catalogStop) return { latitude: catalogStop.latitude, longitude: catalogStop.longitude };
+    const stopId = this.dynamicStopIdByProviderId.get(providerId);
+    const stop = stopId === undefined ? undefined : this.dynamicStops.get(stopId);
+    return stop?.latitude === undefined
+      ? {}
+      : { latitude: stop.latitude, longitude: stop.longitude };
   }
 
   /**

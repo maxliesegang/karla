@@ -1,4 +1,4 @@
-import { getRunTimeline } from "./run-timeline";
+import { getCallShiftMs, getRunTimeline } from "./run-timeline";
 import { withoutRunCalls } from "./trips";
 import type {
   Departure,
@@ -196,6 +196,7 @@ export function collapseTurnaroundCalls(calls: readonly TripCall[]): readonly Tr
     if (statesRunStart(boundary)) {
       merged = { ...publicCall, scheduledArrivalTime: undefined };
       delete merged.arrivalDelayMinutes;
+      delete merged.predictedArrivalTime;
     } else {
       // Without a departure the arrival is the headline; with one the public call is kept whole.
       merged =
@@ -203,6 +204,9 @@ export function collapseTurnaroundCalls(calls: readonly TripCall[]): readonly Tr
           ? {
               ...publicCall,
               delayMinutes: publicCall.arrivalDelayMinutes ?? publicCall.delayMinutes,
+              ...(publicCall.predictedArrivalTime
+                ? { predictedDepartureTime: publicCall.predictedArrivalTime }
+                : {}),
             }
           : publicCall;
     }
@@ -250,8 +254,8 @@ export function findFinalCallInstant(calls: readonly TripCall[] | undefined): nu
 }
 
 /**
- * The instant a call is expected at: its published time plus its deviation. Arrival and departure
- * ends differ only where the feed states them apart.
+ * The instant a call is expected at: its prediction, else its published time plus its deviation.
+ * Arrival and departure ends differ only where the feed states them apart.
  */
 export function getTripCallInstant(
   call: TripCall | undefined,
@@ -264,9 +268,7 @@ export function getTripCallInstant(
       : (call.scheduledDepartureTime ?? call.scheduledArrivalTime);
   const scheduledInstant = scheduled ? Date.parse(scheduled) : Number.NaN;
   if (!Number.isFinite(scheduledInstant)) return undefined;
-  const delayMinutes =
-    (end === "arrival" ? (call.arrivalDelayMinutes ?? call.delayMinutes) : call.delayMinutes) ?? 0;
-  return scheduledInstant + delayMinutes * 60_000;
+  return scheduledInstant + (getCallShiftMs(call, end) ?? 0);
 }
 
 /** The calls ahead of the board this departure was read from. */

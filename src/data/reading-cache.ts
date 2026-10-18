@@ -9,6 +9,10 @@ export class ReadingCache<Value> {
     this.maxAgeMs = maxAgeMs;
   }
 
+  delete(key: string): void {
+    this.readings.delete(key);
+  }
+
   get(key: string): Value | undefined {
     this.prune(Date.now());
     const reading = this.readings.get(key);

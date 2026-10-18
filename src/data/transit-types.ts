@@ -54,7 +54,16 @@ export type TripCall = {
   /** ISO strings, to the second. */
   scheduledArrivalTime?: string;
   scheduledDepartureTime?: string;
-  /** Departure-side deviation, the one a row prints. `undefined`: the call is not monitored. */
+  /**
+   * Predictions to the second where the feed states them (TRIAS); they win over schedule plus
+   * deviation. The whole-minute delays below are then their rounded, printable form.
+   */
+  predictedArrivalTime?: string;
+  predictedDepartureTime?: string;
+  /**
+   * Departure-side deviation in whole minutes, the one a row prints. `undefined`: the call is not
+   * monitored.
+   */
   delayMinutes?: number;
   /**
    * The arrival deviation where the feed states a separate one: a vehicle can arrive four minutes
@@ -103,6 +112,8 @@ export type Departure = {
   scheduledDepartureTime: string;
   /** The provider's prediction. Absent means there is no realtime basis. */
   predictedDepartureTime?: string;
+  /** The prediction is stated to the second (TRIAS); EFA's is truncated to the minute. */
+  isPredictedToTheSecond?: boolean;
   /** Operator-provided remark such as a diversion, already trimmed for rider-facing copy. */
   serviceNote?: string;
   /** How the feed says this vehicle is boarded. Absent means the feed said nothing about it. */

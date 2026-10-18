@@ -102,6 +102,17 @@ export function SettingsView() {
             />
           }
         />
+        <SettingsRow
+          title="Letzte Minute genauer"
+          description="In der letzten Minute vor der Abfahrt Sekunden statt „1 min“ zeigen, in 10-Sekunden-Schritten. Nur wo die Echtzeitprognose sekundengenau ist."
+          control={
+            <SettingsSwitch
+              isOn={settings.isShowingLastMinuteSeconds}
+              label="Letzte Minute in Sekunden zeigen"
+              onChange={(isShowingLastMinuteSeconds) => write({ isShowingLastMinuteSeconds })}
+            />
+          }
+        />
       </ul>
       <p className="settings-footnote">
         Alles bleibt auf diesem Gerät: Einstellungen und besuchte Haltestellen werden nur lokal

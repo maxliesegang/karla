@@ -1,14 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { KvvEfaClient } from "../src/data/kvv-efa-client.ts";
+import { KvvEfaError, parseLineRouteResponse } from "../src/data/kvv-efa-parsers.ts";
 import {
-  KvvEfaError,
-  parseLineRouteResponse,
   type KvvDeparture,
   type KvvDepartureBoard,
   type KvvTripCall,
   type KvvTripLocator,
-} from "../src/data/kvv-efa-parsers.ts";
+} from "../src/data/kvv-feed.ts";
 import { KvvTransitSource } from "../src/data/transit-source.ts";
 import type { Departure } from "../src/data/transit-types.ts";
 import { createLineSelection } from "../src/lib/line-bundles.ts";

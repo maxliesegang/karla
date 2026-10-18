@@ -12,6 +12,8 @@ const UPSTREAM_TIMEOUT_SECONDS = 15;
 const CACHE_TTL_SECONDS = 15;
 const RATE_LIMIT_PER_MINUTE = 120;
 const PRUNE_AFTER_SECONDS = 7200;
+/** Other origins of the same app; the proxy's own origin needs no CORS. */
+const ALLOWED_ORIGINS = ['https://maxliesegang.github.io'];
 
 /** `proxy/` locally, the directory above the webroot on the server. */
 function private_dir(): string
@@ -19,8 +21,17 @@ function private_dir(): string
     return dirname(__DIR__, 2);
 }
 
+function allow_origin(): void
+{
+    header('Vary: Origin, Accept-Encoding');
+    header('Access-Control-Expose-Headers: Age, Retry-After, Date');
+    $origin = $_SERVER['HTTP_ORIGIN'] ?? '';
+    if (in_array($origin, ALLOWED_ORIGINS, true)) header("Access-Control-Allow-Origin: $origin");
+}
+
 function fail(int $status, string $message): never
 {
+    allow_origin();
     http_response_code($status);
     header('Content-Type: application/json');
     header('Cache-Control: no-store');
@@ -125,7 +136,8 @@ function fetch_trias(string $ref, string $payload): ?string
         error_log('trias proxy: upstream echoed the requestor ref');
         return null;
     }
-    return $body;
+    // Every board repeats the notices in force (about a tenth of it); the app reads them from EFA.
+    return preg_replace('~<trias:StopEventResponseContext>.*?</trias:StopEventResponseContext>~s', '', $body) ?? $body;
 }
 
 /**
@@ -153,10 +165,12 @@ function serve(string $payload, int $ttlSeconds = CACHE_TTL_SECONDS): never
         fclose($lock);
     }
 
-    $age = time() - filemtime($path);
+    // The reply's clock is the upstream's when it was cached; `Age` lets the client advance it, and
+    // no other cache may hold it longer.
+    allow_origin();
+    header('Age: ' . max(0, time() - filemtime($path)));
     header('Content-Type: application/xml; charset=utf-8');
-    header('Cache-Control: public, max-age=' . max(0, $ttlSeconds - $age));
-    header('Vary: Accept-Encoding');
+    header('Cache-Control: no-store');
     if (str_contains($_SERVER['HTTP_ACCEPT_ENCODING'] ?? '', 'gzip')) {
         header('Content-Encoding: gzip');
         readfile($path);

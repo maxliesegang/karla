@@ -21,7 +21,8 @@ import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { KvvEfaClient } from "../src/data/kvv-efa-client.ts";
-import type { KvvDeparture } from "../src/data/kvv-efa-parsers.ts";
+import type { KvvDeparture } from "../src/data/kvv-feed.ts";
+import { descendantsNamed, parseXml, type XmlElement } from "../src/data/xml-reader.ts";
 
 const TRIAS_ENDPOINT = "https://projekte.kvv-efa.de/liesegangtrias/trias";
 const DEFAULT_STOP_POINT_ID = "7000037";
@@ -55,72 +56,21 @@ function readRequestorRef(): string {
   return ref;
 }
 
-// --- Minimal XML reading: elements, attributes and text; namespace prefixes dropped. ---
+// --- XML: descendant paths over the app's reader. ---
 
-type XmlNode = {
-  name: string;
-  attributes: Record<string, string>;
-  children: XmlNode[];
-  text: string;
-};
+/** Elements along a path of names, each step at any depth below the last. */
+const findAll = (node: XmlElement, ...path: string[]): XmlElement[] =>
+  path.reduce<XmlElement[]>(
+    (level, name) => level.flatMap((parent) => descendantsNamed(parent, name)),
+    [node],
+  );
 
-const decodeEntities = (value: string): string =>
-  value
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&#(\d+);/g, (_, code) => String.fromCodePoint(Number(code)))
-    .replace(/&amp;/g, "&");
-
-const localName = (name: string): string => name.slice(name.indexOf(":") + 1);
-
-function parseXml(source: string): XmlNode {
-  const root: XmlNode = { name: "#document", attributes: {}, children: [], text: "" };
-  const stack = [root];
-  const token =
-    /<!\[CDATA\[([\s\S]*?)\]\]>|<!--[\s\S]*?-->|<\?[\s\S]*?\?>|<(\/?)([^\s/>]+)([^>]*?)(\/?)>|([^<]+)/g;
-  for (const match of source.matchAll(token)) {
-    const [, cdata, closing, tagName, attributeSource, selfClosing, text] = match;
-    const current = stack[stack.length - 1];
-    if (cdata !== undefined) current.text += cdata;
-    else if (text !== undefined) current.text += decodeEntities(text);
-    else if (closing) stack.pop();
-    else if (tagName) {
-      const attributes: Record<string, string> = {};
-      for (const [, key, value] of (attributeSource ?? "").matchAll(/([^\s=]+)\s*=\s*"([^"]*)"/g)) {
-        attributes[localName(key)] = decodeEntities(value);
-      }
-      const node: XmlNode = { name: localName(tagName), attributes, children: [], text: "" };
-      current.children.push(node);
-      if (!selfClosing) stack.push(node);
-    }
-  }
-  return root;
-}
-
-/** Descendants along a path of element names, each step matching any depth below the last. */
-function findAll(node: XmlNode, ...path: string[]): XmlNode[] {
-  let level = [node];
-  for (const name of path) {
-    const next: XmlNode[] = [];
-    const visit = (parent: XmlNode) => {
-      for (const child of parent.children) {
-        if (child.name === name) next.push(child);
-        else visit(child);
-      }
-    };
-    level.forEach(visit);
-    level = next;
-  }
-  return level;
-}
-
-const listElementNames = (node: XmlNode): string[] =>
+const listElementNames = (node: XmlElement): string[] =>
   node.children.flatMap((child) => [child.name, ...listElementNames(child)]);
 
-const find = (node: XmlNode, ...path: string[]): XmlNode | undefined => findAll(node, ...path)[0];
-const textOf = (node: XmlNode | undefined, ...path: string[]): string | undefined => {
+const find = (node: XmlElement, ...path: string[]): XmlElement | undefined =>
+  findAll(node, ...path)[0];
+const textOf = (node: XmlElement | undefined, ...path: string[]): string | undefined => {
   const target = node && (path.length ? find(node, ...path) : node);
   const value = target?.text.trim();
   return value ? value : undefined;
@@ -175,7 +125,7 @@ const tripInfoRequest = (journeyRef: string, operatingDayRef: string): string =>
     </Params>
   </TripInfoRequest>`;
 
-type TriasResponse = { status: number; elapsedMs: number; body: string; document: XmlNode };
+type TriasResponse = { status: number; elapsedMs: number; body: string; document: XmlElement };
 
 class TriasProbe {
   private responseCount = 0;
@@ -207,7 +157,7 @@ class TriasProbe {
 }
 
 /** Provider-stated errors, wherever TRIAS or SIRI put them. */
-function readErrors(document: XmlNode): string[] {
+function readErrors(document: XmlElement): string[] {
   return [
     ...findAll(document, "ErrorMessage").map(
       (node) => `${textOf(node, "Code") ?? "?"}: ${textOf(node, "Text") ?? node.text.trim()}`,
@@ -236,7 +186,7 @@ type StopEvent = {
   cancelled: boolean;
 };
 
-function readStopEvents(document: XmlNode): StopEvent[] {
+function readStopEvents(document: XmlElement): StopEvent[] {
   return findAll(document, "StopEventResult", "StopEvent").map((event) => {
     const thisCall = find(event, "ThisCall");
     const service = find(event, "Service");

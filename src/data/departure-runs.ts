@@ -1,4 +1,4 @@
-import type { KvvDeparture } from "./kvv-efa-parsers";
+import type { KvvDeparture } from "./kvv-feed";
 import type { Departure } from "./transit-types";
 import { getExpectedDepartureInstant } from "../lib/departure-order";
 

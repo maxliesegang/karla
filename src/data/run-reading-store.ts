@@ -1,7 +1,7 @@
 import { findFinalCallInstant, mergeRunSequence, retainRunCoverage } from "../lib/trip-calls";
 import { getDepartureReadInstant, isBetterSequence, withoutRunCalls } from "../lib/trips";
 import { getRunScheduleInstant, isSameRunInstance } from "../lib/run-instance";
-import type { KvvTripLocator } from "./kvv-efa-parsers";
+import type { KvvTripLocator } from "./kvv-feed";
 import type { Departure, RunSequence } from "./transit-types";
 
 /** Runs whose evidence is retained this session. */
@@ -68,6 +68,10 @@ export class RunReadingStore {
 
   constructor(capacity: number = RUN_READING_STORE_CAPACITY) {
     this.capacity = capacity;
+  }
+
+  clear(): void {
+    for (const record of this.records.values()) this.evictRecord(record);
   }
 
   /** `now` only decides which runs are over; the row dates itself (`Departure.readAt`). */

@@ -20,7 +20,7 @@
 
 import { appendFile } from "node:fs/promises";
 import { KvvEfaClient } from "../src/data/kvv-efa-client.ts";
-import type { KvvDeparture, KvvTripCall } from "../src/data/kvv-efa-parsers.ts";
+import type { KvvDeparture, KvvTripCall } from "../src/data/kvv-feed.ts";
 
 /** The calls the feed marks as run ends, as in `lib/trip-calls.ts`. */
 const statesRunStart = (call: KvvTripCall): boolean =>

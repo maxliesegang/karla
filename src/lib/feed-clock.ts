@@ -47,6 +47,13 @@ export function findExpectedDepartureInstant(
  */
 const truncateToFeedMinute = (feedNow: number): number => Math.floor(feedNow / 60_000) * 60_000;
 
+/** Seconds left until a prediction stated to the second; `undefined` for any other row. */
+export function getCountdownSeconds(departure: Departure, feedNow: number): number | undefined {
+  if (!departure.isPredictedToTheSecond || !departure.predictedDepartureTime) return undefined;
+  const due = Date.parse(departure.predictedDepartureTime);
+  return Number.isFinite(due) ? Math.max(0, Math.floor((due - feedNow) / 1_000)) : undefined;
+}
+
 /**
  * Minutes left until the expected instant, counted live rather than from the feed's stale
  * countdown.

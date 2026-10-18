@@ -1,8 +1,19 @@
 import { transitNetwork } from "./transit-network";
-import { KvvEfaClient } from "./kvv-efa-client";
+import {
+  createKvvFeed,
+  KvvFeedSelection,
+  type KvvFeedSession,
+  type KvvFeedReading,
+} from "./kvv-feed-selection";
 import { isWithinKvvArea } from "./kvv-area";
-import { getTripInstanceId } from "./kvv-efa-parsers";
-import type { KvvDeparture, KvvServiceNotice, KvvTrip, KvvTripLocator } from "./kvv-efa-parsers";
+import {
+  getTripInstanceId,
+  type KvvDeparture,
+  type KvvFeed,
+  type KvvServiceNotice,
+  type KvvTrip,
+  type KvvTripLocator,
+} from "./kvv-feed";
 import type {
   DepartureBoard,
   DepartureBoardRequest,
@@ -16,7 +27,8 @@ import type {
   RunDiscoveryReading,
 } from "./transit-types";
 import { RunReadingStore } from "./run-reading-store";
-import { ReadingCache } from "./reading-cache";
+import { DepartureBoardReadings, unavailableDepartureBoard } from "./departure-board-readings";
+export { DEPARTURE_BOARD_CACHE_CAPACITY } from "./departure-board-readings";
 import {
   DirectionCoverageCompleter,
   readDirectionCoverage,
@@ -26,6 +38,8 @@ import { createDepartureId, keepOneRowPerRun } from "./departure-runs";
 import { kvvStopMappingByLocalStopId } from "./kvv-stop-mappings";
 import { SharedRequests } from "./request-sharing";
 import { DYNAMIC_STOP_ID_PATTERN, StopRegistry, hashProviderStopId } from "./stop-registry";
+import { FeedChangedError } from "./kvv-feed-errors";
+import { createStopSlug } from "../lib/stop-slug";
 import { sortDeparturesByExpectedInstant } from "../lib/departure-order";
 import { isBetterRunReading } from "../lib/trips";
 import { createSortedKey } from "../lib/collections";
@@ -113,11 +127,6 @@ export interface TransitSource {
  * cached board must not outlive its rows' records in the reading store.
  */
 export const DEFAULT_BOARD_MAX_AGE_MS = 30_000;
-export const DEPARTURE_BOARD_CACHE_CAPACITY = 256;
-/** Topology and idle observation reads reuse boards for up to thirty minutes. */
-const DEPARTURE_BOARD_CACHE_MAX_AGE_MS = 30 * 60_000;
-/** How long the last live board stands in for failed refreshes. */
-const RETAINED_DEPARTURE_BOARD_LIMIT_MS = 10 * 60_000;
 /** Notices change over days and the answer covers the whole KVV area, so they are asked rarely. */
 const SERVICE_NOTICE_CACHE_TTL_MS = 15 * 60_000;
 const BASIC_BOARD_CACHE_VARIANT = "basic";
@@ -141,12 +150,7 @@ const RUN_UNDER_WAY_MINUTES = 30;
 
 /** Core-network stops are local data; every other stop is resolved from KVV on request. */
 export class KvvTransitSource implements TransitSource {
-  /** Keyed by stop and variant. Boards date themselves. */
-  private readonly departureBoardCache = new ReadingCache<DepartureBoard>(
-    DEPARTURE_BOARD_CACHE_CAPACITY,
-    DEPARTURE_BOARD_CACHE_MAX_AGE_MS,
-  );
-  private readonly boardRequests = new SharedRequests<DepartureBoard>();
+  private readonly boards = new DepartureBoardReadings();
   private readonly runRequests = new SharedRequests<RunSequence | undefined>();
   private readonly lineRouteRequests = new SharedRequests<readonly string[] | undefined>();
   /** One route per line-direction, kept for the session: routes are timetable data. */
@@ -154,16 +158,21 @@ export class KvvTransitSource implements TransitSource {
   private readonly noticeRequests = new SharedRequests<ServiceNoticeBoard>();
   private readonly runReadings = new RunReadingStore();
   private readonly observedNetwork = new ObservedNetworkStore();
-  private readonly coverage = new DirectionCoverageCompleter();
+  private coverage = new DirectionCoverageCompleter();
+  private session: KvvFeedSession;
   private readonly stops: StopRegistry;
   private serviceNoticeCache: { board: ServiceNoticeBoard; expiresAt: number } | null = null;
 
-  private readonly client: KvvEfaClient;
+  private readonly client: KvvFeedSelection;
   private readonly network: TransitNetwork;
 
   // Fields rather than constructor parameter properties, for the type-stripping test runner.
-  constructor(client: KvvEfaClient = new KvvEfaClient(), network: TransitNetwork = transitNetwork) {
-    this.client = client;
+  constructor(
+    client: KvvFeed | KvvFeedSelection = createKvvFeed(),
+    network: TransitNetwork = transitNetwork,
+  ) {
+    this.client = client instanceof KvvFeedSelection ? client : new KvvFeedSelection(client);
+    this.session = this.client.session;
     this.network = network;
     this.stops = new StopRegistry(network.stops);
   }
@@ -280,19 +289,18 @@ export class KvvTransitSource implements TransitSource {
     if (post.eventKind === "departure") {
       return this.getDepartureBoard(post.stopId, { maxAgeMs, routeDirectionIds: directionIds });
     }
+    this.syncSession();
     const key = `arrival:${this.getDepartureBoardCacheKey(
       post.stopId,
       false,
       undefined,
       directionIds?.length ? createSortedKey(directionIds) : undefined,
     )}`;
-    const cached = this.departureBoardCache.get(key);
-    if (cached && Date.now() - cached.receivedAt < maxAgeMs)
-      return Promise.resolve(this.publishBoard(cached));
-    return this.boardRequests.share(key, async () => {
-      const board = await this.fetchDepartureBoard(post.stopId, false, directionIds, "arrival");
-      return this.retainAndPublishBoard(key, board);
-    });
+    return this.boards
+      .get(key, { session: this.session, maxAgeMs }, () =>
+        this.fetchDepartureBoard(post.stopId, false, directionIds, "arrival"),
+      )
+      .then((board) => this.publishBoard(board));
   }
 
   getKnownStop(stopId: string): TransitStop | undefined {
@@ -303,18 +311,22 @@ export class KvvTransitSource implements TransitSource {
     const local = this.getKnownStop(stopId);
     if (local) return local;
 
-    // A deep link may name a stop not yet resolved, so it is searched by name; a digest pins the
-    // stop point.
+    // A deep link's digest pins the stop point; the name only supplies the search query.
     const [, slug = stopId, digest] = DYNAMIC_STOP_ID_PATTERN.exec(stopId) ?? [];
-    const matches = await this.client.searchStops(slug.replace(/-/g, " "));
+    const matches = this.acceptReading(await this.client.searchStops(slug.replace(/-/g, " ")));
+    const exact = matches.filter((candidate) => createStopSlug(candidate.name) === slug);
     const match = digest
       ? matches.find((candidate) => hashProviderStopId(candidate.providerId) === digest)
-      : matches[0];
+      : exact.length === 1
+        ? exact[0]
+        : undefined;
     return match
       ? this.stops.register({
           providerId: match.providerId,
           name: match.name,
           placeName: match.placeName,
+          latitude: match.latitude,
+          longitude: match.longitude,
           preferredId: stopId,
         })
       : undefined;
@@ -334,10 +346,12 @@ export class KvvTransitSource implements TransitSource {
     );
 
     // A failed provider read is not "nothing": answer with local matches, or fail.
-    const matches = await this.client.searchStops(trimmed).catch((error) => {
-      if (local.length > 0) return [];
+    const reading = await this.client.searchStops(trimmed).catch((error) => {
+      if (local.length > 0) return undefined;
       throw error;
     });
+    if (!reading) return local.slice(0, STOP_SEARCH_LIMIT);
+    const matches = this.acceptReading(reading);
     const remote = matches.flatMap((match) => {
       if (match.latitude === undefined || match.longitude === undefined) return [];
       if (!isWithinKvvArea(match.latitude, match.longitude)) return [];
@@ -358,6 +372,7 @@ export class KvvTransitSource implements TransitSource {
   }
 
   getDepartureBoard(stopId: string, request: DepartureBoardRequest = {}): Promise<DepartureBoard> {
+    this.syncSession();
     const includeTripCalls = Boolean(request.includeTripCalls);
     const maxAgeMs = request.maxAgeMs ?? DEFAULT_BOARD_MAX_AGE_MS;
     const coverage = readDirectionCoverage(request);
@@ -378,21 +393,13 @@ export class KvvTransitSource implements TransitSource {
         ? [cacheKey]
         : [this.getDepartureBoardCacheKey(stopId, true), cacheKey];
 
-    const now = Date.now();
-    const cached = reusableKeys
-      .map((key) => this.departureBoardCache.get(key))
-      .find((board) => board && now - board.receivedAt < maxAgeMs);
-    if (cached) return Promise.resolve(this.publishBoard(cached));
-
-    const pending = this.boardRequests.find(...reusableKeys);
-    if (pending) return pending.then((board) => this.publishBoard(board));
-
-    return this.boardRequests.share(cacheKey, () =>
-      (coverage
-        ? this.fetchDirectionCoveredBoard(stopId, request.maxAgeMs, coverage)
-        : this.fetchDepartureBoard(stopId, includeTripCalls, request.routeDirectionIds)
-      ).then((fetched) => this.retainAndPublishBoard(cacheKey, fetched)),
-    );
+    return this.boards
+      .get(cacheKey, { session: this.session, maxAgeMs, reusableKeys }, () =>
+        coverage
+          ? this.fetchDirectionCoveredBoard(stopId, request.maxAgeMs, coverage)
+          : this.fetchDepartureBoard(stopId, includeTripCalls, request.routeDirectionIds),
+      )
+      .then((board) => this.publishBoard(board));
   }
 
   async getLineDepartureBoards(
@@ -430,6 +437,7 @@ export class KvvTransitSource implements TransitSource {
   }
 
   getLineRoute(rowId: string): Promise<readonly string[] | undefined> {
+    this.syncSession();
     const locator = this.runReadings.findRow(rowId)?.locator;
     if (!locator) return Promise.resolve(undefined);
     // Every run of a direction has the same route.
@@ -462,6 +470,7 @@ export class KvvTransitSource implements TransitSource {
 
   /** This row completed by its run; both halves keep their own clock (`readAt`). */
   getRun(rowId: string, maxAgeMs = DEFAULT_BOARD_MAX_AGE_MS): Promise<Departure | undefined> {
+    this.syncSession();
     const row = this.runReadings.findRow(rowId);
     if (!row || !this.runReadings.canReadRun(rowId)) return Promise.resolve(undefined);
     const cached = this.runReadings.findSequence(rowId);
@@ -474,13 +483,14 @@ export class KvvTransitSource implements TransitSource {
     const readAt = cached?.readAt;
     if (readAt !== undefined && Date.now() - readAt < maxAgeMs) return Promise.resolve(current());
     const read =
-      this.runRequests.find(this.runReadings.findRunRecordKey(rowId)) ??
+      this.runRequests.find(this.requestKey(this.runReadings.findRunRecordKey(rowId))) ??
       this.requestRun(rowId, row.locator);
     // A failed read answers nothing, so the caller backs off.
     return read.then((sequence) => (sequence ? this.findRun(rowId) : undefined));
   }
 
   findRun(rowId: string): Departure | undefined {
+    this.syncSession();
     return this.runReadings.findRun(rowId);
   }
 
@@ -562,32 +572,34 @@ export class KvvTransitSource implements TransitSource {
     includeTripCalls: boolean,
     lineIds?: readonly string[],
     eventKind: "departure" | "arrival" = "departure",
+    retryAfterFeedChange = true,
   ): Promise<DepartureBoard> {
     const providerId = this.stops.findProviderStopId(stopId);
     if (!providerId)
-      return this.createUnavailableDepartureBoard(
+      return unavailableDepartureBoard(
         stopId,
         "Haltestelle konnte im KVV-Netz nicht aufgelöst werden",
       );
 
     try {
-      const board = await this.client.fetchDepartureBoard(providerId, {
+      const reading = await this.client.fetchDepartureBoard(providerId, {
         includeTripCalls,
         limit: kvvStopMappingByLocalStopId[stopId]?.departureLimit ?? DEFAULT_DEPARTURE_LIMIT,
         ...(lineIds?.length ? { lineIds } : {}),
         ...(eventKind === "arrival" ? { eventKind } : {}),
       });
+      const board = this.acceptReading(reading);
       const receivedAt = Date.now();
       // A filtered board saw only its lines, so it is never recorded as the stop's serving
-      // directions.
+      // directions; nor is an empty list, which a TRIAS board has when EFA did not answer.
       const isWholeStop = !lineIds?.length;
-      if (isWholeStop && eventKind === "departure") {
+      if (isWholeStop && eventKind === "departure" && board.servingLines.length > 0) {
         this.coverage.rememberServingDirections(
           stopId,
           board.servingLines.map(({ directionId }) => directionId),
         );
       }
-      return {
+      const mapped: DepartureBoard = {
         stopId,
         dataStatus: "live",
         feedUpdatedAt: board.serverTime,
@@ -600,11 +612,15 @@ export class KvvTransitSource implements TransitSource {
               this.toDeparture(departure, stopId, receivedAt, eventKind),
             ),
           ),
-          Date.parse(board.serverTime) || undefined,
+          Date.parse(board.serverTime),
         ),
       };
+      return this.boards.track(mapped, this.session);
     } catch (error) {
-      return this.createUnavailableDepartureBoard(
+      if (error instanceof FeedChangedError && retryAfterFeedChange) {
+        return this.fetchDepartureBoard(stopId, includeTripCalls, lineIds, eventKind, false);
+      }
+      return unavailableDepartureBoard(
         stopId,
         error instanceof Error ? error.message : "Feed nicht erreichbar",
       );
@@ -623,8 +639,14 @@ export class KvvTransitSource implements TransitSource {
     const providerId = this.stops.findProviderStopId(stopId);
     if (!providerId) return base;
 
-    return this.coverage.complete(base, coverage, async (lineIds, limit) => {
-      const supplement = await this.client.fetchDepartureBoard(providerId, { lineIds, limit });
+    this.syncSession();
+    if (!this.boards.isCurrent(base)) return base;
+    const session = this.session;
+    const completed = await this.coverage.complete(base, coverage, async (lineIds, limit) => {
+      const supplement = this.acceptReading(
+        await this.client.fetchDepartureBoard(providerId, { lineIds, limit }),
+      );
+      session.assertCurrent();
       const receivedAt = Date.now();
       return {
         departures: supplement.departures.map((departure) =>
@@ -633,6 +655,7 @@ export class KvvTransitSource implements TransitSource {
         rowLimitReached: supplement.departures.length >= limit,
       };
     });
+    return this.boards.track(completed, session);
   }
 
   private getDepartureBoardCacheKey(
@@ -651,44 +674,42 @@ export class KvvTransitSource implements TransitSource {
       : `${stopId}:${variant}`;
   }
 
-  private createUnavailableDepartureBoard(stopId: string, error: string): DepartureBoard {
-    return {
-      stopId,
-      dataStatus: "unavailable",
-      receivedAt: Date.now(),
-      departures: [],
-      errorMessage: error,
-    };
-  }
-
   resolveBoard(board: DepartureBoard): DepartureBoard {
-    if (board.dataStatus !== "live") return board;
+    this.syncSession();
+    if (board.dataStatus !== "live" || !this.boards.isCurrent(board)) return board;
     // A row keeps its board's calls as that board's observation until its run has been requested.
     const departures = board.departures.map((row) =>
       this.runReadings.findSequence(row.id) ? (this.findRun(row.id) ?? row) : row,
     );
-    return departures.every((departure, index) => departure === board.departures[index])
-      ? board
-      : { ...board, departures };
+    if (departures.every((departure, index) => departure === board.departures[index])) return board;
+    const resolved = { ...board, departures };
+    return this.boards.track(resolved, this.session);
   }
 
-  private retainAndPublishBoard(cacheKey: string, fetched: DepartureBoard): DepartureBoard {
-    if (fetched.dataStatus === "live") {
-      this.departureBoardCache.set(cacheKey, fetched, fetched.receivedAt);
-      return this.publishBoard(fetched);
-    }
-    const lastLive = this.departureBoardCache.get(cacheKey);
-    return lastLive?.dataStatus === "live" &&
-      fetched.receivedAt - lastLive.receivedAt <= RETAINED_DEPARTURE_BOARD_LIMIT_MS
-      ? this.publishBoard({ ...lastLive, refreshFailedAt: fetched.receivedAt })
-      : fetched;
-  }
-
-  /** Every board is resolved through the store and teaches session topology on its way out. */
   private publishBoard(board: DepartureBoard): DepartureBoard {
     const published = this.resolveBoard(board);
-    if (published.dataStatus === "live") this.observedNetwork.rememberBoard(published);
+    if (published.dataStatus === "live" && this.boards.isCurrent(published)) {
+      this.observedNetwork.rememberBoard(published);
+    }
     return published;
+  }
+
+  private syncSession(): void {
+    const session = this.client.session;
+    if (session === this.session) return;
+    this.session = session;
+    this.runReadings.clear();
+    this.coverage = new DirectionCoverageCompleter();
+  }
+
+  private acceptReading<T>(reading: KvvFeedReading<T>): T {
+    reading.session.assertCurrent();
+    this.syncSession();
+    return reading.value;
+  }
+
+  private requestKey(key: string): string {
+    return `${this.session.id}:${key}`;
   }
 
   private toDeparture(
@@ -722,6 +743,7 @@ export class KvvTransitSource implements TransitSource {
       status: departure.status,
       scheduledDepartureTime: departure.scheduledDepartureTime,
       predictedDepartureTime: departure.predictedDepartureTime,
+      ...(departure.isPredictedToTheSecond ? { isPredictedToTheSecond: true } : {}),
       serviceNote: departure.serviceNote,
       vehicleAccess: departure.vehicleAccess,
       tripCalls,
@@ -737,11 +759,14 @@ export class KvvTransitSource implements TransitSource {
 
   private requestRun(rowId: string, locator: KvvTripLocator): Promise<RunSequence | undefined> {
     const requestKey = this.runReadings.findRunRecordKey(rowId);
+    const session = this.session;
     const requestedAt = Date.now();
-    return this.runRequests.share(requestKey, () =>
+    return this.runRequests.share(this.requestKey(requestKey), () =>
       this.client
         .fetchTrip(locator)
-        .then((trip) => {
+        .then((reading) => {
+          const trip = this.acceptReading(reading);
+          if (!session.isCurrent) return undefined;
           const receivedAt = Date.now();
           const sequence = this.createSequenceReading(requestKey, trip, receivedAt);
           // An answer whose record was evicted is reported as a failure (`rememberSequence`).
@@ -755,6 +780,8 @@ export class KvvTransitSource implements TransitSource {
         })
         // Only readable runs are kept.
         .catch(() => {
+          this.syncSession();
+          if (!session.isCurrent) return undefined;
           this.runReadings.markSequenceRefreshFailed(requestKey, Date.now(), requestedAt);
           return undefined;
         }),

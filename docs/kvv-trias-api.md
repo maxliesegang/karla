@@ -1,10 +1,11 @@
 # KVV TRIAS API reference
 
-The KVV's TRIAS 1.2 interface (VDV-431) as observed with KARLA's access. Not used by the app yet.
-The EFA JSON feed it would replace or complement is covered in [kvv-efa-api.md](./kvv-efa-api.md).
+The KVV's TRIAS 1.2 interface (VDV-431) as observed with KARLA's access, and how the app reads it.
+The EFA JSON feed it complements is covered in [kvv-efa-api.md](./kvv-efa-api.md).
 
 > [!IMPORTANT]
-> Measured on **15 October 2026** with `npm run probe:trias` at Europaplatz (`7000037`). An
+> Measured on **15–17 October 2026** with `npm run probe:trias` and side-by-side reads against EFA
+> at Marktplatz, Europaplatz, Hauptbahnhof, Mühlburger Tor, Durlach Bahnhof and Durlacher Tor. An
 > empirical reference: re-verify before building on a behaviour.
 
 ## Access
@@ -37,8 +38,11 @@ A browser client therefore needs a proxy, independent of keeping the ref secret:
 - Times are UTC (`2026-10-15T12:53:18Z`) and carry **seconds**; about 80 % of timetabled and
   estimated times have non-zero seconds.
 - Calls state `ServiceArrival` and `ServiceDeparture` separately, so dwell times are visible.
-- Every stop event carried an `EstimatedTime`, delay 0 included. Whether that marks a prediction or
-  a copied timetable time is not yet established; until it is, it is not evidence of realtime.
+- `EstimatedTime` is absent where KVV lines have no prediction (28 of 40 Europaplatz departures
+  had one; the later ones did not). DB trains (`ddb:` refs) state it even for tomorrow, equal to the
+  timetable, so for them it is no evidence of realtime.
+- `Attribute` carries vehicle notes (`Niederflurwagen`); `Deviation` marks a diverted run;
+  `EstimatedBay` a changed platform; `Extension` the train category and number.
 - Elements are namespaced `trias:` and `siri:`; text values sit in `<Text>` + `<Language>` pairs.
 - Response times were 50–250 ms.
 
@@ -53,7 +57,12 @@ A browser client therefore needs a proxy, independent of keeping the ref secret:
 | `StopPointRef` (call) | `de:08212:37:6:6` | the EFA stop point; the bay is in `PlannedBay` (`Gleis 6`) |
 
 - All 30 stop events matched an EFA board row of the same run through `JourneyRef`.
-- The EFA stop id (`7000037`) is accepted as `StopPointRef` in a `StopEventRequest`.
+- The EFA stop id (`7000037`) is accepted as `StopPointRef` in a `StopEventRequest`; EFA accepts
+  a DHID (`de:08237:1050`) as `name_dm` in turn.
+- Karlsruhe's EFA ids are `7` and the DHID's stop number to six digits (`de:08212:1003` is
+  `7001003`; all 389 catalog stops). Elsewhere the numbers differ (`de:08235:9711` is `7001305`).
+- **A board answers only the stop asked for**, where EFA answers the whole complex: Marktplatz's
+  `7001003` omits the Pyramide (`7001011`).
 - A `LocationInformationRequest` for "Europaplatz" returned `de:08212:1004`, which also yields
   departures.
 - A run calling twice at one stop (Europaplatz Gleis 6 then Gleis 4) appears as two stop events.
@@ -80,3 +89,61 @@ matches with or without the timetable suffix (`kvv:21005:E:R`, `kvv:21005:E:R:s2
 `kvv:21005:E` covers both directions is unverified. A `DirectionRef` beside it is ignored.
 
 `TripInfoRequest` with `IncludePosition` returned **no `CurrentPosition`**: no vehicle positions.
+
+A stop with nothing due answers an `ErrorMessage` (code `-4030`, `STOPEVENT_LOCATIONUNSERVED` or
+`STOPEVENT_NOEVENTFOUND`) instead of an empty list. Every board repeats the notices in force in
+`StopEventResponseContext`, about a tenth of the reply.
+
+## Against EFA, field by field
+
+Of 112 runs read from both at six stops, every row agreed on line, direction id, mode, destination,
+platform kind, train number, step-free access, status and delay (within the minute EFA truncates).
+The differences:
+
+| | TRIAS | EFA |
+| --- | --- | --- |
+| Times | to the second; predictions per call end | the minute, truncated; delays in minutes |
+| Stop names | locality prefixed (`KA Marktplatz (Kaiserstraße U)`, `Wolfartsweier Nord`) | without locality, `place` beside it |
+| Call positions | none | every call but the board's own |
+| Platform | missing at some DB stations and outside Karlsruhe | stated |
+| Board's own call | once | twice at a run's origin |
+| Mid-run layover | timed through (Turmberg 21:56–22:15) | marked as a run end (`depValid=0`) |
+| Mode | S-Bahn and Stadtbahn are `rail` / `suburbanRailway` | `motType=1` |
+| Line-filtered board | honours the row count, reaching hours | answered two rows of line 1 for forty asked |
+
+## How KARLA reads it
+
+`KvvTriasClient` (`src/data/kvv-trias-client.ts`) reads boards, single runs and stop search through
+the proxy and decodes them into the shared feed model (`kvv-feed.ts`) with
+`kvv-trias-parsers.ts`:
+
+- A complex's board asks each of its stops (`findComplexProviderStopIds`) and joins the rows.
+- Stop refs become provider ids by the rule above; elsewhere the stop's DHID stands in.
+- `JourneyRef` is the trip id; split at its last colon, it gives the locator's line and trip code,
+  so run keys match EFA's. The locator also carries `OperatingDayRef`.
+- `EstimatedTime` is the prediction; its absence means "nach Fahrplan". Delays are the predictions'
+  rounded minutes; times stay to the second (`predictedArrivalTime`, `predictedDepartureTime`).
+- The `KA ` / `Karlsruhe ` prefix is removed and the place set to Karlsruhe; other names are kept.
+- `Age` from the proxy advances `ResponseTimestamp`, the feed clock.
+- Unlocated calls are placed by `StopRegistry`: the catalog's position in Karlsruhe, else the one
+  the stop was registered with; stops met only in TRIAS calls outside the city stay unlocated.
+- Serving lines come from a one-row EFA board, kept six hours per stop; line routes and notices from
+  EFA.
+
+Responses require well-formed XML, the endpoint's payload and a valid feed timestamp. Invalid
+readings retain the last complete board with its original age.
+
+`KvvFeedSelection` selects EFA after two consecutive logical reads fail through transport, timeout
+or server errors; proxy access denial selects it immediately. Lookup and protocol errors stay
+local. Rate limits pause proxy reads until `Retry-After` (one minute when absent).
+
+After five minutes, the next required read probes TRIAS; concurrent reads stay on EFA until it
+succeeds. A provider transition retires incompatible run readings and coverage supplements.
+Each timed reading carries its feed session. Late responses cannot publish; retained boards keep
+their original times and never merge with a new feed session. `DepartureBoardReadings` owns board
+reuse, shared requests and retention.
+
+A board read interrupted by a provider transition retries once against the active feed.
+Development reads use Vite's same-origin forwarding path to the deployed proxy.
+
+`VITE_TRIAS_PROXY_URL` points the app at another proxy, or, set empty, at EFA alone.

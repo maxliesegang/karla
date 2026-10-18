@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import type { KvvTripCall } from "../src/data/kvv-efa-parsers.ts";
+import type { KvvTripCall } from "../src/data/kvv-feed.ts";
 import { StopRegistry } from "../src/data/stop-registry.ts";
 import { transitNetwork } from "../src/data/transit-network.ts";
 import type { TransportMode } from "../src/data/transit-types.ts";

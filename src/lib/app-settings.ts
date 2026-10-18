@@ -2,7 +2,7 @@ import { createStoredPreference } from "./stored-preference";
 
 /**
  * Device-local app preferences (landing, remembering stops, other vehicles in the diagram, stacked
- * board length), honoured for the session even when storage is blocked.
+ * board length, the last minute in seconds), honoured for the session even when storage is blocked.
  */
 
 export type AppLanding = "recent-stop" | "home";
@@ -16,6 +16,8 @@ export type AppSettings = {
   isShowingOtherLineRuns: boolean;
   /** Departures the stacked board shows before "mehr anzeigen". */
   stackedDepartureLimit: number;
+  /** Whether a prediction's last minute counts down in seconds (`getCountdownReading`). */
+  isShowingLastMinuteSeconds: boolean;
 };
 
 export const DEFAULT_APP_SETTINGS: AppSettings = {
@@ -23,6 +25,7 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
   isRememberingStops: true,
   isShowingOtherLineRuns: true,
   stackedDepartureLimit: 8,
+  isShowingLastMinuteSeconds: false,
 };
 
 /** Row counts a stacked board may show. */
@@ -46,6 +49,7 @@ export function getAppSettingsFromStored(stored: unknown): AppSettings {
     stackedDepartureLimit: isRowLimit(candidate.stackedDepartureLimit)
       ? candidate.stackedDepartureLimit
       : DEFAULT_APP_SETTINGS.stackedDepartureLimit,
+    isShowingLastMinuteSeconds: candidate.isShowingLastMinuteSeconds === true,
   };
 }
 

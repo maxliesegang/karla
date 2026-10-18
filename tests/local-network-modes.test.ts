@@ -5,6 +5,7 @@ import { parseDepartureBoardResponse } from "../src/data/kvv-efa-parsers.ts";
 
 function boardPayload() {
   return {
+    parameters: [{ name: "serverTime", value: "2026-09-05T09:00:00" }],
     departureList: [
       {
         stopID: "7000090",
@@ -59,6 +60,7 @@ test("long-distance serving directions are not recorded as directions to go and 
  */
 function railBoardPayload() {
   return {
+    parameters: [{ name: "serverTime", value: "2026-09-05T09:00:00" }],
     departureList: [
       {
         stopID: "7000090",
@@ -126,6 +128,7 @@ test("DB-pooled serving directions are not recorded as directions to go and read
 test("a rail line that states no pool is unknown, not foreign", () => {
   const board = parseDepartureBoardResponse(
     {
+      parameters: [{ name: "serverTime", value: "2026-09-05T09:00:00" }],
       departureList: [
         {
           stopID: "7000090",
@@ -149,10 +152,16 @@ test("the departure monitor asks for tram, Stadtbahn and bus only", async () => 
     departureEndpoint: "https://example.test/XSLT_DM_REQUEST",
     fetchFn: async (input) => {
       requestedUrl = new URL(String(input));
-      return new Response(JSON.stringify({ departureList: [] }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          parameters: [{ name: "serverTime", value: "2026-09-05T09:00:00" }],
+          departureList: [],
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
     },
   });
 
@@ -174,10 +183,16 @@ test("the row cap is sent under both names the endpoint knows", async () => {
     departureEndpoint: "https://example.test/XSLT_DM_REQUEST",
     fetchFn: async (input) => {
       requestedUrl = new URL(String(input));
-      return new Response(JSON.stringify({ departureList: [] }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          parameters: [{ name: "serverTime", value: "2026-09-05T09:00:00" }],
+          departureList: [],
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
     },
   });
 
@@ -199,10 +214,16 @@ test("a board asked for named line-directions is not asked for the mode macros a
     departureEndpoint: "https://example.test/XSLT_DM_REQUEST",
     fetchFn: async (input) => {
       requestedUrl = new URL(String(input));
-      return new Response(JSON.stringify({ departureList: [] }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({
+          parameters: [{ name: "serverTime", value: "2026-09-05T09:00:00" }],
+          departureList: [],
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json" },
+        },
+      );
     },
   });
 

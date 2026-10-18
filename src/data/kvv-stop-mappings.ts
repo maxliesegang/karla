@@ -77,3 +77,18 @@ export const kvvStopMappingByLocalStopId: Record<string, KvvStopMapping> = {
   zuendhuetle: { providerStopId: "7004492" },
   turmberg: { providerStopId: "7000018" },
 };
+
+const complexByProviderStopId = new Map(
+  Object.values(kvvStopMappingByLocalStopId).flatMap(({ providerStopId, otherProviderStopIds }) => {
+    const complex = [providerStopId, ...(otherProviderStopIds ?? [])];
+    return complex.map((id) => [id, complex] as const);
+  }),
+);
+
+/** Every EFA stop of the complex this one belongs to, itself first; just itself elsewhere. */
+export function findComplexProviderStopIds(providerStopId: string): readonly string[] {
+  const complex = complexByProviderStopId.get(providerStopId);
+  return complex
+    ? [providerStopId, ...complex.filter((id) => id !== providerStopId)]
+    : [providerStopId];
+}

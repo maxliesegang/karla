@@ -1,6 +1,11 @@
 import { labelByTransportMode } from "../data/line-signs";
 import type { Departure, DepartureBoard, TripCall } from "../data/transit-types";
-import { findExpectedDepartureInstant, getBoardAgeMs, getCountdownMinutes } from "./feed-clock";
+import {
+  findExpectedDepartureInstant,
+  getBoardAgeMs,
+  getCountdownMinutes,
+  getCountdownSeconds,
+} from "./feed-clock";
 import { formatSpokenPlatformLabel } from "./platform-naming";
 import { formatDistance } from "./geo";
 import type { RideProgress } from "./ride-progress";
@@ -138,10 +143,39 @@ function getSpokenVehicleAccess(departure: Departure): string | undefined {
 export type CountdownReading =
   | { kind: "cancelled"; label: string }
   | { kind: "due"; label: string }
-  | { kind: "minutes"; minutes: number; label: string };
+  | { kind: "minutes"; minutes: number; label: string }
+  | { kind: "seconds"; seconds: number; label: string };
 
-export function getCountdownReading(departure: Departure, feedNow: number): CountdownReading {
+/** The rider's setting to count a prediction's last minute in seconds. */
+export type CountdownOptions = { isShowingLastMinuteSeconds?: boolean };
+
+/** Last-minute countdowns use ten-second steps, rounded down. */
+const LAST_MINUTE_STEP_SECONDS = 10;
+
+/** The seconds a row's last minute shows; `undefined` outside it, or without a prediction to the second. */
+function getLastMinuteSeconds(
+  departure: Departure,
+  feedNow: number,
+  { isShowingLastMinuteSeconds = false }: CountdownOptions,
+): number | undefined {
+  if (!isShowingLastMinuteSeconds) return undefined;
+  const seconds = getCountdownSeconds(departure, feedNow);
+  if (seconds === undefined || seconds >= 60) return undefined;
+  return Math.floor(seconds / LAST_MINUTE_STEP_SECONDS) * LAST_MINUTE_STEP_SECONDS;
+}
+
+export function getCountdownReading(
+  departure: Departure,
+  feedNow: number,
+  options: CountdownOptions = {},
+): CountdownReading {
   if (departure.status === "cancelled") return { kind: "cancelled", label: "entfällt" };
+  const seconds = getLastMinuteSeconds(departure, feedNow, options);
+  if (seconds !== undefined) {
+    return seconds <= 0
+      ? { kind: "due", label: "jetzt" }
+      : { kind: "seconds", seconds, label: `${seconds} s` };
+  }
   const minutes = getCountdownMinutes(departure, feedNow);
   return minutes <= 0
     ? { kind: "due", label: "jetzt" }
@@ -241,10 +275,27 @@ export function getRunPositionHint(
   return "Position derzeit nicht bekannt";
 }
 
-const countdownLabel = (minutes: number) => (minutes <= 0 ? "jetzt" : `in ${minutes} Minuten`);
+const countdownLabel = (minutes: number) =>
+  minutes <= 0 ? "jetzt" : `in ${minutes} ${minutes === 1 ? "Minute" : "Minuten"}`;
+
+/** The spoken countdown, in seconds where the row's column shows them. */
+function getSpokenCountdown(
+  departure: Departure,
+  feedNow: number | undefined,
+  options: CountdownOptions,
+): string {
+  if (feedNow === undefined) return countdownLabel(departure.minutesUntilDeparture);
+  const seconds = getLastMinuteSeconds(departure, feedNow, options);
+  if (seconds === undefined) return countdownLabel(getCountdownMinutes(departure, feedNow));
+  return seconds <= 0 ? "jetzt" : `in ${seconds} Sekunden`;
+}
 
 /** Spoken form of a row; the visual columns alone read as fragments. */
-export function getDepartureAccessibilityLabel(departure: Departure, feedNow?: number): string {
+export function getDepartureAccessibilityLabel(
+  departure: Departure,
+  feedNow?: number,
+  options: CountdownOptions = {},
+): string {
   const timeReading = getDepartureTimeReading(departure);
 
   return [
@@ -253,11 +304,7 @@ export function getDepartureAccessibilityLabel(departure: Departure, feedNow?: n
     ...(departure.status === "cancelled"
       ? ["Fahrt entfällt"]
       : [
-          countdownLabel(
-            feedNow === undefined
-              ? departure.minutesUntilDeparture
-              : getCountdownMinutes(departure, feedNow),
-          ),
+          getSpokenCountdown(departure, feedNow, options),
           ...(timeReading ? [`ab ${timeReading.accessibilityLabel}`] : []),
         ]),
     formatSpokenPlatformLabel(departure.platformCode, departure.platformKind),

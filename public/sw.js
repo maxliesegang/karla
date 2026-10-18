@@ -1,17 +1,7 @@
-/*
- * The offline shell, and nothing else.
- *
- * KARLA is a static site, so a service worker can hold the whole app — markup, bundle, styles,
- * icons — and still be honest, because the one thing it must never hold is a departure. Feed reads
- * go to another origin (projekte.kvv-efa.de) and are left entirely to the network: a request this
- * worker does not answer cannot be answered from a cache, so a board is never re-served as if it
- * were live. Offline the rider gets the app and its own retained-board handling, which already
- * states how old a reading is — not a silent replay of yesterday's departures.
- *
- * Bump APP_SHELL_CACHE_NAME whenever the stable precache list or caching behaviour changes.
- */
+/* The offline app shell. Feed requests always use the network and their own retained readings.
+ * Bump APP_SHELL_CACHE_NAME when the precache list or caching behavior changes. */
 const APP_CACHE_PREFIX = "karla-app-shell-";
-const APP_SHELL_CACHE_NAME = `${APP_CACHE_PREFIX}v5`;
+const APP_SHELL_CACHE_NAME = `${APP_CACHE_PREFIX}v6`;
 const BUILD_MANIFEST_URL = "./vite-manifest.json";
 const STATIC_SHELL_URLS = [
   "./",
@@ -102,6 +92,8 @@ self.addEventListener("fetch", (event) => {
   // And anything outside the app's own directory belongs to whatever else is published there.
   const appScopeUrl = new URL("./", self.location.href);
   if (!url.pathname.startsWith(appScopeUrl.pathname)) return;
+  // The TRIAS proxy beside the app answers live readings, which no cache may hold.
+  if (url.pathname.startsWith(new URL("./api/", self.location.href).pathname)) return;
 
   if (request.mode === "navigate") {
     event.respondWith(networkFirstWithShellFallback(request, "./index.html"));

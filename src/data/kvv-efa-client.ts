@@ -6,13 +6,17 @@ import {
   parseServiceNoticeResponse,
   parseStopSearchResponse,
   parseTripResponse,
-  type KvvDepartureBoard,
-  type KvvServiceNotice,
-  type KvvStopSearchResult,
-  type KvvTrip,
-  type KvvTripCall,
-  type KvvTripLocator,
 } from "./kvv-efa-parsers";
+import type {
+  KvvDepartureBoard,
+  KvvDepartureBoardOptions,
+  KvvFeed,
+  KvvServiceNotice,
+  KvvStopSearchResult,
+  KvvTrip,
+  KvvTripCall,
+  KvvTripLocator,
+} from "./kvv-feed";
 
 const DEFAULT_DEPARTURE_ENDPOINT = "https://projekte.kvv-efa.de/sl3-alone/XSLT_DM_REQUEST";
 const DEFAULT_TRIP_ENDPOINT = "https://projekte.kvv-efa.de/sl3-alone/XML_TRIPSTOPTIMES_REQUEST";
@@ -30,14 +34,6 @@ const DEFAULT_DEPARTURE_LIMIT = 20;
 const WGS84_COORDINATE_FORMAT = "WGS84[DD.ddddd]";
 
 /**
- * The mode macros a board is asked for: Stadtbahn/S-Bahn, tram, bus. Without them a Hauptbahnhof
- * board fills with ICE, TGV and Flixbus. They filter by mode group, so coaches and other pools are
- * dropped again in `kvv-efa-parsers.ts`.
- *
- * Only sent on unfiltered boards: they make the monitor ignore the row cap and return every row's
- * calling sequence (21 kB vs 108 kB for the same twenty filtered rows).
- */
-/**
  * The row cap, under both names the endpoint knows. `limit` only applies when sent before the mode
  * macros, so this object's key order matters. `depSequence` caps either way, but `1` returns
  * nothing, so it is never below two (`docs/kvv-efa-api.md`).
@@ -47,6 +43,7 @@ const toRowLimitParameters = (limit: number) => {
   return { limit: rows, depSequence: rows };
 };
 
+/** Local modes only; unfiltered boards also receive full calling sequences from these macros. */
 const LOCAL_NETWORK_MODE_PARAMETERS = {
   std3_commonMacro: "dm",
   includedMeans: "checkbox",
@@ -70,7 +67,7 @@ export type KvvEfaClientOptions = {
  * `Access-Control-Allow-Origin`, so the static site reads them directly; only simple headers are
  * sent, to avoid a preflight. Parsing lives in `kvv-efa-parsers.ts`.
  */
-export class KvvEfaClient {
+export class KvvEfaClient implements KvvFeed {
   private readonly departureEndpoint: string;
   private readonly tripEndpoint: string;
   private readonly lineRouteEndpoint: string;
@@ -90,13 +87,7 @@ export class KvvEfaClient {
 
   async fetchDepartureBoard(
     stopPointId: string,
-    options: {
-      limit?: number;
-      includeTripCalls?: boolean;
-      /** Opaque `servingLine.stateless` ids; the parameter may repeat. */
-      lineIds?: readonly string[];
-      eventKind?: "departure" | "arrival";
-    } = {},
+    options: KvvDepartureBoardOptions = {},
   ): Promise<KvvDepartureBoard> {
     const payload = await this.requestJson(this.departureEndpoint, `Abfahrtstafel ${stopPointId}`, {
       type_dm: "stopID",
