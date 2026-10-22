@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { DepartureBoard } from "../data/transit-types";
+import type { StopEventBoard } from "../data/transit-types";
 import {
   createStopCorridorPatterns,
   updateStopCorridorPatterns,
@@ -7,20 +7,20 @@ import {
 } from "../lib/stop-corridor-patterns";
 
 /**
- * What the stop in view has learned about where its trips go, accumulated so a route observed once
- * keeps grouping its trip although detailed boards arrive on their own cadences.
+ * What the stop in view has learned about where its journeys go, accumulated so a route observed
+ * once keeps grouping its journey although detailed boards arrive on their own cadences.
  */
 export function useStopCorridorPatterns(
   stopId: string | undefined,
-  topologyBoard: DepartureBoard | null,
-  observationBoards: readonly DepartureBoard[],
+  topologyBoard: StopEventBoard | null,
+  observationBoards: readonly StopEventBoard[],
 ): StopCorridorPatterns {
   const [patterns, setPatterns] = useState<StopCorridorPatterns | null>(null);
 
-  const topologyDepartures = useMemo(
+  const topologyStopEvents = useMemo(
     () => [
-      ...(topologyBoard?.dataStatus === "live" ? topologyBoard.departures : []),
-      ...observationBoards.flatMap(({ departures }) => departures),
+      ...(topologyBoard?.dataStatus === "live" ? topologyBoard.stopEvents : []),
+      ...observationBoards.flatMap(({ stopEvents }) => stopEvents),
     ],
     [topologyBoard, observationBoards],
   );
@@ -28,10 +28,10 @@ export function useStopCorridorPatterns(
   // No stop, nothing read or remembered.
   const unread = useMemo(() => createStopCorridorPatterns(stopId ?? ""), [stopId]);
 
-  // Learned during render, so a trip groups with the board that proved its route.
+  // Learned during render, so a journey groups with the board that proved its route.
   const learned = useMemo(
-    () => (stopId ? updateStopCorridorPatterns(patterns, stopId, topologyDepartures) : null),
-    [patterns, stopId, topologyDepartures],
+    () => (stopId ? updateStopCorridorPatterns(patterns, stopId, topologyStopEvents) : null),
+    [patterns, stopId, topologyStopEvents],
   );
   // An unchanged memory keeps its identity, so this settles in one pass.
   if (learned && learned !== patterns) setPatterns(learned);

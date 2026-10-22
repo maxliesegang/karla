@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import type { Departure, TripCall } from "../src/data/transit-types.ts";
+import type { StopEvent, Call } from "../src/data/transit-types.ts";
 import {
   type ZentrumSchematicReading,
   buildZentrumSchematicReading,
@@ -25,38 +25,38 @@ import {
   isOverlapping,
 } from "../src/lib/zentrum-schematic-stops.ts";
 import { ZENTRUM_PORTRAIT_FRAME } from "../src/lib/zentrum-plan-canvas.ts";
-import { createDeparture } from "./support/fixtures.ts";
+import { createStopEvent } from "./support/fixtures.ts";
 
 const call = (
   localStopId: string,
   providerStopPointId: string,
-  platformCode = "1",
+  bay = "1",
   place?: { latitude: number; longitude: number },
-): TripCall => ({
+): Call => ({
   stopName: localStopId,
   localStopId,
   providerStopPointId,
-  platformCode,
+  bay,
   ...place,
 });
 
-let tripNumber = 0;
-const departure = (lineId: string, tripCalls: readonly TripCall[]): Departure => {
-  tripNumber += 1;
-  return createDeparture({
-    id: `trip-${tripNumber}`,
-    tripId: `trip-${tripNumber}`,
+let journeyNumber = 0;
+const stopEvent = (lineId: string, calls: readonly Call[]): StopEvent => {
+  journeyNumber += 1;
+  return createStopEvent({
+    id: `trip-${journeyNumber}`,
+    journeyRef: `trip-${journeyNumber}`,
     lineId,
-    transportMode: "tram",
-    destination: "Testziel",
+    ptMode: "tram",
+    destinationText: "Testziel",
     minutesUntilDeparture: 3,
-    platformCode: "1",
-    boardingLocalStopId: tripCalls[0]?.localStopId ?? "",
-    boardingProviderStopPointId: tripCalls[0]?.providerStopPointId ?? "",
-    boardingProviderStopPointName: tripCalls[0]?.stopName ?? "",
+    bay: "1",
+    boardingLocalStopId: calls[0]?.localStopId ?? "",
+    boardingProviderStopPointId: calls[0]?.providerStopPointId ?? "",
+    boardingProviderStopPointName: calls[0]?.stopName ?? "",
     status: "realtime",
-    scheduledDepartureTime: "2026-09-04T12:00:00+02:00",
-    tripCalls,
+    timetabledDepartureTime: "2026-09-04T12:00:00+02:00",
+    calls,
   });
 };
 
@@ -74,7 +74,7 @@ const getCentre = ({ from, to }: ZentrumSchematicStroke) => ({
 const getPlaceArms = (reading: ZentrumSchematicReading, nodeId: string) =>
   reading.boardingPlacesByNodeId
     .get(nodeId)
-    ?.map((place) => [...place.armTripCounts.keys()].sort());
+    ?.map((place) => [...place.armJourneyCounts.keys()].sort());
 
 /** A stop on a band gets one capsule across every lane. */
 test("marks a through stop with one capsule across every lane", () => {
@@ -84,7 +84,7 @@ test("marks a through stop with one capsule across every lane", () => {
     call("marktplatz", "7000041"),
   ];
   const reading = buildZentrumSchematicReading(
-    ["1", "2", "3"].map((lineId) => departure(lineId, along)),
+    ["1", "2", "3"].map((lineId) => stopEvent(lineId, along)),
   );
   const mark = markAt(reading, "europaplatz");
 
@@ -103,7 +103,7 @@ test("marks a corner stop with one diagonal pill", () => {
     call("poststrasse", "7000098"),
   ];
   const reading = buildZentrumSchematicReading(
-    ["3", "4"].map((lineId) => departure(lineId, turning)),
+    ["3", "4"].map((lineId) => stopEvent(lineId, turning)),
   );
   const mark = markAt(reading, "tivoli");
 
@@ -147,16 +147,16 @@ test("routes a stop's corridors along its platforms and square through one junct
 
 test("marks every stop around the junction with one capsule, and the junction with none", () => {
   const reading = buildZentrumSchematicReading([
-    departure("E", [call("albtalbahnhof", "7001201"), call("ebertstrasse", "7000091")]),
+    stopEvent("E", [call("albtalbahnhof", "7001201"), call("ebertstrasse", "7000091")]),
     ...["S1", "S4", "S7"].map((lineId) =>
-      departure(lineId, [
+      stopEvent(lineId, [
         call("albtalbahnhof", "7001201"),
         call("hauptbahnhof", "7000089"),
         call("poststrasse", "7000098"),
       ]),
     ),
     ...["3", "6"].map((lineId) =>
-      departure(lineId, [
+      stopEvent(lineId, [
         call("ebertstrasse", "7000091"),
         call("hauptbahnhof", "7000089"),
         call("poststrasse", "7000098"),
@@ -213,7 +213,7 @@ test("marks every stop around the junction with one capsule, and the junction wi
 /* Two streets through one place, no capsule crossing both: one capsule each, linked. */
 test("marks each street of a crossing with its own capsule, linked", () => {
   const through = (lineId: string, stopIds: readonly string[]) =>
-    departure(
+    stopEvent(
       lineId,
       stopIds.map((stopId) => call(stopId, stopId)),
     );
@@ -253,8 +253,8 @@ test("draws a stop the platforms say is two places as two capsules, linked", () 
     call("mathystrasse", "7000062", "3"),
   ];
   const reading = buildZentrumSchematicReading([
-    ...["4", "5"].map((lineId) => departure(lineId, eastward)),
-    ...["3", "3", "3"].map((lineId) => departure(lineId, southward)),
+    ...["4", "5"].map((lineId) => stopEvent(lineId, eastward)),
+    ...["3", "3", "3"].map((lineId) => stopEvent(lineId, southward)),
   ]);
 
   assert.deepEqual(getPlaceArms(reading, "karlstor"), [
@@ -290,8 +290,8 @@ test("gathers platforms serving only another's corridors into its place", () => 
     call("karlstor", "7000061", "3"),
   ];
   const reading = buildZentrumSchematicReading([
-    ...["1", "S1", "S2"].map((lineId) => departure(lineId, tunnel)),
-    ...["3", "4"].map((lineId) => departure(lineId, street)),
+    ...["1", "S1", "S2"].map((lineId) => stopEvent(lineId, tunnel)),
+    ...["3", "4"].map((lineId) => stopEvent(lineId, street)),
   ]);
 
   assert.deepEqual(getPlaceArms(reading, "europaplatz"), [
@@ -308,12 +308,12 @@ test("gathers platforms standing together into one place, whatever runs through 
   const apart = { latitude: 48.99359, longitude: 8.39967 };
   const read = (other: { latitude: number; longitude: number }) =>
     buildZentrumSchematicReading([
-      departure("S1", [
+      stopEvent("S1", [
         call("albtalbahnhof", "7001201"),
         call("hauptbahnhof", "7000089", "21", near),
         call("poststrasse", "7000098"),
       ]),
-      departure("3", [
+      stopEvent("3", [
         call("ebertstrasse", "7000091"),
         call("hauptbahnhof", "7000089", "22", other),
         call("poststrasse", "7000098"),
@@ -329,22 +329,22 @@ test("a place with a corridor along its platforms crosses at the stop, on its ow
   const at = (code: string, latitude: number, longitude: number) =>
     call("karlstor", "7000061", code, { latitude, longitude });
   const reading = buildZentrumSchematicReading([
-    departure("4", [
+    stopEvent("4", [
       call("europaplatz", "7000037"),
       at("3", 49.005184, 8.394622),
       call("mathystrasse", "7000062"),
     ]),
-    departure("4", [
+    stopEvent("4", [
       call("mathystrasse", "7000062"),
       at("4", 49.004423, 8.394514),
       call("europaplatz", "7000037"),
     ]),
-    departure("5", [
+    stopEvent("5", [
       call("ettlinger-tor", "7000071"),
       at("1", 49.005502, 8.395421),
       call("europaplatz", "7000037"),
     ]),
-    departure("5", [
+    stopEvent("5", [
       call("europaplatz", "7000037"),
       at("2", 49.005467, 8.395951),
       call("ettlinger-tor", "7000071"),
@@ -374,8 +374,8 @@ test("leaves a barely used platform out of a stop's places", () => {
     call("mathystrasse", "7000062", "3"),
   ];
   const reading = buildZentrumSchematicReading([
-    ...Array.from({ length: 30 }, () => departure("1", along)),
-    departure("1", diverted),
+    ...Array.from({ length: 30 }, () => stopEvent("1", along)),
+    stopEvent("1", diverted),
   ]);
 
   assert.equal(reading.boardingPlacesByNodeId.has("karlstor"), false);
@@ -384,7 +384,7 @@ test("leaves a barely used platform out of a stop's places", () => {
 
 /* The Zentrum boards' calling patterns, with trip counts. */
 type LiveCall = [string, string, string, number | null, number | null];
-const readLiveTrips = (fileName: string) =>
+const readLiveJourneys = (fileName: string) =>
   (
     JSON.parse(readFileSync(new URL(`./support/${fileName}`, import.meta.url), "utf8")) as {
       lineId: string;
@@ -394,26 +394,26 @@ const readLiveTrips = (fileName: string) =>
     }[]
   ).flatMap(({ lineId, mode, count, calls }) =>
     Array.from({ length: count }, () => ({
-      ...departure(
+      ...stopEvent(
         lineId,
-        calls.map(([localStopId, providerStopPointId, platformCode, latitude, longitude]) =>
+        calls.map(([localStopId, providerStopPointId, bay, latitude, longitude]) =>
           call(
             localStopId,
             providerStopPointId,
-            platformCode,
+            bay,
             latitude === null || longitude === null ? undefined : { latitude, longitude },
           ),
         ),
       ),
-      transportMode: mode,
+      ptMode: mode,
     })),
   );
 /* 3 October 2026, all day; and the runs drawn early on 5 October 2026. */
-const liveTrips = readLiveTrips("zentrum-live-trips.json");
-const morningRuns = readLiveTrips("zentrum-live-runs-morning.json");
+const liveJourneys = readLiveJourneys("zentrum-live-journeys.json");
+const morningDatedJourneys = readLiveJourneys("zentrum-live-dated-journeys-morning.json");
 
 test("reads the places a rider walks between off a day's trips", () => {
-  const reading = buildZentrumSchematicReading(liveTrips);
+  const reading = buildZentrumSchematicReading(liveJourneys);
 
   assert.deepEqual([...reading.boardingPlacesByNodeId.keys()].sort(), [
     "durlacher-tor",
@@ -442,7 +442,7 @@ test("reads the places a rider walks between off a day's trips", () => {
 
 test("stands each place on its own arm, linked round the corner where no straight link fits", () => {
   // Karlstor: lines 4, 5, S5 and S12 call east of the junction, 3 and S12 south of it.
-  const reading = buildZentrumSchematicReading(morningRuns);
+  const reading = buildZentrumSchematicReading(morningDatedJourneys);
   const node = zentrumSchematicNodeById.get("karlstor");
   const mark = markAt(reading, "karlstor");
   assert.ok(node);
@@ -454,7 +454,7 @@ test("stands each place on its own arm, linked round the corner where no straigh
 });
 
 test("keeps lines running on together in order where another joins them for one corridor", () => {
-  const reading = buildZentrumSchematicReading(liveTrips);
+  const reading = buildZentrumSchematicReading(liveJourneys);
   const lanes = (edgeId: string) => reading.edges.find(({ id }) => id === edgeId)?.trackIds ?? [];
   const side = (edgeId: string) =>
     Math.sign(lanes(edgeId).indexOf("3") - lanes(edgeId).indexOf("4"));
@@ -469,7 +469,7 @@ test("keeps lines running on together in order where another joins them for one 
 
 /** Capsules cross straight lanes and never touch another stop's. */
 test("keeps every capsule off the curves, and clear of every other stop", () => {
-  const reading = buildZentrumSchematicReading(liveTrips);
+  const reading = buildZentrumSchematicReading(liveJourneys);
   const halfWidth = (reading.trackWidth * ZENTRUM_SCHEMATIC_STOP_CAPSULE_WIDTH) / 2;
   const bends = getZentrumSchematicLaneBends(reading.linePaths, reading.edges, reading.trackWidth);
   for (const mark of reading.stopMarks) {
@@ -503,7 +503,7 @@ test("keeps every capsule off the curves, and clear of every other stop", () => 
  * the junction, so a tram from Karlstor halts on the Karlstraße before the corner.
  */
 test("halts every mark on its stop's capsule", () => {
-  const reading = buildZentrumSchematicReading(liveTrips);
+  const reading = buildZentrumSchematicReading(liveJourneys);
   const distanceTo = (point: { x: number; y: number }, { from, to }: ZentrumSchematicStroke) => {
     const run = { x: to.x - from.x, y: to.y - from.y };
     const share = Math.max(
@@ -546,7 +546,7 @@ const isDiagonalPill = ({ from, to }: ZentrumSchematicStroke) =>
 test("on a phone, the frame holds names and travel times, including names shown on focus", () => {
   const frame = ZENTRUM_PORTRAIT_FRAME;
   const planWidth = Math.floor((372 * ZENTRUM_SCHEMATIC_VIEWBOX.width) / frame.width);
-  const reading = buildZentrumSchematicReading(liveTrips, planWidth);
+  const reading = buildZentrumSchematicReading(liveJourneys, planWidth);
   const labels = placeZentrumSchematicLabels(
     reading.edges,
     reading.stopMarks,
@@ -581,7 +581,7 @@ test("sets every name that fits inside the plan, clear of bands, capsules and ot
     [1450, "with-wait"],
     [1100, "with-wait"],
   ] as const) {
-    const reading = buildZentrumSchematicReading(liveTrips, planWidth);
+    const reading = buildZentrumSchematicReading(liveJourneys, planWidth);
     const labels = placeZentrumSchematicLabels(
       reading.edges,
       reading.stopMarks,
@@ -643,7 +643,7 @@ test("keeps a long unbroken stop name on one line and wraps only between words",
 
 test("reserves clear space for the selected stop before other reachable names", () => {
   const planWidth = 1100;
-  const reading = buildZentrumSchematicReading(liveTrips, planWidth);
+  const reading = buildZentrumSchematicReading(liveJourneys, planWidth);
   const place = (selectedNodeId?: string) =>
     placeZentrumSchematicLabels(
       reading.edges,
@@ -674,13 +674,13 @@ test("reserves clear space for the selected stop before other reachable names", 
 });
 
 test("the eastern extension has one name per complex and links its two Tullastraße places", () => {
-  const samples: { lineId: string; tripCalls: TripCall[] }[] = JSON.parse(
-    readFileSync(new URL("./support/zentrum-stop-platforms.json", import.meta.url), "utf8"),
+  const samples: { lineId: string; calls: Call[] }[] = JSON.parse(
+    readFileSync(new URL("./support/zentrum-stop-bays.json", import.meta.url), "utf8"),
   );
-  const runs = samples.map((sample, index) =>
-    createDeparture({ id: `sample-${index}`, ...sample }),
+  const datedJourneys = samples.map((sample, index) =>
+    createStopEvent({ id: `sample-${index}`, ...sample }),
   );
-  const reading = buildZentrumSchematicReading([...liveTrips, ...runs], 1450);
+  const reading = buildZentrumSchematicReading([...liveJourneys, ...datedJourneys], 1450);
   const labels = placeZentrumSchematicLabels(
     reading.edges,
     reading.stopMarks,
@@ -700,13 +700,13 @@ test("the eastern extension has one name per complex and links its two Tullastra
 
 test("every capsule and link runs one of the plan's eight ways", () => {
   // The eastern samples bend at Wolfartsweierer Straße by 45 degrees.
-  const samples: { lineId: string; tripCalls: TripCall[] }[] = JSON.parse(
-    readFileSync(new URL("./support/zentrum-stop-platforms.json", import.meta.url), "utf8"),
+  const samples: { lineId: string; calls: Call[] }[] = JSON.parse(
+    readFileSync(new URL("./support/zentrum-stop-bays.json", import.meta.url), "utf8"),
   );
   const reading = buildZentrumSchematicReading(
     [
-      ...liveTrips,
-      ...samples.map((sample, index) => createDeparture({ id: `bend-${index}`, ...sample })),
+      ...liveJourneys,
+      ...samples.map((sample, index) => createStopEvent({ id: `bend-${index}`, ...sample })),
     ],
     1450,
   );

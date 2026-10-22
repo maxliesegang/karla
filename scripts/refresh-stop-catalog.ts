@@ -5,7 +5,8 @@
  * - KVV's CC0 GTFS feed: lines and calls per stop, for the whole municipality in one download.
  * Joined on the global id, not on the provider id's shape. Also writes
  * `src/data/generated/kvv-line-days.ts`: the rail and tram lines that do not run every day, and
- * `src/data/generated/kvv-platform-runs.ts`: which way each rail platform runs.
+ * `src/data/generated/kvv-bay-runs.ts`: which way each rail bay runs, and
+ * `src/data/generated/kvv-bay-positions.ts`: where each one stands.
  *
  *     npm run refresh:stops
  *
@@ -18,19 +19,22 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createInterface } from "node:readline";
-import { type PlatformRun, getTravelAxis, measurePlatformRun } from "../src/lib/platform-runs.ts";
+import { type BayRun, getTravelAxis, measureBayRun } from "../src/lib/bay-runs.ts";
 
 const STOP_LIST_ENDPOINT = "https://projekte.kvv-efa.de/sl3-alone/XML_STOPLIST_REQUEST";
 const GTFS_ARCHIVE_URL = "https://projekte.kvv-efa.de/GTFS/google_transit.zip";
 const OUTPUT_PATH = new URL("../src/data/generated/kvv-stop-catalog.ts", import.meta.url);
 const LINE_DAYS_OUTPUT_PATH = new URL("../src/data/generated/kvv-line-days.ts", import.meta.url);
-const PLATFORM_RUNS_OUTPUT_PATH = new URL(
-  "../src/data/generated/kvv-platform-runs.ts",
+const BAY_RUNS_OUTPUT_PATH = new URL("../src/data/generated/kvv-bay-runs.ts", import.meta.url);
+const BAY_POSITIONS_OUTPUT_PATH = new URL(
+  "../src/data/generated/kvv-bay-positions.ts",
   import.meta.url,
 );
 /** GTFS `route_type`s of trams, metros and rail: the lines the maps draw. */
 const RAIL_ROUTE_TYPES = new Set(["0", "1", "2"]);
-/** A line runs on a weekday when it runs on at least this share of that weekday's dates. */
+/**
+ * A line runs on a weekday when it runs on at least this share of that weekday's dates.
+ */
 const WEEKDAY_SHARE = 0.5;
 
 /** The official municipality key (Gemeindekennziffer). */
@@ -61,22 +65,25 @@ async function main(): Promise<void> {
     const feedVersion = await downloadGtfsArchive(archivePath);
     console.log(`GTFS: feed version ${feedVersion}`);
 
-    const { lineByTripId, serviceIdsByRailLine, railTripIds } = await readLinesByTrip(archivePath);
-    console.log(`GTFS: ${lineByTripId.size} trips`);
+    const { lineByJourneyRef, serviceIdsByRailLine, railJourneyRefs } =
+      await readLinesByJourney(archivePath);
+    console.log(`GTFS: ${lineByJourneyRef.size} trips`);
 
-    const platformRuns = await readPlatformRuns(
+    const { runs: bayRuns, positions: bayPositions } = await readBayRuns(
       archivePath,
-      railTripIds,
+      railJourneyRefs,
       new Map(stops.map(({ globalId, providerStopId }) => [globalId, providerStopId])),
     );
-    await writeFile(PLATFORM_RUNS_OUTPUT_PATH, renderPlatformRunsModule(platformRuns, feedVersion));
-    console.log(`GTFS: runs read for ${platformRuns.size} rail platforms`);
+    await writeFile(BAY_RUNS_OUTPUT_PATH, renderBayRunsModule(bayRuns, feedVersion));
+    console.log(`GTFS: runs read for ${bayRuns.size} rail platforms`);
+    await writeFile(BAY_POSITIONS_OUTPUT_PATH, renderBayPositionsModule(bayPositions, feedVersion));
+    console.log(`GTFS: positions read for ${bayPositions.size} rail platforms`);
 
     const nonDailyLineIds = await readNonDailyLines(archivePath, serviceIdsByRailLine);
     await writeFile(LINE_DAYS_OUTPUT_PATH, renderLineDaysModule(nonDailyLineIds, feedVersion));
     console.log(`GTFS: lines not running every day: ${nonDailyLineIds.join(", ")}`);
 
-    const serviceByGlobalId = await readServiceByStation(archivePath, lineByTripId);
+    const serviceByGlobalId = await readServiceByStation(archivePath, lineByJourneyRef);
     console.log(`GTFS: service read for ${serviceByGlobalId.size} stations`);
 
     const catalog = stops
@@ -169,11 +176,14 @@ async function downloadGtfsArchive(archivePath: string): Promise<string> {
   return version;
 }
 
-/** The passenger-facing line name for each trip, and the services each rail line's trips run on. */
-async function readLinesByTrip(archivePath: string): Promise<{
-  lineByTripId: Map<string, string>;
+/**
+ * The passenger-facing line name for each journey, and the services each rail line's journeys run
+ * on.
+ */
+async function readLinesByJourney(archivePath: string): Promise<{
+  lineByJourneyRef: Map<string, string>;
   serviceIdsByRailLine: Map<string, Set<string>>;
-  railTripIds: Set<string>;
+  railJourneyRefs: Set<string>;
 }> {
   const nameByRouteId = new Map<string, string>();
   const railRouteIds = new Set<string>();
@@ -183,46 +193,53 @@ async function readLinesByTrip(archivePath: string): Promise<{
     if (RAIL_ROUTE_TYPES.has(routeType ?? "")) railRouteIds.add(routeId);
   }
 
-  const lineByTripId = new Map<string, string>();
+  const lineByJourneyRef = new Map<string, string>();
   const serviceIdsByRailLine = new Map<string, Set<string>>();
-  const railTripIds = new Set<string>();
-  for await (const [routeId = "", serviceId, tripId] of columnsOf(archivePath, "trips.txt", 3)) {
+  const railJourneyRefs = new Set<string>();
+  for await (const [routeId = "", serviceId, journeyRef] of columnsOf(
+    archivePath,
+    "trips.txt",
+    3,
+  )) {
     const name = nameByRouteId.get(routeId);
-    if (!tripId || !name) continue;
-    lineByTripId.set(tripId, name);
+    if (!journeyRef || !name) continue;
+    lineByJourneyRef.set(journeyRef, name);
     if (!railRouteIds.has(routeId) || !serviceId) continue;
-    railTripIds.add(tripId);
+    railJourneyRefs.add(journeyRef);
     const services = serviceIdsByRailLine.get(name) ?? new Set<string>();
     services.add(serviceId);
     serviceIdsByRailLine.set(name, services);
   }
-  return { lineByTripId, serviceIdsByRailLine, railTripIds };
+  return { lineByJourneyRef, serviceIdsByRailLine, railJourneyRefs };
 }
 
-/** A rail platform of the municipality, and what its trips state about it. */
-type GtfsPlatform = {
+/** A rail bay of the municipality, and what its journeys state about it. */
+type GtfsBay = {
   station: string;
   code: string;
   latitude: number;
   longitude: number;
-  /** Each trip's neighbouring stations, as an unordered pair. */
+  /** Each journey's neighbouring stations, as an unordered pair. */
   routePairs: Set<string>;
   travel: { x: number; y: number };
 };
 
+type BayPosition = { latitude: number; longitude: number };
+
 /**
- * Which way each rail platform runs, by `providerStopId|platformCode`: along it and the platforms
- * of its station that serve the same through route, else along its trips. Every direction runs in
- * the timetable, so a pair is measured that a live reading may see only half of.
+ * Which way each rail bay runs, by `providerStopId|bay`: along it and the bays of its station that
+ * serve the same through route, else along its journeys. Every direction runs in the timetable, so
+ * a pair is measured that a live reading may see only half of. Its position is the mean of the GTFS
+ * stops sharing its code.
  */
-async function readPlatformRuns(
+async function readBayRuns(
   archivePath: string,
-  railTripIds: ReadonlySet<string>,
+  railJourneyRefs: ReadonlySet<string>,
   providerStopIdByGlobalId: ReadonlyMap<string, string>,
-): Promise<Map<string, PlatformRun>> {
+): Promise<{ runs: Map<string, BayRun>; positions: Map<string, BayPosition> }> {
   const positionByStopId = new Map<string, { latitude: number; longitude: number }>();
   const stationByStopId = new Map<string, string>();
-  const platformByStopId = new Map<string, GtfsPlatform>();
+  const bayByStopId = new Map<string, GtfsBay>();
   for await (const [stopId, , latitude, longitude, , , , parent, , code] of columnsOf(
     archivePath,
     "stops.txt",
@@ -233,7 +250,7 @@ async function readPlatformRuns(
     positionByStopId.set(stopId, position);
     stationByStopId.set(stopId, parent || stopId);
     if (!code || !parent?.startsWith(`P${GLOBAL_ID_PREFIX}`)) continue;
-    platformByStopId.set(stopId, {
+    bayByStopId.set(stopId, {
       station: parent.slice(1),
       code,
       ...position,
@@ -242,65 +259,107 @@ async function readPlatformRuns(
     });
   }
 
-  const readTrip = (calls: { sequence: number; stopId: string }[]) => {
+  const readJourney = (calls: { sequence: number; stopId: string }[]) => {
     calls.sort((left, right) => left.sequence - right.sequence);
     for (let index = 1; index < calls.length - 1; index += 1) {
-      const platform = platformByStopId.get(calls[index].stopId);
+      const bay = bayByStopId.get(calls[index].stopId);
       const previous = calls[index - 1].stopId;
       const next = calls[index + 1].stopId;
-      if (!platform) continue;
+      if (!bay) continue;
       const stations = [previous, next].map((stopId) => stationByStopId.get(stopId) ?? stopId);
-      platform.routePairs.add(stations.sort().join("|"));
+      bay.routePairs.add(stations.sort().join("|"));
       const [from, to] = [positionByStopId.get(previous), positionByStopId.get(next)];
       if (!from || !to) continue;
       const axis = getTravelAxis(from, to);
-      platform.travel.x += axis.x;
-      platform.travel.y += axis.y;
+      bay.travel.x += axis.x;
+      bay.travel.y += axis.y;
     }
   };
-  // Rows come grouped by trip.
-  let tripId: string | undefined;
+  // Rows come grouped by journey.
+  let journeyRef: string | undefined;
   let calls: { sequence: number; stopId: string }[] = [];
-  for await (const [rowTripId, , , stopId, sequence] of columnsOf(
+  for await (const [rowJourneyRef, , , stopId, sequence] of columnsOf(
     archivePath,
     "stop_times.txt",
     5,
   )) {
-    if (rowTripId !== tripId) {
-      readTrip(calls);
-      tripId = rowTripId;
+    if (rowJourneyRef !== journeyRef) {
+      readJourney(calls);
+      journeyRef = rowJourneyRef;
       calls = [];
     }
-    if (rowTripId && stopId && railTripIds.has(rowTripId)) {
+    if (rowJourneyRef && stopId && railJourneyRefs.has(rowJourneyRef)) {
       calls.push({ sequence: Number(sequence), stopId });
     }
   }
-  readTrip(calls);
+  readJourney(calls);
 
-  const platforms = [...platformByStopId.values()].filter(({ routePairs }) => routePairs.size > 0);
-  const runs = new Map<string, PlatformRun>();
-  for (const platform of platforms) {
-    const providerStopId = providerStopIdByGlobalId.get(platform.station);
+  const bays = [...bayByStopId.values()].filter(({ routePairs }) => routePairs.size > 0);
+  const runs = new Map<string, BayRun>();
+  const sharingByKey = new Map<string, GtfsBay[]>();
+  for (const bay of bays) {
+    const providerStopId = providerStopIdByGlobalId.get(bay.station);
     if (!providerStopId) continue;
-    const partners = platforms.filter(
+    const key = `${providerStopId}|${bay.code}`;
+    sharingByKey.set(key, [...(sharingByKey.get(key) ?? []), bay]);
+    const partners = bays.filter(
       (other) =>
-        other.station === platform.station &&
-        [...other.routePairs].some((pair) => platform.routePairs.has(pair)),
+        other.station === bay.station &&
+        [...other.routePairs].some((pair) => bay.routePairs.has(pair)),
     );
     const travel = partners.reduce(
       (sum, { travel: axis }) => ({ x: sum.x + axis.x, y: sum.y + axis.y }),
       { x: 0, y: 0 },
     );
-    const run = measurePlatformRun(partners, travel);
-    if (run) runs.set(`${providerStopId}|${platform.code}`, run);
+    const run = measureBayRun(partners, travel);
+    if (run) runs.set(key, run);
   }
-  return runs;
+  const mean = (values: readonly number[]) =>
+    values.reduce((sum, value) => sum + value, 0) / values.length;
+  const positions = new Map(
+    [...sharingByKey].map(([key, sharing]) => [
+      key,
+      {
+        latitude: mean(sharing.map(({ latitude }) => latitude)),
+        longitude: mean(sharing.map(({ longitude }) => longitude)),
+      },
+    ]),
+  );
+  return { runs, positions };
 }
 
-function renderPlatformRunsModule(
-  runs: ReadonlyMap<string, PlatformRun>,
+function renderBayPositionsModule(
+  positions: ReadonlyMap<string, BayPosition>,
   feedVersion: string,
 ): string {
+  const rows = [...positions]
+    .sort(([left], [right]) => left.localeCompare(right, "en", { numeric: true }))
+    .map(
+      ([key, { latitude, longitude }]) =>
+        `  [${JSON.stringify(key)}, ${latitude.toFixed(6)}, ${longitude.toFixed(6)}],`,
+    )
+    .join("\n");
+  return `// Generated by scripts/refresh-stop-catalog.ts — do not edit by hand.
+//
+// KVV GTFS feed version ${feedVersion} (CC0), https://projekte.kvv-efa.de/GTFS/google_transit.zip
+//
+// Refresh with: npm run refresh:stops
+
+type BayPositionRow = [key: string, latitude: number, longitude: number];
+
+const rows: readonly BayPositionRow[] = [
+${rows}
+];
+
+/** Where each rail bay stands, by \`providerStopPointId|bay\`. */
+export const kvvBayPositionByKey: ReadonlyMap<
+  string,
+  { latitude: number; longitude: number }
+> = new Map(rows.map(([key, latitude, longitude]) => [key, { latitude, longitude }]));
+`;
+}
+
+function renderBayRunsModule(runs: ReadonlyMap<string, BayRun>, feedVersion: string): string {
   const rows = [...runs]
     .sort(([left], [right]) => left.localeCompare(right, "en", { numeric: true }))
     .map(([key, run]) => `  [${JSON.stringify(key)}, ${JSON.stringify(run)}],`)
@@ -311,10 +370,10 @@ function renderPlatformRunsModule(
 //
 // Refresh with: npm run refresh:stops
 
-import type { PlatformRun } from "../../lib/platform-runs";
+import type { BayRun } from "../../lib/bay-runs";
 
-/** Which way each rail platform runs, by \`providerStopPointId|platformCode\`. */
-export const kvvPlatformRunByKey: ReadonlyMap<string, PlatformRun> = new Map<string, PlatformRun>([
+/** Which way each rail bay runs, by \`providerStopPointId|bay\`. */
+export const kvvBayRunByKey: ReadonlyMap<string, BayRun> = new Map<string, BayRun>([
 ${rows}
 ]);
 `;
@@ -326,7 +385,7 @@ const parseGtfsDate = (value: string): number =>
 
 /**
  * The rail lines that miss a weekday: on fewer than `WEEKDAY_SHARE` of that weekday's dates in the
- * feed period, none of their trips run.
+ * feed period, none of their journeys run.
  */
 async function readNonDailyLines(
   archivePath: string,
@@ -378,20 +437,20 @@ async function readNonDailyLines(
  */
 async function readServiceByStation(
   archivePath: string,
-  lineByTripId: ReadonlyMap<string, string>,
+  lineByJourneyRef: ReadonlyMap<string, string>,
 ): Promise<Map<string, { lines: Set<string>; calls: number }>> {
-  const stationByPlatformId = new Map<string, string>();
+  const stationByBayId = new Map<string, string>();
   for await (const [stopId, , , , , , , parentStation] of columnsOf(archivePath, "stops.txt", 8)) {
     // GTFS's station `Pde:08212:1011` is EFA's `de:08212:1011`.
     if (stopId?.startsWith(GLOBAL_ID_PREFIX) && parentStation?.startsWith(`P${GLOBAL_ID_PREFIX}`)) {
-      stationByPlatformId.set(stopId, parentStation.slice(1));
+      stationByBayId.set(stopId, parentStation.slice(1));
     }
   }
 
   const serviceByGlobalId = new Map<string, { lines: Set<string>; calls: number }>();
-  for await (const [tripId, , , stopId] of columnsOf(archivePath, "stop_times.txt", 4)) {
-    const globalId = stationByPlatformId.get(stopId ?? "");
-    const line = lineByTripId.get(tripId ?? "");
+  for await (const [journeyRef, , , stopId] of columnsOf(archivePath, "stop_times.txt", 4)) {
+    const globalId = stationByBayId.get(stopId ?? "");
+    const line = lineByJourneyRef.get(journeyRef ?? "");
     if (!globalId || !line) continue;
     const service = serviceByGlobalId.get(globalId) ?? { lines: new Set<string>(), calls: 0 };
     service.lines.add(line);

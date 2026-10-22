@@ -1,4 +1,4 @@
-import type { Departure, TripCall } from "../data/transit-types";
+import type { StopEvent, Call } from "../data/transit-types";
 import { isExceptionalOperationNote } from "../data/operational-exceptions";
 import { getLineFamilyId } from "./line-families";
 import { getBaseName } from "./stop-naming";
@@ -9,47 +9,45 @@ import {
   getCallKey,
   getCallSequenceKey,
   getCallsAfterStop,
-} from "./trip-calls";
+} from "./calls";
 
 /**
- * What a stop has learned about where its trips go and which lines pass its places. Remembered
+ * What a stop has learned about where its journeys go and which lines pass its places. Remembered
  * rather than re-derived, since the sequences arrive from other boards on slower cadences and a
- * trip's route does not become unknown again.
+ * journey's route does not become unknown again.
  */
 
-/** Whether the trip runs its published route; a diversion must not teach or reuse a pattern. */
-function followsPublishedRoute(departure: Departure): boolean {
-  return departure.status !== "diverted" && !isExceptionalOperationNote(departure.serviceNote);
+/** Whether the journey runs its published route; a diversion must not teach or reuse a pattern. */
+function followsPublishedRoute(stopEvent: StopEvent): boolean {
+  return stopEvent.status !== "diverted" && !isExceptionalOperationNote(stopEvent.serviceNote);
 }
 
-/** One key per trip, however many boards read it. */
-const getTripKey = (departure: Departure) => departure.tripId ?? departure.id;
+/** One key per journey, however many boards read it. */
+const getJourneyKey = (stopEvent: StopEvent) => stopEvent.journeyRef ?? stopEvent.id;
 
-const getLineDestinationKey = (departure: Departure) =>
-  `${getLineFamilyId(departure.lineId)}|${departure.destination}`;
+const getLineDestinationKey = (stopEvent: StopEvent) =>
+  `${getLineFamilyId(stopEvent.lineId)}|${stopEvent.destinationText}`;
 
-const getLineDirectionKey = (departure: Departure) =>
-  departure.routeDirectionId
-    ? `${getLineFamilyId(departure.lineId)}|${departure.routeDirectionId}`
-    : undefined;
+const getLineDirectionKey = (stopEvent: StopEvent) =>
+  stopEvent.lineRef ? `${getLineFamilyId(stopEvent.lineId)}|${stopEvent.lineRef}` : undefined;
 
 /** Keeps different operating exceptions from borrowing each other's temporary route. */
-const getExceptionalLineDestinationKey = (departure: Departure) =>
-  `${getLineDestinationKey(departure)}|${departure.serviceNote?.trim().toLocaleLowerCase("de") || departure.status}`;
+const getExceptionalLineDestinationKey = (stopEvent: StopEvent) =>
+  `${getLineDestinationKey(stopEvent)}|${stopEvent.serviceNote?.trim().toLocaleLowerCase("de") || stopEvent.status}`;
 
-/** One route out of this stop, and the distinct trips it has been read from. */
+/** One route out of this stop, and the distinct journeys it has been read from. */
 type StopCorridorRoute = {
-  calls: readonly TripCall[];
-  /** Trips, not readings, so a re-read board does not vote again. */
-  tripKeys: ReadonlySet<string>;
+  calls: readonly Call[];
+  /** Journeys, not readings, so a re-read board does not vote again. */
+  journeyKeys: ReadonlySet<string>;
 };
 
 export type StopCorridorPatterns = {
   stopId: string;
-  /** Each fully read trip's route past this stop, by trip id. */
-  byTripKey: ReadonlyMap<string, readonly TripCall[]>;
-  /** Exceptional trips' routes; never the line-and-headsign fallback. */
-  exceptionalByTripKey: ReadonlyMap<string, readonly TripCall[]>;
+  /** Each fully read journey's route past this stop, by journey id. */
+  byJourneyKey: ReadonlyMap<string, readonly Call[]>;
+  /** Exceptional journeys' routes; never the line-and-headsign fallback. */
+  exceptionalByJourneyKey: ReadonlyMap<string, readonly Call[]>;
   /** Every published route seen per line and headsign. */
   byLineDestination: ReadonlyMap<string, ReadonlyMap<string, StopCorridorRoute>>;
   /** Observed first links by the feed's stable line-direction identity. */
@@ -65,14 +63,17 @@ export type StopCorridorPatterns = {
   boardPlaceName: string | undefined;
 };
 
-/** Trips remembered per stop; the per-trip index grows with every run, so the oldest fall out. */
+/**
+ * Journeys remembered per stop; the per-journey index grows with every dated journey, so the oldest
+ * fall out.
+ */
 const STOP_CORRIDOR_PATTERN_CAPACITY = 512;
 
 export function createStopCorridorPatterns(stopId: string): StopCorridorPatterns {
   return {
     stopId,
-    byTripKey: new Map(),
-    exceptionalByTripKey: new Map(),
+    byJourneyKey: new Map(),
+    exceptionalByJourneyKey: new Map(),
     byLineDestination: new Map(),
     byLineDirection: new Map(),
     exceptionalByLineDestination: new Map(),
@@ -82,84 +83,84 @@ export function createStopCorridorPatterns(stopId: string): StopCorridorPatterns
 }
 
 /**
- * Adds what the detailed boards say about this stop's trips. Returns `base` itself when nothing was
- * learned, for any repeated input, since callers set state on that identity.
+ * Adds what the detailed boards say about this stop's journeys. Returns `base` itself when nothing
+ * was learned, for any repeated input, since callers set state on that identity.
  */
 export function updateStopCorridorPatterns(
   previous: StopCorridorPatterns | null,
   stopId: string,
-  topologyDepartures: readonly Departure[],
+  topologyStopEvents: readonly StopEvent[],
   capacity = STOP_CORRIDOR_PATTERN_CAPACITY,
 ): StopCorridorPatterns {
   const base = previous?.stopId === stopId ? previous : createStopCorridorPatterns(stopId);
   // Indexes are drafted, copying only changed entries, so the common no-op refresh is cheap.
-  const trips = createTripRouteDraft(base.byTripKey, capacity);
-  const exceptionalTrips = createTripRouteDraft(base.exceptionalByTripKey, capacity);
+  const journeys = createJourneyRouteDraft(base.byJourneyKey, capacity);
+  const exceptionalJourneys = createJourneyRouteDraft(base.exceptionalByJourneyKey, capacity);
   const lineDestinations = createLineRouteDraft(base.byLineDestination);
   const lineDirections = createLineRouteDraft(base.byLineDirection);
   const exceptionalLineDestinations = createLineRouteDraft(base.exceptionalByLineDestination);
   const placeLineFamilies = createPlaceLineFamiliesDraft(base.lineFamiliesByPlace);
   const drafts = [
-    trips,
-    exceptionalTrips,
+    journeys,
+    exceptionalJourneys,
     lineDestinations,
     lineDirections,
     exceptionalLineDestinations,
     placeLineFamilies,
   ];
 
-  // The first reading of a trip in a pass wins, so disagreeing readings cannot flip-flop and the
-  // state reaches a fixed point. `topologyDepartures` puts the stop's own board first.
-  const readTripKeys = new Set<string>();
+  // The first reading of a journey in a pass wins, so disagreeing readings cannot flip-flop and the
+  // state reaches a fixed point. `topologyStopEvents` puts the stop's own board first.
+  const readJourneyKeys = new Set<string>();
 
-  for (const departure of topologyDepartures) {
+  for (const stopEvent of topologyStopEvents) {
     // Any reading with calls teaches which lines serve which places; idempotent, for the fixed
     // point.
-    const lineFamilyId = getLineFamilyId(departure.lineId);
-    for (const call of departure.tripCalls ?? []) {
+    const lineFamilyId = getLineFamilyId(stopEvent.lineId);
+    for (const call of stopEvent.calls ?? []) {
       const placeName = call.placeName && getBaseName(call.placeName);
       if (placeName) placeLineFamilies.learn(placeName, lineFamilyId, call);
     }
 
-    const calls = getCallsAfterStop(departure, stopId);
+    const calls = getCallsAfterStop(stopEvent, stopId);
     if (calls.length === 0) continue;
 
-    const tripKey = getTripKey(departure);
-    if (readTripKeys.has(tripKey)) continue;
-    readTripKeys.add(tripKey);
+    const journeyKey = getJourneyKey(stopEvent);
+    if (readJourneyKeys.has(journeyKey)) continue;
+    readJourneyKeys.add(journeyKey);
 
     const sequenceKey = getCallSequenceKey(calls);
-    if (!followsPublishedRoute(departure)) {
-      // Exceptional routes may cover an unread trip with the same exception, never the fallback.
-      exceptionalTrips.learn(tripKey, sequenceKey, calls);
+    if (!followsPublishedRoute(stopEvent)) {
+      // Exceptional routes may cover an unread journey with the same exception, never the fallback.
+      exceptionalJourneys.learn(journeyKey, sequenceKey, calls);
       exceptionalLineDestinations.learn(
-        getExceptionalLineDestinationKey(departure),
+        getExceptionalLineDestinationKey(stopEvent),
         sequenceKey,
         calls,
-        tripKey,
+        journeyKey,
       );
       continue;
     }
 
-    trips.learn(tripKey, sequenceKey, calls);
-    lineDestinations.learn(getLineDestinationKey(departure), sequenceKey, calls, tripKey);
+    journeys.learn(journeyKey, sequenceKey, calls);
+    lineDestinations.learn(getLineDestinationKey(stopEvent), sequenceKey, calls, journeyKey);
 
     // Headsigns beyond the detailed board's window still relate to a direction, by first link only.
-    const lineDirectionKey = getLineDirectionKey(departure);
+    const lineDirectionKey = getLineDirectionKey(stopEvent);
     const firstCall = findFirstCallBeyondStop(calls, stopId);
     if (lineDirectionKey && firstCall) {
-      lineDirections.learn(lineDirectionKey, getCallKey(firstCall), [firstCall], tripKey);
+      lineDirections.learn(lineDirectionKey, getCallKey(firstCall), [firstCall], journeyKey);
     }
   }
 
-  const boardPlaceName = base.boardPlaceName ?? findBoardPlaceName(topologyDepartures, stopId);
+  const boardPlaceName = base.boardPlaceName ?? findBoardPlaceName(topologyStopEvents, stopId);
   if (drafts.every((draft) => !draft.hasChanges) && boardPlaceName === base.boardPlaceName)
     return base;
 
   return {
     stopId,
-    byTripKey: trips.commit(),
-    exceptionalByTripKey: exceptionalTrips.commit(),
+    byJourneyKey: journeys.commit(),
+    exceptionalByJourneyKey: exceptionalJourneys.commit(),
     byLineDestination: lineDestinations.commit(),
     byLineDirection: lineDirections.commit(),
     exceptionalByLineDestination: exceptionalLineDestinations.commit(),
@@ -168,20 +169,20 @@ export function updateStopCorridorPatterns(
   };
 }
 
-/** Per-trip routes, bounded; insertion order is age order, so trimming drops the oldest. */
-function createTripRouteDraft(base: ReadonlyMap<string, readonly TripCall[]>, capacity: number) {
-  let changed: Map<string, readonly TripCall[]> | undefined;
+/** Per-journey routes, bounded; insertion order is age order, so trimming drops the oldest. */
+function createJourneyRouteDraft(base: ReadonlyMap<string, readonly Call[]>, capacity: number) {
+  let changed: Map<string, readonly Call[]> | undefined;
   return {
     get hasChanges() {
       return changed !== undefined;
     },
-    learn(tripKey: string, sequenceKey: string, calls: readonly TripCall[]) {
-      const known = (changed ?? base).get(tripKey);
+    learn(journeyKey: string, sequenceKey: string, calls: readonly Call[]) {
+      const known = (changed ?? base).get(journeyKey);
       if (known && getCallSequenceKey(known) === sequenceKey) return;
       changed ??= new Map(base);
-      changed.set(tripKey, calls);
+      changed.set(journeyKey, calls);
     },
-    commit(): ReadonlyMap<string, readonly TripCall[]> {
+    commit(): ReadonlyMap<string, readonly Call[]> {
       if (!changed) return base;
       return changed.size > capacity
         ? new Map([...changed].slice(changed.size - capacity))
@@ -190,23 +191,26 @@ function createTripRouteDraft(base: ReadonlyMap<string, readonly TripCall[]>, ca
   };
 }
 
-/** Routes per line key with their trips; unbounded, since a line takes a handful of routes. */
+/** Routes per line key with their journeys; unbounded, since a line takes a handful of routes. */
 function createLineRouteDraft(base: ReadonlyMap<string, ReadonlyMap<string, StopCorridorRoute>>) {
   let changed: Map<string, Map<string, StopCorridorRoute>> | undefined;
   return {
     get hasChanges() {
       return changed !== undefined;
     },
-    learn(lineKey: string, routeKey: string, calls: readonly TripCall[], tripKey: string) {
+    learn(lineKey: string, routeKey: string, calls: readonly Call[], journeyKey: string) {
       const route = (changed?.get(lineKey) ?? base.get(lineKey))?.get(routeKey);
-      if (route?.tripKeys.has(tripKey)) return;
+      if (route?.journeyKeys.has(journeyKey)) return;
       changed ??= new Map();
       let routes = changed.get(lineKey);
       if (!routes) {
         routes = new Map(base.get(lineKey));
         changed.set(lineKey, routes);
       }
-      routes.set(routeKey, { calls, tripKeys: new Set([...(route?.tripKeys ?? []), tripKey]) });
+      routes.set(routeKey, {
+        calls,
+        journeyKeys: new Set([...(route?.journeyKeys ?? []), journeyKey]),
+      });
     },
     commit(): ReadonlyMap<string, ReadonlyMap<string, StopCorridorRoute>> {
       return changed ? new Map([...base, ...changed]) : base;
@@ -239,33 +243,33 @@ function createPlaceLineFamiliesDraft(base: PlaceLineFamilies) {
  * that headsign. The fallback needs a clear winner; a tie means two branches and answers nothing.
  */
 export type StopCorridorPatternMatch = {
-  calls: readonly TripCall[];
+  calls: readonly Call[];
   /** False when only the outgoing link was observed. */
   hasFullRoute: boolean;
 };
 
 export function findStopCorridorPattern(
   patterns: StopCorridorPatterns,
-  departure: Departure,
+  stopEvent: StopEvent,
 ): StopCorridorPatternMatch | undefined {
-  if (!followsPublishedRoute(departure)) {
+  if (!followsPublishedRoute(stopEvent)) {
     const calls =
-      patterns.exceptionalByTripKey.get(getTripKey(departure)) ??
+      patterns.exceptionalByJourneyKey.get(getJourneyKey(stopEvent)) ??
       findPredominantRoute(
-        patterns.exceptionalByLineDestination.get(getExceptionalLineDestinationKey(departure)),
+        patterns.exceptionalByLineDestination.get(getExceptionalLineDestinationKey(stopEvent)),
       );
     return calls ? { calls, hasFullRoute: true } : undefined;
   }
 
-  const observed = patterns.byTripKey.get(getTripKey(departure));
+  const observed = patterns.byJourneyKey.get(getJourneyKey(stopEvent));
   if (observed) return { calls: observed, hasFullRoute: true };
 
   const destinationRoute = findPredominantRoute(
-    patterns.byLineDestination.get(getLineDestinationKey(departure)),
+    patterns.byLineDestination.get(getLineDestinationKey(stopEvent)),
   );
   if (destinationRoute) return { calls: destinationRoute, hasFullRoute: true };
 
-  const lineDirectionKey = getLineDirectionKey(departure);
+  const lineDirectionKey = getLineDirectionKey(stopEvent);
   const outgoingLink = lineDirectionKey
     ? findPredominantRoute(patterns.byLineDirection.get(lineDirectionKey))
     : undefined;
@@ -275,12 +279,12 @@ export function findStopCorridorPattern(
 /** The sole or most-observed route; a tie answers nothing. */
 function findPredominantRoute(
   routesBySequence: ReadonlyMap<string, StopCorridorRoute> | undefined,
-): readonly TripCall[] | undefined {
+): readonly Call[] | undefined {
   const routes = [...(routesBySequence?.values() ?? [])].sort(
-    (first, second) => second.tripKeys.size - first.tripKeys.size,
+    (first, second) => second.journeyKeys.size - first.journeyKeys.size,
   );
   if (routes.length === 0) return undefined;
-  return routes.length === 1 || routes[0].tripKeys.size > routes[1].tripKeys.size
+  return routes.length === 1 || routes[0].journeyKeys.size > routes[1].journeyKeys.size
     ? routes[0].calls
     : undefined;
 }
@@ -289,9 +293,9 @@ function findPredominantRoute(
  * The board's municipality, whose stops need no qualifier ("Richtung Karlsruhe" helps nobody
  * there).
  */
-function findBoardPlaceName(departures: readonly Departure[], stopId: string): string | undefined {
-  for (const departure of departures) {
-    const placeName = departure.tripCalls?.[findStopCallIndex(departure, stopId)]?.placeName;
+function findBoardPlaceName(stopEvents: readonly StopEvent[], stopId: string): string | undefined {
+  for (const stopEvent of stopEvents) {
+    const placeName = stopEvent.calls?.[findStopCallIndex(stopEvent, stopId)]?.placeName;
     if (placeName) return getBaseName(placeName);
   }
   return undefined;

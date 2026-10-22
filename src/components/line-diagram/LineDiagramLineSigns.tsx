@@ -5,12 +5,12 @@ import { classNames } from "../../lib/class-names";
 /** The signs of every line in the reading, with the primary kept visually dominant. */
 export function LineDiagramLineSigns({
   lines,
-  onClearRun,
-  clearRunLabel,
+  onClearDatedJourney,
+  clearDatedJourneyLabel,
 }: {
   lines: readonly TransitLine[];
-  onClearRun?: () => void;
-  clearRunLabel?: string;
+  onClearDatedJourney?: () => void;
+  clearDatedJourneyLabel?: string;
 }) {
   const signs = lines.map((line, index) => (
     <span
@@ -29,12 +29,12 @@ export function LineDiagramLineSigns({
   ));
   const linesLabel = `Linien ${lines.map(({ id }) => id).join(", ")}`;
 
-  return onClearRun ? (
+  return onClearDatedJourney ? (
     <button
       type="button"
       className="line-diagram-signs interactive"
-      onClick={onClearRun}
-      aria-label={clearRunLabel ?? linesLabel}
+      onClick={onClearDatedJourney}
+      aria-label={clearDatedJourneyLabel ?? linesLabel}
     >
       {signs}
     </button>

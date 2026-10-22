@@ -3,11 +3,11 @@
 const text = (value: string) =>
   `<trias:Text>${value}</trias:Text><trias:Language>de</trias:Language>`;
 
-type ServiceTime = { scheduled: string; estimated?: string };
+type ServiceTime = { timetabled: string; estimated?: string };
 
 const serviceTime = (element: string, time: ServiceTime | undefined) =>
   time
-    ? `<trias:${element}><trias:TimetabledTime>${time.scheduled}</trias:TimetabledTime>${
+    ? `<trias:${element}><trias:TimetabledTime>${time.timetabled}</trias:TimetabledTime>${
         time.estimated ? `<trias:EstimatedTime>${time.estimated}</trias:EstimatedTime>` : ""
       }</trias:${element}>`
     : "";
@@ -91,14 +91,66 @@ export const triasStopEvent = ({
 export const triasReply = (respondedAt: string, payload: string) =>
   `<?xml version="1.0" encoding="UTF-8"?><trias:Trias xmlns:siri="http://www.siri.org.uk/siri" xmlns:trias="http://www.vdv.de/trias" version="1.2"><trias:ServiceDelivery><siri:ResponseTimestamp>${respondedAt}</siri:ResponseTimestamp><siri:Status>true</siri:Status><trias:DeliveryPayload>${payload}</trias:DeliveryPayload></trias:ServiceDelivery></trias:Trias>`;
 
-export const triasStopEvents = (respondedAt: string, events: string[], error?: string) =>
+export type TriasSituation = {
+  number?: string;
+  version?: string;
+  summary: string;
+  description?: string;
+  detail?: string;
+  start?: string;
+  end?: string;
+  priority?: string;
+  lineRefs?: string[];
+};
+
+/** A SIRI situation as a board's `StopEventResponseContext` carries it. */
+export const triasSituation = ({
+  number,
+  version = "1",
+  summary,
+  description,
+  detail,
+  start,
+  end,
+  priority = "3",
+  lineRefs = [],
+}: TriasSituation) =>
+  `<trias:PtSituation><siri:CreationTime>2026-09-18T10:04:00Z</siri:CreationTime>${
+    number ? `<siri:SituationNumber>${number}</siri:SituationNumber>` : "<siri:SituationNumber/>"
+  }<siri:Version>${version}</siri:Version>${
+    start || end
+      ? `<siri:ValidityPeriod>${start ? `<siri:StartTime>${start}</siri:StartTime>` : ""}${
+          end ? `<siri:EndTime>${end}</siri:EndTime>` : ""
+        }</siri:ValidityPeriod>`
+      : ""
+  }<siri:Priority>${priority}</siri:Priority><siri:Summary>${summary}</siri:Summary>${
+    description ? `<siri:Description>${description}</siri:Description>` : "<siri:Description/>"
+  }${detail ? `<siri:Detail>${detail}</siri:Detail>` : "<siri:Detail/>"}${
+    lineRefs.length
+      ? `<siri:Affects><siri:VehicleJourneys>${lineRefs
+          .map(
+            (ref) =>
+              `<siri:AffectedVehicleJourney><siri:LineRef>${ref}</siri:LineRef><siri:Route></siri:Route></siri:AffectedVehicleJourney>`,
+          )
+          .join("")}</siri:VehicleJourneys></siri:Affects>`
+      : ""
+  }</trias:PtSituation>`;
+
+export const triasStopEvents = (
+  respondedAt: string,
+  events: string[],
+  error?: string,
+  situations: string[] = [],
+) =>
   triasReply(
     respondedAt,
     `<trias:StopEventResponse>${
       error
         ? `<trias:ErrorMessage><trias:Code>-4030</trias:Code><trias:Text>${text(error)}</trias:Text></trias:ErrorMessage>`
         : ""
-    }${events.join("")}</trias:StopEventResponse>`,
+    }<trias:StopEventResponseContext><trias:Situations>${situations.join(
+      "",
+    )}</trias:Situations></trias:StopEventResponseContext>${events.join("")}</trias:StopEventResponse>`,
   );
 
 export const triasTripInfo = (

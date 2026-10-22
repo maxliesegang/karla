@@ -1,15 +1,15 @@
 import { useState } from "react";
-import type { DepartureBoard } from "../../data/transit-types";
-import { getStaleBoardLabel } from "../../lib/departure-presentation";
+import type { StopEventBoard } from "../../data/transit-types";
+import { getStaleBoardLabel } from "../../lib/stop-event-presentation";
 import type { ZentrumTravelTime } from "../../lib/zentrum-schematic-overlays";
 import { getZentrumRidePresentation } from "../../lib/zentrum-presentation";
-import { isSameRun } from "../../lib/trips";
-import { getDepartureAddressId, routePaths } from "../../routing";
+import { isSameDatedJourney } from "../../lib/journeys";
+import { getStopEventAddressId, routePaths } from "../../routing";
 import { LineBadge } from "../LineBadge";
 import type { ZentrumLineSignReader } from "./line-sign";
 import type { ZentrumReachableStop } from "../../lib/zentrum-stop-view";
 
-/** Compare direct rides and open the chosen run with its boarding and alighting stops. */
+/** Compare direct rides and open the chosen dated journey with its boarding and alighting stops. */
 export function ZentrumDestinationDetail({
   originStopId,
   originStopLabel,
@@ -25,15 +25,15 @@ export function ZentrumDestinationDetail({
   originStopLabel: string;
   reachableStop: ZentrumReachableStop;
   rides: readonly ZentrumTravelTime[];
-  board: DepartureBoard | null;
+  board: StopEventBoard | null;
   feedNow: number;
   getSign: ZentrumLineSignReader;
   onClose: () => void;
   onSelectStop: (stopId: string) => void;
 }) {
-  const [chosenDeparture, setChosenDeparture] = useState(reachableStop.departure);
+  const [chosenStopEvent, setChosenStopEvent] = useState(reachableStop.stopEvent);
   const selectedRide =
-    rides.find((ride) => isSameRun(ride.departure, chosenDeparture)) ?? reachableStop;
+    rides.find((ride) => isSameDatedJourney(ride.stopEvent, chosenStopEvent)) ?? reachableStop;
   const selected = getZentrumRidePresentation(selectedRide, board, feedNow);
   const staleBoardLabel = getStaleBoardLabel(board, feedNow);
   return (
@@ -71,7 +71,7 @@ export function ZentrumDestinationDetail({
           <li>
             <span>
               {originStopLabel}
-              <small>{selected.platformLabel}</small>
+              <small>{selected.bayText}</small>
             </span>
             <b>{selected.departureTime}</b>
           </li>
@@ -91,15 +91,15 @@ export function ZentrumDestinationDetail({
             >
               {rides.map((ride) => {
                 const reading = getZentrumRidePresentation(ride, board, feedNow);
-                const isSelected = isSameRun(ride.departure, selectedRide.departure);
+                const isSelected = isSameDatedJourney(ride.stopEvent, selectedRide.stopEvent);
                 return (
-                  <li key={getDepartureAddressId(ride.departure)}>
+                  <li key={getStopEventAddressId(ride.stopEvent)}>
                     <button
                       type="button"
                       className="zentrum-destination-ride"
                       aria-pressed={isSelected}
-                      aria-label={`Linie ${ride.lineId}, ${reading.waitLabel}, Abfahrt ${reading.departureTime}, Ankunft ${reading.arrivalTime}, ${reading.rideMinutes} min Fahrt, ${reading.platformLabel}, ${reading.sourceLabel}`}
-                      onClick={() => setChosenDeparture(ride.departure)}
+                      aria-label={`Linie ${ride.lineId}, ${reading.waitLabel}, Abfahrt ${reading.departureTime}, Ankunft ${reading.arrivalTime}, ${reading.rideMinutes} min Fahrt, ${reading.bayText}, ${reading.sourceLabel}`}
+                      onClick={() => setChosenStopEvent(ride.stopEvent)}
                     >
                       <LineBadge line={getSign(ride.lineId)} size="sm" />
                       <span className="zentrum-destination-ride-info">
@@ -109,7 +109,7 @@ export function ZentrumDestinationDetail({
                           min Fahrt
                         </small>
                         <small>
-                          {reading.platformLabel} · Richtung {reading.direction}
+                          {reading.bayText} · Richtung {reading.direction}
                         </small>
                         <small>{reading.sourceLabel}</small>
                         {reading.serviceNote && (
@@ -134,7 +134,7 @@ export function ZentrumDestinationDetail({
       </div>
       <a
         className="zentrum-panel-link"
-        href={`#${routePaths.ride(getDepartureAddressId(selectedRide.departure), originStopId, reachableStop.nodeId)}`}
+        href={`#${routePaths.ride(getStopEventAddressId(selectedRide.stopEvent), originStopId, reachableStop.nodeId)}`}
       >
         Mit Linie {selectedRide.lineId} um {selected.departureTime} fahren →
       </a>

@@ -226,7 +226,8 @@ export function deriveRegionPlan(observed: GeoNetwork, homePlaceName: string): R
   const nameOf = ({ id, placeName }: { id: string; placeName?: string }, byStop: boolean) => {
     const isPlaceNode = placeName !== undefined && placeName !== homePlaceName;
     const isOnlyNode = nodeCountByPlace.get(placeName ?? "") === 1;
-    // A run of a place is named by the place; a junction there only if it is the place's one node.
+    // A run of a place is named by the place; a junction there only if it is the place's
+    // one node.
     const standsForPlace = isPlaceNode && !byStop && (isOnlyNode || !isJunction(id));
     const stopName = stopOf(id)?.name ?? id;
     if (standsForPlace) return placeName;

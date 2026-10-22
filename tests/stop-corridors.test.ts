@@ -1,47 +1,47 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { Departure, TripCall } from "../src/data/transit-types.ts";
+import type { StopEvent, Call } from "../src/data/transit-types.ts";
 import { updateStopCorridorPatterns } from "../src/lib/stop-corridor-patterns.ts";
 import { getStopServiceCorridorLineGroups } from "../src/lib/stop-corridors.ts";
-import { createDeparture } from "./support/fixtures.ts";
+import { createStopEvent } from "./support/fixtures.ts";
 
-function departure(
-  overrides: Partial<Departure> & Pick<Departure, "id" | "destination">,
-): Departure {
-  return createDeparture({
-    tripId: overrides.id,
+function stopEvent(
+  overrides: Partial<StopEvent> & Pick<StopEvent, "id" | "destinationText">,
+): StopEvent {
+  return createStopEvent({
+    journeyRef: overrides.id,
     lineId: "2",
-    transportMode: "tram",
+    ptMode: "tram",
     minutesUntilDeparture: 4,
-    platformCode: "1",
+    bay: "1",
     boardingLocalStopId: "europaplatz",
     status: "realtime",
-    scheduledDepartureTime: "2026-08-24T12:04:00+02:00",
+    timetabledDepartureTime: "2026-08-24T12:04:00+02:00",
     ...overrides,
   });
 }
 
-const calls = (...stopNames: string[]): TripCall[] =>
+const calls = (...stopNames: string[]): Call[] =>
   stopNames.map((stopName, index) => ({
     stopName,
     localStopId: stopName.toLowerCase(),
-    isCurrentStop: index === 0,
+    isThisCall: index === 0,
   }));
 
 /** The grouping from one reading of the detailed boards, nothing remembered. */
 const groupsAt = (
   stopId: string,
-  live: readonly Departure[],
-  topologyDepartures: readonly Departure[] = [],
+  live: readonly StopEvent[],
+  topologyStopEvents: readonly StopEvent[] = [],
 ) =>
   getStopServiceCorridorLineGroups(
     live,
-    updateStopCorridorPatterns(null, stopId, topologyDepartures),
+    updateStopCorridorPatterns(null, stopId, topologyStopEvents),
   );
 
 test("does not merge S1 and S11 even when they share a destination", () => {
-  const s1 = departure({ id: "s1", lineId: "S1", destination: "Hochstetten" });
-  const s11 = departure({ id: "s11", lineId: "S11", destination: "Hochstetten" });
+  const s1 = stopEvent({ id: "s1", lineId: "S1", destinationText: "Hochstetten" });
+  const s11 = stopEvent({ id: "s11", lineId: "S11", destinationText: "Hochstetten" });
 
   const groups = groupsAt("europaplatz", [s1, s11], []);
   assert.deepEqual(
@@ -51,15 +51,15 @@ test("does not merge S1 and S11 even when they share a destination", () => {
 });
 
 test("keeps two detailed patterns separate even when their destination is the same", () => {
-  const direct = departure({
+  const direct = stopEvent({
     id: "direct",
-    destination: "Durlach",
-    tripCalls: calls("Europaplatz", "Marktplatz", "Durlach"),
+    destinationText: "Durlach",
+    calls: calls("Europaplatz", "Marktplatz", "Durlach"),
   });
-  const branch = departure({
+  const branch = stopEvent({
     id: "branch",
-    destination: "Durlach",
-    tripCalls: calls("Europaplatz", "Hauptbahnhof", "Durlach"),
+    destinationText: "Durlach",
+    calls: calls("Europaplatz", "Hauptbahnhof", "Durlach"),
   });
 
   const corridors = groupsAt("europaplatz", [direct, branch], [direct, branch])[0].corridors;
@@ -78,14 +78,14 @@ test("keeps two detailed patterns separate even when their destination is the sa
 
 test("a corridor matched only over its first link may not claim a shared route", () => {
   const live = [
-    departure({ id: "first", routeDirectionId: "dir", destination: "First end" }),
-    departure({ id: "second", routeDirectionId: "dir", destination: "Second end" }),
+    stopEvent({ id: "first", lineRef: "dir", destinationText: "First end" }),
+    stopEvent({ id: "second", lineRef: "dir", destinationText: "Second end" }),
   ];
-  const earlier = departure({
+  const earlier = stopEvent({
     id: "earlier",
-    routeDirectionId: "dir",
-    destination: "Earlier end",
-    tripCalls: calls("Europaplatz", "Marktplatz", "Earlier end"),
+    lineRef: "dir",
+    destinationText: "Earlier end",
+    calls: calls("Europaplatz", "Marktplatz", "Earlier end"),
   });
   const patterns = updateStopCorridorPatterns(null, "europaplatz", [earlier]);
 
@@ -97,30 +97,30 @@ test("a corridor matched only over its first link may not claim a shared route",
 
 test("groups short workings with through trips over their shared outgoing corridor", () => {
   const live = [
-    departure({
+    stopEvent({
       id: "stadt",
       lineId: "S1",
-      destination: "Ettlingen Stadt",
+      destinationText: "Ettlingen Stadt",
     }),
-    departure({
+    stopEvent({
       id: "albgaubad",
       lineId: "S1",
-      destination: "Ettlingen Albgaubad",
+      destinationText: "Ettlingen Albgaubad",
     }),
-    departure({
+    stopEvent({
       id: "hoch",
       lineId: "S1",
-      destination: "Hochstetten",
+      destinationText: "Hochstetten",
     }),
   ];
-  const topologyDepartures = [
-    departure({
+  const topologyStopEvents = [
+    stopEvent({
       ...live[0],
-      tripCalls: [
+      calls: [
         {
           stopName: "Ostendorfplatz",
           localStopId: "europaplatz",
-          isCurrentStop: true,
+          isThisCall: true,
           placeName: "Karlsruhe",
         },
         { stopName: "Tulpenstraße", localStopId: "tulpenstrasse", placeName: "Karlsruhe" },
@@ -128,13 +128,13 @@ test("groups short workings with through trips over their shared outgoing corrid
         { stopName: "Stadt", localStopId: "ettlingen-stadt", placeName: "Ettlingen" },
       ],
     }),
-    departure({
+    stopEvent({
       ...live[1],
-      tripCalls: [
+      calls: [
         {
           stopName: "Ostendorfplatz",
           localStopId: "europaplatz",
-          isCurrentStop: true,
+          isThisCall: true,
           placeName: "Karlsruhe",
         },
         { stopName: "Tulpenstraße", localStopId: "tulpenstrasse", placeName: "Karlsruhe" },
@@ -143,13 +143,13 @@ test("groups short workings with through trips over their shared outgoing corrid
         { stopName: "Albgaubad", localStopId: "albgaubad", placeName: "Ettlingen" },
       ],
     }),
-    departure({
+    stopEvent({
       ...live[2],
-      tripCalls: [
+      calls: [
         {
           stopName: "Ostendorfplatz",
           localStopId: "europaplatz",
-          isCurrentStop: true,
+          isThisCall: true,
           placeName: "Karlsruhe",
         },
         { stopName: "Schloss Rüppurr", localStopId: "schloss-rueppurr", placeName: "Karlsruhe" },
@@ -161,7 +161,7 @@ test("groups short workings with through trips over their shared outgoing corrid
       ],
     }),
   ];
-  const groups = groupsAt("europaplatz", live, topologyDepartures);
+  const groups = groupsAt("europaplatz", live, topologyStopEvents);
 
   assert.equal(groups.length, 1);
   assert.equal(groups[0].corridors.length, 2);
@@ -169,7 +169,7 @@ test("groups short workings with through trips over their shared outgoing corrid
     ({ directionLabel }) => directionLabel === "Ettlingen",
   );
   assert.deepEqual(
-    southbound?.departures.map(({ destination }) => destination),
+    southbound?.stopEvents.map(({ destinationText: destination }) => destination),
     ["Ettlingen Stadt", "Ettlingen Albgaubad"],
   );
   // Both full routes were read and chain, so the row may claim a shared way.
@@ -178,16 +178,16 @@ test("groups short workings with through trips over their shared outgoing corrid
 
 test("colliding corridors are named by where their trips part, and the unread row keeps its headsign", () => {
   const live = [
-    departure({ id: "direct", destination: "Hauptbahnhof", tripId: "direct" }),
-    departure({ id: "branch", destination: "Hauptbahnhof", tripId: "branch" }),
-    departure({ id: "unread", destination: "Hauptbahnhof", tripId: "unread" }),
+    stopEvent({ id: "direct", destinationText: "Hauptbahnhof", journeyRef: "direct" }),
+    stopEvent({ id: "branch", destinationText: "Hauptbahnhof", journeyRef: "branch" }),
+    stopEvent({ id: "unread", destinationText: "Hauptbahnhof", journeyRef: "unread" }),
   ];
-  const topologyDepartures = [
-    departure({ ...live[0], tripCalls: calls("Europaplatz", "Marktplatz", "Hauptbahnhof") }),
-    departure({ ...live[1], tripCalls: calls("Europaplatz", "Kongresszentrum", "Hauptbahnhof") }),
+  const topologyStopEvents = [
+    stopEvent({ ...live[0], calls: calls("Europaplatz", "Marktplatz", "Hauptbahnhof") }),
+    stopEvent({ ...live[1], calls: calls("Europaplatz", "Kongresszentrum", "Hauptbahnhof") }),
   ];
 
-  const labels = groupsAt("europaplatz", live, topologyDepartures)[0].corridors.map(
+  const labels = groupsAt("europaplatz", live, topologyStopEvents)[0].corridors.map(
     ({ directionLabel }) => directionLabel,
   );
   // The two observed rows fall back to their parting stops; the unread one keeps its headsign.
@@ -197,65 +197,65 @@ test("colliding corridors are named by where their trips part, and the unread ro
 
 test("matches an unseen headsign through the feed's unambiguous line direction", () => {
   const live = [
-    departure({
+    stopEvent({
       id: "forbach",
       lineId: "S8",
-      routeDirectionId: "kvv:22308:E:H:s26",
-      destination: "Forbach",
+      lineRef: "kvv:22308:E:H:s26",
+      destinationText: "Forbach",
     }),
-    departure({
+    stopEvent({
       id: "freudenstadt",
       lineId: "S8",
-      routeDirectionId: "kvv:22308:E:H:s26",
-      destination: "Freudenstadt Hbf",
+      lineRef: "kvv:22308:E:H:s26",
+      destinationText: "Freudenstadt Hbf",
     }),
-    departure({
+    stopEvent({
       id: "bondorf",
       lineId: "S8",
-      routeDirectionId: "kvv:22308:E:H:s26",
-      destination: "Bondorf",
+      lineRef: "kvv:22308:E:H:s26",
+      destinationText: "Bondorf",
     }),
-    departure({
+    stopEvent({
       id: "tulla",
       lineId: "S8",
-      routeDirectionId: "kvv:22308:E:R:s26",
-      destination: "Tullastraße",
+      lineRef: "kvv:22308:E:R:s26",
+      destinationText: "Tullastraße",
     }),
   ];
-  const topologyDepartures = [
-    departure({ ...live[0], tripCalls: calls("Europaplatz", "Poststraße", "Forbach") }),
-    departure({
+  const topologyStopEvents = [
+    stopEvent({ ...live[0], calls: calls("Europaplatz", "Poststraße", "Forbach") }),
+    stopEvent({
       ...live[2],
-      tripCalls: calls("Europaplatz", "Poststraße", "Forbach", "Freudenstadt", "Bondorf"),
+      calls: calls("Europaplatz", "Poststraße", "Forbach", "Freudenstadt", "Bondorf"),
     }),
-    departure({ ...live[3], tripCalls: calls("Europaplatz", "Kongresszentrum", "Tullastraße") }),
+    stopEvent({ ...live[3], calls: calls("Europaplatz", "Kongresszentrum", "Tullastraße") }),
   ];
 
-  const corridors = groupsAt("europaplatz", live, topologyDepartures)[0].corridors;
+  const corridors = groupsAt("europaplatz", live, topologyStopEvents)[0].corridors;
   const outbound = corridors.find(({ destinations }) => destinations.includes("Forbach"));
   assert.ok(outbound);
   assert.deepEqual(outbound.destinations, ["Forbach", "Freudenstadt Hbf", "Bondorf"]);
-  assert.equal(outbound.departures.length, 3);
+  assert.equal(outbound.stopEvents.length, 3);
   assert.equal(corridors.length, 2);
 });
 
 test("does not infer a direction when its observed trips leave by competing links", () => {
-  const later = departure({
+  const later = stopEvent({
     id: "later",
-    routeDirectionId: "same-direction",
-    destination: "Unknown end",
+    lineRef: "same-direction",
+    destinationText: "Unknown end",
   });
-  const first = departure({
+  const first = stopEvent({
     id: "first",
-    routeDirectionId: "same-direction",
-    destination: "First end",
-    tripCalls: calls("Europaplatz", "Marktplatz", "First end"),
+    lineRef: "same-direction",
+    destinationText: "First end",
+    calls: calls("Europaplatz", "Marktplatz", "First end"),
   });
-  const second = departure({
+  const second = stopEvent({
     id: "second",
-    routeDirectionId: "same-direction",
-    destination: "Second end",
-    tripCalls: calls("Europaplatz", "Hauptbahnhof", "Second end"),
+    lineRef: "same-direction",
+    destinationText: "Second end",
+    calls: calls("Europaplatz", "Hauptbahnhof", "Second end"),
   });
 
   const corridor = groupsAt("europaplatz", [later], [first, second])[0].corridors[0];
@@ -263,19 +263,19 @@ test("does not infer a direction when its observed trips leave by competing link
 });
 
 test("collapses calls outside the board's municipality to the place they are in", () => {
-  const live = departure({
+  const live = stopEvent({
     id: "live",
     lineId: "S2",
-    destination: "Rheinstetten",
-    tripId: "rheinstetten",
+    destinationText: "Rheinstetten",
+    journeyRef: "rheinstetten",
   });
-  const observed = departure({
+  const observed = stopEvent({
     ...live,
-    tripCalls: [
+    calls: [
       {
         stopName: "Europaplatz",
         localStopId: "europaplatz",
-        isCurrentStop: true,
+        isThisCall: true,
         placeName: "Karlsruhe",
       },
       { stopName: "Bahnhof", localStopId: "kar-bahnhof", placeName: "Karlsruhe" },
@@ -293,38 +293,38 @@ test("collapses calls outside the board's municipality to the place they are in"
 test("names a Karlsruhe district the way it names a municipality", () => {
   // EFA gives districts (`Durlach`, `Rüppurr`) in the place field and plain `Karlsruhe` for the
   // centre.
-  const live = departure({
+  const live = stopEvent({
     id: "live",
     lineId: "1",
-    destination: "Durlach Turmberg",
-    tripId: "turmberg",
+    destinationText: "Durlach Turmberg",
+    journeyRef: "turmberg",
   });
-  const observed = departure({
+  const observed = stopEvent({
     ...live,
-    tripCalls: [
+    calls: [
       {
         stopName: "Europaplatz",
         localStopId: "europaplatz",
-        isCurrentStop: true,
+        isThisCall: true,
         placeName: "Karlsruhe",
       },
       { stopName: "Kronenplatz", localStopId: "kronenplatz", placeName: "Karlsruhe" },
       { stopName: "Turmberg", localStopId: "turmberg", placeName: "Durlach" },
     ],
   });
-  const inbound = departure({
+  const inbound = stopEvent({
     id: "inbound",
     lineId: "1",
-    destination: "Hauptbahnhof",
-    tripId: "hbf",
+    destinationText: "Hauptbahnhof",
+    journeyRef: "hbf",
   });
-  const observedInbound = departure({
+  const observedInbound = stopEvent({
     ...inbound,
-    tripCalls: [
+    calls: [
       {
         stopName: "Europaplatz",
         localStopId: "europaplatz",
-        isCurrentStop: true,
+        isThisCall: true,
         placeName: "Karlsruhe",
       },
       { stopName: "Hauptbahnhof", localStopId: "hauptbahnhof", placeName: "Karlsruhe" },
@@ -341,24 +341,34 @@ test("names a Karlsruhe district the way it names a municipality", () => {
 
 test("names both ends where the short working turns back along the through route", () => {
   const live = [
-    departure({ id: "stadt", lineId: "S1", destination: "Ettlingen Stadt", tripId: "stadt" }),
-    departure({ id: "herrenalb", lineId: "S1", destination: "Bad Herrenalb", tripId: "herrenalb" }),
+    stopEvent({
+      id: "stadt",
+      lineId: "S1",
+      destinationText: "Ettlingen Stadt",
+      journeyRef: "stadt",
+    }),
+    stopEvent({
+      id: "herrenalb",
+      lineId: "S1",
+      destinationText: "Bad Herrenalb",
+      journeyRef: "herrenalb",
+    }),
   ];
-  const shared: TripCall[] = [
+  const shared: Call[] = [
     {
       stopName: "Europaplatz",
       localStopId: "europaplatz",
-      isCurrentStop: true,
+      isThisCall: true,
       placeName: "Karlsruhe",
     },
     { stopName: "Rüppurr Ostendorfplatz", localStopId: "ostendorfplatz", placeName: "Rüppurr" },
     { stopName: "Stadt", localStopId: "ettlingen-stadt", placeName: "Ettlingen" },
   ];
-  const topologyDepartures = [
-    departure({ ...live[0], tripCalls: shared }),
-    departure({
+  const topologyStopEvents = [
+    stopEvent({ ...live[0], calls: shared }),
+    stopEvent({
       ...live[1],
-      tripCalls: [
+      calls: [
         ...shared,
         { stopName: "Busenbach", localStopId: "busenbach", placeName: "Busenbach (Waldbr.)" },
         { stopName: "Bad Herrenalb", localStopId: "bad-herrenalb", placeName: "Bad Herrenalb" },
@@ -366,8 +376,8 @@ test("names both ends where the short working turns back along the through route
     }),
   ];
 
-  const corridor = groupsAt("europaplatz", live, topologyDepartures)[0].corridors[0];
-  assert.equal(corridor.departures.length, 2);
+  const corridor = groupsAt("europaplatz", live, topologyStopEvents)[0].corridors[0];
+  assert.equal(corridor.stopEvents.length, 2);
   assert.equal(corridor.directionLabel, "Ettlingen");
   assert.deepEqual(
     corridor.places.map(({ label, isTerminus }) => ({ label, isTerminus })),
@@ -380,15 +390,15 @@ test("names both ends where the short working turns back along the through route
 
 test("does not chain two ends the trips genuinely part for", () => {
   const live = [
-    departure({ id: "west", lineId: "2", destination: "Knielingen Nord", tripId: "west" }),
-    departure({ id: "north", lineId: "2", destination: "Neureut Heide", tripId: "north" }),
+    stopEvent({ id: "west", lineId: "2", destinationText: "Knielingen Nord", journeyRef: "west" }),
+    stopEvent({ id: "north", lineId: "2", destinationText: "Neureut Heide", journeyRef: "north" }),
   ];
-  const topologyDepartures = [
-    departure({ ...live[0], tripCalls: calls("Europaplatz", "Entenfang", "Knielingen Nord") }),
-    departure({ ...live[1], tripCalls: calls("Europaplatz", "Entenfang", "Neureut Heide") }),
+  const topologyStopEvents = [
+    stopEvent({ ...live[0], calls: calls("Europaplatz", "Entenfang", "Knielingen Nord") }),
+    stopEvent({ ...live[1], calls: calls("Europaplatz", "Entenfang", "Neureut Heide") }),
   ];
 
-  const corridor = groupsAt("europaplatz", live, topologyDepartures)[0].corridors[0];
+  const corridor = groupsAt("europaplatz", live, topologyStopEvents)[0].corridors[0];
   assert.deepEqual(corridor.places, []);
   // Only the last shared point may be claimed.
   assert.equal(corridor.directionLabel, "Entenfang");
@@ -397,28 +407,28 @@ test("does not chain two ends the trips genuinely part for", () => {
 test("states an end again where the way returns to a place it named before", () => {
   // An end lying behind a further one must still be stated.
   const live = [
-    departure({ id: "near", lineId: "S1", destination: "Ettlingen", tripId: "near" }),
-    departure({ id: "through", lineId: "S1", destination: "Malsch", tripId: "through" }),
-    departure({ id: "back", lineId: "S1", destination: "Ettlingen", tripId: "back" }),
+    stopEvent({ id: "near", lineId: "S1", destinationText: "Ettlingen", journeyRef: "near" }),
+    stopEvent({ id: "through", lineId: "S1", destinationText: "Malsch", journeyRef: "through" }),
+    stopEvent({ id: "back", lineId: "S1", destinationText: "Ettlingen", journeyRef: "back" }),
   ];
-  const head: TripCall[] = [
+  const head: Call[] = [
     {
       stopName: "Europaplatz",
       localStopId: "europaplatz",
-      isCurrentStop: true,
+      isThisCall: true,
       placeName: "Karlsruhe",
     },
     { stopName: "Ettlingen", localStopId: "ettlingen", placeName: "Ettlingen" },
   ];
-  const topologyDepartures = [
-    departure({ ...live[0], tripCalls: head }),
-    departure({
+  const topologyStopEvents = [
+    stopEvent({ ...live[0], calls: head }),
+    stopEvent({
       ...live[1],
-      tripCalls: [...head, { stopName: "Malsch", localStopId: "malsch", placeName: "Malsch" }],
+      calls: [...head, { stopName: "Malsch", localStopId: "malsch", placeName: "Malsch" }],
     }),
-    departure({
+    stopEvent({
       ...live[2],
-      tripCalls: [
+      calls: [
         ...head,
         { stopName: "Malsch", localStopId: "malsch", placeName: "Malsch" },
         { stopName: "Ettlingen Erbprinz", localStopId: "erbprinz", placeName: "Ettlingen" },
@@ -426,7 +436,7 @@ test("states an end again where the way returns to a place it named before", () 
     }),
   ];
 
-  const corridor = groupsAt("europaplatz", live, topologyDepartures)[0].corridors[0];
+  const corridor = groupsAt("europaplatz", live, topologyStopEvents)[0].corridors[0];
   // Three ends, two in Ettlingen: all stated.
   assert.deepEqual(
     corridor.places.map(({ label, isTerminus }) => ({ label, isTerminus })),
@@ -440,30 +450,40 @@ test("states an end again where the way returns to a place it named before", () 
 
 test("weaves the places the route serves with several stops between the ends", () => {
   const live = [
-    departure({ id: "stadt", lineId: "S1", destination: "Ettlingen Stadt", tripId: "stadt" }),
-    departure({ id: "herrenalb", lineId: "S1", destination: "Bad Herrenalb", tripId: "herrenalb" }),
+    stopEvent({
+      id: "stadt",
+      lineId: "S1",
+      destinationText: "Ettlingen Stadt",
+      journeyRef: "stadt",
+    }),
+    stopEvent({
+      id: "herrenalb",
+      lineId: "S1",
+      destinationText: "Bad Herrenalb",
+      journeyRef: "herrenalb",
+    }),
   ];
-  const head: TripCall[] = [
+  const head: Call[] = [
     {
       stopName: "Europaplatz",
       localStopId: "europaplatz",
-      isCurrentStop: true,
+      isThisCall: true,
       placeName: "Karlsruhe",
     },
     { stopName: "Ostendorfplatz", localStopId: "ostendorfplatz", placeName: "Rüppurr" },
     { stopName: "Rüppurrer Straße", localStopId: "rueppurrer-strasse", placeName: "Rüppurr" },
   ];
-  const topologyDepartures = [
-    departure({
+  const topologyStopEvents = [
+    stopEvent({
       ...live[0],
-      tripCalls: [
+      calls: [
         ...head,
         { stopName: "Stadt", localStopId: "ettlingen-stadt", placeName: "Ettlingen" },
       ],
     }),
-    departure({
+    stopEvent({
       ...live[1],
-      tripCalls: [
+      calls: [
         ...head,
         { stopName: "Stadt", localStopId: "ettlingen-stadt", placeName: "Ettlingen" },
         { stopName: "Busenbach", localStopId: "busenbach", placeName: "Busenbach (Waldbr.)" },
@@ -472,7 +492,7 @@ test("weaves the places the route serves with several stops between the ends", (
     }),
   ];
 
-  const corridor = groupsAt("europaplatz", live, topologyDepartures)[0].corridors[0];
+  const corridor = groupsAt("europaplatz", live, topologyStopEvents)[0].corridors[0];
   // Rüppurr (many stops) is sketched; Busenbach (once, no connections) stands back.
   assert.deepEqual(
     corridor.places.map(({ label, isTerminus }) => ({ label, isTerminus })),
@@ -490,16 +510,21 @@ test("weaves the places the route serves with several stops between the ends", (
 
 test("a place another line serves is prominent though the route calls there once", () => {
   const live = [
-    departure({ id: "through", lineId: "S1", destination: "Ettlingen Stadt", tripId: "through" }),
+    stopEvent({
+      id: "through",
+      lineId: "S1",
+      destinationText: "Ettlingen Stadt",
+      journeyRef: "through",
+    }),
   ];
-  const topologyDepartures = [
-    departure({
+  const topologyStopEvents = [
+    stopEvent({
       ...live[0],
-      tripCalls: [
+      calls: [
         {
           stopName: "Europaplatz",
           localStopId: "europaplatz",
-          isCurrentStop: true,
+          isThisCall: true,
           placeName: "Karlsruhe",
         },
         { stopName: "Ostendorfplatz", localStopId: "ostendorfplatz", placeName: "Rüppurr" },
@@ -509,16 +534,16 @@ test("a place another line serves is prominent though the route calls there once
       ],
     }),
     // A bus through Malsch, read at a post the trip never passes: connections count from anywhere.
-    departure({
+    stopEvent({
       id: "bus",
       lineId: "216",
-      destination: "Malsch",
+      destinationText: "Malsch",
       boardingLocalStopId: "muggensturm",
-      tripCalls: [
+      calls: [
         {
           stopName: "Muggensturm",
           localStopId: "muggensturm",
-          isCurrentStop: true,
+          isThisCall: true,
           placeName: "Muggensturm",
         },
         { stopName: "Malsch", localStopId: "malsch", placeName: "Malsch" },
@@ -526,7 +551,7 @@ test("a place another line serves is prominent though the route calls there once
     }),
   ];
 
-  const corridor = groupsAt("europaplatz", live, topologyDepartures)[0].corridors[0];
+  const corridor = groupsAt("europaplatz", live, topologyStopEvents)[0].corridors[0];
   // Malsch, a connection, outranks Rüppurr, served twice by nothing else.
   assert.deepEqual(
     corridor.places.map(({ label, isTerminus }) => ({ label, isTerminus })),
@@ -546,15 +571,15 @@ test("a place another line serves is prominent though the route calls there once
 });
 
 test("states three places, the most relevant of the way's own beside the end", () => {
-  const live = [departure({ id: "through", lineId: "S1", destination: "Ettlingen Stadt" })];
-  const topologyDepartures = [
-    departure({
+  const live = [stopEvent({ id: "through", lineId: "S1", destinationText: "Ettlingen Stadt" })];
+  const topologyStopEvents = [
+    stopEvent({
       ...live[0],
-      tripCalls: [
+      calls: [
         {
           stopName: "Europaplatz",
           localStopId: "europaplatz",
-          isCurrentStop: true,
+          isThisCall: true,
           placeName: "Karlsruhe",
         },
         { stopName: "Bulach", localStopId: "bulach", placeName: "Bulach" },
@@ -567,16 +592,16 @@ test("states three places, the most relevant of the way's own beside the end", (
       ],
     }),
     // The one connection along this way.
-    departure({
+    stopEvent({
       id: "bus",
       lineId: "216",
-      destination: "Malsch",
+      destinationText: "Malsch",
       boardingLocalStopId: "muggensturm",
-      tripCalls: [
+      calls: [
         {
           stopName: "Muggensturm",
           localStopId: "muggensturm",
-          isCurrentStop: true,
+          isThisCall: true,
           placeName: "Muggensturm",
         },
         { stopName: "Malsch", localStopId: "malsch", placeName: "Malsch" },
@@ -584,7 +609,7 @@ test("states three places, the most relevant of the way's own beside the end", (
     }),
   ];
 
-  const corridor = groupsAt("europaplatz", live, topologyDepartures)[0].corridors[0];
+  const corridor = groupsAt("europaplatz", live, topologyStopEvents)[0].corridors[0];
   // Three places in all: the end, Malsch (connection) and Rüppurr; Bulach stands down.
   assert.deepEqual(
     corridor.places.map(({ label, isTerminus }) => ({ label, isTerminus })),
@@ -606,44 +631,59 @@ test("states three places, the most relevant of the way's own beside the end", (
 
 test("states every end, and no way places, where the ends alone fill the row", () => {
   const live = [
-    departure({ id: "rueppurr", lineId: "S1", destination: "Rüppurr", tripId: "rueppurr" }),
-    departure({ id: "stadt", lineId: "S1", destination: "Ettlingen Stadt", tripId: "stadt" }),
-    departure({ id: "herrenalb", lineId: "S1", destination: "Bad Herrenalb", tripId: "herrenalb" }),
-    departure({ id: "ittersbach", lineId: "S1", destination: "Ittersbach", tripId: "ittersbach" }),
+    stopEvent({ id: "rueppurr", lineId: "S1", destinationText: "Rüppurr", journeyRef: "rueppurr" }),
+    stopEvent({
+      id: "stadt",
+      lineId: "S1",
+      destinationText: "Ettlingen Stadt",
+      journeyRef: "stadt",
+    }),
+    stopEvent({
+      id: "herrenalb",
+      lineId: "S1",
+      destinationText: "Bad Herrenalb",
+      journeyRef: "herrenalb",
+    }),
+    stopEvent({
+      id: "ittersbach",
+      lineId: "S1",
+      destinationText: "Ittersbach",
+      journeyRef: "ittersbach",
+    }),
   ];
-  const head: TripCall[] = [
+  const head: Call[] = [
     {
       stopName: "Europaplatz",
       localStopId: "europaplatz",
-      isCurrentStop: true,
+      isThisCall: true,
       placeName: "Karlsruhe",
     },
     { stopName: "Ostendorfplatz", localStopId: "ostendorfplatz", placeName: "Rüppurr" },
     { stopName: "Rüppurrer Straße", localStopId: "rueppurrer-strasse", placeName: "Rüppurr" },
   ];
-  const toEttlingen: TripCall[] = [
+  const toEttlingen: Call[] = [
     ...head,
     { stopName: "Stadt", localStopId: "ettlingen-stadt", placeName: "Ettlingen" },
   ];
-  const toHerrenalb: TripCall[] = [
+  const toHerrenalb: Call[] = [
     ...toEttlingen,
     { stopName: "Busenbach", localStopId: "busenbach", placeName: "Busenbach (Waldbr.)" },
     { stopName: "Bad Herrenalb", localStopId: "bad-herrenalb", placeName: "Bad Herrenalb" },
   ];
-  const topologyDepartures = [
-    departure({ ...live[0], tripCalls: head }),
-    departure({ ...live[1], tripCalls: toEttlingen }),
-    departure({ ...live[2], tripCalls: toHerrenalb }),
-    departure({
+  const topologyStopEvents = [
+    stopEvent({ ...live[0], calls: head }),
+    stopEvent({ ...live[1], calls: toEttlingen }),
+    stopEvent({ ...live[2], calls: toHerrenalb }),
+    stopEvent({
       ...live[3],
-      tripCalls: [
+      calls: [
         ...toHerrenalb,
         { stopName: "Ittersbach", localStopId: "ittersbach", placeName: "Karlsbad" },
       ],
     }),
   ];
 
-  const corridor = groupsAt("europaplatz", live, topologyDepartures)[0].corridors[0];
+  const corridor = groupsAt("europaplatz", live, topologyStopEvents)[0].corridors[0];
   // Four ends fill the row, leaving no room for places between.
   assert.deepEqual(
     corridor.places.map(({ label, isTerminus }) => ({ label, isTerminus })),
@@ -657,17 +697,17 @@ test("states every end, and no way places, where the ends alone fill the row", (
 });
 
 test("does not apply an observed corridor to a diverted live trip", () => {
-  const diverted = departure({
+  const diverted = stopEvent({
     id: "diverted",
     lineId: "S1",
-    destination: "Ettlingen Albgaubad",
-    tripId: "de:kvv:00S01_:.kvv-22-301-E.5.T0.169.s26",
+    destinationText: "Ettlingen Albgaubad",
+    journeyRef: "de:kvv:00S01_:.kvv-22-301-E.5.T0.169.s26",
     status: "diverted",
   });
-  const observed = departure({
+  const observed = stopEvent({
     ...diverted,
     status: "realtime",
-    tripCalls: calls("Europaplatz", "Tulpenstraße", "Ettlingen Stadt", "Ettlingen Albgaubad"),
+    calls: calls("Europaplatz", "Tulpenstraße", "Ettlingen Stadt", "Ettlingen Albgaubad"),
   });
 
   const corridor = groupsAt("europaplatz", [diverted], [observed])[0].corridors[0];
@@ -675,31 +715,31 @@ test("does not apply an observed corridor to a diverted live trip", () => {
 });
 
 test("groups exceptional short and through trips by their own observed corridor", () => {
-  const short = departure({
+  const short = stopEvent({
     id: "daxlanden",
     lineId: "3",
-    destination: "Daxlanden über Hbf",
-    tripId: "daxlanden",
+    destinationText: "Daxlanden über Hbf",
+    journeyRef: "daxlanden",
     serviceNote: "Umleitung",
   });
-  const through = departure({
+  const through = stopEvent({
     id: "rappenwoert",
     lineId: "3",
-    destination: "Rappenwört über Hbf",
-    tripId: "rappenwoert",
+    destinationText: "Rappenwört über Hbf",
+    journeyRef: "rappenwoert",
     serviceNote: "Umleitung",
   });
-  const opposite = departure({
+  const opposite = stopEvent({
     id: "rintheim",
     lineId: "3",
-    destination: "Rintheim",
-    tripId: "rintheim",
+    destinationText: "Rintheim",
+    journeyRef: "rintheim",
   });
-  const laterShort = departure({ ...short, id: "later-daxlanden", tripId: "later-daxlanden" });
-  const laterThrough = departure({
+  const laterShort = stopEvent({ ...short, id: "later-daxlanden", journeyRef: "later-daxlanden" });
+  const laterThrough = stopEvent({
     ...through,
     id: "later-rappenwoert",
-    tripId: "later-rappenwoert",
+    journeyRef: "later-rappenwoert",
   });
   // A stop complex as two consecutive calls is still the rider's stop, not a shared outgoing link.
   const shared = calls(
@@ -709,41 +749,41 @@ test("groups exceptional short and through trips by their own observed corridor"
     "Hauptbahnhof",
     "Waidweg",
   );
-  const topologyDepartures = [
-    departure({ ...short, tripCalls: shared }),
-    departure({ ...through, tripCalls: [...shared, ...calls("Altrheinbrücke", "Rappenwört")] }),
-    departure({
+  const topologyStopEvents = [
+    stopEvent({ ...short, calls: shared }),
+    stopEvent({ ...through, calls: [...shared, ...calls("Altrheinbrücke", "Rappenwört")] }),
+    stopEvent({
       ...opposite,
-      tripCalls: calls("Hauptfriedhof", "Hauptfriedhof", "Dunantstraße", "Rintheim"),
+      calls: calls("Hauptfriedhof", "Hauptfriedhof", "Dunantstraße", "Rintheim"),
     }),
   ];
 
   const corridors = groupsAt(
     "hauptfriedhof",
     [short, through, laterShort, laterThrough, opposite],
-    topologyDepartures,
+    topologyStopEvents,
   )[0].corridors;
   assert.equal(corridors.length, 2);
   const corridor = corridors.find(({ destinations }) =>
     destinations.includes("Daxlanden über Hbf"),
   );
   assert.ok(corridor);
-  assert.equal(corridor.departures.length, 4);
+  assert.equal(corridor.stopEvents.length, 4);
   assert.equal(corridor.hasObservedTopology, true);
   assert.deepEqual(corridor.destinations, ["Daxlanden über Hbf", "Rappenwört über Hbf"]);
 });
 
 test("does not reuse an ambiguous line and destination pattern", () => {
-  const live = departure({ id: "later", destination: "Durlach", tripId: "later" });
-  const direct = departure({
+  const live = stopEvent({ id: "later", destinationText: "Durlach", journeyRef: "later" });
+  const direct = stopEvent({
     id: "direct",
-    destination: "Durlach",
-    tripCalls: calls("Europaplatz", "Marktplatz", "Durlach"),
+    destinationText: "Durlach",
+    calls: calls("Europaplatz", "Marktplatz", "Durlach"),
   });
-  const branch = departure({
+  const branch = stopEvent({
     id: "branch",
-    destination: "Durlach",
-    tripCalls: calls("Europaplatz", "Hauptbahnhof", "Durlach"),
+    destinationText: "Durlach",
+    calls: calls("Europaplatz", "Hauptbahnhof", "Durlach"),
   });
 
   const corridor = groupsAt("europaplatz", [live], [direct, branch])[0].corridors[0];
@@ -751,67 +791,67 @@ test("does not reuse an ambiguous line and destination pattern", () => {
 });
 
 test("does not reuse an ambiguous exceptional pattern", () => {
-  const later = departure({
+  const later = stopEvent({
     id: "later",
-    destination: "Durlach",
-    tripId: "later",
+    destinationText: "Durlach",
+    journeyRef: "later",
     serviceNote: "Umleitung",
   });
-  const direct = departure({
+  const direct = stopEvent({
     id: "direct",
-    destination: "Durlach",
-    tripId: "direct",
+    destinationText: "Durlach",
+    journeyRef: "direct",
     serviceNote: "Umleitung",
-    tripCalls: calls("Europaplatz", "Marktplatz", "Durlach"),
+    calls: calls("Europaplatz", "Marktplatz", "Durlach"),
   });
-  const branch = departure({
+  const branch = stopEvent({
     id: "branch",
-    destination: "Durlach",
-    tripId: "branch",
+    destinationText: "Durlach",
+    journeyRef: "branch",
     serviceNote: "Umleitung",
-    tripCalls: calls("Europaplatz", "Hauptbahnhof", "Durlach"),
+    calls: calls("Europaplatz", "Hauptbahnhof", "Durlach"),
   });
 
   const corridor = groupsAt("europaplatz", [later], [direct, branch])[0].corridors[0];
   assert.equal(corridor.hasObservedTopology, false);
 });
 test("keeps grouping a trip after the board that showed its route has been refreshed away", () => {
-  const stadt = departure({
+  const stadt = stopEvent({
     id: "stadt",
     lineId: "S1",
-    destination: "Ettlingen Stadt",
-    tripId: "stadt",
+    destinationText: "Ettlingen Stadt",
+    journeyRef: "stadt",
   });
-  const herrenalb = departure({
+  const herrenalb = stopEvent({
     id: "herrenalb",
     lineId: "S1",
-    destination: "Bad Herrenalb",
-    tripId: "herrenalb",
+    destinationText: "Bad Herrenalb",
+    journeyRef: "herrenalb",
   });
   const learned = updateStopCorridorPatterns(null, "europaplatz", [
-    departure({ ...stadt, tripCalls: calls("Europaplatz", "Ostendorfplatz", "Ettlingen Stadt") }),
-    departure({ ...herrenalb, tripCalls: calls("Europaplatz", "Ostendorfplatz", "Bad Herrenalb") }),
+    stopEvent({ ...stadt, calls: calls("Europaplatz", "Ostendorfplatz", "Ettlingen Stadt") }),
+    stopEvent({ ...herrenalb, calls: calls("Europaplatz", "Ostendorfplatz", "Bad Herrenalb") }),
   ]);
 
   // The next light refresh has no sequences; what was observed still relates the two.
   const kept = updateStopCorridorPatterns(learned, "europaplatz", []);
   const corridor = getStopServiceCorridorLineGroups([stadt, herrenalb], kept)[0].corridors[0];
 
-  assert.equal(corridor.departures.length, 2);
+  assert.equal(corridor.stopEvents.length, 2);
   assert.equal(corridor.hasObservedTopology, true);
   assert.equal(corridor.directionLabel, "Ostendorfplatz");
 });
 
 test("a route learned once covers a later trip the detailed boards never reached", () => {
   const learned = updateStopCorridorPatterns(null, "europaplatz", [
-    departure({
+    stopEvent({
       id: "read",
-      destination: "Durlach",
-      tripId: "read",
-      tripCalls: calls("Europaplatz", "Marktplatz", "Durlach"),
+      destinationText: "Durlach",
+      journeyRef: "read",
+      calls: calls("Europaplatz", "Marktplatz", "Durlach"),
     }),
   ]);
-  const later = departure({ id: "later", destination: "Durlach", tripId: "later" });
+  const later = stopEvent({ id: "later", destinationText: "Durlach", journeyRef: "later" });
 
   const corridor = getStopServiceCorridorLineGroups([later], learned)[0].corridors[0];
   assert.equal(corridor.hasObservedTopology, true);
@@ -819,21 +859,21 @@ test("a route learned once covers a later trip the detailed boards never reached
 
 test("one oddly reported run does not withdraw the route the line is known to take", () => {
   const usual = Array.from({ length: 6 }, (_, index) =>
-    departure({
+    stopEvent({
       id: `usual-${index}`,
-      destination: "Durlach",
-      tripId: `usual-${index}`,
-      tripCalls: calls("Europaplatz", "Marktplatz", "Durlach"),
+      destinationText: "Durlach",
+      journeyRef: `usual-${index}`,
+      calls: calls("Europaplatz", "Marktplatz", "Durlach"),
     }),
   );
-  const odd = departure({
+  const odd = stopEvent({
     id: "odd",
-    destination: "Durlach",
-    tripId: "odd",
-    tripCalls: calls("Europaplatz", "Hauptbahnhof", "Durlach"),
+    destinationText: "Durlach",
+    journeyRef: "odd",
+    calls: calls("Europaplatz", "Hauptbahnhof", "Durlach"),
   });
   const patterns = updateStopCorridorPatterns(null, "europaplatz", [...usual, odd]);
-  const later = departure({ id: "later", destination: "Durlach", tripId: "later" });
+  const later = stopEvent({ id: "later", destinationText: "Durlach", journeyRef: "later" });
 
   const corridors = getStopServiceCorridorLineGroups([later], patterns)[0].corridors;
   assert.equal(corridors[0].hasObservedTopology, true);
@@ -842,17 +882,17 @@ test("one oddly reported run does not withdraw the route the line is known to ta
 });
 
 test("counts trips rather than readings, so one board re-read cannot outvote the others", () => {
-  const branch = departure({
+  const branch = stopEvent({
     id: "branch",
-    destination: "Durlach",
-    tripId: "branch",
-    tripCalls: calls("Europaplatz", "Hauptbahnhof", "Durlach"),
+    destinationText: "Durlach",
+    journeyRef: "branch",
+    calls: calls("Europaplatz", "Hauptbahnhof", "Durlach"),
   });
-  const direct = departure({
+  const direct = stopEvent({
     id: "direct",
-    destination: "Durlach",
-    tripId: "direct",
-    tripCalls: calls("Europaplatz", "Marktplatz", "Durlach"),
+    destinationText: "Durlach",
+    journeyRef: "direct",
+    calls: calls("Europaplatz", "Marktplatz", "Durlach"),
   });
 
   // The same two trips four times over, as a 90-second board delivers them.
@@ -860,7 +900,7 @@ test("counts trips rather than readings, so one board re-read cannot outvote the
   for (let reading = 0; reading < 3; reading += 1) {
     patterns = updateStopCorridorPatterns(patterns, "europaplatz", [branch, branch, direct]);
   }
-  const later = departure({ id: "later", destination: "Durlach", tripId: "later" });
+  const later = stopEvent({ id: "later", destinationText: "Durlach", journeyRef: "later" });
 
   // One route each, so neither speaks for an unknown trip.
   assert.equal(
@@ -871,13 +911,13 @@ test("counts trips rather than readings, so one board re-read cannot outvote the
 
 test("trips whose route is unknown share the row their headsign names", () => {
   const unread = [
-    departure({ id: "first", destination: "Durlach Turmberg", tripId: "first" }),
-    departure({ id: "second", destination: "Durlach Turmberg", tripId: "second" }),
+    stopEvent({ id: "first", destinationText: "Durlach Turmberg", journeyRef: "first" }),
+    stopEvent({ id: "second", destinationText: "Durlach Turmberg", journeyRef: "second" }),
   ];
 
   const corridors = groupsAt("europaplatz", unread)[0].corridors;
   assert.equal(corridors.length, 1);
-  assert.equal(corridors[0].departures.length, 2);
+  assert.equal(corridors[0].stopEvents.length, 2);
   assert.equal(corridors[0].directionLabel, "Durlach Turmberg");
   assert.equal(corridors[0].hasObservedTopology, false);
 });
@@ -885,25 +925,32 @@ test("trips whose route is unknown share the row their headsign names", () => {
 test("exceptional trips describe themselves but do not teach later trips", () => {
   const route = calls("Europaplatz", "Hauptbahnhof", "Rheinstetten");
   const patterns = updateStopCorridorPatterns(null, "europaplatz", [
-    departure({
+    stopEvent({
       id: "diverted",
-      destination: "Rheinstetten",
-      tripId: "a",
+      destinationText: "Rheinstetten",
+      journeyRef: "a",
       status: "diverted",
-      tripCalls: route,
+      calls: route,
     }),
-    departure({
+    stopEvent({
       id: "sev",
-      destination: "Rheinstetten",
-      tripId: "b",
+      destinationText: "Rheinstetten",
+      journeyRef: "b",
       serviceNote: "Ersatzverkehr",
-      tripCalls: route,
+      calls: route,
     }),
   ]);
-  const later = departure({ id: "later", destination: "Rheinstetten", tripId: "later" });
+  const later = stopEvent({ id: "later", destinationText: "Rheinstetten", journeyRef: "later" });
 
   const current = getStopServiceCorridorLineGroups(
-    [departure({ id: "diverted", destination: "Rheinstetten", tripId: "a", status: "diverted" })],
+    [
+      stopEvent({
+        id: "diverted",
+        destinationText: "Rheinstetten",
+        journeyRef: "a",
+        status: "diverted",
+      }),
+    ],
     patterns,
   )[0].corridors[0];
   assert.equal(current.hasObservedTopology, true);
@@ -914,34 +961,34 @@ test("exceptional trips describe themselves but do not teach later trips", () =>
 });
 
 test("a refresh that taught nothing is not a change, and another stop starts over", () => {
-  const observed = departure({
+  const observed = stopEvent({
     id: "observed",
-    destination: "Durlach",
-    tripId: "observed",
-    tripCalls: calls("Europaplatz", "Marktplatz", "Durlach"),
+    destinationText: "Durlach",
+    journeyRef: "observed",
+    calls: calls("Europaplatz", "Marktplatz", "Durlach"),
   });
   const patterns = updateStopCorridorPatterns(null, "europaplatz", [observed]);
 
   assert.equal(updateStopCorridorPatterns(patterns, "europaplatz", [observed]), patterns);
   // Routes are relative to their stop, so nothing carries over.
   const elsewhere = updateStopCorridorPatterns(patterns, "marktplatz", []);
-  assert.equal(elsewhere.byTripKey.size, 0);
+  assert.equal(elsewhere.byJourneyKey.size, 0);
 });
 
 test("two boards disagreeing about one trip still settle on a single reading", () => {
   // Two boards disagree about this trip's calls; repeated readings must reach a fixed point instead
   // of overwriting each other forever.
-  const ownReading = departure({
+  const ownReading = stopEvent({
     id: "own",
-    destination: "Durlach",
-    tripId: "shared",
-    tripCalls: calls("Europaplatz", "Marktplatz", "Durlach"),
+    destinationText: "Durlach",
+    journeyRef: "shared",
+    calls: calls("Europaplatz", "Marktplatz", "Durlach"),
   });
-  const postReading = departure({
+  const postReading = stopEvent({
     id: "post",
-    destination: "Durlach",
-    tripId: "shared",
-    tripCalls: calls("Europaplatz", "Marktplatz"),
+    destinationText: "Durlach",
+    journeyRef: "shared",
+    calls: calls("Europaplatz", "Marktplatz"),
   });
 
   const learned = updateStopCorridorPatterns(null, "europaplatz", [ownReading, postReading]);
@@ -952,30 +999,30 @@ test("two boards disagreeing about one trip still settle on a single reading", (
   );
   assert.equal(updateStopCorridorPatterns(learned, "europaplatz", [ownReading]), learned);
   // The stop's own board leads, so its reading is kept.
-  assert.equal(learned.byTripKey.size, 1);
+  assert.equal(learned.byJourneyKey.size, 1);
   assert.deepEqual(
-    [...learned.byTripKey.values()][0].map((call) => call.stopName),
+    [...learned.byJourneyKey.values()][0].map((call) => call.stopName),
     ["Marktplatz", "Durlach"],
   );
 });
 
 test("reuses route indexes when a reading only learns the board's place", () => {
-  const observed = departure({
+  const observed = stopEvent({
     id: "observed",
-    destination: "Durlach",
-    tripId: "observed",
-    tripCalls: calls("Europaplatz", "Marktplatz", "Durlach"),
+    destinationText: "Durlach",
+    journeyRef: "observed",
+    calls: calls("Europaplatz", "Marktplatz", "Durlach"),
   });
   const patterns = updateStopCorridorPatterns(null, "europaplatz", [observed]);
   const withPlace = updateStopCorridorPatterns(patterns, "europaplatz", [
-    departure({
+    stopEvent({
       id: "place",
-      destination: "Durlach",
-      tripCalls: [
+      destinationText: "Durlach",
+      calls: [
         {
           stopName: "Europaplatz",
           localStopId: "europaplatz",
-          isCurrentStop: true,
+          isThisCall: true,
           placeName: "Karlsruhe",
         },
       ],
@@ -983,24 +1030,24 @@ test("reuses route indexes when a reading only learns the board's place", () => 
   ]);
 
   assert.equal(withPlace.boardPlaceName, "Karlsruhe");
-  assert.equal(withPlace.byTripKey, patterns.byTripKey);
+  assert.equal(withPlace.byJourneyKey, patterns.byJourneyKey);
   assert.equal(withPlace.byLineDestination, patterns.byLineDestination);
 });
 
 test("forgets the runs that passed longest ago rather than growing without end", () => {
   const observations = Array.from({ length: 5 }, (_, index) =>
-    departure({
+    stopEvent({
       id: `trip-${index}`,
-      destination: "Durlach",
-      tripId: `trip-${index}`,
-      tripCalls: calls("Europaplatz", "Marktplatz", "Durlach"),
+      destinationText: "Durlach",
+      journeyRef: `trip-${index}`,
+      calls: calls("Europaplatz", "Marktplatz", "Durlach"),
     }),
   );
   const patterns = updateStopCorridorPatterns(null, "europaplatz", observations, 3);
 
-  assert.deepEqual([...patterns.byTripKey.keys()], ["trip-2", "trip-3", "trip-4"]);
+  assert.deepEqual([...patterns.byJourneyKey.keys()], ["trip-2", "trip-3", "trip-4"]);
   // The line's pattern survives trimming.
-  const later = departure({ id: "later", destination: "Durlach", tripId: "later" });
+  const later = stopEvent({ id: "later", destinationText: "Durlach", journeyRef: "later" });
   assert.equal(
     getStopServiceCorridorLineGroups([later], patterns)[0].corridors[0].hasObservedTopology,
     true,
@@ -1012,35 +1059,40 @@ test("a trip that turns back is not parted from the service that runs on through
   // Reitschulschlag` vs `Reitschulschlag > Büchig`); both calls stay, and it is still recognised as
   // the through route's short working.
   const live = [
-    departure({ id: "spoeck", lineId: "S2", destination: "Spöck", tripId: "spoeck" }),
-    departure({ id: "short", lineId: "S2", destination: "Reitschulschlag", tripId: "short" }),
+    stopEvent({ id: "spoeck", lineId: "S2", destinationText: "Spöck", journeyRef: "spoeck" }),
+    stopEvent({
+      id: "short",
+      lineId: "S2",
+      destinationText: "Reitschulschlag",
+      journeyRef: "short",
+    }),
   ];
-  const shared: TripCall[] = [
+  const shared: Call[] = [
     {
       stopName: "Europaplatz",
       localStopId: "europaplatz",
-      isCurrentStop: true,
+      isThisCall: true,
       placeName: "Karlsruhe",
     },
     { stopName: "Reitschulschlag", localStopId: "reitschulschlag", placeName: "Hagsfeld" },
   ];
-  const topologyDepartures = [
-    departure({
+  const topologyStopEvents = [
+    stopEvent({
       ...live[0],
-      tripCalls: [
+      calls: [
         ...shared,
         { stopName: "Büchig", localStopId: "buechig", placeName: "Büchig" },
         { stopName: "Hochhaus", localStopId: "spoeck-hochhaus", placeName: "Spöck" },
       ],
     }),
-    departure({
+    stopEvent({
       ...live[1],
       // The same stop again, on the departure platform.
-      tripCalls: [...shared, { ...shared[1], platformLabel: "Gleis 3" }],
+      calls: [...shared, { ...shared[1], bayText: "Gleis 3" }],
     }),
   ];
 
-  const corridors = groupsAt("europaplatz", live, topologyDepartures)[0].corridors;
+  const corridors = groupsAt("europaplatz", live, topologyStopEvents)[0].corridors;
   assert.equal(corridors.length, 1);
   assert.deepEqual(
     corridors[0].places.map(({ label, isTerminus }) => ({ label, isTerminus })),
@@ -1056,18 +1108,18 @@ test("two places sharing a name do not lend each other connections", () => {
   // `Friedrichstal` is Stutensee's on the S2 and Baiersbronn's on the S8, 70 km apart.
   const stutensee = { latitude: 49.109, longitude: 8.476 };
   const murgtal = { latitude: 48.482, longitude: 8.377 };
-  const here: TripCall = {
+  const here: Call = {
     stopName: "Europaplatz",
     localStopId: "europaplatz",
-    isCurrentStop: true,
+    isThisCall: true,
     placeName: "Karlsruhe",
   };
-  const murgtalLine = departure({
+  const murgtalLine = stopEvent({
     id: "s8",
     lineId: "S8",
-    destination: "Freudenstadt Hbf",
-    tripId: "s8",
-    tripCalls: [
+    destinationText: "Freudenstadt Hbf",
+    journeyRef: "s8",
+    calls: [
       here,
       {
         stopName: "Bahnhof",
@@ -1079,12 +1131,12 @@ test("two places sharing a name do not lend each other connections", () => {
     ],
   });
   const namesake = (position: typeof stutensee) =>
-    departure({
+    stopEvent({
       id: "s2",
       lineId: "S2",
-      destination: "Spöck",
-      tripId: "s2",
-      tripCalls: [
+      destinationText: "Spöck",
+      journeyRef: "s2",
+      calls: [
         here,
         {
           stopName: "Mitte",
@@ -1095,7 +1147,7 @@ test("two places sharing a name do not lend each other connections", () => {
         { stopName: "Hochhaus", localStopId: "spoeck-hochhaus", placeName: "Spöck" },
       ],
     });
-  const wayOfS8 = (other: Departure) =>
+  const wayOfS8 = (other: StopEvent) =>
     groupsAt("europaplatz", [murgtalLine], [murgtalLine, other])[0].corridors[0].places.map(
       ({ label }) => label,
     );
@@ -1108,15 +1160,15 @@ test("two places sharing a name do not lend each other connections", () => {
 
 test("reads the board's place at its own stop, not at another stop's marker on a shared reading", () => {
   const patterns = updateStopCorridorPatterns(null, "europaplatz", [
-    departure({
+    stopEvent({
       id: "shared",
-      destination: "Durlach",
-      tripCalls: [
+      destinationText: "Durlach",
+      calls: [
         {
           stopName: "Rheinstrandhalle",
           localStopId: "rheinstrandhalle",
           placeName: "Daxlanden",
-          isCurrentStop: true,
+          isThisCall: true,
         },
         { stopName: "Europaplatz", localStopId: "europaplatz", placeName: "Karlsruhe" },
       ],

@@ -4,9 +4,9 @@ import type { ComponentProps } from "react";
 import "./support/render-hook.ts";
 import "./support/register-tsx.ts";
 import { transitSource } from "../src/data/transit-source.ts";
-import type { DepartureBoard, RunDiscoveryReading } from "../src/data/transit-types.ts";
-import { buildObservedNetworkFromTrips } from "../src/lib/observed-network.ts";
-import { createDeparture } from "./support/fixtures.ts";
+import type { StopEventBoard, DatedJourneyDiscoveryReading } from "../src/data/transit-types.ts";
+import { buildObservedNetworkFromJourneys } from "../src/lib/observed-network.ts";
+import { createStopEvent } from "./support/fixtures.ts";
 
 const { act, createElement } = await import("react");
 const { createRoot } = await import("react-dom/client");
@@ -59,50 +59,50 @@ function setup(t: TestContext, { measureOnRender = true } = {}) {
       frames.clear();
       for (const callback of callbacks) callback(now);
     });
-  const run = (id: string, lineId: string) =>
-    createDeparture({
+  const datedJourney = (id: string, lineId: string) =>
+    createStopEvent({
       id,
-      tripId: id,
+      journeyRef: id,
       lineId,
-      scheduledDepartureTime: new Date(now + 60_000).toISOString(),
+      timetabledDepartureTime: new Date(now + 60_000).toISOString(),
       readAt: { rowReadAt: now, sequenceReadAt: now },
-      tripCalls: [
+      calls: [
         {
           stopName: "Europaplatz",
           localStopId: "europaplatz",
-          scheduledDepartureTime: new Date(now - 60_000).toISOString(),
+          timetabledDepartureTime: new Date(now - 60_000).toISOString(),
         },
         {
           stopName: "Marktplatz",
           localStopId: "marktplatz",
-          scheduledArrivalTime: new Date(now + 60_000).toISOString(),
-          scheduledDepartureTime: new Date(now + 60_000).toISOString(),
+          timetabledArrivalTime: new Date(now + 60_000).toISOString(),
+          timetabledDepartureTime: new Date(now + 60_000).toISOString(),
         },
       ],
     });
-  const first = run("first", "2");
-  const second = run("second", "S1");
-  const board: DepartureBoard = {
+  const first = datedJourney("first", "2");
+  const second = datedJourney("second", "S1");
+  const board: StopEventBoard = {
     stopId: "marktplatz",
     dataStatus: "live",
     receivedAt: now,
     feedUpdatedAt: new Date(now).toISOString(),
-    departures: [first],
+    stopEvents: [first],
   };
-  const discovery = deferred<RunDiscoveryReading>();
-  t.mock.method(transitSource, "getRunDiscoveryReading", () => discovery.promise);
-  t.mock.method(transitSource, "findRun", (id: string) =>
-    [first, second].find((run) => run.id === id),
+  const discovery = deferred<DatedJourneyDiscoveryReading>();
+  t.mock.method(transitSource, "getDatedJourneyDiscoveryReading", () => discovery.promise);
+  t.mock.method(transitSource, "findDatedJourney", (id: string) =>
+    [first, second].find((datedJourney) => datedJourney.id === id),
   );
-  t.mock.method(transitSource, "getRun", async (id: string) =>
-    [first, second].find((run) => run.id === id),
+  t.mock.method(transitSource, "getDatedJourney", async (id: string) =>
+    [first, second].find((datedJourney) => datedJourney.id === id),
   );
   const container = document.createElement("div");
   const root = createRoot(container);
   let props: ComponentProps<typeof ZentrumView> = {
-    network: buildObservedNetworkFromTrips([first]),
+    network: buildObservedNetworkFromJourneys([first]),
     coverage: { status: "complete" as const, expectedBoardCount: 1, liveBoardCount: 1 },
-    departureBoards: [board],
+    stopEventBoards: [board],
     isFullscreen: false,
     isStacked: false,
     nearbyStops: { status: "idle" as const, stops: [], locate: async () => {} },
@@ -118,8 +118,8 @@ function setup(t: TestContext, { measureOnRender = true } = {}) {
       await act(async () => root.render(createElement(ZentrumView, props)));
       if (measureOnRender) await measure();
     },
-    reading: (runDepartures = [first, second]): RunDiscoveryReading => ({
-      runDepartures,
+    reading: (datedJourneyStopEvents = [first, second]): DatedJourneyDiscoveryReading => ({
+      datedJourneyStopEvents,
       clockBoard: board,
       failedStopIds: [],
     }),
@@ -172,7 +172,7 @@ test("discovery answering first still waits for the observation boards", async (
   try {
     await view.render({
       coverage: { status: "loading", expectedBoardCount: 1, liveBoardCount: 0 },
-      departureBoards: [],
+      stopEventBoards: [],
     });
     await act(async () => view.discovery.resolve(view.reading()));
     assert.ok(view.container.querySelector(".zentrum-schematic"));
@@ -180,7 +180,7 @@ test("discovery answering first still waits for the observation boards", async (
     assert.match(view.container.textContent, /werden geladen/);
     await view.render({
       coverage: { status: "complete", expectedBoardCount: 1, liveBoardCount: 1 },
-      departureBoards: [view.board],
+      stopEventBoards: [view.board],
     });
     await view.advance(1_500);
     await view.paint();
@@ -193,15 +193,15 @@ test("discovery answering first still waits for the observation boards", async (
 
 test("the initial plan also waits for the supplemental terminus reading", async (t) => {
   const view = setup(t);
-  const extra = deferred<RunDiscoveryReading>();
+  const extra = deferred<DatedJourneyDiscoveryReading>();
   let readingCount = 0;
-  const requests = t.mock.method(transitSource, "getRunDiscoveryReading", () =>
+  const requests = t.mock.method(transitSource, "getDatedJourneyDiscoveryReading", () =>
     readingCount++ === 0 ? view.discovery.promise : extra.promise,
   );
   const terminal = {
     ...view.second,
-    tripCalls: view.second.tripCalls?.map((call, index) =>
-      index === 1 ? { ...call, scheduledDepartureTime: undefined } : call,
+    calls: view.second.calls?.map((call, index) =>
+      index === 1 ? { ...call, timetabledDepartureTime: undefined } : call,
     ),
   };
   try {
@@ -228,8 +228,8 @@ test("later layout changes keep the vehicles visible without reopening the loade
     await view.advance(1_500);
     await view.paint();
     await view.paint();
-    const third = { ...view.first, id: "third", tripId: "third", lineId: "5" };
-    await view.render({ departureBoards: [{ ...view.board, departures: [view.first, third] }] });
+    const third = { ...view.first, id: "third", journeyRef: "third", lineId: "5" };
+    await view.render({ stopEventBoards: [{ ...view.board, stopEvents: [view.first, third] }] });
     assert.ok(view.container.querySelectorAll(".zentrum-schematic-vehicle").length > 0);
     assert.ok(!view.container.querySelector(".zentrum-loading"));
   } finally {
@@ -282,9 +282,9 @@ test("the map frame stays mounted as the first observation arrives", async (t) =
   const view = setup(t);
   try {
     await view.render({
-      network: buildObservedNetworkFromTrips([]),
+      network: buildObservedNetworkFromJourneys([]),
       coverage: { status: "loading", expectedBoardCount: 1, liveBoardCount: 0 },
-      departureBoards: [],
+      stopEventBoards: [],
     });
     const frame = view.container.querySelector(".zentrum-schematic");
     assert.ok(frame);
@@ -294,9 +294,9 @@ test("the map frame stays mounted as the first observation arrives", async (t) =
       "Linien werden aufgebaut …",
     );
     await view.render({
-      network: buildObservedNetworkFromTrips([view.first]),
+      network: buildObservedNetworkFromJourneys([view.first]),
       coverage: { status: "complete", expectedBoardCount: 1, liveBoardCount: 1 },
-      departureBoards: [view.board],
+      stopEventBoards: [view.board],
     });
     await act(async () => view.discovery.resolve(view.reading()));
     await view.advance(1_500);
@@ -312,11 +312,11 @@ test("the map frame stays mounted as the first observation arrives", async (t) =
 
 test("overlapping trains at a station open their own details directly", async (t) => {
   const view = setup(t);
-  for (const run of [view.first, view.second]) {
-    run.tripInstanceId = `station-overlap-${run.id}`;
-    run.tripCalls![0].scheduledArrivalTime = run.tripCalls![0].scheduledDepartureTime;
-    run.tripCalls![0].scheduledDepartureTime = new Date(
-      Date.parse(run.scheduledDepartureTime) - 30_000,
+  for (const datedJourney of [view.first, view.second]) {
+    datedJourney.datedJourneyId = `station-overlap-${datedJourney.id}`;
+    datedJourney.calls![0].timetabledArrivalTime = datedJourney.calls![0].timetabledDepartureTime;
+    datedJourney.calls![0].timetabledDepartureTime = new Date(
+      Date.parse(datedJourney.timetabledDepartureTime) - 30_000,
     ).toISOString();
   }
   document.body.appendChild(view.container);

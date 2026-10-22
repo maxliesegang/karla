@@ -4,7 +4,7 @@
  *
  *     npm run solve:zentrum -- [--from <file>] [--save <file>] [--grid 22] [--scale 3.4]
  *
- * Reads the feed once (median platform positions per node, observed corridors) and saves it beside
+ * Reads the feed once (median bay positions per node, observed corridors) and saves it beside
  * the script, so solves can be re-run offline. Then:
  * 1. A direction per corridor: the nearest of the eight to its bearing, claimed once per place,
  *    best fit first.
@@ -22,10 +22,10 @@ import { findCatalogStop } from "../src/data/generated/kvv-stop-catalog.ts";
 import { KvvEfaClient } from "../src/data/kvv-efa-client.ts";
 import { kvvStopMappingByLocalStopId } from "../src/data/kvv-stop-mappings.ts";
 import { StopRegistry } from "../src/data/stop-registry.ts";
-import type { DepartureBoard, TripCall } from "../src/data/transit-types.ts";
+import type { StopEventBoard, Call } from "../src/data/transit-types.ts";
 import { zentrumStopIds } from "../src/data/zentrum-stops.ts";
 import { buildZentrumSchematicReading } from "../src/lib/zentrum-schematic.ts";
-import { getBoardTimetableTrips } from "../src/lib/trips.ts";
+import { getBoardTimetableJourneys } from "../src/lib/journeys.ts";
 import {
   ZENTRUM_SCHEMATIC_GRID,
   ZENTRUM_SCHEMATIC_NODES,
@@ -77,7 +77,7 @@ const readOption = (flag: string): string | undefined => {
 async function observe(rowLimit: number): Promise<Observations> {
   const stops = new StopRegistry([]);
   const client = new KvvEfaClient();
-  const boards: DepartureBoard[] = [];
+  const boards: StopEventBoard[] = [];
   const coordinates = new Map<string, { latitudes: number[]; longitudes: number[] }>();
 
   for (const stopId of zentrumStopIds) {
@@ -87,37 +87,37 @@ async function observe(rowLimit: number): Promise<Observations> {
       continue;
     }
     try {
-      const board = await client.fetchDepartureBoard(mapping.providerStopId, {
-        limit: mapping.departureLimit ?? rowLimit,
-        includeTripCalls: true,
+      const board = await client.fetchStopEventBoard(mapping.providerStopId, {
+        limit: mapping.stopEventLimit ?? rowLimit,
+        includeCalls: true,
       });
       boards.push({
         stopId,
         receivedAt: Date.now(),
         dataStatus: "live",
         feedUpdatedAt: board.serverTime,
-        departures: board.departures.map((departure, index) => ({
-          ...departure,
-          id: departure.tripInstanceId ?? departure.tripId ?? `${departure.lineId}-${index}`,
+        stopEvents: board.stopEvents.map((stopEvent, index) => ({
+          ...stopEvent,
+          id: stopEvent.datedJourneyId ?? stopEvent.journeyRef ?? `${stopEvent.lineId}-${index}`,
           boardingLocalStopId: stopId,
-          boardingProviderStopPointId: departure.stopPointId,
-          boardingProviderStopPointName: departure.stopPointName,
-          platformCode: departure.platformCode ?? "",
-          tripCalls: (departure.tripCalls ?? []).map((call): TripCall => {
-            const tripCall: TripCall = {
+          boardingProviderStopPointId: stopEvent.stopPointId,
+          boardingProviderStopPointName: stopEvent.stopPointName,
+          bay: stopEvent.bay ?? "",
+          calls: (stopEvent.calls ?? []).map((call): Call => {
+            const callAtStop: Call = {
               stopName: call.stopName,
-              platformCode: call.platformCode,
+              bay: call.bay,
               providerStopPointId: call.providerId,
               localStopId: call.providerId ? stops.findLocalStopId(call.providerId) : undefined,
             };
-            const nodeId = findZentrumSchematicNodeId(tripCall);
+            const nodeId = findZentrumSchematicNodeId(callAtStop);
             if (nodeId && call.latitude !== undefined && call.longitude !== undefined) {
               const bucket = coordinates.get(nodeId) ?? { latitudes: [], longitudes: [] };
               bucket.latitudes.push(call.latitude);
               bucket.longitudes.push(call.longitude);
               coordinates.set(nodeId, bucket);
             }
-            return tripCall;
+            return callAtStop;
           }),
         })),
       });
@@ -128,7 +128,7 @@ async function observe(rowLimit: number): Promise<Observations> {
 
   const median = (values: readonly number[]): number =>
     [...values].sort((left, right) => left - right)[Math.floor(values.length / 2)];
-  const reading = buildZentrumSchematicReading(getBoardTimetableTrips(boards));
+  const reading = buildZentrumSchematicReading(getBoardTimetableJourneys(boards));
   return {
     capturedAt: new Date().toISOString(),
     nodes: [...coordinates]
@@ -470,10 +470,10 @@ async function main(): Promise<void> {
   for (const node of placed) {
     const label = authored.get(node.id)?.label ?? node.id;
     // Authored, not solved: kept as written.
-    const platformRun = authored.get(node.id)?.platformRun;
+    const bayRun = authored.get(node.id)?.bayRun;
     console.log(
       `  { id: "${node.id}", label: "${label}", x: ${node.x}, y: ${node.y}, ` +
-        `labelSide: "${node.labelSide}"${platformRun ? `, platformRun: "${platformRun}"` : ""} },`,
+        `labelSide: "${node.labelSide}"${bayRun ? `, bayRun: "${bayRun}"` : ""} },`,
     );
   }
 

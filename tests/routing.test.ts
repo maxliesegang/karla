@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  getDepartureOpenPath,
+  getStopEventOpenPath,
   getLandingPath,
   getParentSelectionPath,
   getSelectionPath,
@@ -11,11 +11,10 @@ import {
   routePaths,
 } from "../src/routing.ts";
 
-const TRIP = "de:kvv:00S11_:.kvv-22-311-E.5.T0.161.s26";
+const JOURNEY = "de:kvv:00S11_:.kvv-22-311-E.5.T0.161.s26";
 
-test("published notices have a dedicated canonical route", () => {
-  assert.equal(routePaths.notices(), "/notices");
-  assert.equal(parseRoute("#/notices").view, "notices");
+test("the retired notices page opens home", () => {
+  assert.equal(parseRoute("#/notices").view, "home");
 });
 
 test("the home has its own route, and nearby has one too", () => {
@@ -65,9 +64,9 @@ test("two lines read over the stretch they share are one address, and stay two l
       stopId: "hochstetten",
       lineId: "S1",
       bundledLineIds: ["S11"],
-      addressId: TRIP,
+      addressId: JOURNEY,
     }),
-    `/stop/hochstetten/line/S1+S11/trip/${TRIP}`,
+    `/stop/hochstetten/line/S1+S11/trip/${JOURNEY}`,
   );
   assert.equal(
     getParentSelectionPath({
@@ -75,7 +74,7 @@ test("two lines read over the stretch they share are one address, and stay two l
       stopId: "hochstetten",
       lineId: "S1",
       bundledLineIds: ["S11"],
-      addressId: TRIP,
+      addressId: JOURNEY,
     }),
     "/stop/hochstetten/line/S1+S11",
   );
@@ -83,44 +82,44 @@ test("two lines read over the stretch they share are one address, and stay two l
 
 test("a row tapped inside a bundle stays inside it, and any other row leaves it", () => {
   const row = (lineId: string) =>
-    ({ id: "row", tripId: TRIP, lineId }) as Parameters<typeof getDepartureOpenPath>[0];
+    ({ id: "row", journeyRef: JOURNEY, lineId }) as Parameters<typeof getStopEventOpenPath>[0];
   const selection = { lineId: "S1", bundledLineIds: ["S11"] };
 
   // The sibling's row keeps the lines; only the trip changes.
   assert.equal(
-    getDepartureOpenPath(row("S11"), "hochstetten", false, selection),
-    `/stop/hochstetten/line/S1+S11/trip/${TRIP}`,
+    getStopEventOpenPath(row("S11"), "hochstetten", false, selection),
+    `/stop/hochstetten/line/S1+S11/trip/${JOURNEY}`,
   );
   // Unpinning returns to the bundle.
   assert.equal(
-    getDepartureOpenPath(row("S11"), "hochstetten", true, selection),
+    getStopEventOpenPath(row("S11"), "hochstetten", true, selection),
     "/stop/hochstetten/line/S1+S11",
   );
   // A line outside the bundle leads to that line alone.
   assert.equal(
-    getDepartureOpenPath(row("S2"), "hochstetten", true, selection),
+    getStopEventOpenPath(row("S2"), "hochstetten", true, selection),
     "/stop/hochstetten/line/S2",
   );
   assert.equal(
-    getDepartureOpenPath(row("S2"), "hochstetten", false, selection),
-    `/stop/hochstetten/line/S2/trip/${TRIP}`,
+    getStopEventOpenPath(row("S2"), "hochstetten", false, selection),
+    `/stop/hochstetten/line/S2/trip/${JOURNEY}`,
   );
 });
 
 test("a trip opened from a plain stop board steps back to that board", () => {
-  const row = { id: "row", tripId: TRIP, lineId: "S11" } as Parameters<
-    typeof getDepartureOpenPath
+  const row = { id: "row", journeyRef: JOURNEY, lineId: "S11" } as Parameters<
+    typeof getStopEventOpenPath
   >[0];
-  const tripPath = getDepartureOpenPath(row, "hochstetten", false);
+  const journeyPath = getStopEventOpenPath(row, "hochstetten", false);
 
-  assert.equal(tripPath, `/stop/hochstetten/trip/${TRIP}`);
-  const tripRoute = parseRoute(`#${tripPath}`);
-  assert.equal(tripRoute.lineId, "");
-  assert.equal(tripRoute.tripParent, "stop");
-  assert.equal(getViewStartKey(tripRoute), null);
+  assert.equal(journeyPath, `/stop/hochstetten/trip/${JOURNEY}`);
+  const journeyRoute = parseRoute(`#${journeyPath}`);
+  assert.equal(journeyRoute.lineId, "");
+  assert.equal(journeyRoute.journeyParent, "stop");
+  assert.equal(getViewStartKey(journeyRoute), null);
   assert.equal(
     getParentSelectionPath({
-      ...tripRoute,
+      ...journeyRoute,
       lineId: "S11",
     }),
     "/stop/hochstetten",
@@ -129,15 +128,15 @@ test("a trip opened from a plain stop board steps back to that board", () => {
     getSelectionPath({
       stopId: "hochstetten",
       lineId: "S11",
-      addressId: TRIP,
-      tripParent: "stop",
+      addressId: JOURNEY,
+      journeyParent: "stop",
     }),
-    tripPath,
+    journeyPath,
   );
 
-  const lineTripRoute = parseRoute(`/stop/hochstetten/line/S11/trip/${TRIP}`);
-  assert.equal(lineTripRoute.tripParent, "line");
-  assert.equal(getParentSelectionPath(lineTripRoute), "/stop/hochstetten/line/S11");
+  const lineJourneyRoute = parseRoute(`/stop/hochstetten/line/S11/trip/${JOURNEY}`);
+  assert.equal(lineJourneyRoute.journeyParent, "line");
+  assert.equal(getParentSelectionPath(lineJourneyRoute), "/stop/hochstetten/line/S11");
 });
 
 test("the stop's own address is the only one its lines need", () => {
@@ -161,11 +160,11 @@ test("the lines ride along with the stop they belong to, not an address of their
 });
 
 test("a line diagram places itself, so no address it is read at starts at the top", () => {
-  const tripRoute = parseRoute(
+  const journeyRoute = parseRoute(
     "#/stop/augartenstrasse/line/S11/trip/de:kvv:00S11_:.kvv-22-311-E.5.T0.161.s26",
   );
   // Selecting a trip is not a move; the diagram aims at its vehicle.
-  assert.equal(getViewStartKey(tripRoute), null);
+  assert.equal(getViewStartKey(journeyRoute), null);
   // Nor is stepping along the line.
   assert.equal(getViewStartKey(parseRoute("#/stop/augartenstrasse/line/S11")), null);
   assert.equal(getViewStartKey(parseRoute("#/stop/marktplatz/line/S11")), null);
@@ -194,17 +193,17 @@ test("a board refresh rewriting the address is not a move", () => {
 });
 
 test("a ride carries the stop it was begun at, beside the one it is heading for", () => {
-  assert.equal(routePaths.ride(TRIP), `/trip/${TRIP}`);
-  assert.equal(routePaths.ride(TRIP, "europaplatz"), `/trip/${TRIP}/from/europaplatz`);
+  assert.equal(routePaths.ride(JOURNEY), `/trip/${JOURNEY}`);
+  assert.equal(routePaths.ride(JOURNEY, "europaplatz"), `/trip/${JOURNEY}/from/europaplatz`);
   assert.equal(
-    routePaths.ride(TRIP, "europaplatz", "durlach-bahnhof"),
-    `/trip/${TRIP}/from/europaplatz/to/durlach-bahnhof`,
+    routePaths.ride(JOURNEY, "europaplatz", "durlach-bahnhof"),
+    `/trip/${JOURNEY}/from/europaplatz/to/durlach-bahnhof`,
   );
   // Either stop may be absent; an Ausstieg alone is not an origin.
-  const marked = parseRoute(`#/trip/${TRIP}/to/durlach-bahnhof`);
+  const marked = parseRoute(`#/trip/${JOURNEY}/to/durlach-bahnhof`);
   assert.equal(marked.originStopId, undefined);
   assert.equal(marked.alightingStopId, "durlach-bahnhof");
-  const both = parseRoute(`#/trip/${TRIP}/from/europaplatz/to/durlach-bahnhof`);
+  const both = parseRoute(`#/trip/${JOURNEY}/from/europaplatz/to/durlach-bahnhof`);
   assert.equal(both.originStopId, "europaplatz");
   assert.equal(both.alightingStopId, "durlach-bahnhof");
   assert.equal(both.isRide, true);
@@ -214,19 +213,24 @@ test("a ride carries the stop it was begun at, beside the one it is heading for"
     getSelectionPath({
       stopId: "europaplatz",
       lineId: "S11",
-      addressId: TRIP,
+      addressId: JOURNEY,
       isRide: true,
       alightingStopId: "durlach-bahnhof",
       originStopId: "europaplatz",
     }),
-    `/trip/${TRIP}/from/europaplatz/to/durlach-bahnhof`,
+    `/trip/${JOURNEY}/from/europaplatz/to/durlach-bahnhof`,
   );
 });
 
 test("step up drops exactly one level of the address, and never reads live data for one", () => {
   // One level at a time.
   assert.equal(
-    getParentSelectionPath({ view: "stop", stopId: "europaplatz", lineId: "S11", addressId: TRIP }),
+    getParentSelectionPath({
+      view: "stop",
+      stopId: "europaplatz",
+      lineId: "S11",
+      addressId: JOURNEY,
+    }),
     "/stop/europaplatz/line/S11",
   );
   assert.equal(
@@ -237,7 +241,6 @@ test("step up drops exactly one level of the address, and never reads live data 
   // Home is the top.
   assert.equal(getParentSelectionPath({ view: "experiment", stopId: "europaplatz" }), "/");
   assert.equal(getParentSelectionPath({ view: "network", stopId: "europaplatz" }), "/");
-  assert.equal(getParentSelectionPath({ view: "notices", stopId: "europaplatz" }), "/");
   assert.equal(getParentSelectionPath({ view: "nearby", stopId: "europaplatz" }), "/");
   assert.equal(getParentSelectionPath({ view: "home", stopId: "europaplatz" }), undefined);
 });
@@ -248,15 +251,20 @@ test("a ride steps back to where it was begun, not to a stop the vehicle is runn
       view: "stop",
       stopId: "hauptbahnhof",
       lineId: "S11",
-      addressId: TRIP,
+      addressId: JOURNEY,
       isRide: true,
       originStopId: "europaplatz",
     }),
-    `/stop/europaplatz/line/S11/trip/${TRIP}`,
+    `/stop/europaplatz/line/S11/trip/${JOURNEY}`,
   );
   // Pressed twice, it reaches the trip's stop.
   assert.equal(
-    getParentSelectionPath({ view: "stop", stopId: "europaplatz", lineId: "S11", addressId: TRIP }),
+    getParentSelectionPath({
+      view: "stop",
+      stopId: "europaplatz",
+      lineId: "S11",
+      addressId: JOURNEY,
+    }),
     "/stop/europaplatz/line/S11",
   );
   // A ride from a shared link steps up to home.
@@ -265,7 +273,7 @@ test("a ride steps back to where it was begun, not to a stop the vehicle is runn
       view: "stop",
       stopId: "hauptbahnhof",
       lineId: "S11",
-      addressId: TRIP,
+      addressId: JOURNEY,
       isRide: true,
     }),
     "/",

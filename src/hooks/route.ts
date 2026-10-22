@@ -15,7 +15,7 @@ export function useAppRoute(): AppRoute {
   const route = useMemo(() => parseRoute(hash), [hash]);
 
   // Where the view starts, for the addresses that start anywhere at all. `getViewStartKey` holds
-  // the rule; a trip answers `null` there because its diagram does the placing.
+  // the rule; a journey answers `null` there because its diagram does the placing.
   const viewStartKey = getViewStartKey(route);
   const lastViewStartKey = useRef(viewStartKey);
   useEffect(() => {

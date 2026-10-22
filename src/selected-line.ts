@@ -2,45 +2,46 @@
  * The line level of the selection, resolved against live data; pure, so testable without mounting.
  */
 import { getLineSign } from "./data/line-signs";
-import type { Departure, DepartureBoard, TransitLine, TransitNetwork } from "./data/transit-types";
+import type { StopEvent, StopEventBoard, TransitLine, TransitNetwork } from "./data/transit-types";
 import { getResolvedBundledLineIds } from "./lib/line-bundles";
 import { findLineForRoute, isSameLineFamily } from "./lib/line-families";
-import { getTripLineId, type AppRoute } from "./routing";
+import { getJourneyLineId, type AppRoute } from "./routing";
 
 /**
  * The line in view: running if this stop's board lists it, observation or not (how buses keep their
- * sign). A stop-scoped trip names no line, so its departure supplies one.
+ * sign). A stop-scoped journey names no line, so its departure supplies one.
  */
 export function findSelectedLine(
   route: AppRoute,
   network: TransitNetwork,
-  departures: readonly Departure[],
-  departureBoard: DepartureBoard | null,
+  stopEvents: readonly StopEvent[],
+  stopEventBoard: StopEventBoard | null,
   observedLine: TransitLine | undefined,
-  stopDeparture: Departure | undefined,
+  ownStopEvent: StopEvent | undefined,
 ): TransitLine | undefined {
   if (observedLine) return observedLine;
 
-  const lineDeparture = route.lineId
-    ? departures.find((departure) => isSameLineFamily(departure.lineId, route.lineId))
-    : stopDeparture;
-  if (lineDeparture)
-    return getLineSign(network.lines, lineDeparture.lineId, lineDeparture.transportMode);
+  const lineStopEvent = route.lineId
+    ? stopEvents.find((stopEvent) => isSameLineFamily(stopEvent.lineId, route.lineId))
+    : ownStopEvent;
+  if (lineStopEvent) return getLineSign(network.lines, lineStopEvent.lineId, lineStopEvent.ptMode);
 
-  // A restored ride keeps its line with a neutral sign until its retained run resolves.
+  // A restored ride keeps its line with a neutral sign until its retained dated journey resolves.
   if (route.isRide && route.lineId) return getLineSign(network.lines, route.lineId, "other");
 
-  // A stop-scoped trip past this stop is on no board here but names its line in its id; the line
-  // holds as long as the trip does, so the line's readings can still find it.
-  const tripLineId = route.addressId && !route.lineId ? getTripLineId(route.addressId) : "";
-  if (tripLineId) {
-    const sameLine = departures.find((departure) => isSameLineFamily(departure.lineId, tripLineId));
-    return getLineSign(network.lines, tripLineId, sameLine?.transportMode ?? "other");
+  // A stop-scoped journey past this stop is on no board here but names its line in its id; the line
+  // holds as long as the journey does, so the line's readings can still find it.
+  const journeyLineId = route.addressId && !route.lineId ? getJourneyLineId(route.addressId) : "";
+  if (journeyLineId) {
+    const sameLine = stopEvents.find((stopEvent) =>
+      isSameLineFamily(stopEvent.lineId, journeyLineId),
+    );
+    return getLineSign(network.lines, journeyLineId, sameLine?.ptMode ?? "other");
   }
 
   // An asked-for line keeps a neutral sign while the board loads or fails; only a readable board
   // without it drops it.
-  const isBoardReadable = departureBoard?.dataStatus === "live";
+  const isBoardReadable = stopEventBoard?.dataStatus === "live";
   return route.lineId && !isBoardReadable
     ? getLineSign(network.lines, route.lineId, "other")
     : undefined;
@@ -56,18 +57,18 @@ export function findBundledLines(
   bundledLineIds: readonly string[],
   selectedLine: TransitLine | undefined,
   network: TransitNetwork,
-  departureBoard: DepartureBoard | null,
+  stopEventBoard: StopEventBoard | null,
 ): readonly TransitLine[] {
   if (!selectedLine || bundledLineIds.length === 0) return EMPTY_LINES;
-  return getResolvedBundledLineIds(bundledLineIds, departureBoard).flatMap((lineId) => {
+  return getResolvedBundledLineIds(bundledLineIds, stopEventBoard).flatMap((lineId) => {
     if (isSameLineFamily(lineId, selectedLine.id)) return [];
-    const running = departureBoard?.departures.find((departure) =>
-      isSameLineFamily(departure.lineId, lineId),
+    const running = stopEventBoard?.stopEvents.find((stopEvent) =>
+      isSameLineFamily(stopEvent.lineId, lineId),
     );
     const observed = findLineForRoute(network.lines, lineId);
     if (observed) return [observed];
     return running
-      ? [getLineSign(network.lines, running.lineId, running.transportMode)]
+      ? [getLineSign(network.lines, running.lineId, running.ptMode)]
       : [getLineSign(network.lines, lineId, "other")];
   });
 }

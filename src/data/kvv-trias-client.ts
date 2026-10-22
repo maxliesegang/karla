@@ -1,56 +1,42 @@
 /**
  * Reads KVV's TRIAS interface through KARLA's proxy (`proxy/README.md`), which holds the requestor
- * ref and caches each reply briefly. Serving lines supplement its boards from EFA.
+ * ref and caches each reply briefly.
  */
 import type {
-  KvvDepartureBoard,
-  KvvDepartureBoardOptions,
+  KvvStopEventBoard,
+  KvvStopEventBoardOptions,
   KvvFeed,
-  KvvLiveFeed,
-  KvvServingLine,
-  KvvTripLocator,
+  KvvJourneyLocator,
 } from "./kvv-feed";
 import { findComplexProviderStopIds } from "./kvv-stop-mappings";
 import {
   KvvTriasError,
   parseTriasLocations,
   parseTriasStopEvents,
-  parseTriasTrip,
+  parseTriasTripInfo,
 } from "./kvv-trias-parsers";
-import { TriasRateLimitError, TriasUnavailableError } from "./kvv-feed-errors";
-import { ReadingCache } from "./reading-cache";
 
 const DEFAULT_TIMEOUT_MS = 20_000;
-const DEFAULT_DEPARTURE_LIMIT = 20;
+const DEFAULT_STOP_EVENT_LIMIT = 20;
 /** The most line refs, and rows, one proxy request takes (`proxy/public/api/stop-events.php`). */
 const PROXY_LINE_LIMIT = 16;
 const PROXY_ROW_LIMIT = 60;
-/** Serving lines are timetable data; one reading per stop serves a session's day. */
-const SERVING_LINES_TTL_MS = 6 * 60 * 60_000;
 
 export type KvvTriasClientOptions = {
   /** The proxy's `api/` directory, absolute or relative to the page. */
   proxyUrl: string;
-  /** Answers what TRIAS does not state. */
-  efa: Pick<KvvFeed, "fetchDepartureBoard">;
   timeoutMs?: number;
   fetchFn?: typeof fetch;
 };
 
-export class KvvTriasClient implements KvvLiveFeed {
+export class KvvTriasClient implements KvvFeed {
   private readonly proxyUrl: URL;
-  private readonly efa: Pick<KvvFeed, "fetchDepartureBoard">;
   private readonly timeoutMs: number;
   private readonly fetchFn: typeof fetch;
-  private readonly servingLines = new ReadingCache<Promise<KvvServingLine[]>>(
-    256,
-    SERVING_LINES_TTL_MS,
-  );
   private rateLimitedUntil = 0;
 
   constructor(options: KvvTriasClientOptions) {
     this.proxyUrl = new URL(options.proxyUrl, globalThis.location?.href ?? "http://localhost/");
-    this.efa = options.efa;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.fetchFn = options.fetchFn ?? globalThis.fetch.bind(globalThis);
   }
@@ -59,36 +45,42 @@ export class KvvTriasClient implements KvvLiveFeed {
    * TRIAS answers one stop of a complex at a time where EFA answers all, so each is asked and the
    * rows joined.
    */
-  async fetchDepartureBoard(
+  async fetchStopEventBoard(
     stopPointId: string,
-    options: KvvDepartureBoardOptions = {},
-  ): Promise<KvvDepartureBoard> {
-    const isWholeStop = !options.lineIds?.length;
-    const lineGroups = isWholeStop ? [undefined] : chunk(options.lineIds ?? [], PROXY_LINE_LIMIT);
-    const [boards, servingLines] = await Promise.all([
-      Promise.all(
-        findComplexProviderStopIds(stopPointId).flatMap((stopId) =>
-          lineGroups.map((lineIds) => this.fetchStopEvents(stopId, { ...options, lineIds })),
-        ),
+    options: KvvStopEventBoardOptions = {},
+  ): Promise<KvvStopEventBoard> {
+    const lineGroups = options.lineIds?.length
+      ? chunk(options.lineIds, PROXY_LINE_LIMIT)
+      : [undefined];
+    const boards = await Promise.all(
+      findComplexProviderStopIds(stopPointId).flatMap((stopId) =>
+        lineGroups.map((lineIds) => this.fetchStopEvents(stopId, { ...options, lineIds })),
       ),
-      isWholeStop ? this.getServingLines(stopPointId) : [],
-    ]);
+    );
     return {
       stopPointId,
       stopName: boards[0].stopName,
       serverTime: boards[0].serverTime,
-      servingLines,
-      departures: boards.flatMap((board) => board.departures),
+      servingLines: [],
+      stopEvents: boards.flatMap((board) => board.stopEvents),
     };
   }
 
-  async fetchTrip(locator: KvvTripLocator) {
-    const { body, ageMs } = await this.request(`Fahrt ${locator.tripCode}`, "trip-info.php", {
-      journey: `${locator.line}:${locator.tripCode}`,
-      day: locator.operatingDay ?? formatOperatingDay(locator.date),
+  async fetchTripInfo(locator: KvvJourneyLocator) {
+    const { body, ageMs } = await this.request(`Fahrt ${locator.journeyCode}`, "trip-info.php", {
+      journey: `${locator.lineRef}:${locator.journeyCode}`,
+      day: locator.operatingDayRef ?? formatOperatingDay(locator.date),
     });
-    const trip = parseTriasTrip(body, locator);
-    return { ...trip, serverTime: advance(trip.serverTime, ageMs) };
+    const journey = parseTriasTripInfo(body, locator);
+    return { ...journey, serverTime: advance(journey.serverTime, ageMs) };
+  }
+
+  /**
+   * The dated journey's calls: a direction's route is what its dated journeys call at
+   * (`docs/kvv-trias-api.md`).
+   */
+  async fetchLineRoute(locator: KvvJourneyLocator) {
+    return (await this.fetchTripInfo(locator)).calls;
   }
 
   async searchStops(query: string) {
@@ -99,39 +91,21 @@ export class KvvTriasClient implements KvvLiveFeed {
   private async fetchStopEvents(
     stopId: string,
     {
-      limit = DEFAULT_DEPARTURE_LIMIT,
-      includeTripCalls,
+      limit = DEFAULT_STOP_EVENT_LIMIT,
+      includeCalls,
       lineIds,
       eventKind,
-    }: KvvDepartureBoardOptions,
-  ): Promise<KvvDepartureBoard> {
+    }: KvvStopEventBoardOptions,
+  ): Promise<KvvStopEventBoard> {
     const { body, ageMs } = await this.request(`Abfahrtstafel ${stopId}`, "stop-events.php", {
       stop: stopId,
       rows: String(Math.min(limit, PROXY_ROW_LIMIT)),
-      calls: includeTripCalls ? "1" : "0",
+      calls: includeCalls ? "1" : "0",
       ...(eventKind === "arrival" ? { kind: "arrival" } : {}),
       ...(lineIds?.length ? { lines: lineIds.join(",") } : {}),
     });
     const board = parseTriasStopEvents(body, stopId, eventKind);
     return { ...board, serverTime: advance(board.serverTime, ageMs) };
-  }
-
-  /**
-   * A stop's serving lines from a one-row EFA board, kept for hours. A failed reading is not kept,
-   * and answers none rather than failing the board.
-   */
-  private getServingLines(stopPointId: string): Promise<KvvServingLine[]> {
-    const kept = this.servingLines.get(stopPointId);
-    if (kept) return kept;
-    const lines = this.efa
-      .fetchDepartureBoard(stopPointId, { limit: 1 })
-      .then((board) => board.servingLines)
-      .catch(() => {
-        this.servingLines.delete(stopPointId);
-        return [];
-      });
-    this.servingLines.set(stopPointId, lines);
-    return lines;
   }
 
   /** One GET to the proxy, with how long the proxy had cached the reply (`Age`). */
@@ -140,36 +114,28 @@ export class KvvTriasClient implements KvvLiveFeed {
     endpoint: string,
     parameters: Record<string, string>,
   ): Promise<{ body: string; ageMs: number }> {
-    if (Date.now() < this.rateLimitedUntil) throw new TriasRateLimitError(this.rateLimitedUntil);
+    if (Date.now() < this.rateLimitedUntil) throw new KvvTriasError(RATE_LIMIT_MESSAGE);
     const url = new URL(endpoint, this.proxyUrl);
     url.search = new URLSearchParams(parameters).toString();
     let response: Response;
     try {
       response = await this.fetchFn(url, { signal: AbortSignal.timeout(this.timeoutMs) });
     } catch (error) {
-      throw new TriasUnavailableError(`${requestDescription} konnte nicht geladen werden`, {
+      throw new KvvTriasError(`${requestDescription} konnte nicht geladen werden`, {
         cause: error,
       });
     }
     if (response.status === 429) {
+      // Paused until the proxy's `Retry-After`, so a rate-limited client stops asking.
       this.rateLimitedUntil = Math.max(this.rateLimitedUntil, getRetryAt(response));
-      throw new TriasRateLimitError(this.rateLimitedUntil);
+      throw new KvvTriasError(RATE_LIMIT_MESSAGE);
     }
-    if (!response.ok) {
-      const message = `${requestDescription}: HTTP ${response.status}`;
-      const accessDenied = response.status === 401 || response.status === 403;
-      if (accessDenied || response.status >= 500 || response.status === 408) {
-        throw new TriasUnavailableError(message, { accessDenied });
-      }
-      throw new KvvTriasError(message);
-    }
+    if (!response.ok) throw new KvvTriasError(`${requestDescription}: HTTP ${response.status}`);
     let body: string;
     try {
       body = await response.text();
     } catch (cause) {
-      throw new TriasUnavailableError(`${requestDescription} konnte nicht geladen werden`, {
-        cause,
-      });
+      throw new KvvTriasError(`${requestDescription} konnte nicht geladen werden`, { cause });
     }
     const ageSeconds = Number(response.headers.get("Age"));
     return {
@@ -178,6 +144,8 @@ export class KvvTriasClient implements KvvLiveFeed {
     };
   }
 }
+
+const RATE_LIMIT_MESSAGE = "TRIAS-Anfragelimit erreicht; erneuter Versuch später";
 
 /** The provider's clock reading advanced by the reply's time in the proxy's cache. */
 const advance = (serverTime: string, ageMs: number): string =>

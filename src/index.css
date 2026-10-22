@@ -941,226 +941,10 @@ button.brand:active .brand-mark,
   visibility: visible;
 }
 
-/* ---------- Notices ----------
-   One row, two readings. The alert is a raised plate with a filled mark and a chevron; the all-clear
-   is a bare line with an outlined tick. Mark, weight and shape carry the difference, so neither
-   depends on its tint to be understood. */
-.notice {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  margin: 14px 0 0;
-  padding: 11px 14px;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-m);
-  background: var(--surface);
-  color: var(--ink);
-  text-align: left;
-}
-.notice-alert {
-  border-color: var(--warning);
-  border-left-width: 5px;
-  background: var(--warning-bg);
-  cursor: pointer;
-}
-.notice-alert:hover {
-  border-color: color-mix(in srgb, var(--warning) 62%, var(--ink));
-  box-shadow: 0 5px 16px #16302e0d;
-}
-.notice-alert > b {
-  margin-left: auto;
-  color: var(--accent-ink);
-  font-size: 20px;
-}
-.notice-watch {
-  border-color: color-mix(in srgb, var(--warning) 55%, var(--line));
-  background: var(--warning-bg);
-  color: #6d4707;
-  font-size: 13px;
-  font-weight: 700;
-}
-.notice-icon {
-  flex: 0 0 auto;
-  width: 22px;
-  height: 22px;
-  display: grid;
-  place-items: center;
-  border-radius: 50%;
-  background: var(--warning);
-  color: #fff;
-  font-size: 14px;
-  font-weight: 900;
-  line-height: 1;
-}
-.notice-text {
-  min-width: 0;
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-}
-.notice-text strong {
-  flex: 0 0 auto;
-  font-size: 15px;
-  font-weight: 750;
-  letter-spacing: -0.015em;
-}
-.notice-text small {
-  min-width: 0;
-  overflow: hidden;
-  color: var(--ink-soft);
-  font-size: 12px;
-  font-weight: 650;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-/* Nothing to act on, so the all-clear keeps the row but drops the plate. */
-.notice-calm {
-  gap: 8px;
-  margin-top: 10px;
-  padding: 0 2px;
-  border: 0;
-  background: none;
-  color: var(--ink-soft);
-  font-size: 12px;
-  font-weight: 650;
-}
-.notice-calm .notice-icon {
-  width: 17px;
-  height: 17px;
-  background: none;
-  box-shadow: inset 0 0 0 1.5px var(--line-strong);
-  color: var(--accent-ink);
-  font-size: 11px;
-  font-weight: 800;
-}
-
-/* ---------- Published notices ----------
-   What the operator has announced, as opposed to what the boards are reporting. The two are
-   different facts, so they are different plates: a deviation measured in the next half hour keeps
-   the warning colour, and an announcement about the weeks around today takes a neutral one. A
-   notice that reads as an alarm would make every construction site look like a breakdown. */
-.service-notices {
-  display: flex;
-  flex-direction: column;
-}
-.notice-info {
-  border-left: 5px solid var(--line-strong);
-}
-/* A notice that carries the operator's full wording opens in place: the plate becomes the block,
-   and the row that was the whole of it becomes the summary that opens it. */
-.service-notice-detail {
-  display: block;
-  cursor: pointer;
-}
-.service-notice-detail > summary {
-  display: flex;
-  align-items: center;
-  gap: 11px;
-  list-style: none;
-}
-.service-notice-detail > summary::-webkit-details-marker {
-  display: none;
-}
-.service-notice-detail:hover {
-  border-color: var(--accent-ink);
-  box-shadow: 0 5px 16px #16302e0d;
-}
-.service-notice-detail > summary:focus-visible {
-  outline: 3px solid var(--focus);
-  outline-offset: 2px;
-}
-.service-notice-detail > summary > .disclosure-chevron {
-  margin-left: auto;
-  color: var(--ink-soft);
-}
-.service-notice-detail[open] > summary > .disclosure-chevron {
-  transform: rotate(-180deg);
-}
-/* The operator's own text, at reading width and reading weight: it is prose, not a row. */
-.service-notice-detail-text {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--line);
-  color: var(--ink);
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1.55;
-  cursor: text;
-}
-.service-notice-detail-text p {
-  margin: 0 0 7px;
-  overflow-wrap: anywhere;
-}
-.service-notice-detail-text p:last-child {
-  margin-bottom: 0;
-}
-.notice-info .notice-icon {
-  background: var(--surface-3);
-  color: var(--ink-soft);
-  font-weight: 800;
-}
-/* A notice title is a sentence, not a label: it wraps rather than truncating, and its period and
-   stops sit under it instead of competing for the same line. */
-.service-notices .notice-text {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-}
-.service-notices .notice-text strong {
-  flex: 0 1 auto;
-  overflow-wrap: anywhere;
-  white-space: normal;
-}
-.service-notices .notice-text small {
-  max-width: 100%;
-}
-.service-notice-lines {
-  flex: 0 0 auto;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 3px;
-  margin-left: auto;
-}
-.service-notice-lines small {
-  color: var(--ink-soft);
-  font-size: 11px;
-  font-weight: 750;
-}
-/* ---------- Published notice view ---------- */
-.service-notices-view {
-  width: min(920px, 100%);
-  min-height: 0;
-  display: flex;
-  flex: 1;
-  flex-direction: column;
-  margin: 0 auto;
-}
-.service-notices-view .service-notices {
-  min-height: 0;
-  margin-top: 14px;
-  overflow-y: auto;
-}
-.service-notices-view .notice {
-  margin: 0;
-  padding: 14px 4px;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  border-radius: 0;
-  background: transparent;
-}
-.service-notices-view .notice-alert {
-  padding-left: 12px;
-  border-left: 4px solid var(--warning);
-  background: var(--warning-bg);
-}
-
 /* ---------- Settings view ---------- */
 /* One row per choice, read the way the board reads a departure: the question in ink, the answer it
    carries in the line under it, and the control at the end where a row puts what it answers with.
-   The rows keep to the notice view's measure — a page of prose, not a page of plan. */
+   The rows keep to a reading measure — a page of prose, not a page of plan. */
 .settings-view {
   width: min(920px, 100%);
   min-height: 0;
@@ -5126,157 +4910,6 @@ button.line-diagram-bundle-option:focus-visible {
   font-size: 11px;
 }
 
-/* ---------- Stop bottom menu ---------- */
-/* What KVV announced about this stop, at the foot of its board over one hairline. No tray and no
-   raised chip: one quiet control, flat on the panel and washed only while touched or held, silent
-   when there is nothing announced. It belongs to the board — the panel that scrolls — and stays put
-   beneath the list's scrollport at every width; on a phone it pins to the document's foot while that
-   board is in view, one thumb's reach away.
-   It had a second half once, a Linien control beside this one. Two full-width controls pinned to a
-   phone's foot read as a tab bar, and neither of them was one; the lines are an order of the board
-   itself now, and this half is what was actually a menu. */
-.stop-bottom-menu {
-  flex: 0 0 auto;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: start;
-  row-gap: 0;
-  margin-top: auto;
-  padding: 5px 0 7px;
-  border-top: 1px solid var(--line);
-}
-
-/* The menu's one control. */
-.stop-service-notices summary {
-  min-width: 0;
-  min-height: 46px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  padding: 7px 10px;
-  border: 0;
-  border-radius: var(--radius-m);
-  background: transparent;
-  color: var(--ink-soft);
-  font-size: 14px;
-  font-weight: 750;
-  cursor: pointer;
-  transition:
-    background-color 0.15s ease,
-    color 0.15s ease;
-}
-.stop-service-notices summary:hover {
-  background: var(--surface-2);
-  color: var(--ink);
-}
-.stop-service-notices summary:focus-visible {
-  outline: 3px solid var(--focus);
-  outline-offset: 2px;
-}
-
-/* A long stop name squeezes rather than raising the menu it sits in. */
-.stop-service-notices summary > span {
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-
-/* Stroke marks size themselves off their label; they carry no colour of their own. */
-.disclosure-chevron {
-  flex: 0 0 auto;
-  width: 14px;
-  height: 14px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 1.9;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-.disclosure-chevron {
-  transition: transform 0.14s ease;
-}
-
-/* Open, the disclosure passes its children through to the menu's grid, so the summary keeps its row
-   and the operator's own wording spreads beneath it at full width. */
-.stop-bottom-menu > .stop-service-notices:not([open]) {
-  grid-row: 1;
-  grid-column: 1;
-}
-.stop-service-notices[open] {
-  display: contents;
-}
-.stop-service-notices[open] summary {
-  grid-row: 1;
-  grid-column: 1;
-}
-.stop-service-notices[open] .stop-service-notices-content {
-  grid-row: 2;
-  grid-column: 1 / -1;
-}
-
-.stop-service-notices {
-  min-width: 0;
-}
-.stop-service-notices summary {
-  list-style: none;
-}
-.stop-service-notices summary::-webkit-details-marker {
-  display: none;
-}
-.stop-service-notices[open] summary .disclosure-chevron {
-  transform: rotate(-180deg);
-}
-.stop-service-notices-content {
-  margin-top: 5px;
-  padding: 0 0 2px;
-  border-top: 1px solid var(--line);
-}
-.stop-service-notices .service-notices {
-  gap: 0;
-}
-.stop-service-notices .notice {
-  margin: 0;
-  padding: 10px 0;
-  border: 0;
-  border-bottom: 1px solid var(--line);
-  border-radius: 0;
-  background: transparent;
-  box-shadow: none;
-}
-.stop-service-notices .notice:last-child {
-  border-bottom: 0;
-}
-.stop-service-notices .notice-icon {
-  display: none;
-}
-.stop-service-notices .notice-text {
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
-}
-.stop-service-notices .notice-text strong {
-  flex: 0 1 auto;
-  overflow-wrap: anywhere;
-  white-space: normal;
-}
-
-/* The way to the full list, stated with the other facts about where the data came from. */
-.footer-notices-link {
-  margin-left: auto;
-  padding: 0;
-  border: 0;
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  cursor: pointer;
-}
-.footer-notices-link:hover {
-  color: var(--ink);
-}
-
 /* ---------- Invalid deep links ---------- */
 .stop-not-found-view {
   flex: 1;
@@ -6301,7 +5934,6 @@ button.line-diagram-bundle-option:focus-visible {
      least room to be read in. There is no second panel to hold a measure against here, so there is
      no measure — the view runs to the panel's own padding, safe area included, at every rotation. */
   .app-shell:not(.station-board-mode) .nearby-stops-view,
-  .app-shell:not(.station-board-mode) .service-notices-view,
   .app-shell:not(.station-board-mode) .settings-view,
   .app-shell:not(.station-board-mode) .network-view,
   .app-shell:not(.station-board-mode) .ride-status,
@@ -6310,7 +5942,6 @@ button.line-diagram-bundle-option:focus-visible {
   }
   /* Their centring margins would shrink them to their content inside the stacked flex column. */
   .app-shell:not(.station-board-mode) .nearby-stops-view,
-  .app-shell:not(.station-board-mode) .service-notices-view,
   .app-shell:not(.station-board-mode) .settings-view,
   .app-shell:not(.station-board-mode) .network-view,
   .dashboard.stop-view .departure-board-panel {
@@ -6429,9 +6060,6 @@ button.line-diagram-bundle-option:focus-visible {
     padding-block: 8px 12px;
     padding-inline: calc(16px + env(safe-area-inset-left)) calc(16px + env(safe-area-inset-right));
   }
-  .footer-notices-link {
-    margin-left: 0;
-  }
   /* The rail itself is not set here: a phone is simply the narrowest panel there is, and the
      container tier above already answers for every panel too narrow for a labelled mark. */
   .line-diagram-stop-action {
@@ -6461,46 +6089,6 @@ button.line-diagram-bundle-option:focus-visible {
   }
   .line-diagram-header h1 {
     font-size: 13px;
-  }
-  .notice-text {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
-  }
-  /* A published notice is a sentence before it is a list of lines. At phone width the badges step
-     under the title instead of taking a lane beside it, which left the operator's own wording
-     wrapping in a column two words wide. */
-  .service-notices .notice:not(.service-notice-detail),
-  .service-notices .service-notice-detail > summary {
-    display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
-    align-items: start;
-    row-gap: 8px;
-  }
-  .service-notices .notice-icon {
-    grid-area: 1 / 1;
-  }
-  .service-notices .notice-text {
-    grid-area: 1 / 2;
-  }
-  .service-notices .service-notice-detail > summary > .disclosure-chevron {
-    grid-area: 1 / 3;
-  }
-  .service-notices .service-notice-lines {
-    grid-area: 2 / 2 / auto / -1;
-    justify-content: flex-start;
-    margin-left: 0;
-  }
-  /* Under a board the mark is dropped, so the sentence starts at the edge. */
-  .stop-service-notices .notice:not(.service-notice-detail),
-  .stop-service-notices .service-notice-detail > summary {
-    grid-template-columns: minmax(0, 1fr) auto;
-  }
-  .stop-service-notices .notice-text {
-    grid-area: 1 / 1;
-  }
-  .stop-service-notices .service-notice-detail > summary > .disclosure-chevron {
-    grid-area: 1 / 2;
   }
 }
 

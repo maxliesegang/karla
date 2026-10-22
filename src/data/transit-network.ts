@@ -1,7 +1,7 @@
 import { findCatalogStop } from "./generated/kvv-stop-catalog";
 import { kvvStopMappingByLocalStopId } from "./kvv-stop-mappings";
 import { getBaseName } from "../lib/stop-naming";
-import type { TransitNetwork, TransitStop } from "./transit-types";
+import type { TransitNetwork, StopPlace } from "./transit-types";
 
 /**
  * The stops the app must resolve: those in `kvv-stop-mappings.ts`, named and placed from the
@@ -15,12 +15,12 @@ import type { TransitNetwork, TransitStop } from "./transit-types";
 const MUNICIPALITY_NAME = "Karlsruhe";
 
 /** Second names the operator does not publish. */
-const authoredNamesByStopId: Readonly<Record<string, Pick<TransitStop, "alias">>> = {
+const authoredNamesByStopId: Readonly<Record<string, Pick<StopPlace, "alias">>> = {
   // Renamed in 2021; still Mendelssohnplatz to riders.
   "rueppurrer-tor": { alias: "Mendelssohnplatz" },
 };
 
-function createStop(localStopId: string, providerStopId: string): TransitStop | undefined {
+function createStop(localStopId: string, providerStopId: string): StopPlace | undefined {
   const catalogStop = findCatalogStop(providerStopId);
   if (!catalogStop) return undefined;
   // Outside Karlsruhe the locality is the alias; an authored name wins.

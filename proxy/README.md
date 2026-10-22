@@ -14,8 +14,8 @@ the XML reply gzipped from a 15 s shared cache. Parsing stays in the client
 | `GET /api/locations.php` | `q` (2–60 characters; cached for an hour), `rows` (1–20, default 10) |
 
 Replies are XML with `Cache-Control: no-store` and `Age`, the seconds the reply sat in the cache;
-the client advances the reply's `ResponseTimestamp` by it. Boards lose their notice block
-(`StopEventResponseContext`), which the app reads from EFA. `https://maxliesegang.github.io` is
+the client advances the reply's `ResponseTimestamp` by it. Boards lose their situation block
+(`StopEventResponseContext`), which the app does not read. `https://maxliesegang.github.io` is
 allowed by CORS besides the proxy's own origin.
 
 `Age`, `Retry-After` and `Date` are exposed to allowed browser origins on success and failure.
@@ -27,11 +27,13 @@ No response carries upstream error details.
 
 ## Layout on the server
 
+The app folder sits outside every other domain's webroot, so only its own subdomain reaches it.
+
 ```text
-/karla/
+<app folder>/
   trias-config.php   copied by hand from trias-config.example.php; outside the webroot
   cache/             created by the proxy
-  public/            the domain's document root; the deploy FTP user is limited to it
+  public/            the subdomain's document root; the deploy FTP user is limited to it
     api/  lib/       from proxy/public/ (lib/ is denied by .htaccess)
 ```
 

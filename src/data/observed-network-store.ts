@@ -1,94 +1,101 @@
-import type { Departure, DepartureBoard, TripCall } from "./transit-types";
+import type { StopEvent, StopEventBoard, Call } from "./transit-types";
 import {
-  buildObservedNetworkFromTrips,
+  buildObservedNetworkFromJourneys,
   type ObservedNetwork,
-  type ObservedTripTopology,
+  type ObservedJourneyTopology,
 } from "../lib/observed-network";
-import { findFinalCallInstant, getCallSequenceKey } from "../lib/trip-calls";
-import { RUN_ENDED_GRACE_MS, RUN_READING_MAX_AGE_MS } from "./run-reading-store";
+import { findFinalCallInstant, getCallSequenceKey } from "../lib/calls";
+import {
+  DATED_JOURNEY_ENDED_GRACE_MS,
+  DATED_JOURNEY_READING_MAX_AGE_MS,
+} from "./dated-journey-reading-store";
 
-const EMPTY_OBSERVED_NETWORK: ObservedNetwork = { stops: [], lines: [], tripCount: 0 };
+const EMPTY_OBSERVED_NETWORK: ObservedNetwork = { stops: [], lines: [], journeyCount: 0 };
 
-/** The topology fields of a call, without per-run timing. */
-const toTopologyCall = (call: TripCall): TripCall => ({
+/** The topology fields of a call, without per-journey timing. */
+const toTopologyCall = (call: Call): Call => ({
   stopName: call.stopName,
   ...(call.placeName ? { placeName: call.placeName } : {}),
-  ...(call.platformLabel ? { platformLabel: call.platformLabel } : {}),
-  ...(call.platformCode ? { platformCode: call.platformCode } : {}),
+  ...(call.bayText ? { bayText: call.bayText } : {}),
+  ...(call.bay ? { bay: call.bay } : {}),
   ...(call.providerStopPointId ? { providerStopPointId: call.providerStopPointId } : {}),
   ...(call.localStopId ? { localStopId: call.localStopId } : {}),
   ...(call.latitude !== undefined ? { latitude: call.latitude } : {}),
   ...(call.longitude !== undefined ? { longitude: call.longitude } : {}),
 });
 
-const toTopology = (departure: Departure): ObservedTripTopology | undefined =>
-  departure.status !== "cancelled" && departure.tripCalls?.length
+const toTopology = (stopEvent: StopEvent): ObservedJourneyTopology | undefined =>
+  stopEvent.status !== "cancelled" && stopEvent.calls?.length
     ? {
-        id: departure.id,
-        ...(departure.tripId ? { tripId: departure.tripId } : {}),
-        lineId: departure.lineId,
-        transportMode: departure.transportMode,
-        destination: departure.destination,
-        tripCalls: departure.tripCalls.map(toTopologyCall),
+        id: stopEvent.id,
+        ...(stopEvent.journeyRef ? { journeyRef: stopEvent.journeyRef } : {}),
+        lineId: stopEvent.lineId,
+        ptMode: stopEvent.ptMode,
+        destinationText: stopEvent.destinationText,
+        calls: stopEvent.calls.map(toTopologyCall),
       }
     : undefined;
 
-/** One distinct topology of a timetable trip; a diversion counts separately. */
-const getTopologyKey = (trip: ObservedTripTopology): string =>
+/** One distinct topology of a timetable journey; a diversion counts separately. */
+const getTopologyKey = (journey: ObservedJourneyTopology): string =>
   [
-    trip.tripId ?? trip.id,
-    trip.lineId,
-    trip.transportMode,
-    trip.destination,
-    getCallSequenceKey(trip.tripCalls ?? []),
+    journey.journeyRef ?? journey.id,
+    journey.lineId,
+    journey.ptMode,
+    journey.destinationText,
+    getCallSequenceKey(journey.calls ?? []),
   ].join("\u0000");
 
-/** When a trip stops teaching the network: when `RunReadingStore` would retire its run. */
-const getTopologyExpiry = (departure: Departure, now: number): number =>
-  (findFinalCallInstant(departure.tripCalls) ?? now + RUN_READING_MAX_AGE_MS) + RUN_ENDED_GRACE_MS;
+/**
+ * When a journey stops teaching the network: when `DatedJourneyReadingStore` would retire its dated
+ * journey.
+ */
+const getTopologyExpiry = (stopEvent: StopEvent, now: number): number =>
+  (findFinalCallInstant(stopEvent.calls) ?? now + DATED_JOURNEY_READING_MAX_AGE_MS) +
+  DATED_JOURNEY_ENDED_GRACE_MS;
 
 /**
- * Topology learned from live boards and requested runs, whichever view fetched them: one record per
- * distinct route, until the trip has run, so stopped lines leave by themselves. No run readings are
- * kept.
+ * Topology learned from live boards and requested dated journeys, whichever view fetched them: one
+ * record per distinct route, until the journey has run, so stopped lines leave by themselves. No
+ * dated journey readings are kept.
  */
 export class ObservedNetworkStore {
-  private readonly tripsByKey = new Map<
+  private readonly journeysByKey = new Map<
     string,
-    { topology: ObservedTripTopology; expiresAt: number }
+    { topology: ObservedJourneyTopology; expiresAt: number }
   >();
   private readonly listeners = new Set<() => void>();
   private snapshot = EMPTY_OBSERVED_NETWORK;
 
-  rememberBoard(board: DepartureBoard, now = Date.now()): void {
-    if (board.dataStatus === "live") this.rememberTrips(board.departures, now);
+  rememberBoard(board: StopEventBoard, now = Date.now()): void {
+    if (board.dataStatus === "live") this.rememberJourneys(board.stopEvents, now);
   }
 
-  /** Every route a run's own reading states teaches the network as soon as it lands. */
-  rememberTrips(departures: readonly Departure[], now = Date.now()): void {
+  /** Every route a dated journey's own reading states teaches the network as soon as it lands. */
+  rememberJourneys(stopEvents: readonly StopEvent[], now = Date.now()): void {
     let changed = false;
-    for (const departure of departures) {
-      const topology = toTopology(departure);
+    for (const stopEvent of stopEvents) {
+      const topology = toTopology(stopEvent);
       if (!topology) continue;
       const key = getTopologyKey(topology);
-      const expiresAt = getTopologyExpiry(departure, now);
-      const known = this.tripsByKey.get(key);
+      const expiresAt = getTopologyExpiry(stopEvent, now);
+      const known = this.journeysByKey.get(key);
       if (known) {
         known.expiresAt = Math.max(known.expiresAt, expiresAt);
         continue;
       }
       if (expiresAt <= now) continue;
-      this.tripsByKey.set(key, { topology, expiresAt });
+      this.journeysByKey.set(key, { topology, expiresAt });
       changed = true;
     }
-    for (const [key, { expiresAt }] of this.tripsByKey) {
+    for (const [key, { expiresAt }] of this.journeysByKey) {
       if (expiresAt > now) continue;
-      this.tripsByKey.delete(key);
+      this.journeysByKey.delete(key);
       changed = true;
     }
     if (!changed) return;
-    this.snapshot = buildObservedNetworkFromTrips(
-      [...this.tripsByKey.values()].map(({ topology }) => topology),
+    this.snapshot = buildObservedNetworkFromJourneys(
+      [...this.journeysByKey.values()].map(({ topology }) => topology),
     );
     for (const listener of this.listeners) listener();
   }

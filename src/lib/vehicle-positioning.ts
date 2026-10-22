@@ -1,42 +1,43 @@
-import type { Departure, TripCall } from "../data/transit-types";
-import { collapseTurnaroundCalls, statesRunEnd, statesRunStart } from "./trip-calls";
-import { getCallShiftMs, getRunTimeline } from "./run-timeline";
-import { getRunMarkKey } from "./trips";
+import type { StopEvent, Call } from "../data/transit-types";
+import { collapseTurnaroundCalls, statesDatedJourneyEnd, statesDatedJourneyStart } from "./calls";
+import { getCallShiftMs, getDatedJourneyTimeline } from "./dated-journey-timeline";
+import { getDatedJourneyMarkKey } from "./journeys";
 
 /** Shared vehicle motion from call times: revised station arrivals take priority over continuity. */
 
 /**
- * What a mark is doing where it stands. `beforeStart` (a monitored run due out of its first stop)
- * and `afterEnd` (a run at its final stop) are weaker than `running`: no vehicle was measured.
- * Arrivals and their turning departures are never joined; the feed does not publish that link.
+ * What a mark is doing where it stands. `beforeStart` (a monitored dated journey due out of its
+ * first stop) and `afterEnd` (a dated journey at its final stop) are weaker than `running`: no
+ * vehicle was measured. Arrivals and their turning departures are never joined; the feed does not
+ * publish that link.
  */
-export type RunPlacementPhase = "running" | "beforeStart" | "afterEnd";
+export type DatedJourneyPlacementPhase = "running" | "beforeStart" | "afterEnd";
 
 /** Where a vehicle is: between two calling points, and how far along. */
-export type RunPlacement = {
+export type DatedJourneyPlacement = {
   fromStopId: string;
   toStopId: string;
   /** 0 at the stop behind, 1 at the stop ahead. Stays at 0 while the vehicle is standing. */
   progress: number;
-  phase: RunPlacementPhase;
+  phase: DatedJourneyPlacementPhase;
   /**
    * Whether the mark got here by travelling or by being put here (a first paint, a gap, a reading
    * elsewhere). Only travel is animated.
    */
-  motion: RunPlacementMotion;
+  motion: DatedJourneyPlacementMotion;
   /**
    * How far a placement moved the drawn mark, in links. Stated only where the drawn segment still
    * exists, so a drawing can correct a small placement instead of snapping it.
    */
   placedAfterLinks?: number;
   /** The mark's way along the current link, replaced only by a new reading or the next link. */
-  trajectory?: RunSegmentTrajectory;
+  trajectory?: DatedJourneySegmentTrajectory;
 };
 
-/** See `RunPlacement.motion`. */
-export type RunPlacementMotion = "travelled" | "placed";
+/** See `DatedJourneyPlacement.motion`. */
+export type DatedJourneyPlacementMotion = "travelled" | "placed";
 
-export type RunSegmentTrajectory = {
+export type DatedJourneySegmentTrajectory = {
   startsAt: number;
   /** Monotonic samples every `FOLLOW_STEP_MS`, with the final sample at `arrivesAt`. */
   progresses: readonly number[];
@@ -47,17 +48,21 @@ export type RunSegmentTrajectory = {
   sampledAt: number;
 };
 
-/** A run unseen for this long has stopped being tracked; its next position starts fresh. */
-const RUN_MOTION_STALE_MS = 120_000;
+/**
+ * A dated journey unseen for this long has stopped being tracked; its next position starts fresh.
+ */
+const DATED_JOURNEY_MOTION_STALE_MS = 120_000;
 /** Runs remembered for smoothing before the untouched ones are swept out. */
-const RUN_MOTION_CAPACITY = 256;
+const DATED_JOURNEY_MOTION_CAPACITY = 256;
 /** Progress within this of a target or a call counts as reaching it. */
 const SETTLED_TOLERANCE = 0.005;
 /** Resolution of a mark's plan. */
 export const FOLLOW_STEP_MS = 1_000;
 /** How long a mark plans ahead without a new reading. */
 const FOLLOW_HORIZON_MS = 120_000;
-/** About how long a mark takes to close the gap to its reading. Tuned on recorded runs. */
+/**
+ * About how long a mark takes to close the gap to its reading. Tuned on recorded dated journeys.
+ */
 const FOLLOW_TIME_CONSTANT_MS = 10_000;
 /** A catching-up mark runs at most this many times the reading's own speed… */
 const FOLLOW_MAX_SPEEDUP = 2.5;
@@ -84,14 +89,14 @@ const MINUTE_GRAIN_STAND_MS = 30_000;
 /** A stated delay that switched back within this long is drawn midway between its two minutes. */
 const DELAY_FLAP_WINDOW_MS = 180_000;
 /**
- * How long before a monitored run is due out of its first stop it is drawn standing there without
- * a known arrival. Measured against the delayed departure, and long enough for line 3's
+ * How long before a monitored dated journey is due out of its first stop it is drawn standing there
+ * without a known arrival. Measured against the delayed departure, and long enough for line 3's
  * eleven-minute turn at Forststraße. A found turnaround (`standFrom`) can stand it longer.
  */
 const DEPARTURE_STAND_LEAD_MS = 9 * 60_000;
 /**
- * How long a run keeps its mark at its final call, where the feed says it ends there. Within the
- * grace its observation is retained for (`lib/line-run-departures.ts`).
+ * How long a dated journey keeps its mark at its final call, where the feed says it ends there.
+ * Within the grace its observation is retained for (`lib/line-dated-journey-stop-events.ts`).
  */
 const TERMINUS_STAND_MS = 90_000;
 
@@ -130,11 +135,7 @@ export function getSteadyDelayMinutes(
   return changes.length >= 3 && high - low === 1 ? (low + high) / 2 : minutes;
 }
 
-function steadyDelays(
-  calls: readonly TripCall[],
-  delays: DelayHistory,
-  feedNow: number,
-): TripCall[] {
+function steadyDelays(calls: readonly Call[], delays: DelayHistory, feedNow: number): Call[] {
   const seen = new Set<string>();
   const steady = (key: string, minutes: number | undefined) => {
     if (minutes === undefined) return undefined;
@@ -144,14 +145,14 @@ function steadyDelays(
     return getSteadyDelayMinutes(changes, minutes, feedNow);
   };
   const steadied = calls.map((call) => {
-    const key = `${call.localStopId}|${call.scheduledArrivalTime ?? call.scheduledDepartureTime}`;
+    const key = `${call.localStopId}|${call.timetabledArrivalTime ?? call.timetabledDepartureTime}`;
     // A prediction to the second does not flap between minutes; the timeline reads it instead.
     return {
       ...call,
-      delayMinutes: call.predictedDepartureTime
+      delayMinutes: call.estimatedDepartureTime
         ? call.delayMinutes
         : steady(`${key}|departure`, call.delayMinutes),
-      arrivalDelayMinutes: call.predictedArrivalTime
+      arrivalDelayMinutes: call.estimatedArrivalTime
         ? call.arrivalDelayMinutes
         : steady(`${key}|arrival`, call.arrivalDelayMinutes),
     };
@@ -162,7 +163,7 @@ function steadyDelays(
 
 /** Placement adds a bounded dwell grace to the shared expected timeline. */
 function getTimedCalls(
-  departure: Departure,
+  stopEvent: StopEvent,
   delays: DelayHistory,
   feedNow: number,
 ): {
@@ -170,11 +171,11 @@ function getTimedCalls(
   originStatedShift: number | undefined;
 } {
   const localCalls = steadyDelays(
-    collapseTurnaroundCalls(departure.tripCalls ?? []).filter((call) => call.localStopId),
+    collapseTurnaroundCalls(stopEvent.calls ?? []).filter((call) => call.localStopId),
     delays,
     feedNow,
   );
-  const timeline = getRunTimeline(localCalls);
+  const timeline = getDatedJourneyTimeline(localCalls);
   const first = timeline[0]?.call;
   const originShift = first && getCallShiftMs(first, "departure");
   const originStatedShift = originShift !== undefined && originShift > 0 ? originShift : undefined;
@@ -182,7 +183,7 @@ function getTimedCalls(
   for (const { call, arrival, departure: callDeparture } of timeline) {
     if (!call.localStopId) continue;
     const previous = timed.at(-1);
-    const isPublishedCurrentCall = call.isCurrentStop === true;
+    const isPublishedCurrentCall = call.isThisCall === true;
     if (
       previous &&
       previous.stopId === call.localStopId &&
@@ -216,9 +217,9 @@ function getTimedCalls(
 }
 
 /** AVG publishes its timetable to the minute; VBK's has seconds. */
-const isMinuteGrain = (calls: readonly TripCall[]): boolean =>
+const isMinuteGrain = (calls: readonly Call[]): boolean =>
   calls.every((call) =>
-    [call.scheduledArrivalTime, call.scheduledDepartureTime].every(
+    [call.timetabledArrivalTime, call.timetabledDepartureTime].every(
       (time) => time === undefined || Date.parse(time) % 60_000 === 0,
     ),
   );
@@ -228,25 +229,25 @@ function getStandingEnd(here: TimedCall): number {
 }
 
 /** A stated deviation, including zero, permits a new waiting mark at the origin. */
-const isMonitoredRun = (departure: Departure): boolean =>
-  (departure.tripCalls ?? []).some(
+const isMonitoredDatedJourney = (stopEvent: StopEvent): boolean =>
+  (stopEvent.calls ?? []).some(
     (call) => call.delayMinutes !== undefined || call.arrivalDelayMinutes !== undefined,
   );
 
-/** Where the feed says a run begins and ends, as the stops those two calls resolve to. */
-type RunEndStops = { startStopId?: string; endStopId?: string };
+/** Where the feed says a dated journey begins and ends, as the stops those two calls resolve to. */
+type DatedJourneyEndStops = { startStopId?: string; endStopId?: string };
 
 /**
- * The run's ends among the travelled calls, only where the feed states them: a reading cut short
- * ends mid-route, and a stand drawn there would park a mark where nothing terminates.
+ * The dated journey's ends among the travelled calls, only where the feed states them: a reading
+ * cut short ends mid-route, and a stand drawn there would park a mark where nothing terminates.
  */
-function findRunEndStops(departure: Departure): RunEndStops {
-  const tripCalls = departure.tripCalls ?? [];
-  const firstCall = tripCalls[0];
-  const lastCall = tripCalls[tripCalls.length - 1];
+function findDatedJourneyEndStops(stopEvent: StopEvent): DatedJourneyEndStops {
+  const calls = stopEvent.calls ?? [];
+  const firstCall = calls[0];
+  const lastCall = calls[calls.length - 1];
   return {
-    startStopId: statesRunStart(firstCall) ? firstCall?.localStopId : undefined,
-    endStopId: statesRunEnd(lastCall) ? lastCall?.localStopId : undefined,
+    startStopId: statesDatedJourneyStart(firstCall) ? firstCall?.localStopId : undefined,
+    endStopId: statesDatedJourneyEnd(lastCall) ? lastCall?.localStopId : undefined,
   };
 }
 
@@ -255,29 +256,38 @@ type CallPositionContext = {
   hasWaitingMark: boolean;
   /** When the stand at the first stop began, where a turnaround has been found for it. */
   standFrom: number | undefined;
-  /** Only the ends of the run may carry a standing mark. */
-  runEnds: RunEndStops;
+  /** Only the ends of the dated journey may carry a standing mark. */
+  datedJourneyEnds: DatedJourneyEndStops;
   /** The delay the feed states for the first call itself; see `getTimedCalls`. */
   originStatedShift: number | undefined;
 };
 
-/** Where the run says the vehicle is, as one coordinate along its calls, and in which phase. */
-type RunCallPosition = {
+/**
+ * Where the dated journey says the vehicle is, as one coordinate along its calls, and in which
+ * phase.
+ */
+type DatedJourneyCallPosition = {
   position: number;
-  phase: RunPlacementPhase;
+  phase: DatedJourneyPlacementPhase;
 };
 
 /**
  * Why a reading places nothing. `unplaceable` says nothing about the vehicle, so a drawn mark is
- * held; `finished` says the run is over, so the mark is dropped.
+ * held; `finished` says the dated journey is over, so the mark is dropped.
  */
 type EmptyReading = "unplaceable" | "finished";
 
 function findCallPosition(
   calls: readonly TimedCall[],
   feedNow: number,
-  { isMonitored, hasWaitingMark, standFrom, runEnds, originStatedShift }: CallPositionContext,
-): RunCallPosition | EmptyReading {
+  {
+    isMonitored,
+    hasWaitingMark,
+    standFrom,
+    datedJourneyEnds,
+    originStatedShift,
+  }: CallPositionContext,
+): DatedJourneyCallPosition | EmptyReading {
   if (calls.length < 2) return "unplaceable";
   const first = calls[0];
   const last = calls[calls.length - 1];
@@ -285,7 +295,7 @@ function findCallPosition(
   // A later re-stated departure keeps the stand, still bounded by the lead from the published
   // time, so the mark does not blink across the revision.
   if (feedNow < first.arrival) {
-    if (first.stopId !== runEnds.startStopId) return "unplaceable";
+    if (first.stopId !== datedJourneyEnds.startStopId) return "unplaceable";
     const isDueOut =
       (isMonitored || hasWaitingMark) && first.departure - feedNow <= DEPARTURE_STAND_LEAD_MS;
     const isTurning = standFrom !== undefined && feedNow >= standFrom;
@@ -297,15 +307,15 @@ function findCallPosition(
       ? { position: 0, phase: "beforeStart" }
       : "unplaceable";
   }
-  // Past a last call the feed does not call the run's end, the reading has only run out.
-  const runEndsHere = last.stopId === runEnds.endStopId;
+  // Past a last call the feed does not call the dated journey's end, the reading has only run out.
+  const datedJourneyEndsHere = last.stopId === datedJourneyEnds.endStopId;
 
   if (feedNow > last.departure + TERMINUS_STAND_MS) {
-    return runEndsHere ? "finished" : "unplaceable";
+    return datedJourneyEndsHere ? "finished" : "unplaceable";
   }
 
-  // Inclusive, so a trip departing at this very instant can replace the arrival's mark.
-  if (feedNow >= last.arrival && runEndsHere) {
+  // Inclusive, so a journey departing at this very instant can replace the arrival's mark.
+  if (feedNow >= last.arrival && datedJourneyEndsHere) {
     return { position: calls.length - 1, phase: "afterEnd" };
   }
 
@@ -325,7 +335,8 @@ function findCallPosition(
     };
   }
 
-  // Past every link of a run that does not end here: the calls ran out before the vehicle did.
+  // Past every link of a dated journey that does not end here: the calls ran out before the vehicle
+  // did.
   return "unplaceable";
 }
 
@@ -432,42 +443,43 @@ function planLink(
   };
 }
 
-type RunMotion = {
+type DatedJourneyMotion = {
   timelineKey: string;
   fromStopId: string;
   toStopId: string;
   plan: LinkPlan;
   shownAt: number;
   /**
-   * When the run last placed the vehicle. Bounds how long a mark is held over empty readings, which
-   * `shownAt` cannot: it advances every tick.
+   * When the dated journey last placed the vehicle. Bounds how long a mark is held over empty
+   * readings, which `shownAt` cannot: it advances every tick.
    */
   readAt: number;
-  shown: RunPlacement;
+  shown: DatedJourneyPlacement;
   delays: DelayHistory;
 };
 
 /**
- * The marks painted so far, keyed by mark, so a refresh continues a mark's motion. The app keeps one
- * for every view (`hooks/run-motions.ts`), so a run's mark is in one place whichever view draws it.
+ * The marks painted so far, keyed by mark, so a refresh continues a mark's motion. The app keeps
+ * one for every view (`hooks/dated-journey-motions.ts`), so a dated journey's mark is in one place
+ * whichever view draws it.
  */
-export type RunMotions = Map<string, RunMotion>;
+export type DatedJourneyMotions = Map<string, DatedJourneyMotion>;
 
-export const createRunMotions = (): RunMotions => new Map();
+export const createDatedJourneyMotions = (): DatedJourneyMotions => new Map();
 
-function sweepRunMotions(motions: RunMotions, feedNow: number) {
-  if (motions.size <= RUN_MOTION_CAPACITY) return;
+function sweepDatedJourneyMotions(motions: DatedJourneyMotions, feedNow: number) {
+  if (motions.size <= DATED_JOURNEY_MOTION_CAPACITY) return;
   for (const [key, motion] of motions) {
-    if (feedNow - motion.shownAt > RUN_MOTION_STALE_MS) motions.delete(key);
+    if (feedNow - motion.shownAt > DATED_JOURNEY_MOTION_STALE_MS) motions.delete(key);
   }
   for (const key of motions.keys()) {
-    if (motions.size <= RUN_MOTION_CAPACITY) break;
+    if (motions.size <= DATED_JOURNEY_MOTION_CAPACITY) break;
     motions.delete(key);
   }
 }
 
 /** Newest last, so the sweep evicts the least recently used. */
-function rememberMotion(motions: RunMotions, key: string, motion: RunMotion) {
+function rememberMotion(motions: DatedJourneyMotions, key: string, motion: DatedJourneyMotion) {
   motions.delete(key);
   motions.set(key, motion);
 }
@@ -482,8 +494,8 @@ function findLinkIndex(calls: readonly TimedCall[], fromStopId: string, toStopId
 }
 
 /** The plan read back at an instant, as an index into the calls and progress along that link. */
-export const getRunTrajectoryProgress = (
-  trajectory: RunSegmentTrajectory,
+export const getDatedJourneyTrajectoryProgress = (
+  trajectory: DatedJourneySegmentTrajectory,
   feedNow: number,
 ): number => getPlanProgress(trajectory, feedNow);
 
@@ -492,10 +504,10 @@ function placementFromPlan(
   index: number,
   plan: LinkPlan,
   feedNow: number,
-  readPhase: RunPlacementPhase,
-  motion: RunPlacementMotion,
+  readPhase: DatedJourneyPlacementPhase,
+  motion: DatedJourneyPlacementMotion,
   placedAfterLinks?: number,
-): RunPlacement {
+): DatedJourneyPlacement {
   const progress = getPlanProgress(plan, feedNow);
   const isAtFirstCall = index === 0 && progress <= SETTLED_TOLERANCE;
   const isAtLastCall = index === calls.length - 2 && progress >= 1 - SETTLED_TOLERANCE;
@@ -505,7 +517,7 @@ function placementFromPlan(
       : "running";
   const end = getPlanEnd(plan);
   const finalProgress = plan.progresses[plan.progresses.length - 1];
-  const trajectory: RunSegmentTrajectory | undefined =
+  const trajectory: DatedJourneySegmentTrajectory | undefined =
     phase === "running" && end > feedNow && finalProgress > progress + SETTLED_TOLERANCE
       ? {
           startsAt: plan.startsAt,
@@ -527,27 +539,27 @@ function placementFromPlan(
 }
 
 /** Forward corrections meet arrival deadlines; backward corrections stay within the stop grace. */
-export function getRunPlacement(
-  motions: RunMotions,
-  departure: Departure,
+export function getDatedJourneyPlacement(
+  motions: DatedJourneyMotions,
+  stopEvent: StopEvent,
   feedNow: number,
   standFrom?: number,
-): RunPlacement | null {
-  const key = getRunMarkKey(departure);
+): DatedJourneyPlacement | null {
+  const key = getDatedJourneyMarkKey(stopEvent);
   const previous = motions.get(key);
   if (previous?.shownAt === feedNow) return previous.shown;
-  if (departure.status === "cancelled") {
+  if (stopEvent.status === "cancelled") {
     motions.delete(key);
     return null;
   }
 
   const delays: DelayHistory = previous?.delays ?? new Map();
-  const { calls, originStatedShift } = getTimedCalls(departure, delays, feedNow);
+  const { calls, originStatedShift } = getTimedCalls(stopEvent, delays, feedNow);
   const context: CallPositionContext = {
-    isMonitored: isMonitoredRun(departure),
+    isMonitored: isMonitoredDatedJourney(stopEvent),
     hasWaitingMark: previous?.shown.phase === "beforeStart",
     standFrom,
-    runEnds: findRunEndStops(departure),
+    datedJourneyEnds: findDatedJourneyEndStops(stopEvent),
     originStatedShift,
   };
   const reading = findCallPosition(calls, feedNow, context);
@@ -562,12 +574,12 @@ export function getRunPlacement(
     // clocks, so one a little behind keeps the ground another has shown.
     if (
       !previous ||
-      feedNow - previous.readAt >= RUN_MOTION_STALE_MS ||
+      feedNow - previous.readAt >= DATED_JOURNEY_MOTION_STALE_MS ||
       findLinkIndex(calls, previous.fromStopId, previous.toStopId) < 0
     ) {
       return null;
     }
-    const shown: RunPlacement = {
+    const shown: DatedJourneyPlacement = {
       ...previous.shown,
       progress:
         feedNow < previous.shownAt
@@ -587,7 +599,7 @@ export function getRunPlacement(
 
   // Where the drawn mark stands on this reading's calls, and since when a new plan would start.
   let drawn: { index: number; progress: number; from: number; isPlanCurrent: boolean } | undefined;
-  if (previous && feedNow - previous.shownAt < RUN_MOTION_STALE_MS) {
+  if (previous && feedNow - previous.shownAt < DATED_JOURNEY_MOTION_STALE_MS) {
     const index = findLinkIndex(calls, previous.fromStopId, previous.toStopId);
     if (index >= 0) {
       const planEnd = getPlanEnd(previous.plan);
@@ -622,7 +634,7 @@ export function getRunPlacement(
     drawn.progress <= NEAR_STOP_RETURN_PROGRESS;
   let index: number;
   let plan: LinkPlan;
-  let motion: RunPlacementMotion;
+  let motion: DatedJourneyPlacementMotion;
   if (drawn && hasNotLeft) {
     index = drawn.index;
     plan = planLink(calls, context, index, 0, feedNow);
@@ -668,13 +680,13 @@ export function getRunPlacement(
     shown,
     delays,
   });
-  sweepRunMotions(motions, feedNow);
+  sweepDatedJourneyMotions(motions, feedNow);
   return shown;
 }
 
 /** Soonest passage first, so a capped diagram keeps the marks a rider is about to care about. */
 export function createSoonestPassageComparator(feedNow: number) {
-  const wait = (departure: Departure) =>
-    Math.abs(Date.parse(departure.scheduledDepartureTime) - feedNow);
-  return (a: Departure, b: Departure) => wait(a) - wait(b);
+  const wait = (stopEvent: StopEvent) =>
+    Math.abs(Date.parse(stopEvent.timetabledDepartureTime) - feedNow);
+  return (a: StopEvent, b: StopEvent) => wait(a) - wait(b);
 }

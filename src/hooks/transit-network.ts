@@ -1,6 +1,6 @@
 import { useMemo } from "react";
 import { transitSource } from "../data/transit-source";
-import type { DepartureBoard, TransitNetwork, TransitStop } from "../data/transit-types";
+import type { StopEventBoard, TransitNetwork, StopPlace } from "../data/transit-types";
 import {
   getObservedStopPositions,
   getObservedTransitLines,
@@ -18,7 +18,7 @@ export function useTransitNetwork(observedNetwork: ObservedNetwork): TransitNetw
 
 /** A provider lookup's outcome; a failed read is not "no such stop". */
 type RemoteStopResolution =
-  | { status: "found"; stop: TransitStop }
+  | { status: "found"; stop: StopPlace }
   | { status: "missing" }
   | { status: "failed" };
 
@@ -33,12 +33,12 @@ export function useTransitStop(
   stopId: string | undefined,
   { reloadNonce }: { reloadNonce?: number } = {},
 ): {
-  stop: TransitStop | undefined;
+  stop: StopPlace | undefined;
   loading: boolean;
   /** The provider read failed, so asking again makes sense. */
   failed: boolean;
 } {
-  // Everything the session knows (stops met through boards and trips), so stepping along a line
+  // Everything the session knows (stops met through boards and journeys), so stepping along a line
   // diagram is a lookup without a loading state.
   const local = stopId ? transitSource.getKnownStop(stopId) : undefined;
   // Only asks the provider without a session answer.
@@ -57,15 +57,15 @@ export function useTransitStop(
 /** Observed stops the nearby ranking can locate against. */
 export function useLocatableStops(
   network: TransitNetwork,
-  departureBoards: readonly DepartureBoard[],
-): readonly TransitStop[] {
+  stopEventBoards: readonly StopEventBoard[],
+): readonly StopPlace[] {
   return useMemo(() => {
-    const byId = new Map<string, TransitStop>();
+    const byId = new Map<string, StopPlace>();
     for (const stop of network.stops) {
       if (stop.latitude !== undefined) byId.set(stop.id, stop);
     }
     // Authored names win; observed positions only fill gaps.
-    for (const position of getObservedStopPositions(departureBoards)) {
+    for (const position of getObservedStopPositions(stopEventBoards)) {
       if (byId.has(position.id)) continue;
       byId.set(position.id, {
         id: position.id,
@@ -76,5 +76,5 @@ export function useLocatableStops(
       });
     }
     return [...byId.values()];
-  }, [network, departureBoards]);
+  }, [network, stopEventBoards]);
 }

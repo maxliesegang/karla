@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { TransitStop } from "../src/data/transit-types.ts";
+import type { StopPlace } from "../src/data/transit-types.ts";
 import { getNearbyStops } from "../src/lib/nearby-stops.ts";
 
-const createStop = (id: string, latitude?: number, longitude?: number): TransitStop => ({
+const createStop = (id: string, latitude?: number, longitude?: number): StopPlace => ({
   id,
   name: id,
   latitude,

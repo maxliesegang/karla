@@ -1,30 +1,30 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { Departure } from "../src/data/transit-types.ts";
+import type { StopEvent } from "../src/data/transit-types.ts";
 import {
   findActiveRideObservation,
   forgetActiveRideObservation,
   getActiveRideExpiry,
   rememberActiveRideObservation,
 } from "../src/lib/active-ride.ts";
-import { createDeparture } from "./support/fixtures.ts";
+import { createStopEvent } from "./support/fixtures.ts";
 
 const observedAt = Date.parse("2026-08-23T16:00:00Z");
-const departure: Departure = createDeparture({
+const stopEvent: StopEvent = createStopEvent({
   id: "departure",
-  tripId: "trip",
+  journeyRef: "trip",
   lineId: "2",
-  transportMode: "tram",
-  destination: "Durlach",
+  ptMode: "tram",
+  destinationText: "Durlach",
   minutesUntilDeparture: 1,
-  platformCode: "2",
+  bay: "2",
   boardingLocalStopId: "europaplatz",
   status: "realtime",
-  scheduledDepartureTime: "2026-08-23T16:01:00Z",
-  tripCalls: [
+  timetabledDepartureTime: "2026-08-23T16:01:00Z",
+  calls: [
     {
       stopName: "Durlach",
-      scheduledArrivalTime: "2026-08-23T16:30:00Z",
+      timetabledArrivalTime: "2026-08-23T16:30:00Z",
       delayMinutes: 3,
     },
   ],
@@ -47,20 +47,20 @@ function installStorage() {
 test.beforeEach(installStorage);
 
 test("restores the same active ride until its final call grace period", () => {
-  const expiry = getActiveRideExpiry(departure, observedAt);
+  const expiry = getActiveRideExpiry(stopEvent, observedAt);
   assert.equal(expiry, Date.parse("2026-08-23T17:33:00Z"));
 
-  rememberActiveRideObservation("trip", departure, observedAt);
-  assert.equal(findActiveRideObservation("trip", observedAt + 1)?.departure.id, departure.id);
+  rememberActiveRideObservation("trip", stopEvent, observedAt);
+  assert.equal(findActiveRideObservation("trip", observedAt + 1)?.stopEvent.id, stopEvent.id);
   assert.equal(findActiveRideObservation("other", observedAt + 1), null);
 });
 
 test("drops expired and explicitly ended rides", () => {
-  const expiry = getActiveRideExpiry(departure, observedAt);
-  rememberActiveRideObservation("trip", departure, observedAt);
+  const expiry = getActiveRideExpiry(stopEvent, observedAt);
+  rememberActiveRideObservation("trip", stopEvent, observedAt);
   assert.equal(findActiveRideObservation("trip", expiry + 1), null);
 
-  rememberActiveRideObservation("trip", departure, observedAt);
+  rememberActiveRideObservation("trip", stopEvent, observedAt);
   forgetActiveRideObservation("trip");
   assert.equal(findActiveRideObservation("trip", observedAt + 1), null);
 });

@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { Departure, TransitNetwork, TripCall } from "../src/data/transit-types.ts";
+import type { StopEvent, TransitNetwork, Call } from "../src/data/transit-types.ts";
 import { buildLineDiagramStops, getLineDiagramVehicles } from "../src/lib/line-diagram.ts";
 import { getDrawableLineBundleOffers, getLineBundleTrunk } from "../src/lib/line-bundles.ts";
 import { createCall } from "./support/calls.ts";
-import { createRunMotions } from "../src/lib/vehicle-positioning.ts";
-import { createDeparture } from "./support/fixtures.ts";
+import { createDatedJourneyMotions } from "../src/lib/vehicle-positioning.ts";
+import { createStopEvent } from "./support/fixtures.ts";
 
 /** One drawing's motion record, shared across this file. */
-const motions = createRunMotions();
+const motions = createDatedJourneyMotions();
 
 /**
  * The trunk-to-leg handover: every vehicle stands on exactly one list, the trunk while the lines
@@ -26,19 +26,19 @@ const network: TransitNetwork = {
   lines: [],
 };
 
-const trip = (id: string, lineId: string, calls: readonly TripCall[]): Departure =>
-  createDeparture({
+const journey = (id: string, lineId: string, calls: readonly Call[]): StopEvent =>
+  createStopEvent({
     id,
-    tripId: id,
+    journeyRef: id,
     lineId,
-    transportMode: "lightRail",
-    destination: calls[calls.length - 1].stopName,
+    ptMode: "lightRail",
+    destinationText: calls[calls.length - 1].stopName,
     minutesUntilDeparture: 0,
-    platformCode: "1",
+    bay: "1",
     boardingLocalStopId: "hochstetten",
     status: "realtime",
-    scheduledDepartureTime: new Date(start).toISOString(),
-    tripCalls: calls,
+    timetabledDepartureTime: new Date(start).toISOString(),
+    calls,
   });
 
 // Together to Busenbach, apart past it.
@@ -64,16 +64,15 @@ const trunk = getLineBundleTrunk(
 );
 
 /** Rows in reverse travel order, as the panel builds them. */
-const stopsOf = (calls: readonly TripCall[]) =>
-  buildLineDiagramStops(network, [...calls].reverse());
+const stopsOf = (calls: readonly Call[]) => buildLineDiagramStops(network, [...calls].reverse());
 
-const placedOn = (calls: readonly TripCall[], vehicles: readonly Departure[], feedNow: number) =>
+const placedOn = (calls: readonly Call[], vehicles: readonly StopEvent[], feedNow: number) =>
   getLineDiagramVehicles(stopsOf(calls), vehicles, [], undefined, feedNow, { motions });
 
 test("a vehicle still on the shared stretch stands on the trunk and on no leg", () => {
   assert.ok(trunk);
   const [aheadS1, aheadS11] = trunk.branches;
-  const s1 = trip("s1-run", "S1", s1Calls);
+  const s1 = journey("s1-run", "S1", s1Calls);
   // Nine minutes in: between Neureut and Busenbach, on the trunk.
   const feedNow = start + 9 * 60_000;
 
@@ -85,7 +84,7 @@ test("a vehicle still on the shared stretch stands on the trunk and on no leg", 
 test("a vehicle past the junction stands on its own leg and leaves the trunk", () => {
   assert.ok(trunk);
   const [aheadS1, aheadS11] = trunk.branches;
-  const s1 = trip("s1-run", "S1", s1Calls);
+  const s1 = journey("s1-run", "S1", s1Calls);
   // Fifteen minutes in: past Busenbach, on the S1 leg.
   const feedNow = start + 15 * 60_000;
 
@@ -113,7 +112,7 @@ test("each leg is drawn from the junction, so its first link has both its ends",
 const sharedAhead = [call("neureut", 6), call("busenbach", 12), call("etzenrot", 18)];
 const offerOf = (lineId: string, sharedRoutes = [sharedAhead]) => ({ lineId, sharedRoutes });
 
-const drawableOffers = (drawnCalls: readonly TripCall[], offers = [offerOf("S11")]) =>
+const drawableOffers = (drawnCalls: readonly Call[], offers = [offerOf("S11")]) =>
   getDrawableLineBundleOffers({
     offers,
     drawnCalls,

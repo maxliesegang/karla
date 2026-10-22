@@ -3,7 +3,7 @@
  * TRIAS provider is worth a proxy:
  * 1. Transport: can a browser call it directly (CORS, preflight, a `text/plain` body)?
  * 2. Stop identity: which refs name a stop, and does the EFA stop id work as a `StopPointRef`?
- * 3. Run identity: how a StopEvent's `JourneyRef` relates to the EFA row's `tripCode`.
+ * 3. Dated journey identity: how a StopEvent's `JourneyRef` relates to the EFA row's `tripCode`.
  * 4. Precision: do timetabled and estimated times carry seconds?
  * 5. TripInfoRequest: calls, and whether `IncludePosition` returns a vehicle position.
  *
@@ -21,7 +21,7 @@ import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { KvvEfaClient } from "../src/data/kvv-efa-client.ts";
-import type { KvvDeparture } from "../src/data/kvv-feed.ts";
+import type { KvvStopEvent } from "../src/data/kvv-feed.ts";
 import { descendantsNamed, parseXml, type XmlElement } from "../src/data/xml-reader.ts";
 
 const TRIAS_ENDPOINT = "https://projekte.kvv-efa.de/liesegangtrias/trias";
@@ -215,19 +215,21 @@ const hasSeconds = (time: string | undefined): boolean =>
 const share = (count: number, total: number): string =>
   total ? `${count}/${total} (${Math.round((100 * count) / total)}%)` : "0/0";
 
-/** The EFA row of the same run: `JourneyRef` read as `{servingLine.stateless}:{tripCode}`. */
-function matchEfaRow(event: StopEvent, rows: readonly KvvDeparture[]): KvvDeparture | undefined {
+/**
+ * The EFA row of the same dated journey: `JourneyRef` read as `{servingLine.stateless}:{tripCode}`.
+ */
+function matchEfaRow(event: StopEvent, rows: readonly KvvStopEvent[]): KvvStopEvent | undefined {
   const instant = event.timetabledTime ? Date.parse(event.timetabledTime) : Number.NaN;
   return rows
     .filter(
       (row) =>
-        row.tripLocator &&
-        `${row.tripLocator.line}:${row.tripLocator.tripCode}` === event.journeyRef,
+        row.journeyLocator &&
+        `${row.journeyLocator.lineRef}:${row.journeyLocator.journeyCode}` === event.journeyRef,
     )
     .sort(
       (a, b) =>
-        Math.abs(Date.parse(a.scheduledDepartureTime) - instant) -
-        Math.abs(Date.parse(b.scheduledDepartureTime) - instant),
+        Math.abs(Date.parse(a.timetabledDepartureTime) - instant) -
+        Math.abs(Date.parse(b.timetabledDepartureTime) - instant),
     )[0];
 }
 
@@ -306,7 +308,7 @@ async function probeStopEvents(
   return best;
 }
 
-function reportEvents(events: readonly StopEvent[], efaRows: readonly KvvDeparture[]) {
+function reportEvents(events: readonly StopEvent[], efaRows: readonly KvvStopEvent[]) {
   section("3. Run identity (TRIAS stop event ↔ EFA row)");
   let matched = 0;
   for (const event of events) {
@@ -321,7 +323,7 @@ function reportEvents(events: readonly StopEvent[], efaRows: readonly KvvDepartu
         `line ${event.lineRef ?? "?"} dir ${event.directionRef ?? "?"}`,
         `stop ${event.stopPointRef ?? "?"} bay ${event.bay ?? "?"}`,
         row
-          ? `EFA ${row.scheduledDepartureTime.slice(11, 16)} ${row.platformCode} delay ${row.delayMinutes ?? "?"} min`
+          ? `EFA ${row.timetabledDepartureTime.slice(11, 16)} ${row.bay} delay ${row.delayMinutes ?? "?"} min`
           : "no EFA row",
       ].join(" | "),
     );
@@ -398,11 +400,11 @@ async function main() {
   if (options.outDir) await mkdir(options.outDir, { recursive: true });
   const probe = new TriasProbe(requestorRef, options.outDir);
 
-  const efaBoard = await new KvvEfaClient().fetchDepartureBoard(options.stopPointId, {
+  const efaBoard = await new KvvEfaClient().fetchStopEventBoard(options.stopPointId, {
     limit: options.rows * 2,
   });
   console.log(
-    `EFA ${options.stopPointId}: ${efaBoard.stopName}, ${efaBoard.departures.length} rows`,
+    `EFA ${options.stopPointId}: ${efaBoard.stopName}, ${efaBoard.stopEvents.length} rows`,
   );
 
   await probeTransport(probe, efaBoard.stopName);
@@ -416,7 +418,7 @@ async function main() {
     console.log("\nno stop events: nothing further to measure");
     return;
   }
-  reportEvents(events, efaBoard.departures);
+  reportEvents(events, efaBoard.stopEvents);
   await probeTripInfo(probe, events);
 }
 

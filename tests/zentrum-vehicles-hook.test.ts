@@ -2,11 +2,11 @@ import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { renderHook } from "./support/render-hook.ts";
 import { KvvEfaClient } from "../src/data/kvv-efa-client.ts";
-import type { KvvDeparture, KvvTrip } from "../src/data/kvv-feed.ts";
+import type { KvvStopEvent, KvvTripInfo } from "../src/data/kvv-feed.ts";
 import { KvvTransitSource, transitSource } from "../src/data/transit-source.ts";
-import type { Departure, DepartureBoard } from "../src/data/transit-types.ts";
+import type { StopEvent, StopEventBoard } from "../src/data/transit-types.ts";
 import { useZentrumVehicles } from "../src/hooks/zentrum-vehicles.ts";
-import { createCall, run } from "./support/calls.ts";
+import { createCall, datedJourney } from "./support/calls.ts";
 
 const { act } = await import("react");
 const flush = () =>
@@ -18,18 +18,26 @@ const flush = () =>
 const serveDiscovery = (
   t: TestContext,
   source: KvvTransitSource,
-  board: DepartureBoard,
-  runs: readonly Departure[],
+  board: StopEventBoard,
+  datedJourneys: readonly StopEvent[],
 ) => {
-  t.mock.method(transitSource, "getRunDiscoveryReading", async () => ({
-    runDepartures: runs,
+  t.mock.method(transitSource, "getDatedJourneyDiscoveryReading", async () => ({
+    datedJourneyStopEvents: datedJourneys,
     clockBoard: board,
     failedStopIds: [],
   }));
-  t.mock.method(transitSource, "getRun", source.getRun.bind(source));
-  t.mock.method(transitSource, "findRun", source.findRun.bind(source));
-  t.mock.method(transitSource, "subscribeToRuns", source.subscribeToRuns.bind(source));
-  t.mock.method(transitSource, "getRunVersion", source.getRunVersion.bind(source));
+  t.mock.method(transitSource, "getDatedJourney", source.getDatedJourney.bind(source));
+  t.mock.method(transitSource, "findDatedJourney", source.findDatedJourney.bind(source));
+  t.mock.method(
+    transitSource,
+    "subscribeToDatedJourneys",
+    source.subscribeToDatedJourneys.bind(source),
+  );
+  t.mock.method(
+    transitSource,
+    "getDatedJourneyVersion",
+    source.getDatedJourneyVersion.bind(source),
+  );
 };
 
 test("a discovered Zentrum run is placed from its own reads, never its board's calls", async (t) => {
@@ -53,57 +61,57 @@ test("a discovered Zentrum run is placed from its own reads, never its board's c
     timers.delete(id);
   });
   const call = createCall(start);
-  const calls = run([
+  const calls = datedJourney([
     call("europaplatz", 0),
     call("marktplatz", 1),
     call("kronenplatz", 2),
     call("durlacher-tor", 3),
   ]);
-  const departure: KvvDeparture = {
+  const stopEvent: KvvStopEvent = {
     stopPointId: "7001004",
     stopPointName: "Europaplatz (U)",
-    tripId: "test-trip",
+    journeyRef: "test-trip",
     lineId: "S2",
-    transportMode: "tram",
-    destination: "Spöck",
+    ptMode: "tram",
+    destinationText: "Spöck",
     minutesUntilDeparture: 0,
-    platformCode: "2(U)",
+    bay: "2(U)",
     status: "realtime",
-    scheduledDepartureTime: new Date(start).toISOString(),
+    timetabledDepartureTime: new Date(start).toISOString(),
     // The board's own observation, which must never place the mark.
-    tripCalls: calls.map((call) => ({ ...call, delayMinutes: 5 })),
-    tripLocator: {
-      tripCode: "531",
-      line: "kvv:21012:E:R:s26",
+    calls: calls.map((call) => ({ ...call, delayMinutes: 5 })),
+    journeyLocator: {
+      journeyCode: "531",
+      lineRef: "kvv:21012:E:R:s26",
       stopPointId: "7001004",
       date: "20261007",
       time: "1520",
     },
   };
   const client = new KvvEfaClient();
-  client.fetchDepartureBoard = async () => ({
+  client.fetchStopEventBoard = async () => ({
     stopPointId: "7001004",
     stopName: "Europaplatz",
     serverTime: new Date(start).toISOString(),
     servingLines: [],
-    departures: [departure],
+    stopEvents: [stopEvent],
   });
-  let tripFetches = 0;
-  client.fetchTrip = async (): Promise<KvvTrip> => {
-    tripFetches += 1;
+  let journeyFetches = 0;
+  client.fetchTripInfo = async (): Promise<KvvTripInfo> => {
+    journeyFetches += 1;
     return {
       serverTime: new Date(now).toISOString(),
-      tripCalls: calls.map((call) => ({ ...call, delayMinutes: tripFetches === 1 ? 0 : 2 })),
+      calls: calls.map((call) => ({ ...call, delayMinutes: journeyFetches === 1 ? 0 : 2 })),
     };
   };
   const source = new KvvTransitSource(client);
-  const board = await source.getDepartureBoard("europaplatz");
-  serveDiscovery(t, source, board, board.departures);
+  const board = await source.getStopEventBoard("europaplatz");
+  serveDiscovery(t, source, board, board.stopEvents);
   const vehicles = await renderHook(() => useZentrumVehicles([]), {});
   try {
     await flush();
-    assert.equal(tripFetches, 1);
-    assert.equal(vehicles.current.runDepartures[0]?.tripCalls?.[0].delayMinutes, 0);
+    assert.equal(journeyFetches, 1);
+    assert.equal(vehicles.current.datedJourneyStopEvents[0]?.calls?.[0].delayMinutes, 0);
     const end = start + 30_000;
     while (true) {
       const pending = [...timers].sort((a, b) => a[1].at - b[1].at)[0];
@@ -113,9 +121,9 @@ test("a discovered Zentrum run is placed from its own reads, never its board's c
       pending[1].callback();
       await flush();
     }
-    assert.equal(tripFetches, 2);
-    assert.equal(source.findRun(board.departures[0].id)?.tripCalls?.[0].delayMinutes, 2);
-    assert.equal(vehicles.current.runDepartures[0]?.tripCalls?.[0].delayMinutes, 2);
+    assert.equal(journeyFetches, 2);
+    assert.equal(source.findDatedJourney(board.stopEvents[0].id)?.calls?.[0].delayMinutes, 2);
+    assert.equal(vehicles.current.datedJourneyStopEvents[0]?.calls?.[0].delayMinutes, 2);
   } finally {
     await vehicles.unmount();
   }
@@ -125,7 +133,7 @@ test("a run still far from the plan is left off it but kept for travel times", a
   const start = Date.parse("2026-10-07T13:20:00Z");
   t.mock.method(Date, "now", () => start);
   const call = createCall(start);
-  const calls = run([
+  const calls = datedJourney([
     call("weinweg", 13),
     call("tullastrasse", 15),
     call("gottesauer-platz", 16),
@@ -133,26 +141,26 @@ test("a run still far from the plan is left off it but kept for travel times", a
     call("kronenplatz", 19),
   ]);
   const client = new KvvEfaClient();
-  client.fetchDepartureBoard = async () => ({
+  client.fetchStopEventBoard = async () => ({
     stopPointId: "7000007",
     stopName: "Tullastraße",
     serverTime: new Date(start).toISOString(),
     servingLines: [],
-    departures: [
+    stopEvents: [
       {
         stopPointId: "7000007",
         stopPointName: "Tullastraße/Alter Schlachthof",
-        tripId: "test-trip",
+        journeyRef: "test-trip",
         lineId: "S5",
-        transportMode: "tram",
-        destination: "Rheinbergstraße",
+        ptMode: "tram",
+        destinationText: "Rheinbergstraße",
         minutesUntilDeparture: 15,
-        platformCode: "1b",
+        bay: "1b",
         status: "realtime",
-        scheduledDepartureTime: new Date(start + 15 * 60_000).toISOString(),
-        tripLocator: {
-          tripCode: "305",
-          line: "kvv:22305:E:R:s26",
+        timetabledDepartureTime: new Date(start + 15 * 60_000).toISOString(),
+        journeyLocator: {
+          journeyCode: "305",
+          lineRef: "kvv:22305:E:R:s26",
           stopPointId: "7000007",
           date: "20261007",
           time: "1535",
@@ -160,18 +168,18 @@ test("a run still far from the plan is left off it but kept for travel times", a
       },
     ],
   });
-  client.fetchTrip = async () => ({ serverTime: new Date(start).toISOString(), tripCalls: calls });
+  client.fetchTripInfo = async () => ({ serverTime: new Date(start).toISOString(), calls });
   const source = new KvvTransitSource(client);
-  const board = await source.getDepartureBoard("tullastrasse");
-  const discovered = await source.getRun(board.departures[0].id);
-  assert.ok(discovered?.tripCalls?.length);
+  const board = await source.getStopEventBoard("tullastrasse");
+  const discovered = await source.getDatedJourney(board.stopEvents[0].id);
+  assert.ok(discovered?.calls?.length);
   serveDiscovery(t, source, board, [discovered]);
   const vehicles = await renderHook(() => useZentrumVehicles([]), {});
   try {
     await flush();
-    assert.deepEqual(vehicles.current.runDepartures, []);
+    assert.deepEqual(vehicles.current.datedJourneyStopEvents, []);
     assert.deepEqual(
-      vehicles.current.travelRuns.map(({ lineId }) => lineId),
+      vehicles.current.travelDatedJourneys.map(({ lineId }) => lineId),
       ["S5"],
     );
   } finally {

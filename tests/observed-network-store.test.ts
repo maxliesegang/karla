@@ -1,40 +1,40 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ObservedNetworkStore } from "../src/data/observed-network-store.ts";
-import { RUN_ENDED_GRACE_MS } from "../src/data/run-reading-store.ts";
-import type { Departure, DepartureBoard, TripCall } from "../src/data/transit-types.ts";
-import { createDeparture } from "./support/fixtures.ts";
+import { DATED_JOURNEY_ENDED_GRACE_MS } from "../src/data/dated-journey-reading-store.ts";
+import type { StopEvent, StopEventBoard, Call } from "../src/data/transit-types.ts";
+import { createStopEvent } from "./support/fixtures.ts";
 
-const call = (stopName: string, localStopId: string): TripCall => ({ stopName, localStopId });
+const call = (stopName: string, localStopId: string): Call => ({ stopName, localStopId });
 
-const departure = (
+const stopEvent = (
   id: string,
   lineId: string,
   destination: string,
-  tripCalls: readonly TripCall[],
-  status: Departure["status"] = "realtime",
-): Departure =>
-  createDeparture({
+  calls: readonly Call[],
+  status: StopEvent["status"] = "realtime",
+): StopEvent =>
+  createStopEvent({
     id,
-    tripId: id,
+    journeyRef: id,
     lineId,
-    transportMode: "tram",
-    destination,
+    ptMode: "tram",
+    destinationText: destination,
     minutesUntilDeparture: 2,
-    platformCode: "1",
-    boardingLocalStopId: tripCalls[0]?.localStopId ?? "europaplatz",
+    bay: "1",
+    boardingLocalStopId: calls[0]?.localStopId ?? "europaplatz",
     boardingProviderStopPointId: "provider-stop",
     boardingProviderStopPointName: "Provider stop",
     status,
-    scheduledDepartureTime: "2026-09-07T12:00:00+02:00",
-    tripCalls,
+    timetabledDepartureTime: "2026-09-07T12:00:00+02:00",
+    calls,
     readAt: { rowReadAt: 1, sequenceReadAt: 1 },
   });
 
-const board = (stopId: string, departures: readonly Departure[]): DepartureBoard => ({
+const board = (stopId: string, stopEvents: readonly StopEvent[]): StopEventBoard => ({
   stopId,
   receivedAt: 1,
-  departures,
+  stopEvents,
   dataStatus: "live",
   feedUpdatedAt: "2026-09-07T12:00:00+02:00",
 });
@@ -43,7 +43,7 @@ test("accumulates topology learned by separate view boards", () => {
   const store = new ObservedNetworkStore();
   store.rememberBoard(
     board("europaplatz", [
-      departure("trip-1", "1", "Durlach", [
+      stopEvent("trip-1", "1", "Durlach", [
         call("Europaplatz", "europaplatz"),
         call("Marktplatz", "marktplatz"),
       ]),
@@ -51,7 +51,7 @@ test("accumulates topology learned by separate view boards", () => {
   );
   store.rememberBoard(
     board("hauptbahnhof", [
-      departure("trip-2", "2", "Durlach", [
+      stopEvent("trip-2", "2", "Durlach", [
         call("Hauptbahnhof", "hauptbahnhof"),
         call("Marktplatz", "marktplatz"),
       ]),
@@ -65,15 +65,15 @@ test("accumulates topology learned by separate view boards", () => {
       .sort(),
     ["1", "2"],
   );
-  assert.equal(store.getSnapshot().tripCount, 2);
+  assert.equal(store.getSnapshot().journeyCount, 2);
 });
 
 test("re-reading one timetable trip neither double-counts it nor emits a change", () => {
   const store = new ObservedNetworkStore();
   const listeners: number[] = [];
-  store.subscribe(() => listeners.push(store.getSnapshot().tripCount));
+  store.subscribe(() => listeners.push(store.getSnapshot().journeyCount));
   const reading = board("europaplatz", [
-    departure("trip-1", "1", "Durlach", [
+    stopEvent("trip-1", "1", "Durlach", [
       call("Europaplatz", "europaplatz"),
       call("Marktplatz", "marktplatz"),
     ]),
@@ -82,7 +82,7 @@ test("re-reading one timetable trip neither double-counts it nor emits a change"
   store.rememberBoard(reading);
   store.rememberBoard(reading);
 
-  assert.equal(store.getSnapshot().tripCount, 1);
+  assert.equal(store.getSnapshot().journeyCount, 1);
   assert.deepEqual(listeners, [1]);
 });
 
@@ -90,10 +90,10 @@ test("keeps topology but not a run's timing fields", () => {
   const store = new ObservedNetworkStore();
   store.rememberBoard(
     board("europaplatz", [
-      departure("trip-1", "1", "Durlach", [
+      stopEvent("trip-1", "1", "Durlach", [
         {
           ...call("Europaplatz", "europaplatz"),
-          scheduledDepartureTime: "2026-09-07T12:00:00+02:00",
+          timetabledDepartureTime: "2026-09-07T12:00:00+02:00",
           delayMinutes: 4,
         },
         call("Marktplatz", "marktplatz"),
@@ -112,14 +112,14 @@ test("excludes cancelled runs but accepts a diverted route", () => {
   const store = new ObservedNetworkStore();
   store.rememberBoard(
     board("europaplatz", [
-      departure(
+      stopEvent(
         "cancelled",
         "1",
         "Durlach",
         [call("Europaplatz", "europaplatz"), call("Marktplatz", "marktplatz")],
         "cancelled",
       ),
-      departure(
+      stopEvent(
         "diverted",
         "2",
         "Durlach",
@@ -143,12 +143,12 @@ test("forgets a trip once it has run, so a line that stops running leaves", () =
   const store = new ObservedNetworkStore();
   const lastCallAt = Date.parse("2026-09-07T12:10:00+02:00");
   const listeners: number[] = [];
-  store.subscribe(() => listeners.push(store.getSnapshot().tripCount));
+  store.subscribe(() => listeners.push(store.getSnapshot().journeyCount));
   store.rememberBoard(
     board("europaplatz", [
-      departure("trip-1", "1", "Durlach", [
+      stopEvent("trip-1", "1", "Durlach", [
         call("Europaplatz", "europaplatz"),
-        { ...call("Marktplatz", "marktplatz"), scheduledArrivalTime: "2026-09-07T12:10:00+02:00" },
+        { ...call("Marktplatz", "marktplatz"), timetabledArrivalTime: "2026-09-07T12:10:00+02:00" },
       ]),
     ]),
     lastCallAt - 60_000,
@@ -159,7 +159,7 @@ test("forgets a trip once it has run, so a line that stops running leaves", () =
   );
 
   // Past its last call and the grace, any later board retires it — even one that names nothing.
-  store.rememberBoard(board("hauptbahnhof", []), lastCallAt + RUN_ENDED_GRACE_MS + 1);
+  store.rememberBoard(board("hauptbahnhof", []), lastCallAt + DATED_JOURNEY_ENDED_GRACE_MS + 1);
   assert.deepEqual(store.getSnapshot().lines, []);
   assert.deepEqual(listeners, [1, 0]);
 });

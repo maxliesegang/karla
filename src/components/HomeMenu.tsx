@@ -17,11 +17,6 @@ const homeMenuItems: readonly {
     path: routePaths.experiment(),
   },
   {
-    label: "Meldungen",
-    description: "Störungen, Umleitungen und Baustellen",
-    path: routePaths.notices(),
-  },
-  {
     label: "Einstellungen",
     description: "Startseite und gemerkte Haltestellen",
     path: routePaths.settings(),

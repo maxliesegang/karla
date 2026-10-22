@@ -1,7 +1,7 @@
-import type { TransitLine, TransportMode } from "./transit-types";
+import type { TransitLine, PtMode } from "./transit-types";
 
 /** A mode's name in text; nothing is conveyed by colour alone. */
-export const labelByTransportMode: Record<TransportMode, string> = {
+export const labelByPtMode: Record<PtMode, string> = {
   lightRail: "Stadtbahn",
   tram: "Straßenbahn",
   bus: "Bus",
@@ -12,7 +12,7 @@ export const labelByTransportMode: Record<TransportMode, string> = {
  * Neutral colours for lines missing from the GTFS snapshot, so new lines stay readable without
  * inventing a colour.
  */
-const neutralColorByTransportMode: Record<TransportMode, string> = {
+const neutralColorByPtMode: Record<PtMode, string> = {
   lightRail: "#2f4f56",
   tram: "#3f4a4a",
   bus: "#6b6257",
@@ -275,7 +275,7 @@ const verifiedColorByLineId = new Map(
 export const getVerifiedLineColor = (lineId: string): string | undefined =>
   lineId === "E" ? undefined : verifiedColorByLineId.get(lineId);
 
-const getVerifiedColor = (lineId: string, mode: TransportMode): string | undefined => {
+const getVerifiedColor = (lineId: string, mode: PtMode): string | undefined => {
   if (lineId === "E") {
     if (mode === "tram") return "#ff0000";
     if (mode === "lightRail") return "#00b875";
@@ -323,13 +323,13 @@ function getAccessibleTextColor(color: string): string {
  * A line's sign: from GTFS where known, else neutral by mode. Which lines run comes only from the
  * live feed.
  */
-export function createLineSign(lineId: string, mode: TransportMode): TransitLine {
+export function createLineSign(lineId: string, mode: PtMode): TransitLine {
   const verifiedColor = getVerifiedColor(lineId, mode);
-  const color = verifiedColor ?? neutralColorByTransportMode[mode];
+  const color = verifiedColor ?? neutralColorByPtMode[mode];
   return {
     id: lineId,
-    name: `${labelByTransportMode[mode]} ${lineId}`,
-    transportMode: mode,
+    name: `${labelByPtMode[mode]} ${lineId}`,
+    ptMode: mode,
     color,
     textColor: getAccessibleTextColor(color),
     destinations: [],
@@ -341,7 +341,7 @@ export function createLineSign(lineId: string, mode: TransportMode): TransitLine
 export function getLineSign(
   lines: readonly TransitLine[],
   lineId: string,
-  mode: TransportMode,
+  mode: PtMode,
 ): TransitLine {
   return lines.find((line) => line.id === lineId) ?? createLineSign(lineId, mode);
 }

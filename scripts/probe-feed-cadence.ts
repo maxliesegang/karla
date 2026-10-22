@@ -3,7 +3,7 @@
  * evidence:
  * 1. Is `parameters.serverTime` a production cycle or the request instant? Only a cycle has a
  *    phase worth aligning polls to.
- * 2. How often does a trip's deviation change, and where along its link was the vehicle when it
+ * 2. How often does a journey's deviation change, and where along its link was the vehicle when it
  *    did?
  *
  *     npm run probe:cadence -- [options]
@@ -18,7 +18,7 @@
 
 import { appendFile } from "node:fs/promises";
 import { KvvEfaClient } from "../src/data/kvv-efa-client.ts";
-import type { KvvDeparture, KvvTripCall } from "../src/data/kvv-feed.ts";
+import type { KvvStopEvent, KvvCall } from "../src/data/kvv-feed.ts";
 
 const DEFAULT_STOP_POINT_IDS = ["7000037", "7000090"];
 const DEFAULT_INTERVAL_SECONDS = 10;
@@ -48,8 +48,8 @@ function parseOptions(argv: readonly string[]): Options {
   };
 }
 
-/** One reading of one trip: the deviations it stated, and where it said the vehicle was. */
-type TripReading = {
+/** One reading of one journey: the deviations it stated, and where it said the vehicle was. */
+type JourneyReading = {
   /** The row's deviation at its own stop, which countdowns use. */
   rowDelayMinutes?: number;
   /** Every call's deviation, keyed as the app keys calls. */
@@ -64,13 +64,13 @@ const toInstant = (value: string | undefined): number | undefined => {
 };
 
 /** A call's schedule shifted by its deviation. */
-function getCallInstant(call: KvvTripCall): number | undefined {
-  const scheduled = toInstant(call.scheduledDepartureTime ?? call.scheduledArrivalTime);
-  return scheduled === undefined ? undefined : scheduled + (call.delayMinutes ?? 0) * 60_000;
+function getCallInstant(call: KvvCall): number | undefined {
+  const timetabled = toInstant(call.timetabledDepartureTime ?? call.timetabledArrivalTime);
+  return timetabled === undefined ? undefined : timetabled + (call.delayMinutes ?? 0) * 60_000;
 }
 
 /** Where along its link the vehicle was, from the published times (not the app's smoothing). */
-function getLinkPhase(calls: readonly KvvTripCall[], feedNow: number): number | undefined {
+function getLinkPhase(calls: readonly KvvCall[], feedNow: number): number | undefined {
   for (let index = 0; index < calls.length - 1; index += 1) {
     const here = getCallInstant(calls[index]);
     const next = getCallInstant(calls[index + 1]);
@@ -81,8 +81,8 @@ function getLinkPhase(calls: readonly KvvTripCall[], feedNow: number): number | 
   return undefined;
 }
 
-function readTrip(departure: KvvDeparture, feedNow: number): TripReading {
-  const calls = departure.tripCalls ?? [];
+function readJourney(stopEvent: KvvStopEvent, feedNow: number): JourneyReading {
+  const calls = stopEvent.calls ?? [];
   const delayByCall = new Map<string, number>();
   for (const call of calls) {
     if (call.delayMinutes !== undefined) {
@@ -90,21 +90,21 @@ function readTrip(departure: KvvDeparture, feedNow: number): TripReading {
     }
   }
   return {
-    rowDelayMinutes: departure.delayMinutes,
+    rowDelayMinutes: stopEvent.delayMinutes,
     delayByCall,
     linkPhase: getLinkPhase(calls, feedNow),
   };
 }
 
 /**
- * One run as seen from one board: boards return different windows of the sequence, so comparing
- * across boards would invent changes.
+ * One dated journey as seen from one board: boards return different windows of the sequence, so
+ * comparing across boards would invent changes.
  */
-const getTripKey = (departure: KvvDeparture, stopPointId: string): string =>
+const getJourneyKey = (stopEvent: KvvStopEvent, stopPointId: string): string =>
   `${stopPointId}:${
-    departure.tripInstanceId ??
-    departure.tripId ??
-    `${departure.lineId}@${departure.scheduledDepartureTime}`
+    stopEvent.datedJourneyId ??
+    stopEvent.journeyRef ??
+    `${stopEvent.lineId}@${stopEvent.timetabledDepartureTime}`
   }`;
 
 type ChangeEvent = {
@@ -112,7 +112,7 @@ type ChangeEvent = {
   kind: "row" | "call";
   /** Where the vehicle was when the change was first seen. */
   linkPhase?: number;
-  /** How long since this trip's previous change, where there was one. */
+  /** How long since this journey's previous change, where there was one. */
   sinceLastChangeMs?: number;
   /** Milliseconds past the minute, to show clustering on a boundary. */
   minutePhaseMs: number;
@@ -120,17 +120,17 @@ type ChangeEvent = {
 
 const changes: ChangeEvent[] = [];
 const serverTimeReadings: { serverTime: number; requestedAt: number; receivedAt: number }[] = [];
-const lastReadingByTrip = new Map<string, TripReading>();
-const lastChangeAtByTrip = new Map<string, number>();
+const lastReadingByJourney = new Map<string, JourneyReading>();
+const lastChangeAtByJourney = new Map<string, number>();
 let pollCount = 0;
 let pollsWithAnyChange = 0;
-let tripReadingCount = 0;
+let journeyReadingCount = 0;
 
 /**
- * What moved between two readings of a trip: the row's own deviation, or only a call further along
- * (which only a trip read reveals). A call gaining a deviation counts.
+ * What moved between two readings of a journey: the row's own deviation, or only a call further
+ * along (which only a journey read reveals). A call gaining a deviation counts.
  */
-function findChange(previous: TripReading, current: TripReading): "row" | "call" | undefined {
+function findChange(previous: JourneyReading, current: JourneyReading): "row" | "call" | undefined {
   if (previous.rowDelayMinutes !== current.rowDelayMinutes) return "row";
   for (const [callKey, delayMinutes] of current.delayByCall) {
     if (previous.delayByCall.get(callKey) !== delayMinutes) return "call";
@@ -142,7 +142,7 @@ async function poll(client: KvvEfaClient, options: Options): Promise<void> {
   const requestedAt = Date.now();
   const boards = await Promise.all(
     options.stopPointIds.map((stopPointId) =>
-      client.fetchDepartureBoard(stopPointId, { includeTripCalls: true }).catch(() => null),
+      client.fetchStopEventBoard(stopPointId, { includeCalls: true }).catch(() => null),
     ),
   );
   const receivedAt = Date.now();
@@ -155,24 +155,24 @@ async function poll(client: KvvEfaClient, options: Options): Promise<void> {
     if (serverTime !== undefined) serverTimeReadings.push({ serverTime, requestedAt, receivedAt });
     const feedNow = serverTime ?? receivedAt;
 
-    for (const departure of board.departures) {
-      const key = getTripKey(departure, board.stopPointId);
-      const current = readTrip(departure, feedNow);
-      tripReadingCount += 1;
-      const previous = lastReadingByTrip.get(key);
-      lastReadingByTrip.set(key, current);
+    for (const stopEvent of board.stopEvents) {
+      const key = getJourneyKey(stopEvent, board.stopPointId);
+      const current = readJourney(stopEvent, feedNow);
+      journeyReadingCount += 1;
+      const previous = lastReadingByJourney.get(key);
+      lastReadingByJourney.set(key, current);
       const changeKind = previous && findChange(previous, current);
       if (!changeKind) continue;
 
       hasChange = true;
-      const lastChangeAt = lastChangeAtByTrip.get(key);
+      const lastChangeAt = lastChangeAtByJourney.get(key);
       changes.push({
         kind: changeKind,
         linkPhase: current.linkPhase,
         sinceLastChangeMs: lastChangeAt === undefined ? undefined : receivedAt - lastChangeAt,
         minutePhaseMs: feedNow % 60_000,
       });
-      lastChangeAtByTrip.set(key, receivedAt);
+      lastChangeAtByJourney.set(key, receivedAt);
 
       if (options.outPath) {
         await appendFile(
@@ -181,10 +181,10 @@ async function poll(client: KvvEfaClient, options: Options): Promise<void> {
             at: new Date(receivedAt).toISOString(),
             serverTime: board.serverTime,
             stopPointId: board.stopPointId,
-            trip: key,
+            journey: key,
             change: changeKind,
-            lineId: departure.lineId,
-            destination: departure.destination,
+            lineId: stopEvent.lineId,
+            destination: stopEvent.destinationText,
             rowDelayMinutes: current.rowDelayMinutes,
             linkPhase: current.linkPhase,
             delayByCall: Object.fromEntries(current.delayByCall),
@@ -247,8 +247,8 @@ function reportServerTime(intervalMs: number): void {
 function reportChanges(): void {
   console.log("\n— how often a deviation moves —");
   console.log(`polls                    ${pollCount}`);
-  console.log(`trip readings            ${tripReadingCount}`);
-  console.log(`trips seen               ${lastReadingByTrip.size}`);
+  console.log(`trip readings            ${journeyReadingCount}`);
+  console.log(`trips seen               ${lastReadingByJourney.size}`);
   console.log(`changes observed         ${changes.length}`);
   console.log(
     `polls with any change    ${pollsWithAnyChange}/${pollCount}` +
@@ -306,7 +306,7 @@ async function main(): Promise<void> {
     const startedAt = Date.now();
     await poll(client, options).catch((error) => console.error("poll failed:", error));
     process.stdout.write(
-      `\rpoll ${pollCount}, ${changes.length} changes, ${lastReadingByTrip.size} trips  `,
+      `\rpoll ${pollCount}, ${changes.length} changes, ${lastReadingByJourney.size} trips  `,
     );
     const waitMs = Math.max(0, options.intervalMs - (Date.now() - startedAt));
     await new Promise((resolve) => setTimeout(resolve, waitMs));

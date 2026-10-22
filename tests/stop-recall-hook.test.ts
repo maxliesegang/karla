@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { renderHook } from "./support/render-hook.ts";
-import type { TransitStop } from "../src/data/transit-types.ts";
+import type { StopPlace } from "../src/data/transit-types.ts";
 import { useStopRecall } from "../src/hooks/stop-recall.ts";
 import { appSettings, DEFAULT_APP_SETTINGS } from "../src/lib/app-settings.ts";
 import { findRecentStops, rememberStopVisit } from "../src/lib/recent-stops.ts";
@@ -12,7 +12,7 @@ test("turning stop memory off clears visits and turning it back on remembers onl
   window.localStorage.clear();
   appSettings.write(DEFAULT_APP_SETTINGS);
   rememberStopVisit("europaplatz", "Europaplatz");
-  const recall = await renderHook<TransitStop | undefined, ReturnType<typeof useStopRecall>>(
+  const recall = await renderHook<StopPlace | undefined, ReturnType<typeof useStopRecall>>(
     useStopRecall,
     undefined,
   );
@@ -23,7 +23,7 @@ test("turning stop memory off clears visits and turning it back on remembers onl
     assert.deepEqual(recall.current.recentStops, []);
     assert.deepEqual(findRecentStops(), []);
 
-    const stop: TransitStop = { id: "marktplatz", name: "Marktplatz" };
+    const stop: StopPlace = { id: "marktplatz", name: "Marktplatz" };
     await recall.rerender(stop);
     assert.deepEqual(findRecentStops(), []);
 

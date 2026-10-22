@@ -3,7 +3,7 @@ import test from "node:test";
 import { getDirectTravelTimes } from "../src/lib/direct-travel-times.ts";
 import type { GeoLink, GeoNetwork, GeoStop } from "../src/lib/geo-map.ts";
 import { deriveRegionPlan, findRegionNodeId } from "../src/lib/region-plan.ts";
-import { createDeparture } from "./support/fixtures.ts";
+import { createStopEvent } from "./support/fixtures.ts";
 
 const stop = (id: string, placeName = "Karlsruhe", name = id): GeoStop => ({
   id,
@@ -136,21 +136,21 @@ test("a junction inside another place stands for that place", () => {
 test("rides past the stops the plan leaves out, to the next node", () => {
   const plan = deriveRegionPlan(city, "Karlsruhe");
   const at = (minute: number) => `2026-10-04T12:0${minute}:00+02:00`;
-  const run = createDeparture({
+  const datedJourney = createStopEvent({
     lineId: "2",
-    tripCalls: ["marktplatz", "kongresszentrum", "werderstrasse", "wolfartsweier"].map(
+    calls: ["marktplatz", "kongresszentrum", "werderstrasse", "wolfartsweier"].map(
       (localStopId, minute) => ({
         stopName: localStopId,
         localStopId,
-        scheduledArrivalTime: at(minute + 1),
-        scheduledDepartureTime: at(minute + 1),
+        timetabledArrivalTime: at(minute + 1),
+        timetabledDepartureTime: at(minute + 1),
         delayMinutes: 0,
       }),
     ),
   });
 
   const times = getDirectTravelTimes(
-    [run],
+    [datedJourney],
     "marktplatz",
     Date.parse(at(0)),
     "arrival",

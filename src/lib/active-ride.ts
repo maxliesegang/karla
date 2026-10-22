@@ -1,6 +1,6 @@
 import { readStorage } from "./stored-preference";
-import type { Departure } from "../data/transit-types";
-import { findFinalCallInstant } from "./trip-calls";
+import type { StopEvent } from "../data/transit-types";
+import { findFinalCallInstant } from "./calls";
 
 /** A reload must not end the ride the passenger is still reading. */
 const ACTIVE_RIDE_STORAGE_KEY = "karla:active-ride";
@@ -9,14 +9,16 @@ const FALLBACK_RIDE_LIFETIME_MS = 6 * 60 * 60_000;
 
 export type ActiveRideObservation = {
   rideId: string;
-  departure: Departure;
+  stopEvent: StopEvent;
   observedAt: number;
   expiresAt: number;
 };
 
-/** The final expected call plus an hour, or a conservative lifetime when the trip has no times. */
-export function getActiveRideExpiry(departure: Departure, observedAt: number): number {
-  const finalInstant = findFinalCallInstant(departure.tripCalls);
+/**
+ * The final expected call plus an hour, or a conservative lifetime when the journey has no times.
+ */
+export function getActiveRideExpiry(stopEvent: StopEvent, observedAt: number): number {
+  const finalInstant = findFinalCallInstant(stopEvent.calls);
   return finalInstant === undefined
     ? observedAt + FALLBACK_RIDE_LIFETIME_MS
     : finalInstant + RIDE_EXPIRY_GRACE_MS;
@@ -34,16 +36,16 @@ export function findActiveRideObservation(
     if (!raw) return null;
     const stored = JSON.parse(raw) as Partial<ActiveRideObservation> & { routeId?: string };
     const storedRideId = stored.rideId ?? stored.routeId;
-    const departure = stored.departure as Partial<Departure> | undefined;
+    const stopEvent = stored.stopEvent as Partial<StopEvent> | undefined;
     const isValid =
       storedRideId === rideId &&
       typeof stored.observedAt === "number" &&
       typeof stored.expiresAt === "number" &&
       stored.expiresAt > now &&
-      typeof departure?.id === "string" &&
-      typeof departure.lineId === "string" &&
-      typeof departure.destination === "string" &&
-      Array.isArray(departure.tripCalls);
+      typeof stopEvent?.id === "string" &&
+      typeof stopEvent.lineId === "string" &&
+      typeof stopEvent.destinationText === "string" &&
+      Array.isArray(stopEvent.calls);
     if (!isValid || !storedRideId) {
       storage.removeItem(ACTIVE_RIDE_STORAGE_KEY);
       return null;
@@ -56,14 +58,14 @@ export function findActiveRideObservation(
 
 export function rememberActiveRideObservation(
   rideId: string,
-  departure: Departure,
+  stopEvent: StopEvent,
   observedAt: number,
 ): ActiveRideObservation {
   const observation = {
     rideId,
-    departure,
+    stopEvent,
     observedAt,
-    expiresAt: getActiveRideExpiry(departure, observedAt),
+    expiresAt: getActiveRideExpiry(stopEvent, observedAt),
   };
   try {
     readStorage()?.setItem(ACTIVE_RIDE_STORAGE_KEY, JSON.stringify(observation));

@@ -1,8 +1,8 @@
-import type { CountdownReading } from "../lib/departure-presentation";
+import type { CountdownReading } from "../lib/stop-event-presentation";
 
 /**
- * A departure's countdown, shared by every board order at different sizes. A cancelled trip says so
- * in the operator's word instead of a dash.
+ * A departure's countdown, shared by every board order at different sizes. A cancelled journey says
+ * so in the operator's word instead of a dash.
  */
 export function DepartureCountdown({ reading }: { reading: CountdownReading }) {
   if (reading.kind === "minutes" || reading.kind === "seconds") {

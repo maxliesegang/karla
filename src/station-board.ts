@@ -9,8 +9,8 @@ export type StationBoardDetail = "via" | "note" | "off";
 
 export type StationBoardConfig = {
   mode: "stop" | "platform";
-  /** The platforms covered; one screen often serves a whole island. */
-  platformCodes: readonly string[];
+  /** The bays covered; one screen often serves a whole island. */
+  bays: readonly string[];
   rowCount: number;
   grouping: StationBoardGrouping;
   detail: StationBoardDetail;
@@ -21,22 +21,18 @@ export type StationBoardConfig = {
 };
 
 /**
- * A platform reduced to its identifying part, since the feed spells it several ways (`2`,
+ * A bay reduced to its identifying part, since the feed spells it several ways (`2`,
  * `Gleis 2`, `Steig 2`, `Bstg. 2`) and an exact match would leave the screen empty.
  */
-export function normalizePlatformCode(platformCode: string): string {
-  return platformCode
+export function normalizeBay(bay: string): string {
+  return bay
     .toLowerCase()
     .replace(/\b(gleis|steig|bstg\.?|bahnsteig|pos\.?)\b/g, "")
     .replace(/[^a-z0-9]/g, "");
 }
 
-export const isPlatformMatch = (
-  platformCode: string,
-  wantedPlatformCodes: readonly string[],
-): boolean =>
-  wantedPlatformCodes.length === 0 ||
-  wantedPlatformCodes.includes(normalizePlatformCode(platformCode));
+export const isBayMatch = (bay: string, wantedBays: readonly string[]): boolean =>
+  wantedBays.length === 0 || wantedBays.includes(normalizeBay(bay));
 
 /** Whole numbers within a range, else the default. */
 function parseBoundedNumber(
@@ -55,15 +51,15 @@ export function parseStationBoardConfig(search: string): StationBoardConfig | nu
   const displayMode = parameters.get("display");
   if (displayMode !== "1" && displayMode !== "stop" && displayMode !== "platform") return null;
 
-  const platformCodes = (parameters.get("platform") ?? "")
+  const bays = (parameters.get("platform") ?? "")
     .split(",")
-    .map((name) => normalizePlatformCode(name))
+    .map((name) => normalizeBay(name))
     .filter(Boolean);
   const detail = parameters.get("detail");
 
   return {
     mode: displayMode === "platform" ? "platform" : "stop",
-    platformCodes,
+    bays,
     rowCount: parseBoundedNumber(parameters.get("rows"), 8, 3, 20),
     grouping: parameters.get("group") === "platform" ? "platform" : "none",
     detail: detail === "via" || detail === "note" || detail === "off" ? detail : "note",
@@ -75,6 +71,6 @@ export function parseStationBoardConfig(search: string): StationBoardConfig | nu
 export const stationBoardConfig = parseStationBoardConfig(window.location.search);
 export const isStationBoardMode = stationBoardConfig !== null;
 
-/** The board's heading for its platforms. */
-export const getPlatformLabel = (config: StationBoardConfig): string =>
-  config.platformCodes.length > 0 ? config.platformCodes.join(" + ").toUpperCase() : "?";
+/** The board's heading for its bays. */
+export const getBayText = (config: StationBoardConfig): string =>
+  config.bays.length > 0 ? config.bays.join(" + ").toUpperCase() : "?";

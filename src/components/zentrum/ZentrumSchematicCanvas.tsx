@@ -8,7 +8,7 @@ import {
   getZentrumVehicleLinkKey,
   getZentrumVehicleTransform,
   toZentrumCanvasLeft,
-  toZentrumCanvasRun,
+  toZentrumCanvasDatedJourney,
   toZentrumCanvasTop,
 } from "../../lib/zentrum-plan-canvas";
 import type { ZentrumSchematicReading, ZentrumSchematicVehicle } from "../../lib/zentrum-schematic";
@@ -222,7 +222,7 @@ export function ZentrumSchematicCanvas({
           {
             aspectRatio: `${ZENTRUM_SCHEMATIC_VIEWBOX.width} / ${ZENTRUM_SCHEMATIC_VIEWBOX.height}`,
             width: planWidth === undefined ? `${zoom * 100}%` : `${planWidth}px`,
-            "--zentrum-vehicle-size": toZentrumCanvasRun(trackWidth * 2.5),
+            "--zentrum-vehicle-size": toZentrumCanvasDatedJourney(trackWidth * 2.5),
           } as CSSProperties
         }
       >
@@ -314,7 +314,7 @@ function ZentrumSchematicVehicleMark({
   const countdown = minutes === undefined ? undefined : minutes <= 0 ? "jetzt" : `${minutes} min`;
   const place = getZentrumVehiclePlaceLabel(vehicle);
   const source = getVehiclePositionSourceLabel(
-    vehicle.departure,
+    vehicle.stopEvent,
     readingNow,
     getZentrumSchematicStopId(vehicle.from.id),
     getZentrumSchematicStopId(vehicle.to.id),
@@ -440,8 +440,12 @@ const ZentrumSchematicStops = memo(function ZentrumSchematicStops({
               {
                 left: toZentrumCanvasLeft(centre.x),
                 top: toZentrumCanvasTop(centre.y),
-                "--zentrum-label-x": toZentrumCanvasRun((label?.anchor.x ?? centre.x) - centre.x),
-                "--zentrum-label-y": toZentrumCanvasRun((label?.anchor.y ?? centre.y) - centre.y),
+                "--zentrum-label-x": toZentrumCanvasDatedJourney(
+                  (label?.anchor.x ?? centre.x) - centre.x,
+                ),
+                "--zentrum-label-y": toZentrumCanvasDatedJourney(
+                  (label?.anchor.y ?? centre.y) - centre.y,
+                ),
               } as CSSProperties
             }
             onClick={() => onSelectStop(getZentrumSchematicStopId(node.id))}

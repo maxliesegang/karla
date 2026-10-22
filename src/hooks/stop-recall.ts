@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { TransitStop } from "../data/transit-types";
+import type { StopPlace } from "../data/transit-types";
 import { useStoredPreference } from "./stored-preference";
 import { appSettings } from "../lib/app-settings";
 import {
@@ -15,7 +15,7 @@ import { getLandingPath, hasRouteAddress, replaceCurrentRoute } from "../routing
  * The landing stop, read once at start so browsing does not move it, and the recent list, which
  * does keep up. Only resolved stops are recorded, and only while the setting allows it.
  */
-export function useStopRecall(visitedStop: TransitStop | undefined): {
+export function useStopRecall(visitedStop: StopPlace | undefined): {
   /** Where the app opens without an address; decided once. */
   recentStopId: string | undefined;
   /** Shortcut stops, newest first, the one in view excluded. */

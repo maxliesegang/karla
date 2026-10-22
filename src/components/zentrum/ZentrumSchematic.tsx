@@ -1,12 +1,12 @@
 import { getZentrumSchematicStopId } from "../../lib/zentrum-schematic-plan";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Departure, DepartureBoard } from "../../data/transit-types";
+import type { StopEvent, StopEventBoard } from "../../data/transit-types";
 import { useDeviceNow } from "../../hooks/clock";
 import { getZentrumPositionFreshness } from "../../lib/zentrum-presentation";
 import { useStoredPreference } from "../../hooks/stored-preference";
 import { useZentrumPlanCanvas } from "../../hooks/zentrum-plan-canvas";
 import { findTurnarounds } from "../../lib/line-turnarounds";
-import { useRunMotions } from "../../hooks/run-motions";
+import { useDatedJourneyMotions } from "../../hooks/dated-journey-motions";
 import {
   type ZentrumSchematicLayout,
   createZentrumSchematicDrawer,
@@ -78,8 +78,8 @@ export function ZentrumSchematic({
   getSign,
   selectedLineId,
   selectedStopId,
-  runDepartures,
-  travelRuns,
+  datedJourneyStopEvents,
+  travelDatedJourneys,
   stopBoard,
   feedNow,
   isLoading,
@@ -96,12 +96,15 @@ export function ZentrumSchematic({
   selectedLineId?: string;
   /** The opened stop, as the address names it. */
   selectedStopId?: string;
-  /** The runs on or near the plan. */
-  runDepartures: readonly Departure[];
-  /** Every run the posts name, including those not near the plan yet: a stop's destinations. */
-  travelRuns: readonly Departure[];
+  /** The dated journeys on or near the plan. */
+  datedJourneyStopEvents: readonly StopEvent[];
+  /**
+   * Every dated journey the posts name, including those not near the plan yet: a stop's
+   * destinations.
+   */
+  travelDatedJourneys: readonly StopEvent[];
   /** The opened stop's own board, or null until it answers. */
-  stopBoard: DepartureBoard | null;
+  stopBoard: StopEventBoard | null;
   feedNow: number;
   isLoading: boolean;
   /** Whether the plan fills the screen. */
@@ -132,9 +135,9 @@ export function ZentrumSchematic({
       drawSchematic(
         layout,
         plan.planWidth,
-        getZentrumSchematicBranchIdsOnPlan(layout, runDepartures, feedNow),
+        getZentrumSchematicBranchIdsOnPlan(layout, datedJourneyStopEvents, feedNow),
       ),
-    [drawSchematic, layout, plan.planWidth, runDepartures, feedNow],
+    [drawSchematic, layout, plan.planWidth, datedJourneyStopEvents, feedNow],
   );
   const [hasPlacedVehicles, setHasPlacedVehicles] = useState(false);
   useEffect(() => {
@@ -147,14 +150,23 @@ export function ZentrumSchematic({
   }, [hasPlacedVehicles, isLoading, plan.planWidth, schematic]);
   const isPreparingVehicles = !hasPlacedVehicles;
   // Mark motion, shared with every view. Placed once per tick, so other renders re-place nothing.
-  const motions = useRunMotions();
-  const turnarounds = useMemo(() => findTurnarounds(runDepartures), [runDepartures]);
+  const motions = useDatedJourneyMotions();
+  const turnarounds = useMemo(
+    () => findTurnarounds(datedJourneyStopEvents),
+    [datedJourneyStopEvents],
+  );
   const vehicles = useMemo(
     () =>
       isPreparingVehicles
         ? []
-        : getZentrumSchematicVehicles(schematic, runDepartures, feedNow, motions, turnarounds),
-    [isPreparingVehicles, schematic, runDepartures, feedNow, motions, turnarounds],
+        : getZentrumSchematicVehicles(
+            schematic,
+            datedJourneyStopEvents,
+            feedNow,
+            motions,
+            turnarounds,
+          ),
+    [isPreparingVehicles, schematic, datedJourneyStopEvents, feedNow, motions, turnarounds],
   );
 
   // Escape leaves full screen; back does too, since size is in the address.
@@ -169,7 +181,7 @@ export function ZentrumSchematic({
 
   const readingNow = useDeviceNow();
   const freshness = getZentrumPositionFreshness(
-    vehicles.map(({ departure }) => departure),
+    vehicles.map(({ stopEvent }) => stopEvent),
     readingNow,
   );
   const selectedVehicle = vehicles.find((vehicle) => vehicle.id === selectedVehicleId);
@@ -183,12 +195,20 @@ export function ZentrumSchematic({
             selectedStop.id,
             stopBoard,
             vehicles,
-            travelRuns,
+            travelDatedJourneys,
             feedNow,
             options.travelMeasure,
           )
         : undefined,
-    [stopReading, selectedStop, stopBoard, vehicles, travelRuns, feedNow, options.travelMeasure],
+    [
+      stopReading,
+      selectedStop,
+      stopBoard,
+      vehicles,
+      travelDatedJourneys,
+      feedNow,
+      options.travelMeasure,
+    ],
   );
   const isShowingVehiclePaths = !selectedStop && options.vehiclePathMode === "ahead";
   // With Fahrwege on, an opened stop keeps the trams that have left it half visible.
@@ -245,9 +265,9 @@ export function ZentrumSchematic({
   const destinationRides = useMemo(
     () =>
       selectedStop && destinationNodeId
-        ? getZentrumDirectRides(travelRuns, selectedStop.id, destinationNodeId, feedNow)
+        ? getZentrumDirectRides(travelDatedJourneys, selectedStop.id, destinationNodeId, feedNow)
         : [],
-    [selectedStop, destinationNodeId, travelRuns, feedNow],
+    [selectedStop, destinationNodeId, travelDatedJourneys, feedNow],
   );
   const isStopPanelOpen = !selectedVehicle && !selectedDestination && stopPanelState === "expanded";
   const selectDestination = (nodeId: string) => {

@@ -28,7 +28,6 @@ refines the one above it:
 - `#/experiment/center/full`, `#/experiment/center/full/line/2` — the plan at screen size
 - `#/network` — the line index
 - `#/nearby` — the six nearest observed stops after a location reading
-- `#/notices` — KVV's published notices relevant to the KARLA network
 - `#/settings` — where the app opens, whether it remembers stops, whether diagrams show other
   vehicles, and the KVV data terms (not official, no KVV liability)
 - `#/stop/europaplatz` — a stop with its departure board
@@ -71,11 +70,15 @@ not in the feed, it names the platforms actually reported.
 
 `src/data/transit-source.ts` is the boundary between views and data. `KvvTransitSource` reads KVV's
 TRIAS interface through a thin PHP proxy (`proxy/`, deployed with the site to
-`karla.liesegang.info`), which holds the access key: boards, single runs and stop search, with
-times to the second. Serving lines, line routes and published notices come from the EFA endpoints
-at `https://projekte.kvv-efa.de/sl3-alone/`, which allow cross-origin reads. Two consecutive
-availability failures select EFA for five minutes; denied proxy access selects it immediately.
-Isolated failures retain the last complete reading and its age. Verified behaviour is recorded in
+`karla.app.liesegang.info`), which holds the access key: boards, runs, line routes and stop search,
+with times to the second; a stop's serving lines are learned from the runs read. The app shows no
+service notices for now: EFA's published notices (`KvvEfaClient.fetchServiceNotices`) and TRIAS's
+situations (`parseTriasSituations`) stay readable as two separate APIs.
+
+Built with `VITE_USE_EFA=true`, the whole app reads the EFA endpoints at
+`https://projekte.kvv-efa.de/sl3-alone/` instead, which allow cross-origin reads. The feed is
+chosen at build time and never switched while the app runs. Failed reads retain the last complete
+reading and its age. Verified behaviour is recorded in
 [`docs/kvv-trias-api.md`](docs/kvv-trias-api.md) and [`docs/kvv-efa-api.md`](docs/kvv-efa-api.md).
 
 Boards are asked for the local network only (Stadtbahn, S-Bahn, tram, bus). Long-distance coaches
@@ -96,7 +99,7 @@ catalog in `src/data/generated/` is written by `npm run refresh:stops` from EFA 
 - The line's other stops are read filtered and without calling sequences; each run out on the line
   is then read once through the single-trip endpoint (2.2 MB instead of 34.5 MB for one round of S4).
 - Boards refresh every 90 s on a line; run readings refresh on their own tolerance
-  (`LINE_RUN_READING_MAX_AGE_MS`), since the feed revises runs about every 35 s.
+  (`LINE_DATED_JOURNEY_READING_MAX_AGE_MS`), since the feed revises runs about every 35 s.
 - What a stop's trips were observed to do is remembered for the visit (`StopCorridorPatterns`), so
   grouping does not depend on which detailed board happens to be in hand.
 
@@ -139,8 +142,6 @@ service share a route, both ends are named (`Richtung Ettlingen → Bad Herrenal
 - A failed refresh keeps the last readable board with its age ("Stand 14:03 · seit 6 Min ohne
   Aktualisierung"); past ten minutes the failure itself is the answer.
 - Cancellations, diversions, and operating notes are shown, never hidden.
-- Published notices and board deviations are separate facts. "Keine Meldungen" is only stated after
-  a successful read; a stop's notices sit under its board and are silent when it has none.
 - Lines outside the verified colour set get a neutral badge.
 
 ## Installing it

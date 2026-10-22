@@ -35,17 +35,17 @@ export function getVehicleLeftOffset(
 }
 
 /**
- * Scrolls the diagram only when something new is opened (a line, or a pinned trip), never when the
- * rider steps to another stop of the line. A pinned trip places on its vehicle, else the rider's
- * stop. Opening jumps; pinning a trip on an open line glides; a new stop chain jumps. Live data and
- * ticks never scroll.
+ * Scrolls the diagram only when something new is opened (a line, or a pinned journey), never when
+ * the rider steps to another stop of the line. A pinned journey places on its vehicle, else the
+ * rider's stop. Opening jumps; pinning a journey on an open line glides; a new stop chain jumps.
+ * Live data and ticks never scroll.
  */
 export function useStopPlacement({
   placementKey,
   chainKey,
   containerRef,
 }: {
-  /** The line or trip being read, never the stop. `null` places nothing. */
+  /** The line or journey being read, never the stop. `null` places nothing. */
   placementKey: string | null;
   /** The stop chain; gliding only happens within one. */
   chainKey: string;
@@ -53,7 +53,8 @@ export function useStopPlacement({
 }) {
   const placedRef = useRef<{ key: string; chainKey: string } | null>(null);
 
-  // Wait until the target row (or the pinned trip's vehicle) exists; then the placement is spent.
+  // Wait until the target row (or the pinned journey's vehicle) exists; then the placement is
+  // spent.
   useLayoutEffect(() => {
     const container = containerRef.current;
     if (!placementKey || !container) {
@@ -111,7 +112,7 @@ export function useCurrentStopMove(currentStopIndex: number, chainKey: string): 
 }
 
 /** A ride moves only when the rider asks to return to its position. */
-export function useRequestedRunPosition(
+export function useRequestedDatedJourneyPosition(
   request: number,
   containerRef: React.RefObject<HTMLDivElement | null>,
 ) {

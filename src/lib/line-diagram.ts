@@ -1,28 +1,28 @@
-import type { Departure, TransitNetwork, TripCall } from "../data/transit-types";
+import type { StopEvent, TransitNetwork, Call } from "../data/transit-types";
 import { createStopSlug } from "./stop-slug";
 import { findHomePlaceName, getStopPlaceQualifier } from "./stop-naming";
 import { findStopByName } from "./stop-services";
-import type { JoinedRunPortionPair } from "./joined-run-portions";
+import type { JoinedDatedJourneyPortionPair } from "./joined-dated-journey-portions";
 import { isSameLineFamily } from "./line-families";
 import { isSelectedLine, type LineSelection } from "./line-bundles";
 import {
   alignSameRouteCalls,
   collapseTurnaroundCalls,
   getCallKey,
-  getTripCallInstant,
+  getCallInstant,
   runsInOrderOf,
-  statesRunEnd,
-} from "./trip-calls";
+  statesDatedJourneyEnd,
+} from "./calls";
 import { compareGermanNames } from "./text";
 import {
   createSoonestPassageComparator,
-  getRunPlacement,
-  type RunMotions,
-  type RunPlacementMotion,
-  type RunPlacementPhase,
-  type RunSegmentTrajectory,
+  getDatedJourneyPlacement,
+  type DatedJourneyMotions,
+  type DatedJourneyPlacementMotion,
+  type DatedJourneyPlacementPhase,
+  type DatedJourneySegmentTrajectory,
 } from "./vehicle-positioning";
-import { getDistinctRuns, getRunMarkKey, isSameRun } from "./trips";
+import { getDistinctDatedJourneys, getDatedJourneyMarkKey, isSameDatedJourney } from "./journeys";
 import { findTurnarounds, type TurnaroundIndex } from "./line-turnarounds";
 import { getVehiclePositionSourceLabel } from "./vehicle-position-presentation";
 
@@ -31,18 +31,18 @@ export type LineDiagramStop = {
   /** The municipality, only where the stop name does not name one. */
   placeName?: string;
   /**
-   * Which platforms of the stop this row is, only where a neighbouring row is the same stop: the
-   * drawn trip's, plus those observed runs either way use there.
+   * Which bays of the stop this row is, only where a neighbouring row is the same stop: the
+   * drawn journey's, plus those observed dated journeys either way use there.
    */
-  platformLabels?: readonly string[];
+  bayTexts?: readonly string[];
   stopId: string;
-  tripCall: TripCall;
+  call: Call;
 };
 
 export type LineDiagramVehicle = {
-  departure: Departure;
+  stopEvent: StopEvent;
   /** Both separately addressed portions while they still occupy one timed link. */
-  joinedDepartures: readonly Departure[];
+  joinedStopEvents: readonly StopEvent[];
   /**
    * Stable render identity for the physical mark. It survives a joined working shedding a portion
    * and an arrival turning into its departure, so React does not re-mount the mark at either.
@@ -64,35 +64,36 @@ export type LineDiagramVehicle = {
   laneIndex: number;
   directionArrow: "↑" | "↓";
   /**
-   * Where this trip is going, in the operator's wording; shown only for a pointed or tapped mark.
+   * Where this journey is going, in the operator's wording; shown only for a pointed or tapped
+   * mark.
    */
   destinationLabel: string;
-  phase: RunPlacementPhase;
-  /** See `RunPlacement.motion`. */
-  motion: RunPlacementMotion;
-  /** See `RunPlacement.placedAfterLinks`. */
+  phase: DatedJourneyPlacementPhase;
+  /** See `DatedJourneyPlacement.motion`. */
+  motion: DatedJourneyPlacementMotion;
+  /** See `DatedJourneyPlacement.placedAfterLinks`. */
   placedAfterLinks?: number;
   /** One stable animation to the next stop, replaced only when its timing changes. */
-  trajectory?: RunSegmentTrajectory;
-  /** Any other run while one is followed, tinted so the ride stands out. */
-  isOtherRun: boolean;
+  trajectory?: DatedJourneySegmentTrajectory;
+  /** Any other dated journey while one is followed, tinted so the ride stands out. */
+  isOtherDatedJourney: boolean;
   isSelected: boolean;
 };
 
 export type LineDiagramVehicleOptions = {
-  /** The record of mark motion every view shares (`hooks/run-motions.ts`). */
-  motions: RunMotions;
+  /** The record of mark motion every view shares (`hooks/dated-journey-motions.ts`). */
+  motions: DatedJourneyMotions;
   /** Share this across a bundled trunk and its legs; it changes only with the observations. */
   turnaroundIndex?: TurnaroundIndex;
   /**
-   * Whether a run that has not begun is drawn waiting at its first stop. On by default: it keeps a
-   * terminus from standing empty between runs.
+   * Whether a dated journey that has not begun is drawn waiting at its first stop. On by default:
+   * it keeps a terminus from standing empty between dated journeys.
    */
   showWaitingVehicles?: boolean;
 };
 
 type PlacedLineDiagramVehicle = {
-  departure: Departure;
+  stopEvent: StopEvent;
   /** Render identity after continuity across a paired turnaround has been resolved. */
   markerKey: string;
   fromIndex: number;
@@ -103,26 +104,26 @@ type PlacedLineDiagramVehicle = {
   fromStopId: string;
   toStopId: string;
   directionArrow: "↑" | "↓";
-  phase: RunPlacementPhase;
-  motion: RunPlacementMotion;
+  phase: DatedJourneyPlacementPhase;
+  motion: DatedJourneyPlacementMotion;
   placedAfterLinks?: number;
-  trajectory?: RunSegmentTrajectory;
+  trajectory?: DatedJourneySegmentTrajectory;
   realtimeQuality: number;
 };
 
 /** Names each end of a joined mark's portions once. */
-const getDestinationLabel = (portions: readonly Departure[]): string =>
-  [...new Set(portions.map((portion) => portion.destination))].join(" / ");
+const getDestinationLabel = (portions: readonly StopEvent[]): string =>
+  [...new Set(portions.map((portion) => portion.destinationText))].join(" / ");
 
-const getRealtimeQuality = (departure: Departure): number =>
-  (departure.predictedDepartureTime ? 1 : 0) +
-  (departure.tripCalls?.filter(({ delayMinutes }) => delayMinutes !== undefined).length ?? 0);
+const getRealtimeQuality = (stopEvent: StopEvent): number =>
+  (stopEvent.estimatedDepartureTime ? 1 : 0) +
+  (stopEvent.calls?.filter(({ delayMinutes }) => delayMinutes !== undefined).length ?? 0);
 
 function isOnSharedLink(
   placement: PlacedLineDiagramVehicle,
-  joined: JoinedRunPortionPair,
+  joined: JoinedDatedJourneyPortionPair,
 ): boolean {
-  const calls = placement.departure.tripCalls ?? [];
+  const calls = placement.stopEvent.calls ?? [];
   const sharedEndIndex = calls.findIndex(
     (call) => getCallKey(call) === getCallKey(joined.sharedUntil),
   );
@@ -136,60 +137,63 @@ function isOnSharedLink(
 
 export function buildLineDiagramStops(
   network: TransitNetwork,
-  calls: readonly TripCall[],
+  calls: readonly Call[],
   /** The stop the diagram is read from, whose municipality needs no qualifier. */
   riderStopId?: string,
-  /** Every observed run of the line, either way round, whose platforms a repeated row names too. */
-  observedRunCalls: readonly (readonly TripCall[])[] = [],
+  /**
+   * Every observed dated journey of the line, either way round, whose bays a repeated row names
+   * too.
+   */
+  observedDatedJourneyCalls: readonly (readonly Call[])[] = [],
 ): LineDiagramStop[] {
   // A turnaround is one call reported twice; any other repeat is a stop the route reaches twice.
-  const tripCalls = collapseTurnaroundCalls(calls);
-  const homePlaceName = findHomePlaceName(tripCalls, riderStopId);
-  const callKeys = tripCalls.map(getCallKey);
-  // Two consecutive rows of one stop can only be told apart by platform, so it is printed there and
+  const collapsedCalls = collapseTurnaroundCalls(calls);
+  const homePlaceName = findHomePlaceName(collapsedCalls, riderStopId);
+  const callKeys = collapsedCalls.map(getCallKey);
+  // Two consecutive rows of one stop can only be told apart by bay, so it is printed there and
   // nowhere else.
   const isRepeatedStop = (index: number) =>
     callKeys[index - 1] === callKeys[index] || callKeys[index + 1] === callKeys[index];
-  const platformLabelsByIndex = callKeys.some((_, index) => isRepeatedStop(index))
-    ? getObservedPlatformLabels(tripCalls, observedRunCalls)
+  const bayTextsByIndex = callKeys.some((_, index) => isRepeatedStop(index))
+    ? getObservedBayTexts(collapsedCalls, observedDatedJourneyCalls)
     : [];
 
-  return tripCalls.map((tripCall, index) => ({
-    stopName: tripCall.stopName,
-    placeName: getStopPlaceQualifier(tripCall, homePlaceName),
-    platformLabels: isRepeatedStop(index) ? platformLabelsByIndex[index] : undefined,
+  return collapsedCalls.map((call, index) => ({
+    stopName: call.stopName,
+    placeName: getStopPlaceQualifier(call, homePlaceName),
+    bayTexts: isRepeatedStop(index) ? bayTextsByIndex[index] : undefined,
     stopId:
-      tripCall.localStopId ??
-      findStopByName(network, tripCall.stopName)?.id ??
-      createStopSlug(tripCall.stopName),
-    tripCall,
+      call.localStopId ??
+      findStopByName(network, call.stopName)?.id ??
+      createStopSlug(call.stopName),
+    call,
   }));
 }
 
 /**
- * Each row's platform, joined by the platforms of the runs' calls aligned with it. A run whose
- * direction the rows cannot tell is left out.
+ * Each row's bay, joined by the bays of the dated journeys' calls aligned with it. A dated journey
+ * whose direction the rows cannot tell is left out.
  */
-function getObservedPlatformLabels(
-  rows: readonly TripCall[],
-  observedRunCalls: readonly (readonly TripCall[])[],
+function getObservedBayTexts(
+  rows: readonly Call[],
+  observedDatedJourneyCalls: readonly (readonly Call[])[],
 ): (readonly string[])[] {
-  const labels = rows.map(({ platformLabel }) => new Set(platformLabel ? [platformLabel] : []));
-  for (const runCalls of observedRunCalls) {
-    const calls = collapseTurnaroundCalls(runCalls);
+  const labels = rows.map(({ bayText }) => new Set(bayText ? [bayText] : []));
+  for (const datedJourneyCalls of observedDatedJourneyCalls) {
+    const calls = collapseTurnaroundCalls(datedJourneyCalls);
     const isInOrder = runsInOrderOf(calls, rows);
     if (isInOrder === undefined) continue;
     const oriented = isInOrder ? calls : [...calls].reverse();
     for (const [rowIndex, callIndex] of alignSameRouteCalls(rows, oriented)) {
-      const label = oriented[callIndex].platformLabel;
+      const label = oriented[callIndex].bayText;
       if (label) labels[rowIndex].add(label);
     }
   }
   return labels.map((rowLabels) => [...rowLabels].sort(compareGermanNames));
 }
 
-/** Platforms sharing their word name it once (`Gleis 3/4`); others are listed apart. */
-export function formatPlatformLabels(labels: readonly string[]): string {
+/** Bays sharing their word name it once (`Gleis 3/4`); others are listed apart. */
+export function formatBayTexts(labels: readonly string[]): string {
   const parts = labels.map((label) => /^(.*\s)(\S+)$/.exec(label));
   const word = parts[0]?.[1];
   return word && parts.every((part) => part?.[1] === word)
@@ -198,19 +202,19 @@ export function formatPlatformLabels(labels: readonly string[]): string {
 }
 
 /**
- * The drawn chain extended with the farthest observed run: its stops beyond the drawn ends and the
- * ones the drawn trip skips. Chains that share no call are left as drawn.
+ * The drawn chain extended with the farthest observed dated journey: its stops beyond the drawn
+ * ends and the ones the drawn journey skips. Chains that share no call are left as drawn.
  */
 export function extendLineDiagramCalls(
-  drawnCalls: readonly TripCall[],
-  farthestCalls: readonly TripCall[] | undefined,
-): readonly TripCall[] {
+  drawnCalls: readonly Call[],
+  farthestCalls: readonly Call[] | undefined,
+): readonly Call[] {
   if (!farthestCalls?.length || drawnCalls.length === 0) return drawnCalls;
   // Aligned call by call, not by stop: a stop reached twice would anchor both calls to the first.
   const anchors = alignSameRouteCalls(drawnCalls, farthestCalls);
   if (anchors.length === 0) return drawnCalls;
 
-  const merged: TripCall[] = [];
+  const merged: Call[] = [];
   let drawnCursor = 0;
   let farthestCursor = 0;
   for (const [drawnAnchor, farthestAnchor] of anchors) {
@@ -226,15 +230,16 @@ export function extendLineDiagramCalls(
 }
 
 /**
- * The run departures to place, selected once per board refresh so the per-second placement reuses
- * them. Copies of one run from several boards are settled by the freshest reading.
+ * The dated journey departures to place, selected once per board refresh so the per-second
+ * placement reuses them. Copies of one dated journey from several boards are settled by the
+ * freshest reading.
  */
-export function getLineDiagramRunDepartures(
+export function getLineDiagramDatedJourneyStopEvents(
   selection: LineSelection,
-  departures: readonly Departure[],
-): Departure[] {
-  return getDistinctRuns(
-    departures.filter((departure) => isSelectedLine(selection, departure.lineId)),
+  stopEvents: readonly StopEvent[],
+): StopEvent[] {
+  return getDistinctDatedJourneys(
+    stopEvents.filter((stopEvent) => isSelectedLine(selection, stopEvent.lineId)),
   );
 }
 
@@ -268,22 +273,23 @@ export const getVehicleRowCoordinate = ({
   fromIndex + (toIndex - fromIndex) * progress;
 
 /**
- * Whether a run the feed says ends at this stop is still due in at or before the waiting trip is
- * due away, so the platform is not free yet.
+ * Whether a dated journey the feed says ends at this stop is still due in at or before the waiting
+ * journey is due away, so the bay is not free yet.
  */
-function isRunStillDueIn(
-  departures: readonly Departure[],
+function isDatedJourneyStillDueIn(
+  stopEvents: readonly StopEvent[],
   waiting: PlacedLineDiagramVehicle,
   feedNow: number,
 ): boolean {
-  const leavesAt = getTripCallInstant(waiting.departure.tripCalls?.[0]);
+  const leavesAt = getCallInstant(waiting.stopEvent.calls?.[0]);
   if (leavesAt === undefined) return false;
-  return departures.some((departure) => {
-    if (isSameRun(departure, waiting.departure)) return false;
-    const calls = departure.tripCalls ?? [];
+  return stopEvents.some((stopEvent) => {
+    if (isSameDatedJourney(stopEvent, waiting.stopEvent)) return false;
+    const calls = stopEvent.calls ?? [];
     const finalCall = calls[calls.length - 1];
-    if (!statesRunEnd(finalCall) || finalCall.localStopId !== waiting.fromStopId) return false;
-    const arrivesAt = getTripCallInstant(finalCall, "arrival");
+    if (!statesDatedJourneyEnd(finalCall) || finalCall.localStopId !== waiting.fromStopId)
+      return false;
+    const arrivesAt = getCallInstant(finalCall, "arrival");
     return arrivesAt !== undefined && arrivesAt <= leavesAt && feedNow < arrivesAt;
   });
 }
@@ -301,26 +307,28 @@ function getRowsByStopId(
 }
 
 function placeVehicles(
-  motions: RunMotions,
+  motions: DatedJourneyMotions,
   rowsByStopId: ReadonlyMap<string, readonly number[]>,
-  runDepartures: readonly Departure[],
+  datedJourneyStopEvents: readonly StopEvent[],
   turnarounds: TurnaroundIndex,
   feedNow: number,
 ): PlacedLineDiagramVehicle[] {
-  // A turn is two trips drawn as one vehicle: both halves are keyed by the outgoing run, so React
-  // keeps the element across the handover.
+  // A turn is two journeys drawn as one vehicle: both halves are keyed by the outgoing dated
+  // journey, so React keeps the element across the handover.
   const turningKeyByMarkKey = new Map<string, string>();
   for (const [arrivalKey, departureKey] of turnarounds.turningDepartureKeyByArrivalKey) {
     turningKeyByMarkKey.set(arrivalKey, departureKey);
     turningKeyByMarkKey.set(departureKey, departureKey);
   }
   const placed: PlacedLineDiagramVehicle[] = [];
-  for (const candidate of [...runDepartures].sort(createSoonestPassageComparator(feedNow))) {
-    const placement = getRunPlacement(
+  for (const candidate of [...datedJourneyStopEvents].sort(
+    createSoonestPassageComparator(feedNow),
+  )) {
+    const placement = getDatedJourneyPlacement(
       motions,
       candidate,
       feedNow,
-      turnarounds.standFromByDepartureKey.get(getRunMarkKey(candidate)),
+      turnarounds.standFromByDepartureKey.get(getDatedJourneyMarkKey(candidate)),
     );
     if (!placement) continue;
     const link = findDiagramLink(rowsByStopId, placement.fromStopId, placement.toStopId);
@@ -328,13 +336,15 @@ function placeVehicles(
 
     const { fromIndex, toIndex } = link;
     placed.push({
-      departure: candidate,
-      markerKey: turningKeyByMarkKey.get(getRunMarkKey(candidate)) ?? getRunMarkKey(candidate),
+      stopEvent: candidate,
+      markerKey:
+        turningKeyByMarkKey.get(getDatedJourneyMarkKey(candidate)) ??
+        getDatedJourneyMarkKey(candidate),
       fromIndex,
       toIndex,
       progress: placement.progress,
-      // A finished run is drawn at the end of its last link; running marks belong to the row
-      // behind.
+      // A finished dated journey is drawn at the end of its last link; running marks belong to the
+      // row behind.
       rowIndex: placement.phase === "afterEnd" ? toIndex : fromIndex,
       linkKey: `${fromIndex}:${toIndex}`,
       fromStopId: placement.fromStopId,
@@ -351,23 +361,25 @@ function placeVehicles(
 }
 
 /**
- * One mark per platform, and none for a platform whose vehicle has not arrived:
+ * One mark per bay, and none for a bay whose vehicle has not arrived:
  * - the arrival of a paired turnaround goes once its departure is drawn and it has stopped running;
  * - an unpaired arrival standing where a waiting departure is drawn wins over the inferred stand;
- * - a waiting mark stands down while another run is still due into its stop at or before it leaves
- *   (line 1 at Wolfartsweier Nord turns on the same second).
- * None of this claims two trips are one vehicle; only the turnaround pairing does.
+ * - a waiting mark stands down while another dated journey is still due into its stop at or before
+ * it leaves (line 1 at Wolfartsweier Nord turns on the same second). None of this claims two
+ * journeys are one vehicle; only the turnaround pairing does.
  */
-function arbitratePlatforms(
+function arbitrateBays(
   placed: readonly PlacedLineDiagramVehicle[],
-  runDepartures: readonly Departure[],
+  datedJourneyStopEvents: readonly StopEvent[],
   turnarounds: TurnaroundIndex,
   feedNow: number,
   showWaitingVehicles: boolean,
 ): PlacedLineDiagramVehicle[] {
-  const placedKeys = new Set(placed.map(({ departure }) => getRunMarkKey(departure)));
-  const afterTurnarounds = placed.filter(({ departure, phase }) => {
-    const turningKey = turnarounds.turningDepartureKeyByArrivalKey.get(getRunMarkKey(departure));
+  const placedKeys = new Set(placed.map(({ stopEvent }) => getDatedJourneyMarkKey(stopEvent)));
+  const afterTurnarounds = placed.filter(({ stopEvent, phase }) => {
+    const turningKey = turnarounds.turningDepartureKeyByArrivalKey.get(
+      getDatedJourneyMarkKey(stopEvent),
+    );
     return !(phase === "afterEnd" && turningKey !== undefined && placedKeys.has(turningKey));
   });
   if (!showWaitingVehicles) {
@@ -380,7 +392,7 @@ function arbitratePlatforms(
   return afterTurnarounds.filter((placement) => {
     if (placement.phase !== "beforeStart") return true;
     if (endedStopIds.has(placement.fromStopId)) return false;
-    return !isRunStillDueIn(runDepartures, placement, feedNow);
+    return !isDatedJourneyStillDueIn(datedJourneyStopEvents, placement, feedNow);
   });
 }
 
@@ -390,51 +402,53 @@ function arbitratePlatforms(
  */
 function mergeJoinedPortions(
   drawn: readonly PlacedLineDiagramVehicle[],
-  joinedPortionPairs: readonly JoinedRunPortionPair[],
-  selectedDeparture: Departure | undefined,
+  joinedPortionPairs: readonly JoinedDatedJourneyPortionPair[],
+  selectedStopEvent: StopEvent | undefined,
 ): LineDiagramVehicle[] {
-  const joinedByDeparture = new Map<Departure, JoinedRunPortionPair>();
+  const joinedByStopEvent = new Map<StopEvent, JoinedDatedJourneyPortionPair>();
   for (const joined of joinedPortionPairs) {
-    joinedByDeparture.set(joined.terminating, joined);
-    joinedByDeparture.set(joined.continuing, joined);
+    joinedByStopEvent.set(joined.terminating, joined);
+    joinedByStopEvent.set(joined.continuing, joined);
   }
-  const placementByDeparture = new Map(drawn.map((placement) => [placement.departure, placement]));
-  const consumed = new Set<Departure>();
+  const placementByStopEvent = new Map(drawn.map((placement) => [placement.stopEvent, placement]));
+  const consumed = new Set<StopEvent>();
   const laneCountByLink = new Map<string, number>();
   const vehicles: LineDiagramVehicle[] = [];
 
   for (const candidate of drawn) {
-    if (consumed.has(candidate.departure)) continue;
-    const joined = joinedByDeparture.get(candidate.departure);
-    const otherDeparture = joined
-      ? isSameRun(candidate.departure, joined.terminating)
+    if (consumed.has(candidate.stopEvent)) continue;
+    const joined = joinedByStopEvent.get(candidate.stopEvent);
+    const otherStopEvent = joined
+      ? isSameDatedJourney(candidate.stopEvent, joined.terminating)
         ? joined.continuing
         : joined.terminating
       : undefined;
-    const other = otherDeparture ? placementByDeparture.get(otherDeparture) : undefined;
+    const other = otherStopEvent ? placementByStopEvent.get(otherStopEvent) : undefined;
     const isTogether = Boolean(
       joined &&
         isOnSharedLink(candidate, joined) &&
         (!other || (other.linkKey === candidate.linkKey && isOnSharedLink(other, joined))),
     );
     const portions =
-      isTogether && otherDeparture ? [candidate.departure, otherDeparture] : [candidate.departure];
-    if (isTogether && other) consumed.add(other.departure);
-    consumed.add(candidate.departure);
+      isTogether && otherStopEvent ? [candidate.stopEvent, otherStopEvent] : [candidate.stopEvent];
+    if (isTogether && other) consumed.add(other.stopEvent);
+    consumed.add(candidate.stopEvent);
 
     const representative =
       isTogether && other && other.realtimeQuality > candidate.realtimeQuality ? other : candidate;
     const laneIndex = laneCountByLink.get(representative.linkKey) ?? 0;
     laneCountByLink.set(representative.linkKey, laneIndex + 1);
-    const isSelected = portions.some((departure) => isSameRun(departure, selectedDeparture));
+    const isSelected = portions.some((stopEvent) =>
+      isSameDatedJourney(stopEvent, selectedStopEvent),
+    );
     vehicles.push({
-      departure: representative.departure,
-      joinedDepartures: portions,
+      stopEvent: representative.stopEvent,
+      joinedStopEvents: portions,
       // The continuing portion's identity survives the split, so it keys the joined mark too.
       markerKey:
         isTogether && joined
-          ? (placementByDeparture.get(joined.continuing)?.markerKey ??
-            getRunMarkKey(joined.continuing))
+          ? (placementByStopEvent.get(joined.continuing)?.markerKey ??
+            getDatedJourneyMarkKey(joined.continuing))
           : representative.markerKey,
       fromIndex: representative.fromIndex,
       toIndex: representative.toIndex,
@@ -449,7 +463,7 @@ function mergeJoinedPortions(
       motion: representative.motion,
       placedAfterLinks: representative.placedAfterLinks,
       trajectory: representative.trajectory,
-      isOtherRun: Boolean(selectedDeparture) && !isSelected,
+      isOtherDatedJourney: Boolean(selectedStopEvent) && !isSelected,
       isSelected,
     });
   }
@@ -458,42 +472,43 @@ function mergeJoinedPortions(
 
 export function getLineDiagramVehicles(
   diagramStops: readonly LineDiagramStop[],
-  runDepartures: readonly Departure[],
-  joinedPortionPairs: readonly JoinedRunPortionPair[],
-  selectedDeparture: Departure | undefined,
+  datedJourneyStopEvents: readonly StopEvent[],
+  joinedPortionPairs: readonly JoinedDatedJourneyPortionPair[],
+  selectedStopEvent: StopEvent | undefined,
   feedNow: number,
   { motions, turnaroundIndex, showWaitingVehicles = true }: LineDiagramVehicleOptions,
 ): LineDiagramVehicle[] {
   // A turning vehicle's stand is drawn once, as its departure (`lib/line-turnarounds.ts`).
-  const turnarounds = turnaroundIndex ?? findTurnarounds(runDepartures);
+  const turnarounds = turnaroundIndex ?? findTurnarounds(datedJourneyStopEvents);
   const placed = placeVehicles(
     motions,
     getRowsByStopId(diagramStops),
-    runDepartures,
+    datedJourneyStopEvents,
     turnarounds,
     feedNow,
   );
-  const drawn = arbitratePlatforms(
+  const drawn = arbitrateBays(
     placed,
-    runDepartures,
+    datedJourneyStopEvents,
     turnarounds,
     feedNow,
     showWaitingVehicles,
   );
-  return mergeJoinedPortions(drawn, joinedPortionPairs, selectedDeparture);
+  return mergeJoinedPortions(drawn, joinedPortionPairs, selectedStopEvent);
 }
 
 /**
- * The vehicles shown after the rider's choice to hide other runs. A joined working stays whole, and
- * only the followed run's own stand is kept.
+ * The vehicles shown after the rider's choice to hide other dated journeys. A joined working stays
+ * whole, and only the followed dated journey's own stand is kept.
  */
 export function getShownLineDiagramVehicles(
   vehicles: readonly LineDiagramVehicle[],
-  areOtherRunsShown: boolean,
+  areOtherDatedJourneysShown: boolean,
 ): readonly LineDiagramVehicle[] {
-  if (areOtherRunsShown) return vehicles;
+  if (areOtherDatedJourneysShown) return vehicles;
   return vehicles.filter(
-    (vehicle) => !vehicle.isOtherRun && (vehicle.isSelected || vehicle.phase !== "beforeStart"),
+    (vehicle) =>
+      !vehicle.isOtherDatedJourney && (vehicle.isSelected || vehicle.phase !== "beforeStart"),
   );
 }
 
@@ -501,10 +516,10 @@ export function getShownLineDiagramVehicles(
  * The row a "show position" action reveals: the row nearest a placed vehicle, else its next timed
  * call.
  */
-export function getRunPositionAnchorIndex(
+export function getDatedJourneyPositionAnchorIndex(
   diagramStops: readonly LineDiagramStop[],
   vehicles: readonly LineDiagramVehicle[],
-  nextCall: TripCall | undefined,
+  nextCall: Call | undefined,
 ): number {
   const selectedVehicle = vehicles.find((vehicle) => vehicle.isSelected);
   if (selectedVehicle && diagramStops.length > 0) {
@@ -512,22 +527,22 @@ export function getRunPositionAnchorIndex(
     return Math.max(0, Math.min(diagramStops.length - 1, nearest));
   }
   if (!nextCall) return -1;
-  return diagramStops.findIndex(({ tripCall }) => getCallKey(tripCall) === getCallKey(nextCall));
+  return diagramStops.findIndex(({ call }) => getCallKey(call) === getCallKey(nextCall));
 }
 
 /**
- * The trip the line is drawn from. A pinned trip draws itself. Otherwise the previous trip is kept
- * while it still calls at the rider's stop, so stepping along the line does not flip its direction;
- * failing that, a new trip is chosen in the direction last read.
+ * The journey the line is drawn from. A pinned journey draws itself. Otherwise the previous journey
+ * is kept while it still calls at the rider's stop, so stepping along the line does not flip its
+ * direction; failing that, a new journey is chosen in the direction last read.
  */
-export function chooseLineDiagramRun({
+export function chooseLineDiagramDatedJourney({
   lineId,
   riderStopIds,
-  pinnedDeparture,
-  retainedDeparture,
+  pinnedStopEvent,
+  retainedStopEvent,
   preferredDestination,
-  stopRunDepartures,
-  boardDepartures,
+  stopDatedJourneyStopEvents,
+  boardStopEvents,
 }: {
   lineId: string;
   /**
@@ -535,48 +550,47 @@ export function chooseLineDiagramRun({
    * leaves from one.
    */
   riderStopIds: readonly string[];
-  /** The trip the address names, which needs no holding. */
-  pinnedDeparture: Departure | undefined;
+  /** The journey the address names, which needs no holding. */
+  pinnedStopEvent: StopEvent | undefined;
   /** What the line was drawn from at the last reading of this diagram. */
-  retainedDeparture: Departure | undefined;
+  retainedStopEvent: StopEvent | undefined;
   /** Where the rider was last heading on this line, as the selection chain remembers it. */
   preferredDestination: string | undefined;
-  /** Whole trips read at the rider's stop: the only candidates with a chain to draw. */
-  stopRunDepartures: readonly Departure[];
+  /** Whole journeys read at the rider's stop: the only candidates with a chain to draw. */
+  stopDatedJourneyStopEvents: readonly StopEvent[];
   /** The plain board, which answers first and can at least give a direction. */
-  boardDepartures: readonly Departure[];
-}): Departure | undefined {
-  if (pinnedDeparture) return pinnedDeparture;
-  if (retainedDeparture && callsAtStop(retainedDeparture, lineId, riderStopIds))
-    return retainedDeparture;
+  boardStopEvents: readonly StopEvent[];
+}): StopEvent | undefined {
+  if (pinnedStopEvent) return pinnedStopEvent;
+  if (retainedStopEvent && callsAtStop(retainedStopEvent, lineId, riderStopIds))
+    return retainedStopEvent;
 
-  // The longest run that way, not the soonest: the best chain to extend (`extendLineDiagramCalls`).
-  const heading = preferredDestination ?? retainedDeparture?.destination;
-  const ofLine = (candidates: readonly Departure[]) =>
+  // The longest dated journey that way, not the soonest: the best chain to extend
+  // (`extendLineDiagramCalls`).
+  const heading = preferredDestination ?? retainedStopEvent?.destinationText;
+  const ofLine = (candidates: readonly StopEvent[]) =>
     candidates.filter((candidate) => isSameLineFamily(candidate.lineId, lineId));
-  const farthestRunning = (candidates: readonly Departure[]) =>
-    candidates.reduce<Departure | undefined>(
+  const farthestRunning = (candidates: readonly StopEvent[]) =>
+    candidates.reduce<StopEvent | undefined>(
       (farthest, candidate) =>
-        (candidate.tripCalls?.length ?? 0) > (farthest?.tripCalls?.length ?? 0)
-          ? candidate
-          : farthest,
+        (candidate.calls?.length ?? 0) > (farthest?.calls?.length ?? 0) ? candidate : farthest,
       candidates[0],
     );
-  const preferred = (candidates: readonly Departure[]) => {
-    const sameWay = candidates.filter((candidate) => candidate.destination === heading);
+  const preferred = (candidates: readonly StopEvent[]) => {
+    const sameWay = candidates.filter((candidate) => candidate.destinationText === heading);
     return farthestRunning(sameWay.length > 0 ? sameWay : candidates);
   };
-  // Any trip with calls beats a plain row with a better headsign: without calls there is no
+  // Any journey with calls beats a plain row with a better headsign: without calls there is no
   // diagram.
-  const loadedRuns = ofLine(stopRunDepartures).filter((candidate) => candidate.tripCalls?.length);
-  return preferred(loadedRuns) ?? preferred(ofLine(boardDepartures));
+  const loadedDatedJourneys = ofLine(stopDatedJourneyStopEvents).filter(
+    (candidate) => candidate.calls?.length,
+  );
+  return preferred(loadedDatedJourneys) ?? preferred(ofLine(boardStopEvents));
 }
 
-const callsAtStop = (departure: Departure, lineId: string, stopIds: readonly string[]): boolean =>
-  isSameLineFamily(departure.lineId, lineId) &&
-  Boolean(
-    departure.tripCalls?.some((call) => call.localStopId && stopIds.includes(call.localStopId)),
-  );
+const callsAtStop = (stopEvent: StopEvent, lineId: string, stopIds: readonly string[]): boolean =>
+  isSameLineFamily(stopEvent.lineId, lineId) &&
+  Boolean(stopEvent.calls?.some((call) => call.localStopId && stopIds.includes(call.localStopId)));
 
 /**
  * Which row is the rider's stop. The address comes first because it is stable while boards re-key
@@ -618,10 +632,11 @@ export function getVehicleLabelsByRowIndex(
   readingNow?: number,
 ): ReadonlyMap<number, string> {
   const labelByRowIndex = new Map<number, string>();
-  for (const { rowIndex, departure, joinedDepartures, phase, fromStopId, toStopId } of vehicles) {
-    const destinations = [...new Set(joinedDepartures.map((portion) => portion.destination))];
-    const heading = `${departure.lineId} Richtung ${destinations.join(" und ")}`;
-    // Neither end of a run is a measured position, so standing marks are not "geschätzte Position".
+  for (const { rowIndex, stopEvent, joinedStopEvents, phase, fromStopId, toStopId } of vehicles) {
+    const destinations = [...new Set(joinedStopEvents.map((portion) => portion.destinationText))];
+    const heading = `${stopEvent.lineId} Richtung ${destinations.join(" und ")}`;
+    // Neither end of a dated journey is a measured position, so standing marks are not "geschätzte
+    // Position".
     const label =
       phase === "beforeStart"
         ? `nächste Abfahrt von ${heading}`
@@ -631,7 +646,7 @@ export function getVehicleLabelsByRowIndex(
     const source =
       readingNow === undefined
         ? ""
-        : ` · ${getVehiclePositionSourceLabel(departure, readingNow, fromStopId, toStopId)}`;
+        : ` · ${getVehiclePositionSourceLabel(stopEvent, readingNow, fromStopId, toStopId)}`;
     const existing = labelByRowIndex.get(rowIndex);
     labelByRowIndex.set(
       rowIndex,
@@ -647,6 +662,6 @@ export const countLineDiagramVehicles = (
 ): number =>
   vehicleLists.reduce(
     (total, vehicles) =>
-      total + vehicles.reduce((count, { joinedDepartures }) => count + joinedDepartures.length, 0),
+      total + vehicles.reduce((count, { joinedStopEvents }) => count + joinedStopEvents.length, 0),
     0,
   );

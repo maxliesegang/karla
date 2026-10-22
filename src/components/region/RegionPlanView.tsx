@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { kvvStopCatalog } from "../../data/generated/kvv-stop-catalog";
 import { REGION_PLANS } from "../../data/generated/region-plan";
-import type { DepartureBoard, DepartureBoardCoverage } from "../../data/transit-types";
+import type { StopEventBoard, StopEventBoardCoverage } from "../../data/transit-types";
 import { useStoredPreference } from "../../hooks/stored-preference";
 import { useDailyZentrumVehicles } from "../../hooks/zentrum-vehicles";
 import { getDirectTravelTimes } from "../../lib/direct-travel-times";
@@ -110,19 +110,19 @@ function readRegionPlan(plan: RegionPlan) {
 export function RegionPlanView({
   network,
   coverage,
-  departureBoards,
+  stopEventBoards,
   selectedStopId,
   isFullscreen,
 }: {
   network: ObservedNetwork;
-  coverage: DepartureBoardCoverage;
-  departureBoards: readonly DepartureBoard[];
+  coverage: StopEventBoardCoverage;
+  stopEventBoards: readonly StopEventBoard[];
   /** The opened node, as the address names it. */
   selectedStopId?: string;
   isFullscreen: boolean;
 }) {
-  // The Zentrum's runs on daily lines: the same readings, drawn another way.
-  const { runDepartures, feedNow } = useDailyZentrumVehicles(departureBoards);
+  // The Zentrum's dated journeys on daily lines: the same readings, drawn another way.
+  const { datedJourneyStopEvents, feedNow } = useDailyZentrumVehicles(stopEventBoards);
   const getSign = useMemo(() => createZentrumLineSignReader(network.lines), [network.lines]);
   const scaleName = useStoredPreference(regionScalePreference);
   const { plan, nodeIdByStopId, drawing, quietNodeIds, scale } = useMemo(
@@ -135,7 +135,7 @@ export function RegionPlanView({
     () =>
       openedNodeId
         ? getDirectTravelTimes(
-            runDepartures,
+            datedJourneyStopEvents,
             openedNodeId,
             feedNow,
             "arrival",
@@ -143,7 +143,7 @@ export function RegionPlanView({
             true,
           )
         : undefined,
-    [openedNodeId, runDepartures, feedNow, nodeIdByStopId],
+    [openedNodeId, datedJourneyStopEvents, feedNow, nodeIdByStopId],
   );
 
   if (network.stops.length === 0) {

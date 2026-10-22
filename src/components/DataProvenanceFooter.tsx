@@ -1,51 +1,26 @@
-import type {
-  DepartureBoard,
-  DepartureBoardCoverage,
-  ServiceNoticeBoard,
-} from "../data/transit-types";
-import { formatClockTime } from "../lib/departure-presentation";
-import { navigateTo, routePaths } from "../routing";
+import type { StopEventBoard, StopEventBoardCoverage } from "../data/transit-types";
+import { formatClockTime } from "../lib/stop-event-presentation";
 
 /** Data source, reading status and provider disclaimer. */
 export function DataProvenanceFooter({
-  departureBoard,
-  departureBoards,
+  stopEventBoard,
+  stopEventBoards,
   coverage,
-  serviceNoticeBoard,
-  showsNoticesLink = false,
 }: {
-  departureBoard?: DepartureBoard | null;
+  stopEventBoard?: StopEventBoard | null;
   /** Several posts describe the Zentrum; the oldest live timestamp is stated. */
-  departureBoards?: readonly DepartureBoard[];
-  coverage?: DepartureBoardCoverage;
-  /** Only on the notices view; null while loading. */
-  serviceNoticeBoard?: ServiceNoticeBoard | null;
-  /** Omitted on the notices view itself. */
-  showsNoticesLink?: boolean;
+  stopEventBoards?: readonly StopEventBoard[];
+  coverage?: StopEventBoardCoverage;
 }) {
-  if (serviceNoticeBoard !== undefined) {
-    const statusLabel =
-      serviceNoticeBoard === null
-        ? "Meldungen werden geladen …"
-        : serviceNoticeBoard.dataStatus === "unavailable"
-          ? `Meldungen nicht erreichbar${serviceNoticeBoard.errorMessage ? ` — ${serviceNoticeBoard.errorMessage}` : ""}`
-          : `Meldungen · Stand ${formatClockTime(new Date(serviceNoticeBoard.receivedAt))}`;
-    return (
-      <footer className="data-provenance-footer">
-        <span>Kein offizielles KVV-Angebot · {statusLabel}</span>
-      </footer>
-    );
-  }
-
   // Home reads no board, so the footer names the source without claiming a load.
-  const hasReadingInView = departureBoard !== undefined || departureBoards !== undefined;
-  const relevantDepartureBoards = departureBoards ?? (departureBoard ? [departureBoard] : []);
+  const hasReadingInView = stopEventBoard !== undefined || stopEventBoards !== undefined;
+  const relevantStopEventBoards = stopEventBoards ?? (stopEventBoard ? [stopEventBoard] : []);
   const isLoading =
-    departureBoard === null || (departureBoards !== undefined && departureBoards.length === 0);
-  const unavailableDepartureBoard = relevantDepartureBoards.find(
+    stopEventBoard === null || (stopEventBoards !== undefined && stopEventBoards.length === 0);
+  const unavailableStopEventBoard = relevantStopEventBoards.find(
     (board) => board.dataStatus === "unavailable",
   );
-  const oldestLiveBoard = relevantDepartureBoards
+  const oldestLiveBoard = relevantStopEventBoards
     .filter((board) => board.dataStatus === "live")
     .sort((a, b) => Date.parse(a.feedUpdatedAt) - Date.parse(b.feedUpdatedAt))[0];
 
@@ -62,9 +37,9 @@ export function DataProvenanceFooter({
               `teilweise erreichbar · aus ${coverage.liveBoardCount} von ${coverage.expectedBoardCount} Haltestellen · ältester Stand ${formatClockTime(oldestLiveBoard.feedUpdatedAt)}`
             : isLoading
               ? "wird geladen …"
-              : unavailableDepartureBoard && !oldestLiveBoard
-                ? `nicht erreichbar${unavailableDepartureBoard.errorMessage ? ` — ${unavailableDepartureBoard.errorMessage}` : ""}`
-                : unavailableDepartureBoard && oldestLiveBoard
+              : unavailableStopEventBoard && !oldestLiveBoard
+                ? `nicht erreichbar${unavailableStopEventBoard.errorMessage ? ` — ${unavailableStopEventBoard.errorMessage}` : ""}`
+                : unavailableStopEventBoard && oldestLiveBoard
                   ? `teilweise erreichbar · ältester Stand ${formatClockTime(oldestLiveBoard.feedUpdatedAt)}`
                   : oldestLiveBoard
                     ? `Stand ${formatClockTime(oldestLiveBoard.feedUpdatedAt)}`
@@ -73,15 +48,6 @@ export function DataProvenanceFooter({
   return (
     <footer className="data-provenance-footer">
       <span>Kein offizielles KVV-Angebot · {statusLabel}</span>
-      {showsNoticesLink && (
-        <button
-          type="button"
-          className="footer-notices-link"
-          onClick={() => navigateTo(routePaths.notices())}
-        >
-          Alle Meldungen des KVV
-        </button>
-      )}
     </footer>
   );
 }

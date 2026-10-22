@@ -29,12 +29,12 @@ export const DEFAULT_APP_SETTINGS: AppSettings = {
 };
 
 /** Row counts a stacked board may show. */
-const STACKED_DEPARTURE_LIMIT_OPTIONS: readonly number[] = [5, 8, 12];
+const STACKED_STOP_EVENT_LIMIT_OPTIONS: readonly number[] = [5, 8, 12];
 
 const APP_SETTINGS_STORAGE_KEY = "karla:settings";
 
 const isRowLimit = (value: unknown): value is number =>
-  STACKED_DEPARTURE_LIMIT_OPTIONS.includes(value as number);
+  STACKED_STOP_EVENT_LIMIT_OPTIONS.includes(value as number);
 
 /** Settings from a stored value; unreadable fields take the default. */
 export function getAppSettingsFromStored(stored: unknown): AppSettings {

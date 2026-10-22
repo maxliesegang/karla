@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { DepartureBoard } from "../data/transit-types";
+import type { StopEventBoard } from "../data/transit-types";
 import {
   getStopBoardingPlaces,
   updateStopBoardingObservations,
@@ -10,31 +10,31 @@ import {
 const NO_BOARDING_PLACES: StopBoardingPlaces = [];
 
 /**
- * The places of the stop in view, accumulated over the visit: which platforms a vehicle calls at in
+ * The places of the stop in view, accumulated over the visit: which bays a vehicle calls at in
  * turn appears only in calling sequences, which arrive on a slow cadence. One place answers none.
  */
 export function useStopBoardingPlaces(
   stopId: string | undefined,
-  topologyBoard: DepartureBoard | null,
-  observationBoards: readonly DepartureBoard[],
-  shownBoard: DepartureBoard | null,
+  topologyBoard: StopEventBoard | null,
+  observationBoards: readonly StopEventBoard[],
+  shownBoard: StopEventBoard | null,
 ): StopBoardingPlaces {
   const [observations, setObservations] = useState<StopBoardingObservations | null>(null);
 
   // The shown board first, as the one guaranteed current.
-  const departures = useMemo(
+  const stopEvents = useMemo(
     () => [
-      ...(shownBoard?.dataStatus === "live" ? shownBoard.departures : []),
-      ...(topologyBoard?.dataStatus === "live" ? topologyBoard.departures : []),
-      ...observationBoards.flatMap((board) => board.departures),
+      ...(shownBoard?.dataStatus === "live" ? shownBoard.stopEvents : []),
+      ...(topologyBoard?.dataStatus === "live" ? topologyBoard.stopEvents : []),
+      ...observationBoards.flatMap((board) => board.stopEvents),
     ],
     [observationBoards, shownBoard, topologyBoard],
   );
 
   // Learned during render, so a place appears with the board that proved it.
   const nextObservations = useMemo(
-    () => (stopId ? updateStopBoardingObservations(observations, stopId, departures) : null),
-    [departures, observations, stopId],
+    () => (stopId ? updateStopBoardingObservations(observations, stopId, stopEvents) : null),
+    [stopEvents, observations, stopId],
   );
   // An unchanged memory keeps its identity, so this settles in one pass.
   if (nextObservations && nextObservations !== observations) setObservations(nextObservations);

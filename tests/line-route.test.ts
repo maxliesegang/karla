@@ -3,13 +3,13 @@ import test from "node:test";
 import { KvvEfaClient } from "../src/data/kvv-efa-client.ts";
 import { KvvEfaError, parseLineRouteResponse } from "../src/data/kvv-efa-parsers.ts";
 import {
-  type KvvDeparture,
-  type KvvDepartureBoard,
-  type KvvTripCall,
-  type KvvTripLocator,
+  type KvvStopEvent,
+  type KvvStopEventBoard,
+  type KvvCall,
+  type KvvJourneyLocator,
 } from "../src/data/kvv-feed.ts";
 import { KvvTransitSource } from "../src/data/transit-source.ts";
-import type { Departure } from "../src/data/transit-types.ts";
+import type { StopEvent } from "../src/data/transit-types.ts";
 import { createLineSelection } from "../src/lib/line-bundles.ts";
 import {
   EMPTY_LINE_OBSERVATION,
@@ -19,11 +19,11 @@ import {
   MAX_LINE_OBSERVATION_STOPS,
   sampleLineObservationStopIds,
 } from "../src/lib/line-observation.ts";
-import { createDeparture } from "./support/fixtures.ts";
+import { createStopEvent } from "./support/fixtures.ts";
 
-const locator: KvvTripLocator = {
-  tripCode: "35",
-  line: "kvv:21003:E:R:s26",
+const locator: KvvJourneyLocator = {
+  journeyCode: "35",
+  lineRef: "kvv:21003:E:R:s26",
   stopPointId: "7001001",
   date: "20260904",
   time: "0900",
@@ -60,7 +60,7 @@ test("a line route is read as the calling points of the whole line, not of one r
     ["7001001", "7001002"],
   );
   // Nothing here is the run's own: no call is marked as the stop the request was addressed at.
-  assert.ok(route.every((call) => !call.isCurrentStop));
+  assert.ok(route.every((call) => !call.isThisCall));
 });
 
 test("a route answered for another line is not this line's route", () => {
@@ -120,46 +120,49 @@ test("the client calls KVV's route endpoint with the trip tuple, under its own s
   });
 });
 
-function lineRow(overrides: Partial<KvvDeparture> = {}): KvvDeparture {
+function lineRow(overrides: Partial<KvvStopEvent> = {}): KvvStopEvent {
   return {
     stopPointId: "7001001",
     stopPointName: "Durlacher Tor/KIT-Campus Süd (U)",
-    tripId: "de:kvv:00003_:.trip",
+    journeyRef: "de:kvv:00003_:.trip",
     lineId: "3",
-    routeDirectionId: "kvv:21003:E:R:s26",
-    transportMode: "tram",
-    destination: "Rintheim",
+    lineRef: "kvv:21003:E:R:s26",
+    ptMode: "tram",
+    destinationText: "Rintheim",
     minutesUntilDeparture: 4,
-    platformCode: "1(U)",
+    bay: "1(U)",
     status: "realtime",
-    scheduledDepartureTime: "2026-09-04T07:00:00.000Z",
-    tripLocator: locator,
+    timetabledDepartureTime: "2026-09-04T07:00:00.000Z",
+    journeyLocator: locator,
     ...overrides,
   };
 }
 
 test("TransitSource reads one route per line-direction and keeps it for the session", async () => {
-  const rows = [lineRow(), lineRow({ tripId: "de:kvv:00003_:.later", tripLocator: locator })];
-  const requests: KvvTripLocator[] = [];
+  const rows = [
+    lineRow(),
+    lineRow({ journeyRef: "de:kvv:00003_:.later", journeyLocator: locator }),
+  ];
+  const requests: KvvJourneyLocator[] = [];
   const client = {
-    fetchDepartureBoard: async (providerStopId: string): Promise<KvvDepartureBoard> => ({
+    fetchStopEventBoard: async (providerStopId: string): Promise<KvvStopEventBoard> => ({
       stopPointId: providerStopId,
       stopName: "Durlacher Tor/KIT-Campus Süd (U)",
       serverTime: "2026-09-04T06:59:45.000Z",
       servingLines: [],
-      departures: rows,
+      stopEvents: rows,
     }),
-    fetchLineRoute: async (requested: KvvTripLocator): Promise<KvvTripCall[]> => {
+    fetchLineRoute: async (requested: KvvJourneyLocator): Promise<KvvCall[]> => {
       requests.push(requested);
       return parseLineRouteResponse(routePayload, requested);
     },
   } as unknown as KvvEfaClient;
   const source = new KvvTransitSource(client);
-  const board = await source.getDepartureBoard("durlacher-tor");
+  const board = await source.getStopEventBoard("durlacher-tor");
 
-  const route = await source.getLineRoute(board.departures[0].id);
+  const route = await source.getLineRoute(board.stopEvents[0].id);
   // The second row of the same direction is a second way of asking the same question.
-  const again = await source.getLineRoute(board.departures[1].id);
+  const again = await source.getLineRoute(board.stopEvents[1].id);
 
   assert.deepEqual(requests, [locator]);
   // Provider ids, resolved to the local stops the app requests boards with.
@@ -169,46 +172,46 @@ test("TransitSource reads one route per line-direction and keeps it for the sess
 
 test("a route that cannot be read leaves the reading where it stood", async () => {
   const client = {
-    fetchDepartureBoard: async (providerStopId: string): Promise<KvvDepartureBoard> => ({
+    fetchStopEventBoard: async (providerStopId: string): Promise<KvvStopEventBoard> => ({
       stopPointId: providerStopId,
       stopName: "Durlacher Tor/KIT-Campus Süd (U)",
       serverTime: "2026-09-04T06:59:45.000Z",
       servingLines: [],
-      departures: [lineRow()],
+      stopEvents: [lineRow()],
     }),
-    fetchLineRoute: async (): Promise<KvvTripCall[]> => {
+    fetchLineRoute: async (): Promise<KvvCall[]> => {
       throw new KvvEfaError("Linie kvv:21003:E:R:s26: nicht gefunden");
     },
   } as unknown as KvvEfaClient;
   const source = new KvvTransitSource(client);
-  const board = await source.getDepartureBoard("durlacher-tor");
+  const board = await source.getStopEventBoard("durlacher-tor");
 
-  assert.equal(await source.getLineRoute(board.departures[0].id), undefined);
+  assert.equal(await source.getLineRoute(board.stopEvents[0].id), undefined);
 });
 
-function selectionDeparture(routeDirectionId: string, id: string, lineId = "3"): Departure {
-  return createDeparture({
+function selectionStopEvent(lineRef: string, id: string, lineId = "3"): StopEvent {
+  return createStopEvent({
     id,
     lineId,
-    transportMode: "tram",
-    destination: "Rintheim",
+    ptMode: "tram",
+    destinationText: "Rintheim",
     minutesUntilDeparture: 4,
-    platformCode: "1",
+    bay: "1",
     status: "realtime",
-    scheduledDepartureTime: "2026-09-04T07:00:00.000Z",
-    routeDirectionId,
-  }) as Departure;
+    timetabledDepartureTime: "2026-09-04T07:00:00.000Z",
+    lineRef,
+  }) as StopEvent;
 }
 
 test("one route is asked for per direction, however many rows of it a board carries", () => {
   const selection = createLineSelection("3", []);
   const boards = [
     {
-      departures: [
-        selectionDeparture("kvv:21003:E:R:s26", "erste"),
-        selectionDeparture("kvv:21003:E:R:s26", "zweite"),
-        selectionDeparture("kvv:21003:E:H:s26", "gegenrichtung"),
-        selectionDeparture("kvv:21004:E:H:s26", "andere-linie", "4"),
+      stopEvents: [
+        selectionStopEvent("kvv:21003:E:R:s26", "erste"),
+        selectionStopEvent("kvv:21003:E:R:s26", "zweite"),
+        selectionStopEvent("kvv:21003:E:H:s26", "gegenrichtung"),
+        selectionStopEvent("kvv:21004:E:H:s26", "andere-linie", "4"),
       ],
     },
   ];
@@ -216,22 +219,22 @@ test("one route is asked for per direction, however many rows of it a board carr
   const requests = getLineRouteRequests(selection, boards);
 
   assert.deepEqual(requests, [
-    { lineId: "3", directionId: "kvv:21003:E:R:s26", rowId: "erste" },
-    { lineId: "3", directionId: "kvv:21003:E:H:s26", rowId: "gegenrichtung" },
+    { lineId: "3", lineRef: "kvv:21003:E:R:s26", rowId: "erste" },
+    { lineId: "3", lineRef: "kvv:21003:E:H:s26", rowId: "gegenrichtung" },
   ]);
 });
 
 test("the published route leads the order, and what was only ever observed keeps its place behind", () => {
-  const observed = { stopIds: ["kronenplatz", "umleitung"], directionIds: ["kvv:21003:E:R:s26"] };
+  const observed = { stopIds: ["kronenplatz", "umleitung"], lineRefs: ["kvv:21003:E:R:s26"] };
 
   const extended = extendLineObservationRoute(observed, ["waidweg", "kronenplatz", "rintheim"]);
 
   assert.deepEqual(extended.stopIds, ["waidweg", "kronenplatz", "rintheim", "umleitung"]);
-  assert.deepEqual(extended.directionIds, observed.directionIds);
+  assert.deepEqual(extended.lineRefs, observed.lineRefs);
 });
 
 test("a route already wholly known changes nothing, so the crawl settles instead of asking again", () => {
-  const known = { stopIds: ["waidweg", "kronenplatz"], directionIds: [] };
+  const known = { stopIds: ["waidweg", "kronenplatz"], lineRefs: [] };
 
   assert.equal(extendLineObservationRoute(known, ["waidweg", "kronenplatz"]), known);
   assert.equal(extendLineObservationRoute(known, []), known);

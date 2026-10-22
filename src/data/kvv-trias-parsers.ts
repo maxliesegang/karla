@@ -3,22 +3,31 @@ import {
   formatNetworkDateAndTime,
   isLocalNetworkPool,
   joinServiceNotes,
-  parsePlatformKind,
+  normalizeNoticeLineNumber,
+  parseNoticeDetails,
+  parseBayKind,
   readOperatingNote,
   readVehicleAccess,
   splitDestination,
 } from "./kvv-conventions";
 import {
-  getTripInstanceId,
-  type KvvDeparture,
-  type KvvDepartureBoard,
+  getDatedJourneyId,
+  type KvvStopEvent,
+  type KvvStopEventBoard,
   type KvvStopSearchResult,
-  type KvvTrip,
-  type KvvTripCall,
-  type KvvTripLocator,
+  type KvvTripInfo,
+  type KvvCall,
+  type KvvJourneyLocator,
 } from "./kvv-feed";
-import type { DepartureStatus, PlatformKind, TransportMode } from "./transit-types";
-import { child, childrenNamed, parseXml, textAt, type XmlElement } from "./xml-reader";
+import type { StopEventStatus, BayKind, PtMode } from "./transit-types";
+import {
+  child,
+  childrenNamed,
+  descendantsNamed,
+  parseXml,
+  textAt,
+  type XmlElement,
+} from "./xml-reader";
 
 export class KvvTriasError extends Error {
   constructor(message: string, options?: ErrorOptions) {
@@ -50,47 +59,47 @@ function readStopName(name: string): { stopName: string; placeName?: string } {
 }
 
 /** `Gleis 2(U)` or `Bstg. A`: the kind word, then the signed code. */
-function readBay(label: string | undefined): { code?: string; kind?: PlatformKind } {
+function readBay(label: string | undefined): { code?: string; kind?: BayKind } {
   if (!label) return {};
   const [, word, code] = /^(\S+)\s+(.+)$/.exec(label) ?? [];
-  const kind = parsePlatformKind(word);
+  const kind = parseBayKind(word);
   return kind ? { code, kind } : { code: label };
 }
 
-type ServiceTime = { scheduled: string; predicted?: string; delayMinutes?: number };
+type ServiceTime = { timetabled: string; estimated?: string; delayMinutes?: number };
 
 function readServiceTime(element: XmlElement | undefined): ServiceTime | undefined {
-  const scheduled = Date.parse(textAt(element, "TimetabledTime") ?? "");
-  if (!Number.isFinite(scheduled)) return undefined;
-  const predicted = Date.parse(textAt(element, "EstimatedTime") ?? "");
-  if (!Number.isFinite(predicted)) return { scheduled: new Date(scheduled).toISOString() };
+  const timetabled = Date.parse(textAt(element, "TimetabledTime") ?? "");
+  if (!Number.isFinite(timetabled)) return undefined;
+  const estimated = Date.parse(textAt(element, "EstimatedTime") ?? "");
+  if (!Number.isFinite(estimated)) return { timetabled: new Date(timetabled).toISOString() };
   return {
-    scheduled: new Date(scheduled).toISOString(),
-    predicted: new Date(predicted).toISOString(),
-    delayMinutes: Math.round((predicted - scheduled) / 60_000),
+    timetabled: new Date(timetabled).toISOString(),
+    estimated: new Date(estimated).toISOString(),
+    delayMinutes: Math.round((estimated - timetabled) / 60_000),
   };
 }
 
-/** A call, from a board's `CallAtStop` or a trip's bare call element. */
-function parseCall(element: XmlElement | undefined, isCurrentStop: boolean): KvvTripCall | null {
+/** A call, from a board's `CallAtStop` or a journey's bare call element. */
+function parseCall(element: XmlElement | undefined, isThisCall: boolean): KvvCall | null {
   const call = child(element, "CallAtStop") ?? element;
   const name = textAt(call, "StopPointName", "Text");
   if (!call || !name) return null;
   const ref = textAt(call, "StopPointRef");
-  const platformLabel = textAt(call, "EstimatedBay", "Text") ?? textAt(call, "PlannedBay", "Text");
+  const bayText = textAt(call, "EstimatedBay", "Text") ?? textAt(call, "PlannedBay", "Text");
   const arrival = readServiceTime(child(call, "ServiceArrival"));
   const departure = readServiceTime(child(call, "ServiceDeparture"));
   const delayMinutes = departure?.delayMinutes ?? arrival?.delayMinutes;
   return {
     ...readStopName(name),
-    platformLabel,
-    platformCode: readBay(platformLabel).code,
+    bayText,
+    bay: readBay(bayText).code,
     providerId: ref && toProviderStopId(ref),
-    isCurrentStop: isCurrentStop || undefined,
-    scheduledArrivalTime: arrival?.scheduled,
-    scheduledDepartureTime: departure?.scheduled,
-    predictedArrivalTime: arrival?.predicted,
-    predictedDepartureTime: departure?.predicted,
+    isThisCall: isThisCall || undefined,
+    timetabledArrivalTime: arrival?.timetabled,
+    timetabledDepartureTime: departure?.timetabled,
+    estimatedArrivalTime: arrival?.estimated,
+    estimatedDepartureTime: departure?.estimated,
     delayMinutes,
     // Stated only where it differs from the departure delay.
     arrivalDelayMinutes: arrival?.delayMinutes === delayMinutes ? undefined : arrival?.delayMinutes,
@@ -98,7 +107,7 @@ function parseCall(element: XmlElement | undefined, isCurrentStop: boolean): Kvv
 }
 
 /** The modes read, as EFA's local network selects them; demand-responsive buses are not. */
-function parseTransportMode(mode: XmlElement | undefined): TransportMode | undefined {
+function parsePtMode(mode: XmlElement | undefined): PtMode | undefined {
   const ptMode = textAt(mode, "PtMode");
   if (ptMode === "tram") return "tram";
   if (ptMode === "rail" || ptMode === "urbanRail" || ptMode === "metro") return "lightRail";
@@ -109,17 +118,17 @@ function parseTransportMode(mode: XmlElement | undefined): TransportMode | undef
 const isStated = (element: XmlElement | undefined, name: string): boolean =>
   textAt(element, name) === "true";
 
-function parseStatus(service: XmlElement | undefined, hasPrediction: boolean): DepartureStatus {
+function parseStatus(service: XmlElement | undefined, hasPrediction: boolean): StopEventStatus {
   if (isStated(service, "Cancelled")) return "cancelled";
   if (isStated(service, "Deviation") || isStated(service, "Unplanned")) return "diverted";
   return hasPrediction ? "realtime" : "scheduled";
 }
 
-/** `kvv:22305:E:R:s26:1762`: the line-direction, then the trip code. */
-function splitJourneyRef(journeyRef: string): { line: string; tripCode: string } | undefined {
+/** `kvv:22305:E:R:s26:1762`: the line-direction, then the journey code. */
+function splitJourneyRef(journeyRef: string): { lineRef: string; journeyCode: string } | undefined {
   const separator = journeyRef.lastIndexOf(":");
   if (separator <= 0 || separator === journeyRef.length - 1) return undefined;
-  return { line: journeyRef.slice(0, separator), tripCode: journeyRef.slice(separator + 1) };
+  return { lineRef: journeyRef.slice(0, separator), journeyCode: journeyRef.slice(separator + 1) };
 }
 
 type Delivery = { serverTime: string; response: XmlElement };
@@ -168,81 +177,84 @@ function parseStopEvent(
   event: XmlElement,
   eventKind: "departure" | "arrival",
   serverNow: number,
-): KvvDeparture | null {
+): KvvStopEvent | null {
   const service = child(event, "Service");
   const section = child(service, "ServiceSection");
   const journeyRef = textAt(service, "JourneyRef");
   const journey = journeyRef && splitJourneyRef(journeyRef);
   const lineId = textAt(section, "PublishedLineName", "Text");
   const destinationText = textAt(service, "DestinationText", "Text");
-  const transportMode = parseTransportMode(child(section, "Mode"));
-  if (!journeyRef || !journey || !lineId || !destinationText || !transportMode) return null;
+  const ptMode = parsePtMode(child(section, "Mode"));
+  if (!journeyRef || !journey || !lineId || !destinationText || !ptMode) return null;
   if (!isLocalNetworkPool(journeyRef)) return null;
 
   const thisCall = parseCall(child(event, "ThisCall"), true);
   if (!thisCall?.providerId) return null;
   const before = childrenNamed(event, "PreviousCall").map((call) => parseCall(call, false));
   const after = childrenNamed(event, "OnwardCall").map((call) => parseCall(call, false));
-  const tripCalls =
+  const calls =
     before.length + after.length > 0
-      ? [...before, thisCall, ...after].filter((call): call is KvvTripCall => call !== null)
+      ? [...before, thisCall, ...after].filter((call): call is KvvCall => call !== null)
       : undefined;
 
   // An arrival board's row is timed by the arrival, as EFA's arrival list is.
-  const scheduledDepartureTime =
+  const timetabledDepartureTime =
     eventKind === "arrival"
-      ? (thisCall.scheduledArrivalTime ?? thisCall.scheduledDepartureTime)
-      : (thisCall.scheduledDepartureTime ?? thisCall.scheduledArrivalTime);
-  const predictedDepartureTime =
+      ? (thisCall.timetabledArrivalTime ?? thisCall.timetabledDepartureTime)
+      : (thisCall.timetabledDepartureTime ?? thisCall.timetabledArrivalTime);
+  const estimatedDepartureTime =
     eventKind === "arrival"
-      ? (thisCall.predictedArrivalTime ?? thisCall.predictedDepartureTime)
-      : (thisCall.predictedDepartureTime ?? thisCall.predictedArrivalTime);
-  if (!scheduledDepartureTime) return null;
-  const scheduled = Date.parse(scheduledDepartureTime);
-  const expected = predictedDepartureTime ? Date.parse(predictedDepartureTime) : scheduled;
+      ? (thisCall.estimatedArrivalTime ?? thisCall.estimatedDepartureTime)
+      : (thisCall.estimatedDepartureTime ?? thisCall.estimatedArrivalTime);
+  if (!timetabledDepartureTime) return null;
+  const timetabled = Date.parse(timetabledDepartureTime);
+  const expected = estimatedDepartureTime ? Date.parse(estimatedDepartureTime) : timetabled;
   const operatingDay = textAt(service, "OperatingDayRef");
   const remarks = childrenNamed(service, "Attribute").flatMap(
     (attribute) => textAt(attribute, "Text", "Text") ?? [],
   );
   const [destination, destinationNote] = splitDestination(destinationText);
-  const bay = readBay(thisCall.platformLabel);
+  const bay = readBay(thisCall.bayText);
 
   return {
     stopPointId: thisCall.providerId,
     stopPointName: thisCall.stopName,
-    tripId: journeyRef,
-    tripInstanceId: getTripInstanceId(journeyRef, tripCalls),
-    trainNumber: textAt(event, "Extension", "PublishedJourneyNumber", "Text"),
+    journeyRef,
+    datedJourneyId: getDatedJourneyId(journeyRef, calls),
+    publishedJourneyNumber: textAt(event, "Extension", "PublishedJourneyNumber", "Text"),
     lineId,
-    routeDirectionId: journey.line,
-    transportMode,
-    destination,
+    lineRef: journey.lineRef,
+    ptMode,
+    destinationText: destination,
     minutesUntilDeparture: countClockMinutes(serverNow, expected),
-    delayMinutes: predictedDepartureTime ? Math.round((expected - scheduled) / 60_000) : undefined,
-    platformCode: bay.code ?? "",
-    platformKind: bay.kind,
-    status: parseStatus(service, predictedDepartureTime !== undefined),
-    scheduledDepartureTime,
-    predictedDepartureTime,
-    ...(predictedDepartureTime ? { isPredictedToTheSecond: true } : {}),
+    delayMinutes: estimatedDepartureTime ? Math.round((expected - timetabled) / 60_000) : undefined,
+    bay: bay.code ?? "",
+    bayKind: bay.kind,
+    status: parseStatus(service, estimatedDepartureTime !== undefined),
+    timetabledDepartureTime,
+    estimatedDepartureTime,
+    ...(estimatedDepartureTime ? { isEstimatedToTheSecond: true } : {}),
     serviceNote: joinServiceNotes(destinationNote, readOperatingNote(remarks)),
     vehicleAccess: readVehicleAccess(remarks),
-    tripLocator: {
+    journeyLocator: {
       ...journey,
       stopPointId: thisCall.providerId,
-      ...formatNetworkDateAndTime(scheduled),
-      ...(operatingDay ? { operatingDay } : {}),
+      ...formatNetworkDateAndTime(timetabled),
+      ...(operatingDay ? { operatingDayRef: operatingDay } : {}),
     },
-    tripCalls,
+    calls,
   };
 }
 
-/** A stop's board; `servingLines` are not in TRIAS, so the client supplies them. */
+/**
+ * A stop's board. TRIAS states no serving lines, so they stay empty; the source learns them from
+ * observed dated journeys.
+ */
 export function parseTriasStopEvents(
   xml: string,
   stopPointId: string,
   eventKind: "departure" | "arrival" = "departure",
-): KvvDepartureBoard {
+): KvvStopEventBoard {
   const description = `Abfahrtstafel ${stopPointId}`;
   const { serverTime, response } = readDelivery(xml, description, "StopEventResponse");
   const errors = readErrorCodes(response);
@@ -253,23 +265,96 @@ export function parseTriasStopEvents(
     throw new KvvTriasError(`${description}: ${errors.join(", ")}`);
   }
   const serverNow = Date.parse(serverTime);
-  const departures = childrenNamed(response, "StopEventResult")
+  const stopEvents = childrenNamed(response, "StopEventResult")
     .map((result) => child(result, "StopEvent"))
     .flatMap((event) => (event ? (parseStopEvent(event, eventKind, serverNow) ?? []) : []));
   return {
     stopPointId,
-    stopName: departures[0]?.stopPointName ?? "",
+    stopName: stopEvents[0]?.stopPointName ?? "",
     serverTime,
     servingLines: [],
-    departures,
+    stopEvents,
   };
 }
 
+/**
+ * A SIRI situation as a board carries it (`StopEventResponseContext`): TRIAS's counterpart to EFA's
+ * published notices, only those of the board's rows' lines. In the operator's terms: line refs, not
+ * line numbers. The app reads none for now, and the proxy strips the block.
+ */
+export type TriasSituation = {
+  /** `SituationNumber@Version`; an ad-hoc one, which has no number, by its summary. */
+  id: string;
+  title: string;
+  /** Line numbers from the description's `Linien: S2, S12, 1` list, where it has one. */
+  listedLineNumbers: string[];
+  /** The affected journeys' line refs, as stated (`kvv:21001:E:H:`). */
+  lineRefs: string[];
+  affectedStops: { providerId?: string; name: string }[];
+  /** The operator's wording as paragraphs, else its description. */
+  details: string[];
+  validFrom?: string;
+  validUntil?: string;
+  /** SIRI's ranking, 1 most urgent; KVV's planned works are 3, ad-hoc ones -1. */
+  priority?: number;
+};
+
+/** The situations a board reply carries; a reply without the block has none. */
+export function parseTriasSituations(xml: string): TriasSituation[] {
+  const { response } = readDelivery(xml, "Situationen", "StopEventResponse");
+  return descendantsNamed(response, "PtSituation").flatMap(
+    (situation) => parseSituation(situation) ?? [],
+  );
+}
+
+/** `Linien: S2, S12, 1, SEV`, the line list KVV writes into a situation's description. */
+const SITUATION_LINE_LIST = /^Linien?:\s*(.+)$/m;
+
+function parseSituation(situation: XmlElement): TriasSituation | null {
+  const title = textAt(situation, "Summary");
+  if (!title) return null;
+  const number = textAt(situation, "SituationNumber");
+  const description = textAt(situation, "Description");
+  const periods = childrenNamed(situation, "ValidityPeriod");
+  const starts = periods.flatMap((period) => readInstant(textAt(period, "StartTime"))).sort();
+  const ends = periods.flatMap((period) => readInstant(textAt(period, "EndTime"))).sort();
+  const details = parseNoticeDetails(textAt(situation, "Detail"));
+  const priority = Number.parseInt(textAt(situation, "Priority") ?? "", 10);
+  return {
+    id: number ? `${number}@${textAt(situation, "Version") ?? "0"}` : `trias:${title}`,
+    title,
+    listedLineNumbers: [
+      ...new Set(
+        (SITUATION_LINE_LIST.exec(description ?? "")?.[1].split(",") ?? []).flatMap(
+          (listed) => normalizeNoticeLineNumber(listed) ?? [],
+        ),
+      ),
+    ],
+    lineRefs: [
+      ...new Set(descendantsNamed(situation, "LineRef").flatMap((ref) => ref.text.trim() || [])),
+    ],
+    affectedStops: descendantsNamed(situation, "AffectedStopPoint").flatMap((stop) => {
+      const ref = textAt(stop, "StopPointRef");
+      const name = textAt(stop, "StopPointName", "Text") ?? textAt(stop, "StopPointName");
+      return name ? [{ providerId: ref && toProviderStopId(ref), name }] : [];
+    }),
+    details: details.length > 0 ? details : description ? [description] : [],
+    validFrom: starts[0],
+    validUntil: ends[ends.length - 1],
+    ...(Number.isFinite(priority) ? { priority } : {}),
+  };
+}
+
+const readInstant = (value: string | undefined): string[] => {
+  const instant = Date.parse(value ?? "");
+  return Number.isFinite(instant) ? [new Date(instant).toISOString()] : [];
+};
+
 /** The call the locator's row was read at: its stop at its minute, else its stop. */
-function findRowCallIndex(calls: readonly KvvTripCall[], locator: KvvTripLocator): number {
-  const atStop = (call: KvvTripCall) => call.providerId === locator.stopPointId;
+function findRowCallIndex(calls: readonly KvvCall[], locator: KvvJourneyLocator): number {
+  const atStop = (call: KvvCall) => call.providerId === locator.stopPointId;
   const rowCallIndex = calls.findIndex((call) => {
-    const time = call.scheduledDepartureTime ?? call.scheduledArrivalTime;
+    const time = call.timetabledDepartureTime ?? call.timetabledArrivalTime;
     if (!atStop(call) || !time) return false;
     const { date, time: minute } = formatNetworkDateAndTime(Date.parse(time));
     return date === locator.date && minute === locator.time;
@@ -278,12 +363,12 @@ function findRowCallIndex(calls: readonly KvvTripCall[], locator: KvvTripLocator
 }
 
 /** Validates the echoed journey: a failed lookup is an HTTP 200 carrying an error code. */
-export function parseTriasTrip(xml: string, locator: KvvTripLocator): KvvTrip {
-  const description = `Fahrt ${locator.tripCode}`;
+export function parseTriasTripInfo(xml: string, locator: KvvJourneyLocator): KvvTripInfo {
+  const description = `Fahrt ${locator.journeyCode}`;
   const { serverTime, response } = readDelivery(xml, description, "TripInfoResponse");
   const result = child(response, "TripInfoResult");
   const service = child(result, "Service");
-  if (!result || textAt(service, "JourneyRef") !== `${locator.line}:${locator.tripCode}`) {
+  if (!result || textAt(service, "JourneyRef") !== `${locator.lineRef}:${locator.journeyCode}`) {
     throw new KvvTriasError(`${description}: nicht gefunden`);
   }
 
@@ -293,12 +378,12 @@ export function parseTriasTrip(xml: string, locator: KvvTripLocator): KvvTrip {
   ].flatMap((element) => parseCall(element, false) ?? []);
   if (calls.length === 0) throw new KvvTriasError(`${description}: keine Halte`);
   const rowCallIndex = findRowCallIndex(calls, locator);
-  if (rowCallIndex >= 0) calls[rowCallIndex].isCurrentStop = true;
+  if (rowCallIndex >= 0) calls[rowCallIndex].isThisCall = true;
 
   const status = parseStatus(service, false);
   return {
     serverTime,
-    tripCalls: calls,
+    calls,
     status: status === "cancelled" || status === "diverted" ? status : undefined,
   };
 }

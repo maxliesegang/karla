@@ -8,21 +8,8 @@ const { DataProvenanceFooter } = await import("../src/components/DataProvenanceF
 
 const cases: [string, ComponentProps<typeof DataProvenanceFooter>][] = [
   ["home", {}],
-  ["departure board loading", { departureBoard: null }],
-  ["network loading", { departureBoards: [] }],
-  ["notices loading", { serviceNoticeBoard: null }],
-  ["notices loaded", { serviceNoticeBoard: { dataStatus: "live", receivedAt: 0, notices: [] } }],
-  [
-    "notices unavailable",
-    {
-      serviceNoticeBoard: {
-        dataStatus: "unavailable",
-        receivedAt: 0,
-        notices: [],
-        errorMessage: "nicht erreichbar",
-      },
-    },
-  ],
+  ["departure board loading", { stopEventBoard: null }],
+  ["network loading", { stopEventBoards: [] }],
 ];
 
 for (const [state, props] of cases) {

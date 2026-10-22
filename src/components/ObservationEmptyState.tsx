@@ -1,4 +1,4 @@
-import type { DepartureBoardCoverage } from "../data/transit-types";
+import type { StopEventBoardCoverage } from "../data/transit-types";
 
 /** A view's nouns for the three empty states. */
 export type ObservationEmptyStateLabels = {
@@ -15,7 +15,7 @@ export function ObservationEmptyState({
   coverage,
   labels,
 }: {
-  coverage: DepartureBoardCoverage;
+  coverage: StopEventBoardCoverage;
   labels: ObservationEmptyStateLabels;
 }) {
   return (

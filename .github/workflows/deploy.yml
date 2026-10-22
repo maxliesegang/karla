@@ -55,5 +55,5 @@ jobs:
             mirror --reverse --delete --verbose site/ ./"
       - name: Check the deployed proxy
         run: |
-          curl -fsS 'https://karla.liesegang.info/api/stop-events.php?stop=7000037&rows=1' | grep -q '<trias:StopEventResult>'
-          test "$(curl -s -o /dev/null -w '%{http_code}' https://karla.liesegang.info/lib/trias.php)" = 403
+          curl -fsS 'https://karla.app.liesegang.info/api/stop-events.php?stop=7000037&rows=1' | grep -q '<trias:StopEventResult>'
+          test "$(curl -s -o /dev/null -w '%{http_code}' https://karla.app.liesegang.info/lib/trias.php)" = 403

@@ -1,4 +1,4 @@
-import type { Departure } from "../data/transit-types";
+import type { StopEvent } from "../data/transit-types";
 
 export function formatPositionDataAge(readAt: number | undefined, now: number): string {
   if (readAt === undefined) return "Datenalter unbekannt";
@@ -8,12 +8,12 @@ export function formatPositionDataAge(readAt: number | undefined, now: number): 
 
 /** Position evidence belongs to the calls, independently of the row's prediction. */
 export function getVehiclePositionSourceLabel(
-  run: Departure,
+  datedJourney: StopEvent,
   now: number,
   fromStopId?: string,
   toStopId?: string,
 ): string {
-  const calls = run.tripCalls ?? [];
+  const calls = datedJourney.calls ?? [];
   const hasPrediction = calls.some(
     (call) => call.delayMinutes !== undefined || call.arrivalDelayMinutes !== undefined,
   );
@@ -30,7 +30,10 @@ export function getVehiclePositionSourceLabel(
     : index >= 0 && !hasStatedEndpoints
       ? "mit fortgeschriebener Prognose"
       : "nach Echtzeitprognose";
-  if (run.readAt?.sequenceRefreshFailedAt === undefined) return source;
-  const age = formatPositionDataAge(run.readAt.coverageReadAt ?? run.readAt.sequenceReadAt, now);
+  if (datedJourney.readAt?.sequenceRefreshFailedAt === undefined) return source;
+  const age = formatPositionDataAge(
+    datedJourney.readAt.coverageReadAt ?? datedJourney.readAt.sequenceReadAt,
+    now,
+  );
   return `${source} · ${age} · Aktualisierung fehlgeschlagen`;
 }

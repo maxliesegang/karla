@@ -1,89 +1,89 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createDeparture, createLine } from "./support/fixtures.ts";
-import type { Departure, TripCall } from "../src/data/transit-types.ts";
+import { createStopEvent, createLine } from "./support/fixtures.ts";
+import type { StopEvent, Call } from "../src/data/transit-types.ts";
 import {
-  getFarthestLineRun,
-  getFarthestLineRunTermini,
+  getFarthestLineDatedJourney,
+  getFarthestLineDatedJourneyTermini,
   getLineTermini,
-  findNextCompatibleDeparture,
+  findNextCompatibleStopEvent,
   findStopByName,
   hasCompatibleStopPattern,
 } from "../src/lib/stop-services.ts";
 import { transitNetwork } from "../src/data/transit-network.ts";
 
-function departure(
-  overrides: Partial<Departure> & Pick<Departure, "id" | "destination">,
-): Departure {
-  return createDeparture({
-    tripId: overrides.id,
+function stopEvent(
+  overrides: Partial<StopEvent> & Pick<StopEvent, "id" | "destinationText">,
+): StopEvent {
+  return createStopEvent({
+    journeyRef: overrides.id,
     minutesUntilDeparture: 4,
     boardingLocalStopId: "europaplatz",
-    scheduledDepartureTime: "2026-08-24T12:04:00+02:00",
+    timetabledDepartureTime: "2026-08-24T12:04:00+02:00",
     ...overrides,
   });
 }
 
-const calls = (...stopNames: string[]): TripCall[] =>
+const calls = (...stopNames: string[]): Call[] =>
   stopNames.map((stopName, index) => ({
     stopName,
     localStopId: stopName.toLowerCase(),
-    isCurrentStop: index === 0,
+    isThisCall: index === 0,
   }));
 
 test("does not read two lines of one family as the same service", () => {
-  const s1 = departure({ id: "s1", lineId: "S1", destination: "Hochstetten" });
-  const s11 = departure({ id: "s11", lineId: "S11", destination: "Hochstetten" });
+  const s1 = stopEvent({ id: "s1", lineId: "S1", destinationText: "Hochstetten" });
+  const s11 = stopEvent({ id: "s11", lineId: "S11", destinationText: "Hochstetten" });
 
   assert.equal(hasCompatibleStopPattern(s1, s11), false);
 });
 
 test("keeps two detailed patterns apart even when their destination is the same", () => {
-  const direct = departure({
+  const direct = stopEvent({
     id: "direct",
-    destination: "Durlach",
-    tripCalls: calls("Europaplatz", "Marktplatz", "Durlach"),
+    destinationText: "Durlach",
+    calls: calls("Europaplatz", "Marktplatz", "Durlach"),
   });
-  const branch = departure({
+  const branch = stopEvent({
     id: "branch",
-    destination: "Durlach",
-    tripCalls: calls("Europaplatz", "Hauptbahnhof", "Durlach"),
+    destinationText: "Durlach",
+    calls: calls("Europaplatz", "Hauptbahnhof", "Durlach"),
   });
 
   assert.equal(hasCompatibleStopPattern(direct, branch), false);
 });
 
 test("finds the following non-cancelled departure over the same observed route", () => {
-  const cancelled = departure({ id: "cancelled", destination: "Durlach", status: "cancelled" });
-  const otherDirection = departure({ id: "other", destination: "Knielingen Nord" });
-  const cancelledAgain = departure({
+  const cancelled = stopEvent({ id: "cancelled", destinationText: "Durlach", status: "cancelled" });
+  const otherDirection = stopEvent({ id: "other", destinationText: "Knielingen Nord" });
+  const cancelledAgain = stopEvent({
     id: "cancelled-again",
-    destination: "Durlach",
+    destinationText: "Durlach",
     status: "cancelled",
   });
-  const replacement = departure({
+  const replacement = stopEvent({
     id: "replacement",
-    destination: "Durlach",
+    destinationText: "Durlach",
     minutesUntilDeparture: 14,
   });
 
   assert.equal(
-    findNextCompatibleDeparture([cancelled, otherDirection, cancelledAgain, replacement], cancelled)
+    findNextCompatibleStopEvent([cancelled, otherDirection, cancelledAgain, replacement], cancelled)
       ?.id,
     "replacement",
   );
 });
 
 test("names a whole line by the farthest observed run instead of the drawn short working", () => {
-  const short = departure({
+  const short = stopEvent({
     id: "short",
-    destination: "D",
-    tripCalls: calls("B", "C", "D"),
+    destinationText: "D",
+    calls: calls("B", "C", "D"),
   });
-  const full = departure({
+  const full = stopEvent({
     id: "full",
-    destination: "A",
-    tripCalls: calls("D", "C", "B", "A"),
+    destinationText: "A",
+    calls: calls("D", "C", "B", "A"),
   });
   const line = createLine({
     id: "2",
@@ -91,18 +91,18 @@ test("names a whole line by the farthest observed run instead of the drawn short
   });
 
   // Displayed destination-first (D, C, B), though the full run was observed the other way.
-  assert.deepEqual(getFarthestLineRun(line, [short, full], [...short.tripCalls!].reverse()), {
+  assert.deepEqual(getFarthestLineDatedJourney(line, [short, full], [...short.calls!].reverse()), {
     firstTerminus: "D",
     lastTerminus: "A",
-    calls: full.tripCalls,
+    calls: full.calls,
   });
 });
 
 test("a run observed heading the diagram's own way comes back in the diagram's order", () => {
-  const towardDiagram = departure({
+  const towardDiagram = stopEvent({
     id: "toward",
-    destination: "D",
-    tripCalls: calls("A", "B", "C", "D"),
+    destinationText: "D",
+    calls: calls("A", "B", "C", "D"),
   });
   const line = createLine({
     id: "2",
@@ -111,18 +111,18 @@ test("a run observed heading the diagram's own way comes back in the diagram's o
   const drawn = calls("D", "C", "B");
 
   // The farthest run ends at the diagram's top row, so its calls come back reversed.
-  assert.deepEqual(getFarthestLineRun(line, [towardDiagram], drawn), {
+  assert.deepEqual(getFarthestLineDatedJourney(line, [towardDiagram], drawn), {
     firstTerminus: "D",
     lastTerminus: "A",
-    calls: [...towardDiagram.tripCalls!].reverse(),
+    calls: [...towardDiagram.calls!].reverse(),
   });
 });
 
 test("qualifies a bare terminus name with the district it belongs to", () => {
-  const lineTwo = departure({
+  const lineTwo = stopEvent({
     id: "line-two",
-    destination: "Knielingen Nord",
-    tripCalls: [
+    destinationText: "Knielingen Nord",
+    calls: [
       { stopName: "Rheinhafen", localStopId: "rheinhafen", placeName: "Karlsruhe" },
       { stopName: "Feierabendweg", localStopId: "feierabendweg", placeName: "Karlsruhe" },
       { stopName: "Nord", localStopId: "knielingen-nord", placeName: "Knielingen" },
@@ -133,10 +133,10 @@ test("qualifies a bare terminus name with the district it belongs to", () => {
     destinations: ["Rheinhafen", "Knielingen Nord"],
   });
 
-  assert.deepEqual(getFarthestLineRun(line, [lineTwo], [...lineTwo.tripCalls!].reverse()), {
+  assert.deepEqual(getFarthestLineDatedJourney(line, [lineTwo], [...lineTwo.calls!].reverse()), {
     firstTerminus: "Knielingen Nord",
     lastTerminus: "Rheinhafen",
-    calls: [...lineTwo.tripCalls!].reverse(),
+    calls: [...lineTwo.calls!].reverse(),
   });
 });
 
@@ -146,7 +146,7 @@ test("falls back to the line's observed destinations until a complete run is in 
     destinations: ["Durlach", "Knielingen Nord", "Rheinstetten"],
   });
 
-  assert.deepEqual(getFarthestLineRun(line, [], []), {
+  assert.deepEqual(getFarthestLineDatedJourney(line, [], []), {
     firstTerminus: "Durlach",
     lastTerminus: "Knielingen Nord",
     calls: undefined,
@@ -155,22 +155,22 @@ test("falls back to the line's observed destinations until a complete run is in 
 
 test("reads a line's extent off the farthest run observed for it", () => {
   // Destinations follow the signs' short workings, naming less than the one whole run seen.
-  const short = departure({
+  const short = stopEvent({
     id: "short",
-    destination: "Rheinhafen über Kühler Krug",
-    tripCalls: calls("Kühler Krug", "Rheinhafen"),
+    destinationText: "Rheinhafen über Kühler Krug",
+    calls: calls("Kühler Krug", "Rheinhafen"),
   });
-  const full = departure({
+  const full = stopEvent({
     id: "full",
-    destination: "Rheinhafen",
-    tripCalls: [
+    destinationText: "Rheinhafen",
+    calls: [
       { stopName: "Nord", localStopId: "knielingen-nord", placeName: "Knielingen" },
       { stopName: "Feierabendweg", localStopId: "feierabendweg", placeName: "Karlsruhe" },
       { stopName: "Rheinhafen", localStopId: "rheinhafen", placeName: "Karlsruhe" },
     ],
   });
 
-  assert.deepEqual(getFarthestLineRunTermini("2", [short, full]), [
+  assert.deepEqual(getFarthestLineDatedJourneyTermini("2", [short, full]), [
     "Knielingen Nord",
     "Rheinhafen",
   ]);
@@ -178,19 +178,19 @@ test("reads a line's extent off the farthest run observed for it", () => {
   const observedLine = createLine({
     id: "2",
     destinations: ["Knielingen Nord", "Rheinhafen über Kühler Krug"],
-    farthestRunTermini: getFarthestLineRunTermini("2", [short, full]),
+    farthestDatedJourneyTermini: getFarthestLineDatedJourneyTermini("2", [short, full]),
   });
   assert.deepEqual(getLineTermini(observedLine), ["Knielingen Nord", "Rheinhafen"]);
 });
 
 test("a run that turns on itself names one place and no extent", () => {
-  const loop = departure({
+  const loop = stopEvent({
     id: "loop",
-    destination: "Stupferich",
-    tripCalls: calls("Turmberg", "Dürrbachstraße", "Rathaus", "Turmberg"),
+    destinationText: "Stupferich",
+    calls: calls("Turmberg", "Dürrbachstraße", "Rathaus", "Turmberg"),
   });
 
-  assert.equal(getFarthestLineRunTermini("23", [loop]), undefined);
+  assert.equal(getFarthestLineDatedJourneyTermini("23", [loop]), undefined);
   // The destinations still say which place the loop serves.
   assert.deepEqual(
     getLineTermini(
@@ -204,7 +204,7 @@ test("a run that turns on itself names one place and no extent", () => {
 });
 
 test("no run observed far enough leaves the extent to the destinations", () => {
-  assert.equal(getFarthestLineRunTermini("2", []), undefined);
+  assert.equal(getFarthestLineDatedJourneyTermini("2", []), undefined);
 });
 
 /**

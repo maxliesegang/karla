@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { KvvEfaClient } from "../src/data/kvv-efa-client.ts";
-import { parseDepartureBoardResponse } from "../src/data/kvv-efa-parsers.ts";
+import { parseStopEventBoardResponse } from "../src/data/kvv-efa-parsers.ts";
 
 function boardPayload() {
   return {
@@ -38,19 +38,19 @@ function boardPayload() {
 }
 
 test("a board keeps the local network and leaves long-distance rail and coaches out", () => {
-  const board = parseDepartureBoardResponse(boardPayload(), "7000090");
+  const board = parseStopEventBoardResponse(boardPayload(), "7000090");
 
   assert.deepEqual(
-    board.departures.map((departure) => departure.lineId),
+    board.stopEvents.map((stopEvent) => stopEvent.lineId),
     ["3", "SEV"],
   );
 });
 
 test("long-distance serving directions are not recorded as directions to go and read", () => {
-  const board = parseDepartureBoardResponse(boardPayload(), "7000090");
+  const board = parseStopEventBoardResponse(boardPayload(), "7000090");
 
   assert.deepEqual(board.servingLines, [
-    { lineId: "3", directionId: "kvv:21003:E:H:s26", transportMode: "tram" },
+    { lineId: "3", lineRef: "kvv:21003:E:H:s26", ptMode: "tram" },
   ]);
 });
 
@@ -109,24 +109,24 @@ function railBoardPayload() {
 test("a board keeps the operator's own S-Bahn and leaves the DB-pooled rail and its replacement out", () => {
   // The S6 shares the Stadtbahn's motType 1 and rail replacement the buses' 6; only the pool
   // decides.
-  const board = parseDepartureBoardResponse(railBoardPayload(), "7000090");
+  const board = parseStopEventBoardResponse(railBoardPayload(), "7000090");
 
   assert.deepEqual(
-    board.departures.map((departure) => departure.lineId),
+    board.stopEvents.map((stopEvent) => stopEvent.lineId),
     ["S4"],
   );
 });
 
 test("DB-pooled serving directions are not recorded as directions to go and read", () => {
-  const board = parseDepartureBoardResponse(railBoardPayload(), "7000090");
+  const board = parseStopEventBoardResponse(railBoardPayload(), "7000090");
 
   assert.deepEqual(board.servingLines, [
-    { lineId: "S4", directionId: "kvv:22304:E:H:s26", transportMode: "lightRail" },
+    { lineId: "S4", lineRef: "kvv:22304:E:H:s26", ptMode: "lightRail" },
   ]);
 });
 
 test("a rail line that states no pool is unknown, not foreign", () => {
-  const board = parseDepartureBoardResponse(
+  const board = parseStopEventBoardResponse(
     {
       parameters: [{ name: "serverTime", value: "2026-09-05T09:00:00" }],
       departureList: [
@@ -141,7 +141,7 @@ test("a rail line that states no pool is unknown, not foreign", () => {
   );
 
   assert.deepEqual(
-    board.departures.map((departure) => departure.lineId),
+    board.stopEvents.map((stopEvent) => stopEvent.lineId),
     ["S2"],
   );
 });
@@ -149,7 +149,7 @@ test("a rail line that states no pool is unknown, not foreign", () => {
 test("the departure monitor asks for tram, Stadtbahn and bus only", async () => {
   let requestedUrl: URL | undefined;
   const client = new KvvEfaClient({
-    departureEndpoint: "https://example.test/XSLT_DM_REQUEST",
+    stopEventEndpoint: "https://example.test/XSLT_DM_REQUEST",
     fetchFn: async (input) => {
       requestedUrl = new URL(String(input));
       return new Response(
@@ -165,7 +165,7 @@ test("the departure monitor asks for tram, Stadtbahn and bus only", async () => 
     },
   });
 
-  await client.fetchDepartureBoard("7000090");
+  await client.fetchStopEventBoard("7000090");
 
   const parameters = requestedUrl?.searchParams;
   assert.equal(parameters?.get("includedMeans"), "checkbox");
@@ -180,7 +180,7 @@ test("the row cap is sent under both names the endpoint knows", async () => {
   // `limit` only applies before the mode macros; `depSequence` holds either way, so both are sent.
   let requestedUrl: URL | undefined;
   const client = new KvvEfaClient({
-    departureEndpoint: "https://example.test/XSLT_DM_REQUEST",
+    stopEventEndpoint: "https://example.test/XSLT_DM_REQUEST",
     fetchFn: async (input) => {
       requestedUrl = new URL(String(input));
       return new Response(
@@ -196,13 +196,13 @@ test("the row cap is sent under both names the endpoint knows", async () => {
     },
   });
 
-  await client.fetchDepartureBoard("7000090", { limit: 6 });
+  await client.fetchStopEventBoard("7000090", { limit: 6 });
 
   assert.equal(requestedUrl?.searchParams.get("depSequence"), "6");
   assert.equal(requestedUrl?.searchParams.get("limit"), "6");
 
   // A cap of one returns nothing, so it is never asked.
-  await client.fetchDepartureBoard("7000090", { limit: 1 });
+  await client.fetchStopEventBoard("7000090", { limit: 1 });
   assert.equal(requestedUrl?.searchParams.get("depSequence"), "2");
 });
 
@@ -211,7 +211,7 @@ test("a board asked for named line-directions is not asked for the mode macros a
   // and return every row's sequence.
   let requestedUrl: URL | undefined;
   const client = new KvvEfaClient({
-    departureEndpoint: "https://example.test/XSLT_DM_REQUEST",
+    stopEventEndpoint: "https://example.test/XSLT_DM_REQUEST",
     fetchFn: async (input) => {
       requestedUrl = new URL(String(input));
       return new Response(
@@ -227,7 +227,7 @@ test("a board asked for named line-directions is not asked for the mode macros a
     },
   });
 
-  await client.fetchDepartureBoard("7000090", { lineIds: ["kvv:21012:E:H:s26"] });
+  await client.fetchStopEventBoard("7000090", { lineIds: ["kvv:21012:E:H:s26"] });
 
   assert.equal(requestedUrl?.searchParams.get("std3_commonMacro"), null);
   assert.equal(requestedUrl?.searchParams.get("includedMeans"), null);
@@ -238,9 +238,9 @@ test("a board asked for named line-directions is not asked for the mode macros a
 
 test("a stop names each line-direction it knows under the line's own name", () => {
   // Direction ids are opaque; the stop's pairing names their line.
-  const board = parseDepartureBoardResponse(boardPayload(), "7000090");
+  const board = parseStopEventBoardResponse(boardPayload(), "7000090");
 
   assert.deepEqual(board.servingLines, [
-    { lineId: "3", directionId: "kvv:21003:E:H:s26", transportMode: "tram" },
+    { lineId: "3", lineRef: "kvv:21003:E:H:s26", ptMode: "tram" },
   ]);
 });

@@ -1,8 +1,8 @@
 import { useRef } from "react";
 import type {
-  DepartureBoardCoverage,
+  StopEventBoardCoverage,
   TransitLine,
-  TransportMode,
+  PtMode,
   TransitNetwork,
 } from "../data/transit-types";
 import { navigateTo, routePaths } from "../routing";
@@ -14,9 +14,9 @@ import { SegmentedControl, type SegmentedControlItem } from "./SegmentedControl"
 import { useNetworkBandNavigation } from "../hooks/network-band-navigation";
 
 /** Group order: trams, Stadtbahn, then buses. */
-const NETWORK_GROUP_ORDER: readonly TransportMode[] = ["tram", "lightRail", "bus", "other"];
+const NETWORK_GROUP_ORDER: readonly PtMode[] = ["tram", "lightRail", "bus", "other"];
 
-const networkGroupLabels: Record<TransportMode, string> = {
+const networkGroupLabels: Record<PtMode, string> = {
   tram: "Straßenbahn",
   bus: "Bus",
   lightRail: "Stadtbahn",
@@ -24,19 +24,19 @@ const networkGroupLabels: Record<TransportMode, string> = {
 };
 
 /** The lines of one mode, in the order the whole list already carries. */
-type NetworkLineGroup = { transportMode: TransportMode; lines: readonly TransitLine[] };
+type NetworkLineGroup = { ptMode: PtMode; lines: readonly TransitLine[] };
 
-function groupLinesByTransportMode(lines: readonly TransitLine[]): readonly NetworkLineGroup[] {
-  const linesByMode = new Map<TransportMode, TransitLine[]>();
+function groupLinesByPtMode(lines: readonly TransitLine[]): readonly NetworkLineGroup[] {
+  const linesByMode = new Map<PtMode, TransitLine[]>();
   for (const line of lines) {
-    const mode = line.transportMode ?? "other";
+    const mode = line.ptMode ?? "other";
     const groupLines = linesByMode.get(mode) ?? [];
     groupLines.push(line);
     linesByMode.set(mode, groupLines);
   }
-  return NETWORK_GROUP_ORDER.filter((mode) => linesByMode.has(mode)).map((transportMode) => ({
-    transportMode,
-    lines: linesByMode.get(transportMode)!,
+  return NETWORK_GROUP_ORDER.filter((mode) => linesByMode.has(mode)).map((ptMode) => ({
+    ptMode,
+    lines: linesByMode.get(ptMode)!,
   }));
 }
 
@@ -53,10 +53,10 @@ export function NetworkView({
   isStacked,
 }: {
   network: TransitNetwork;
-  coverage: DepartureBoardCoverage;
+  coverage: StopEventBoardCoverage;
   isStacked: boolean;
 }) {
-  const groups = groupLinesByTransportMode(getGroupedLines(network.lines));
+  const groups = groupLinesByPtMode(getGroupedLines(network.lines));
   // The mode bands as navigation, not a filter.
   const linesRef = useRef<HTMLDivElement>(null);
   const { activeBandId, getBandRef, scrollToBand } = useNetworkBandNavigation(linesRef, {
@@ -64,9 +64,9 @@ export function NetworkView({
     isPageScrollport: isStacked,
   });
   const bandItems = groups.map((group) => ({
-    value: group.transportMode,
-    label: networkGroupLabels[group.transportMode],
-  })) satisfies readonly SegmentedControlItem<TransportMode>[];
+    value: group.ptMode,
+    label: networkGroupLabels[group.ptMode],
+  })) satisfies readonly SegmentedControlItem<PtMode>[];
 
   return (
     <div className="network-view">
@@ -79,7 +79,7 @@ export function NetworkView({
         <SegmentedControl
           className="network-band-navigation"
           isNavigation
-          value={activeBandId ?? groups[0].transportMode}
+          value={activeBandId ?? groups[0].ptMode}
           items={bandItems}
           ariaLabel="Verkehrsmittel"
           onValueChange={scrollToBand}
@@ -92,12 +92,12 @@ export function NetworkView({
           {groups.map((group) => (
             <section
               className="network-line-group"
-              key={group.transportMode}
-              ref={getBandRef(group.transportMode)}
+              key={group.ptMode}
+              ref={getBandRef(group.ptMode)}
             >
               {/* The count shows the group is the whole mode. */}
               <h2 className="network-group-heading">
-                <span>{networkGroupLabels[group.transportMode]}</span>
+                <span>{networkGroupLabels[group.ptMode]}</span>
                 <small>{group.lines.length}</small>
               </h2>
               <div className="network-group-lines">

@@ -1,6 +1,6 @@
 /**
  * The operator's words for running off the published route, shared by the parser (which lifts these
- * remarks into notes) and corridor grouping (which never learns a route from such a trip).
+ * remarks into notes) and corridor grouping (which never learns a route from such a journey).
  */
 
 /** The words as one regex alternation; `SEV` gets word boundaries, being short. */

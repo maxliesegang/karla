@@ -566,8 +566,8 @@ const getStopLineCrossing = (
 };
 
 /**
- * A pattern's stroke across one stop from the first capsule it crosses to the last, which a run
- * calling at both places in turn rides between its two calls.
+ * A pattern's stroke across one stop from the first capsule it crosses to the last, which a dated
+ * journey calling at both places in turn rides between its two calls.
  */
 export type ZentrumSchematicStopStretch = {
   nodeId: string;
@@ -585,7 +585,7 @@ export const getZentrumSchematicStopStretchKey = (
   otherSideNodeId: string,
 ): string => `${nodeId}\u0001${getEdgeKey(sideNodeId, otherSideNodeId)}`;
 
-/** A stop stretch, read in the direction of a run arriving from `fromNodeId`. */
+/** A stop stretch, read in the direction of a dated journey arriving from `fromNodeId`. */
 export const orientZentrumSchematicStopStretch = (
   stretch: ZentrumSchematicStopStretch,
   fromNodeId: string,
@@ -763,7 +763,7 @@ export function trimZentrumSchematicCorridorPath(
   return steps ? { ...path, points, steps } : path;
 }
 
-/** Each point's share of the run's length; undefined for no length. */
+/** Each point's share of the path's length; undefined for no length. */
 export const getZentrumSchematicPathSteps = (
   points: readonly SchematicPoint[],
 ): readonly number[] | undefined => {
@@ -789,7 +789,7 @@ export const reverseZentrumSchematicCorridorPath = (
   steps: path.steps.map((step) => 1 - step).reverse(),
 });
 
-/** A corridor's vehicle path, read from the stop a run leaves it by. */
+/** A corridor's vehicle path, read from the stop a dated journey leaves it by. */
 export const orientZentrumSchematicCorridorPath = (
   path: ZentrumSchematicCorridorPath,
   fromNodeId: string,
@@ -797,8 +797,8 @@ export const orientZentrumSchematicCorridorPath = (
   path.fromNodeId === fromNodeId ? path : reverseZentrumSchematicCorridorPath(path);
 
 /**
- * Trip-ordered vehicle paths joined into one stretch, dropping the point each shares with the one
- * before. Undefined where they add up to no length.
+ * Journey-ordered vehicle paths joined into one stretch, dropping the point each shares with the
+ * one before. Undefined where they add up to no length.
  */
 export function joinZentrumSchematicCorridorPaths(
   paths: readonly ZentrumSchematicCorridorPath[],

@@ -127,8 +127,8 @@ export function SettingsView() {
           nicht für die Inhalte dieser App.
         </p>
         <p>
-          Abfahrten, Meldungen und Haltestellen stammen aus der elektronischen Fahrplanauskunft des
-          KVV, Linien und Linienfarben aus seinen{" "}
+          Abfahrten und Haltestellen stammen aus der elektronischen Fahrplanauskunft des KVV, Linien
+          und Linienfarben aus seinen{" "}
           <a
             href="https://www.kvv.de/fahrplan/fahrplaene/open-data.html"
             target="_blank"

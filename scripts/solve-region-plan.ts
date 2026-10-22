@@ -15,7 +15,7 @@ import { findCatalogStop } from "../src/data/generated/kvv-stop-catalog.ts";
 import { KvvEfaClient } from "../src/data/kvv-efa-client.ts";
 import { kvvStopMappingByLocalStopId } from "../src/data/kvv-stop-mappings.ts";
 import { StopRegistry } from "../src/data/stop-registry.ts";
-import type { Departure } from "../src/data/transit-types.ts";
+import type { StopEvent } from "../src/data/transit-types.ts";
 import { runsEveryDay } from "../src/lib/daily-lines.ts";
 import { createGeoNetworkReader, type GeoNetwork, type GeoStop } from "../src/lib/geo-map.ts";
 import {
@@ -38,7 +38,7 @@ import {
   type RegionScaleName,
 } from "../src/lib/region-plan.ts";
 import {
-  isRailDeparture,
+  isRailStopEvent,
   ZENTRUM_SCHEMATIC_GRID,
   ZENTRUM_SCHEMATIC_NODES,
 } from "../src/lib/zentrum-schematic-plan.ts";
@@ -82,30 +82,33 @@ const readOption = (flag: string): string | undefined => {
   return index < 0 ? undefined : process.argv[index + 1];
 };
 
-/** The posts' boards, read as the app reads them: rail runs with their whole calling sequence. */
+/**
+ * The posts' boards, read as the app reads them: rail dated journeys with their whole calling
+ * sequence.
+ */
 async function observe(): Promise<GeoNetwork> {
   const registry = new StopRegistry([]);
   const client = new KvvEfaClient();
-  const departures: Departure[] = [];
+  const stopEvents: StopEvent[] = [];
   for (const stopId of [...ZENTRUM_OBSERVATION_POST_STOP_IDS, ...REACH_OBSERVATION_POST_STOP_IDS]) {
     const mapping = kvvStopMappingByLocalStopId[stopId];
     if (!mapping) continue;
     try {
-      const board = await client.fetchDepartureBoard(mapping.providerStopId, {
+      const board = await client.fetchStopEventBoard(mapping.providerStopId, {
         limit: 60,
-        includeTripCalls: true,
+        includeCalls: true,
       });
-      for (const departure of board.departures) {
-        const row: Departure = {
-          ...departure,
-          id: departure.tripInstanceId ?? departure.tripId ?? departure.lineId,
+      for (const stopEvent of board.stopEvents) {
+        const row: StopEvent = {
+          ...stopEvent,
+          id: stopEvent.datedJourneyId ?? stopEvent.journeyRef ?? stopEvent.lineId,
           boardingLocalStopId: stopId,
-          boardingProviderStopPointId: departure.stopPointId,
-          boardingProviderStopPointName: departure.stopPointName,
-          platformCode: departure.platformCode ?? "",
-          tripCalls: registry.toTripCalls(departure.tripCalls ?? []),
+          boardingProviderStopPointId: stopEvent.stopPointId,
+          boardingProviderStopPointName: stopEvent.stopPointName,
+          bay: stopEvent.bay ?? "",
+          calls: registry.toCalls(stopEvent.calls ?? []),
         };
-        if (isRailDeparture(row)) departures.push(row);
+        if (isRailStopEvent(row)) stopEvents.push(row);
       }
     } catch (error) {
       console.error(`! ${stopId} did not answer: ${(error as Error).message}`);
@@ -115,7 +118,7 @@ async function observe(): Promise<GeoNetwork> {
     const stop = call.providerStopPointId ? findCatalogStop(call.providerStopPointId) : undefined;
     return stop && { latitude: stop.latitude, longitude: stop.longitude };
   });
-  return read(departures);
+  return read(stopEvents);
 }
 
 const toSaved = (network: GeoNetwork, capturedAt: string[]): SavedNetwork => ({

@@ -13,7 +13,7 @@ import { getVehicleLeftOffset, type VehicleLayerGeometry } from "./layout";
  * The marks, in one layer over the stop list. Animation is `useVehicleTrajectoryAnimations`; this
  * layer supplies coordinates that follow the rows, and re-measures (without carrying paint) when
  * the rows move, as they do when a pinned terminus grows a strip. Whether a mark travelled or was
- * placed comes from `RunPlacement.motion`, never from watching coordinates.
+ * placed comes from `DatedJourneyPlacement.motion`, never from watching coordinates.
  *
  * Pointing at (or tapping) a mark opens it into a chip naming its destination, one at a time. The
  * layer is hidden from assistive technology; stop rows already name their vehicles.
@@ -141,8 +141,8 @@ function LineDiagramVehicleLayerView({
     <div ref={layerRef} className="line-diagram-vehicle-layer" aria-hidden="true">
       {drawnMarks.map(({ vehicle, topOffset: vehicleTopOffset }) => {
         const {
-          departure,
-          joinedDepartures,
+          stopEvent,
+          joinedStopEvents,
           markerKey,
           directionArrow,
           destinationLabel,
@@ -151,7 +151,7 @@ function LineDiagramVehicleLayerView({
           progress,
           phase,
           motion,
-          isOtherRun,
+          isOtherDatedJourney,
           isSelected,
         } = vehicle;
         // Base offsets and lane step are CSS (wide panels fit labelled pills, narrow ones compact
@@ -160,12 +160,12 @@ function LineDiagramVehicleLayerView({
         const transform =
           getVehicleTransform(vehicle) ??
           `translate3d(${getVehicleLeftOffset(geometry.trackLeft, vehicle.laneIndex, vehicle.directionArrow)}, ${vehicleTopOffset}px, 0) translate(calc(0px - var(--line-diagram-vehicle-anchor)), -50%)`;
-        const markerLine = lineById.get(departure.lineId);
+        const markerLine = lineById.get(stopEvent.lineId);
         const debugLabel = SHOW_VEHICLE_DEBUG_LABEL
           ? getVehicleDebugLabel({ rowIndex, toIndex, progress, phase, motion }, stopNames)
           : undefined;
         const sourceLabel = getVehiclePositionSourceLabel(
-          departure,
+          stopEvent,
           readingNow,
           vehicle.fromStopId,
           vehicle.toStopId,
@@ -180,7 +180,7 @@ function LineDiagramVehicleLayerView({
             className={classNames(
               "line-diagram-vehicle",
               `direction-${directionArrow === "↓" ? "down" : "up"}`,
-              isOtherRun && "other-run",
+              isOtherDatedJourney && "other-run",
               phase !== "running" && "standing",
               openMarkerKey === markerKey && "open",
               isSelected && "selected",
@@ -203,9 +203,9 @@ function LineDiagramVehicleLayerView({
               } as CSSProperties
             }
           >
-            <span>{departure.lineId}</span>
-            {joinedDepartures.length > 1 && (
-              <small className="line-diagram-vehicle-portions">{joinedDepartures.length}</small>
+            <span>{stopEvent.lineId}</span>
+            {joinedStopEvents.length > 1 && (
+              <small className="line-diagram-vehicle-portions">{joinedStopEvents.length}</small>
             )}
             {phase === "beforeStart" ? (
               <svg className="line-diagram-vehicle-pause" viewBox="0 0 12 12" aria-hidden="true">

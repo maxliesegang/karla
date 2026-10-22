@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { findCatalogStop, kvvStopCatalog } from "../../data/generated/kvv-stop-catalog";
-import type { DepartureBoard, DepartureBoardCoverage, TripCall } from "../../data/transit-types";
+import type { StopEventBoard, StopEventBoardCoverage, Call } from "../../data/transit-types";
 import { useDailyZentrumVehicles } from "../../hooks/zentrum-vehicles";
 import { getDirectTravelTimes } from "../../lib/direct-travel-times";
 import {
@@ -26,7 +26,7 @@ const geoEmptyLabels = {
 };
 
 /** A board's own call comes unlocated; the operator's catalog knows the city's stops. */
-const locateCatalogStop = (call: TripCall) => {
+const locateCatalogStop = (call: Call) => {
   const stop = call.providerStopPointId ? findCatalogStop(call.providerStopPointId) : undefined;
   return stop && { latitude: stop.latitude, longitude: stop.longitude };
 };
@@ -44,27 +44,31 @@ const GEO_MAP_SCALE = {
 };
 
 /**
- * The geographic map: the stops the Zentrum's posts see runs call, at their real positions, to the
- * runs' ends. An opened stop lights its direct rides with minutes to arrival.
+ * The geographic map: the stops the Zentrum's posts see dated journeys call, at their real
+ * positions, to the dated journeys' ends. An opened stop lights its direct rides with minutes to
+ * arrival.
  */
 export function GeoMapView({
   network,
   coverage,
-  departureBoards,
+  stopEventBoards,
   selectedStopId,
   isFullscreen,
 }: {
   network: ObservedNetwork;
-  coverage: DepartureBoardCoverage;
-  departureBoards: readonly DepartureBoard[];
+  coverage: StopEventBoardCoverage;
+  stopEventBoards: readonly StopEventBoard[];
   /** The opened stop, as the address names it. */
   selectedStopId?: string;
   isFullscreen: boolean;
 }) {
-  // The Zentrum's runs on daily lines: the same readings, drawn another way.
-  const { runDepartures, feedNow } = useDailyZentrumVehicles(departureBoards);
+  // The Zentrum's dated journeys on daily lines: the same readings, drawn another way.
+  const { datedJourneyStopEvents, feedNow } = useDailyZentrumVehicles(stopEventBoards);
   const [readNetwork] = useState(() => createGeoNetworkReader(locateCatalogStop));
-  const geo = useMemo(() => readNetwork(runDepartures), [readNetwork, runDepartures]);
+  const geo = useMemo(
+    () => readNetwork(datedJourneyStopEvents),
+    [readNetwork, datedJourneyStopEvents],
+  );
   const drawing = useMemo(() => toGeoDrawing(geo), [geo]);
   const places = useMemo(
     () => getGeoPlaces(geo).map((place) => ({ name: place.name, ...projectGeoPosition(place) })),
@@ -76,9 +80,15 @@ export function GeoMapView({
   const times = useMemo(
     () =>
       openedStopId
-        ? getDirectTravelTimes(runDepartures, openedStopId, feedNow, "arrival", getGeoStopId)
+        ? getDirectTravelTimes(
+            datedJourneyStopEvents,
+            openedStopId,
+            feedNow,
+            "arrival",
+            getGeoStopId,
+          )
         : undefined,
-    [openedStopId, runDepartures, feedNow],
+    [openedStopId, datedJourneyStopEvents, feedNow],
   );
 
   if (network.stops.length === 0) {

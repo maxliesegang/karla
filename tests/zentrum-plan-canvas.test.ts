@@ -8,7 +8,7 @@ import {
   getZentrumVehicleTransform,
   toZentrumCanvasLeft,
   toZentrumCanvasTop,
-  toZentrumCanvasRun,
+  toZentrumCanvasDatedJourney,
   ZENTRUM_MAXIMUM_ZOOM,
   ZENTRUM_MINIMUM_ZOOM,
   ZENTRUM_PORTRAIT_FRAME,
@@ -124,7 +124,7 @@ test("a vehicle transform is anchored to the canvas origin, not the ride's first
 
   assert.equal(
     getZentrumVehicleTransform(ride, progress),
-    `translate3d(${toZentrumCanvasRun(x - ZENTRUM_SCHEMATIC_VIEWBOX.x)}, ${toZentrumCanvasRun(y - ZENTRUM_SCHEMATIC_VIEWBOX.y)}, 0) translate(-50%, -50%)`,
+    `translate3d(${toZentrumCanvasDatedJourney(x - ZENTRUM_SCHEMATIC_VIEWBOX.x)}, ${toZentrumCanvasDatedJourney(y - ZENTRUM_SCHEMATIC_VIEWBOX.y)}, 0) translate(-50%, -50%)`,
   );
 });
 

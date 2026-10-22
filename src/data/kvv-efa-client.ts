@@ -1,25 +1,26 @@
 import {
   KvvEfaError,
   formatNetworkCalendarDay,
-  parseDepartureBoardResponse,
+  parseStopEventBoardResponse,
   parseLineRouteResponse,
   parseServiceNoticeResponse,
+  type KvvServiceNotice,
   parseStopSearchResponse,
-  parseTripResponse,
+  parseTripInfoResponse,
 } from "./kvv-efa-parsers";
 import type {
-  KvvDepartureBoard,
-  KvvDepartureBoardOptions,
+  KvvStopEventBoard,
+  KvvStopEventBoardOptions,
   KvvFeed,
-  KvvServiceNotice,
   KvvStopSearchResult,
-  KvvTrip,
-  KvvTripCall,
-  KvvTripLocator,
+  KvvTripInfo,
+  KvvCall,
+  KvvJourneyLocator,
 } from "./kvv-feed";
 
-const DEFAULT_DEPARTURE_ENDPOINT = "https://projekte.kvv-efa.de/sl3-alone/XSLT_DM_REQUEST";
-const DEFAULT_TRIP_ENDPOINT = "https://projekte.kvv-efa.de/sl3-alone/XML_TRIPSTOPTIMES_REQUEST";
+const DEFAULT_STOP_EVENT_ENDPOINT = "https://projekte.kvv-efa.de/sl3-alone/XSLT_DM_REQUEST";
+const DEFAULT_TRIP_INFO_ENDPOINT =
+  "https://projekte.kvv-efa.de/sl3-alone/XML_TRIPSTOPTIMES_REQUEST";
 /** A line's whole route, which no board states (`docs/kvv-efa-api.md`). */
 const DEFAULT_LINE_ROUTE_ENDPOINT =
   "https://projekte.kvv-efa.de/sl3-alone/XML_STOPSEQCOORD_REQUEST";
@@ -29,7 +30,7 @@ const DEFAULT_STOP_SEARCH_ENDPOINT =
 const DEFAULT_SERVICE_NOTICE_ENDPOINT =
   "https://projekte.kvv-efa.de/sl3-alone/XSLT_ADDINFO_REQUEST";
 const DEFAULT_TIMEOUT_MS = 20_000;
-const DEFAULT_DEPARTURE_LIMIT = 20;
+const DEFAULT_STOP_EVENT_LIMIT = 20;
 /** Longitude,latitude instead of the feed's projected grid. */
 const WGS84_COORDINATE_FORMAT = "WGS84[DD.ddddd]";
 
@@ -53,8 +54,8 @@ const LOCAL_NETWORK_MODE_PARAMETERS = {
 } as const;
 
 export type KvvEfaClientOptions = {
-  departureEndpoint?: string;
-  tripEndpoint?: string;
+  stopEventEndpoint?: string;
+  tripInfoEndpoint?: string;
   lineRouteEndpoint?: string;
   stopSearchEndpoint?: string;
   serviceNoticeEndpoint?: string;
@@ -68,16 +69,16 @@ export type KvvEfaClientOptions = {
  * sent, to avoid a preflight. Parsing lives in `kvv-efa-parsers.ts`.
  */
 export class KvvEfaClient implements KvvFeed {
-  private readonly departureEndpoint: string;
-  private readonly tripEndpoint: string;
+  private readonly stopEventEndpoint: string;
+  private readonly tripInfoEndpoint: string;
   private readonly lineRouteEndpoint: string;
   private readonly stopSearchEndpoint: string;
   private readonly serviceNoticeEndpoint: string;
   private readonly timeoutMs: number;
   private readonly fetchFn: typeof fetch;
   constructor(options: KvvEfaClientOptions = {}) {
-    this.departureEndpoint = options.departureEndpoint ?? DEFAULT_DEPARTURE_ENDPOINT;
-    this.tripEndpoint = options.tripEndpoint ?? DEFAULT_TRIP_ENDPOINT;
+    this.stopEventEndpoint = options.stopEventEndpoint ?? DEFAULT_STOP_EVENT_ENDPOINT;
+    this.tripInfoEndpoint = options.tripInfoEndpoint ?? DEFAULT_TRIP_INFO_ENDPOINT;
     this.lineRouteEndpoint = options.lineRouteEndpoint ?? DEFAULT_LINE_ROUTE_ENDPOINT;
     this.stopSearchEndpoint = options.stopSearchEndpoint ?? DEFAULT_STOP_SEARCH_ENDPOINT;
     this.serviceNoticeEndpoint = options.serviceNoticeEndpoint ?? DEFAULT_SERVICE_NOTICE_ENDPOINT;
@@ -85,11 +86,11 @@ export class KvvEfaClient implements KvvFeed {
     this.fetchFn = options.fetchFn ?? globalThis.fetch.bind(globalThis);
   }
 
-  async fetchDepartureBoard(
+  async fetchStopEventBoard(
     stopPointId: string,
-    options: KvvDepartureBoardOptions = {},
-  ): Promise<KvvDepartureBoard> {
-    const payload = await this.requestJson(this.departureEndpoint, `Abfahrtstafel ${stopPointId}`, {
+    options: KvvStopEventBoardOptions = {},
+  ): Promise<KvvStopEventBoard> {
+    const payload = await this.requestJson(this.stopEventEndpoint, `Abfahrtstafel ${stopPointId}`, {
       type_dm: "stopID",
       name_dm: stopPointId,
       mode: "direct",
@@ -98,24 +99,24 @@ export class KvvEfaClient implements KvvFeed {
       // district board (Marktplatz returned rows from seven nearby stops).
       useProxFootSearch: "0",
       itdDateTimeDepArr: options.eventKind === "arrival" ? "arr" : "dep",
-      ...toRowLimitParameters(options.limit ?? DEFAULT_DEPARTURE_LIMIT),
+      ...toRowLimitParameters(options.limit ?? DEFAULT_STOP_EVENT_LIMIT),
       ...(options.lineIds?.length ? {} : LOCAL_NETWORK_MODE_PARAMETERS),
       // Otherwise the feed answers in its projected grid (MRCV).
       coordOutputFormat: WGS84_COORDINATE_FORMAT,
       ...(options.lineIds?.length ? { line: options.lineIds } : {}),
-      ...(options.includeTripCalls ? { depType: "stopEvents", includeCompleteStopSeq: "1" } : {}),
+      ...(options.includeCalls ? { depType: "stopEvents", includeCompleteStopSeq: "1" } : {}),
     });
-    return parseDepartureBoardResponse(payload, stopPointId, options.eventKind);
+    return parseStopEventBoardResponse(payload, stopPointId, options.eventKind);
   }
 
   /**
-   * A line-direction's whole route, addressed by any run of it (about 30 kB for a tram line). The
-   * field is `stop`, not the trip endpoint's `stopID`.
+   * A line-direction's whole route, addressed by any dated journey of it (about 30 kB for a tram
+   * line). The field is `stop`, not the journey endpoint's `stopID`.
    */
-  async fetchLineRoute(locator: KvvTripLocator): Promise<KvvTripCall[]> {
-    const payload = await this.requestJson(this.lineRouteEndpoint, `Linie ${locator.line}`, {
-      line: locator.line,
-      tripCode: locator.tripCode,
+  async fetchLineRoute(locator: KvvJourneyLocator): Promise<KvvCall[]> {
+    const payload = await this.requestJson(this.lineRouteEndpoint, `Linie ${locator.lineRef}`, {
+      line: locator.lineRef,
+      tripCode: locator.journeyCode,
       stop: locator.stopPointId,
       date: locator.date,
       time: locator.time,
@@ -124,11 +125,11 @@ export class KvvEfaClient implements KvvFeed {
     return parseLineRouteResponse(payload, locator);
   }
 
-  /** One dated trip, by the opaque tuple a basic row carries. */
-  async fetchTrip(locator: KvvTripLocator): Promise<KvvTrip> {
-    const payload = await this.requestJson(this.tripEndpoint, `Fahrt ${locator.tripCode}`, {
-      tripCode: locator.tripCode,
-      line: locator.line,
+  /** One dated journey, by the opaque tuple a basic row carries. */
+  async fetchTripInfo(locator: KvvJourneyLocator): Promise<KvvTripInfo> {
+    const payload = await this.requestJson(this.tripInfoEndpoint, `Fahrt ${locator.journeyCode}`, {
+      tripCode: locator.journeyCode,
+      line: locator.lineRef,
       stopID: locator.stopPointId,
       date: locator.date,
       time: locator.time,
@@ -136,10 +137,13 @@ export class KvvEfaClient implements KvvFeed {
       tStOTType: "ALL",
       coordOutputFormat: WGS84_COORDINATE_FORMAT,
     });
-    return parseTripResponse(payload, locator);
+    return parseTripInfoResponse(payload, locator);
   }
 
-  /** Notices valid today; unfiltered, the endpoint returns the whole KVV area's. */
+  /**
+   * Notices valid today; unfiltered, the endpoint returns the whole KVV area's. Not part of
+   * `KvvFeed`: the app shows no notices for now.
+   */
   async fetchServiceNotices(now = new Date()): Promise<KvvServiceNotice[]> {
     return parseServiceNoticeResponse(
       await this.requestJson(this.serviceNoticeEndpoint, "Betriebsmeldungen", {

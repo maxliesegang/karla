@@ -136,7 +136,8 @@ function fetch_trias(string $ref, string $payload): ?string
         error_log('trias proxy: upstream echoed the requestor ref');
         return null;
     }
-    // Every board repeats the notices in force (about a tenth of it); the app reads them from EFA.
+    // Every board repeats the situations of its lines (up to 17 kB each), which the app does not
+    // read; `parseTriasSituations` reads the block when it is passed through.
     return preg_replace('~<trias:StopEventResponseContext>.*?</trias:StopEventResponseContext>~s', '', $body) ?? $body;
 }
 

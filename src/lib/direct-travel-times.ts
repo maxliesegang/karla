@@ -1,10 +1,10 @@
 /**
- * How soon a rider leaving one stop now reaches others on one vehicle, from the runs in hand.
- * Direct rides only; the feed says nothing reliable about changes.
+ * How soon a rider leaving one stop now reaches others on one vehicle, from the dated journeys in
+ * hand. Direct rides only; the feed says nothing reliable about changes.
  */
-import type { Departure, TripCall } from "../data/transit-types";
+import type { StopEvent, Call } from "../data/transit-types";
 import { compareLineIds } from "./line-families";
-import { collapseTurnaroundCalls, getTripCallInstant } from "./trip-calls";
+import { collapseTurnaroundCalls, getCallInstant } from "./calls";
 
 /** What "nearest" means for a reached stop: the soonest arrival, or the shortest ride. */
 export type TravelMeasure = "arrival" | "ride";
@@ -19,9 +19,9 @@ export type DirectTravelTime = {
 };
 
 export type DirectRideTime = DirectTravelTime & {
-  departure: Departure;
-  boardingCall: TripCall;
-  arrivalCall: TripCall;
+  stopEvent: StopEvent;
+  boardingCall: Call;
+  arrivalCall: Call;
 };
 
 const getMeasuredTime = (time: DirectTravelTime, measure: TravelMeasure): number =>
@@ -38,21 +38,22 @@ const compareTravelTimes = (
   compareLineIds(left.lineId, right.lineId);
 
 /**
- * The best direct ride to every stop the runs reach after boarding at `originStopId`. A call
- * `getStopId` cannot name ends the run's reach, or with `passUnnamed` is ridden past.
+ * The best direct ride to every stop the dated journeys reach after boarding at `originStopId`. A
+ * call `getStopId` cannot name ends the dated journey's reach, or with `passUnnamed` is ridden
+ * past.
  */
 export function getDirectTravelTimes(
-  departures: readonly Departure[],
+  stopEvents: readonly StopEvent[],
   originStopId: string,
   feedNow: number,
   measure: TravelMeasure,
-  getStopId: (call: TripCall) => string | undefined,
+  getStopId: (call: Call) => string | undefined,
   passUnnamed = false,
 ): ReadonlyMap<string, DirectRideTime> {
   const bestRideByStopId = new Map<string, DirectRideTime>();
-  for (const departure of departures) {
-    if (departure.status === "cancelled") continue;
-    const calls = collapseTurnaroundCalls(departure.tripCalls ?? []);
+  for (const stopEvent of stopEvents) {
+    if (stopEvent.status === "cancelled") continue;
+    const calls = collapseTurnaroundCalls(stopEvent.calls ?? []);
     const resolvedCalls = calls.map((call) => [call, getStopId(call)] as const);
     const eligibleCalls = passUnnamed
       ? resolvedCalls.filter(([, id]) => id !== undefined)
@@ -62,14 +63,14 @@ export function getDirectTravelTimes(
     let boardingCallIndex = -1;
     for (const [index, [call]] of eligibleCalls.entries()) {
       if (stopIds[index] !== originStopId || stopIds[index + 1] === originStopId) continue;
-      const leaves = getTripCallInstant(call);
+      const leaves = getCallInstant(call);
       if (leaves !== undefined && leaves >= feedNow) {
         boardingCallIndex = index;
         break;
       }
     }
     if (boardingCallIndex < 0) continue;
-    const departsAt = getTripCallInstant(eligibleCalls[boardingCallIndex][0]) ?? feedNow;
+    const departsAt = getCallInstant(eligibleCalls[boardingCallIndex][0]) ?? feedNow;
 
     const visitedStopIds = [originStopId];
     for (let index = boardingCallIndex + 1; index < eligibleCalls.length; index += 1) {
@@ -77,14 +78,14 @@ export function getDirectTravelTimes(
       if (!stopId) break;
       if (stopId === visitedStopIds[visitedStopIds.length - 1]) continue;
       visitedStopIds.push(stopId);
-      const arrivesAt = getTripCallInstant(eligibleCalls[index][0], "arrival");
+      const arrivesAt = getCallInstant(eligibleCalls[index][0], "arrival");
       if (arrivesAt === undefined || stopId === originStopId) continue;
       const candidate = {
         arrivesAt,
-        lineId: departure.lineId,
+        lineId: stopEvent.lineId,
         departsAt,
         stopIds: [...visitedStopIds],
-        departure,
+        stopEvent,
         boardingCall: eligibleCalls[boardingCallIndex][0],
         arrivalCall: eligibleCalls[index][0],
       };

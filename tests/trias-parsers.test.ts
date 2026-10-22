@@ -3,13 +3,15 @@ import test from "node:test";
 import {
   KvvTriasError,
   parseTriasLocations,
+  parseTriasSituations,
   parseTriasStopEvents,
-  parseTriasTrip,
+  parseTriasTripInfo,
   toProviderStopId,
 } from "../src/data/kvv-trias-parsers.ts";
-import type { KvvTripLocator } from "../src/data/kvv-feed.ts";
+import type { KvvJourneyLocator } from "../src/data/kvv-feed.ts";
 import {
   triasReply,
+  triasSituation,
   triasStopEvent,
   triasStopEvents,
   triasTripInfo,
@@ -32,9 +34,9 @@ test("malformed XML never becomes a successful empty board", () => {
 });
 
 test("each endpoint requires its own payload and a valid feed clock", () => {
-  const locator: KvvTripLocator = {
-    line: "kvv:22305:E:R:s26",
-    tripCode: "1762",
+  const locator: KvvJourneyLocator = {
+    lineRef: "kvv:22305:E:R:s26",
+    journeyCode: "1762",
     stopPointId: "7001003",
     date: "20261017",
     time: "2301",
@@ -46,7 +48,7 @@ test("each endpoint requires its own payload and a valid feed clock", () => {
       KvvTriasError,
     );
     assert.throws(
-      () => parseTriasTrip(triasTripInfo(time, { previous: [MARKTPLATZ] }), locator),
+      () => parseTriasTripInfo(triasTripInfo(time, { previous: [MARKTPLATZ] }), locator),
       KvvTriasError,
     );
   }
@@ -67,19 +69,19 @@ const MARKTPLATZ: TriasCall = {
   ref: "de:08212:1003:92:2",
   name: "KA Marktplatz (Kaiserstraße U)",
   bay: "Gleis 2(U)",
-  departure: { scheduled: "2026-10-17T21:01:00Z", estimated: "2026-10-17T21:05:12Z" },
+  departure: { timetabled: "2026-10-17T21:01:00Z", estimated: "2026-10-17T21:05:12Z" },
 };
 const KRONENPLATZ: TriasCall = {
   ref: "de:08212:1002:92:2",
   name: "Karlsruhe Kronenplatz (U)",
   bay: "Gleis 2(U)",
-  arrival: { scheduled: "2026-10-17T21:02:00Z", estimated: "2026-10-17T21:06:12Z" },
-  departure: { scheduled: "2026-10-17T21:02:30Z", estimated: "2026-10-17T21:06:12Z" },
+  arrival: { timetabled: "2026-10-17T21:02:00Z", estimated: "2026-10-17T21:06:12Z" },
+  departure: { timetabled: "2026-10-17T21:02:30Z", estimated: "2026-10-17T21:06:12Z" },
 };
 const PFORZHEIM: TriasCall = {
   ref: "de:08231:50:2:3",
   name: "Pforzheim Hauptbahnhof",
-  arrival: { scheduled: "2026-10-17T21:50:00Z" },
+  arrival: { timetabled: "2026-10-17T21:50:00Z" },
 };
 
 test("Karlsruhe's stop refs read as EFA ids, others as their stop's DHID", () => {
@@ -95,7 +97,7 @@ test("a stop event reads as the row EFA would publish, with the prediction to th
     ]),
     "7001003",
   );
-  const [row] = board.departures;
+  const [row] = board.stopEvents;
 
   assert.equal(board.serverTime, RESPONDED_AT);
   assert.deepEqual(
@@ -103,36 +105,36 @@ test("a stop event reads as the row EFA would publish, with the prediction to th
       stopPointId: row.stopPointId,
       stopPointName: row.stopPointName,
       lineId: row.lineId,
-      transportMode: row.transportMode,
-      routeDirectionId: row.routeDirectionId,
-      tripId: row.tripId,
-      trainNumber: row.trainNumber,
-      platformCode: row.platformCode,
-      platformKind: row.platformKind,
+      ptMode: row.ptMode,
+      lineRef: row.lineRef,
+      journeyRef: row.journeyRef,
+      publishedJourneyNumber: row.publishedJourneyNumber,
+      bay: row.bay,
+      bayKind: row.bayKind,
       status: row.status,
       vehicleAccess: row.vehicleAccess,
-      scheduledDepartureTime: row.scheduledDepartureTime,
-      predictedDepartureTime: row.predictedDepartureTime,
+      timetabledDepartureTime: row.timetabledDepartureTime,
+      estimatedDepartureTime: row.estimatedDepartureTime,
       delayMinutes: row.delayMinutes,
-      tripCalls: row.tripCalls,
+      calls: row.calls,
     },
     {
       stopPointId: "7001003",
       stopPointName: "Marktplatz (Kaiserstraße U)",
       lineId: "S5",
-      transportMode: "lightRail",
-      routeDirectionId: "kvv:22305:E:R:s26",
-      tripId: "kvv:22305:E:R:s26:1762",
-      trainNumber: "85099",
-      platformCode: "2(U)",
-      platformKind: "track",
+      ptMode: "lightRail",
+      lineRef: "kvv:22305:E:R:s26",
+      journeyRef: "kvv:22305:E:R:s26:1762",
+      publishedJourneyNumber: "85099",
+      bay: "2(U)",
+      bayKind: "track",
       status: "realtime",
       vehicleAccess: "stepFree",
-      scheduledDepartureTime: "2026-10-17T21:01:00.000Z",
-      predictedDepartureTime: "2026-10-17T21:05:12.000Z",
+      timetabledDepartureTime: "2026-10-17T21:01:00.000Z",
+      estimatedDepartureTime: "2026-10-17T21:05:12.000Z",
       // 4 min 12 s rounds to four.
       delayMinutes: 4,
-      tripCalls: undefined,
+      calls: undefined,
     },
   );
 });
@@ -141,7 +143,7 @@ test("the countdown is the clock minutes between the feed's reading and the expe
   const [row] = parseTriasStopEvents(
     triasStopEvents("2026-10-17T21:01:59Z", [triasStopEvent({ current: MARKTPLATZ })]),
     "7001003",
-  ).departures;
+  ).stopEvents;
   // 21:01 to 21:05, though only 3 min 13 s remain.
   assert.equal(row.minutesUntilDeparture, 4);
 });
@@ -150,20 +152,20 @@ test("the locator names the run as EFA does, and carries TRIAS's operating day",
   const [row] = parseTriasStopEvents(
     triasStopEvents(RESPONDED_AT, [
       triasStopEvent({
-        current: { ...MARKTPLATZ, departure: { scheduled: "2026-10-17T22:10:00Z" } },
+        current: { ...MARKTPLATZ, departure: { timetabled: "2026-10-17T22:10:00Z" } },
         service: { operatingDay: "2026-10-17" },
       }),
     ]),
     "7001003",
-  ).departures;
-  assert.deepEqual(row.tripLocator, {
-    line: "kvv:22305:E:R:s26",
-    tripCode: "1762",
+  ).stopEvents;
+  assert.deepEqual(row.journeyLocator, {
+    lineRef: "kvv:22305:E:R:s26",
+    journeyCode: "1762",
     stopPointId: "7001003",
     // 00:10 the next calendar day in Karlsruhe, still the 17th's operating day.
     date: "20261018",
     time: "0010",
-    operatingDay: "2026-10-17",
+    operatingDayRef: "2026-10-17",
   });
 });
 
@@ -173,19 +175,19 @@ test("calls keep predictions to the second and their whole-minute delays", () =>
       triasStopEvent({ current: MARKTPLATZ, onward: [KRONENPLATZ, PFORZHEIM] }),
     ]),
     "7001003",
-  ).departures;
-  const [here, next, end] = row.tripCalls ?? [];
+  ).stopEvents;
+  const [here, next, end] = row.calls ?? [];
 
-  assert.equal(here.isCurrentStop, true);
+  assert.equal(here.isThisCall, true);
   assert.deepEqual(
     {
       stopName: next.stopName,
       placeName: next.placeName,
       providerId: next.providerId,
-      platformLabel: next.platformLabel,
-      platformCode: next.platformCode,
-      predictedArrivalTime: next.predictedArrivalTime,
-      predictedDepartureTime: next.predictedDepartureTime,
+      bayText: next.bayText,
+      bay: next.bay,
+      estimatedArrivalTime: next.estimatedArrivalTime,
+      estimatedDepartureTime: next.estimatedDepartureTime,
       delayMinutes: next.delayMinutes,
       arrivalDelayMinutes: next.arrivalDelayMinutes,
     },
@@ -193,10 +195,10 @@ test("calls keep predictions to the second and their whole-minute delays", () =>
       stopName: "Kronenplatz (U)",
       placeName: "Karlsruhe",
       providerId: "7001002",
-      platformLabel: "Gleis 2(U)",
-      platformCode: "2(U)",
-      predictedArrivalTime: "2026-10-17T21:06:12.000Z",
-      predictedDepartureTime: "2026-10-17T21:06:12.000Z",
+      bayText: "Gleis 2(U)",
+      bay: "2(U)",
+      estimatedArrivalTime: "2026-10-17T21:06:12.000Z",
+      estimatedDepartureTime: "2026-10-17T21:06:12.000Z",
       // The departure 3 min 42 s late, the arrival 4 min 12 s.
       delayMinutes: 4,
       arrivalDelayMinutes: undefined,
@@ -211,14 +213,14 @@ test("a departure without a prediction is scheduled, not on time", () => {
   const [row] = parseTriasStopEvents(
     triasStopEvents(RESPONDED_AT, [
       triasStopEvent({
-        current: { ...MARKTPLATZ, departure: { scheduled: "2026-10-17T21:30:00Z" } },
+        current: { ...MARKTPLATZ, departure: { timetabled: "2026-10-17T21:30:00Z" } },
       }),
     ]),
     "7001003",
-  ).departures;
+  ).stopEvents;
   assert.equal(row.status, "scheduled");
   assert.equal(row.delayMinutes, undefined);
-  assert.equal(row.predictedDepartureTime, undefined);
+  assert.equal(row.estimatedDepartureTime, undefined);
 });
 
 test("a cancelled trip says so", () => {
@@ -227,7 +229,7 @@ test("a cancelled trip says so", () => {
       triasStopEvent({ current: MARKTPLATZ, service: { cancelled: true } }),
     ]),
     "7001003",
-  ).departures;
+  ).stopEvents;
   assert.equal(row.status, "cancelled");
 });
 
@@ -255,7 +257,7 @@ test("only the local network's lines are read", () => {
     "7001003",
   );
   assert.deepEqual(
-    board.departures.map(({ lineId, transportMode }) => [lineId, transportMode]),
+    board.stopEvents.map(({ lineId, ptMode }) => [lineId, ptMode]),
     [["2", "tram"]],
   );
 });
@@ -270,9 +272,9 @@ test("an arrival board times its rows by the arrival", () => {
     ]),
     "7001002",
     "arrival",
-  ).departures;
-  assert.equal(row.scheduledDepartureTime, "2026-10-17T21:02:00.000Z");
-  assert.equal(row.predictedDepartureTime, "2026-10-17T21:06:12.000Z");
+  ).stopEvents;
+  assert.equal(row.timetabledDepartureTime, "2026-10-17T21:02:00.000Z");
+  assert.equal(row.estimatedDepartureTime, "2026-10-17T21:06:12.000Z");
 });
 
 test("a stop with nothing due is an empty board; any other error is a failure", () => {
@@ -280,10 +282,10 @@ test("a stop with nothing due is an empty board; any other error is a failure", 
     triasStopEvents(RESPONDED_AT, [], "STOPEVENT_LOCATIONUNSERVED"),
     "7001003",
   );
-  assert.deepEqual(empty.departures, []);
+  assert.deepEqual(empty.stopEvents, []);
   assert.deepEqual(
     parseTriasStopEvents(triasStopEvents(RESPONDED_AT, [], "STOPEVENT_NOEVENTFOUND"), "7001003")
-      .departures,
+      .stopEvents,
     [],
   );
   assert.throws(
@@ -297,36 +299,36 @@ test("a stop with nothing due is an empty board; any other error is a failure", 
   assert.throws(() => parseTriasStopEvents("<html>502</html>", "7001003"), KvvTriasError);
 });
 
-const LOCATOR: KvvTripLocator = {
-  line: "kvv:22305:E:R:s26",
-  tripCode: "1762",
+const LOCATOR: KvvJourneyLocator = {
+  lineRef: "kvv:22305:E:R:s26",
+  journeyCode: "1762",
   stopPointId: "7001002",
   date: "20261017",
   time: "2302",
-  operatingDay: "2026-10-17",
+  operatingDayRef: "2026-10-17",
 };
 
 test("a trip marks the call its row was read at", () => {
-  const trip = parseTriasTrip(
+  const journey = parseTriasTripInfo(
     triasTripInfo(RESPONDED_AT, { previous: [MARKTPLATZ, KRONENPLATZ], onward: [PFORZHEIM] }),
     LOCATOR,
   );
   assert.deepEqual(
-    trip.tripCalls.map(({ providerId, isCurrentStop }) => [providerId, isCurrentStop]),
+    journey.calls.map(({ providerId, isThisCall }) => [providerId, isThisCall]),
     [
       ["7001003", undefined],
       ["7001002", true],
       ["de:08231:50", undefined],
     ],
   );
-  assert.equal(trip.serverTime, RESPONDED_AT);
-  assert.equal(trip.status, undefined);
+  assert.equal(journey.serverTime, RESPONDED_AT);
+  assert.equal(journey.status, undefined);
 });
 
 test("a trip answered for another journey, or with an error code, was not found", () => {
   assert.throws(
     () =>
-      parseTriasTrip(
+      parseTriasTripInfo(
         triasTripInfo(RESPONDED_AT, {
           previous: [MARKTPLATZ],
           service: { journeyRef: "kvv:22305:E:R:s26:9" },
@@ -337,7 +339,7 @@ test("a trip answered for another journey, or with an error code, was not found"
   );
   assert.throws(
     () =>
-      parseTriasTrip(
+      parseTriasTripInfo(
         triasReply(
           RESPONDED_AT,
           "<trias:TripInfoResponse><trias:ErrorMessage><trias:Code>ERROR_INVALID_JOURNEY_REF</trias:Code></trias:ErrorMessage></trias:TripInfoResponse>",
@@ -373,4 +375,47 @@ test("an empty-stop notice cannot hide another provider error", () => {
     "<trias:ErrorMessage><trias:Code>ERROR</trias:Code><trias:Text><trias:Text>INVALID_REQUEST</trias:Text></trias:Text></trias:ErrorMessage></trias:StopEventResponse>",
   );
   assert.throws(() => parseTriasStopEvents(mixed, "7001003"), KvvTriasError);
+});
+
+test("a board's situations read on their own, in the operator's terms", () => {
+  const reply = triasStopEvents(RESPONDED_AT, [], undefined, [
+    triasSituation({
+      number: "100004399_KVV_ICSKVV",
+      version: "7",
+      summary: "Karlsruhe: Bauarbeiten im VBK-Netz",
+      description: "Linien: S2, 001, SEV",
+      detail: "&lt;p&gt;Gleiserneuerung&lt;br /&gt;Phase 3&lt;/p&gt;",
+      start: "2026-09-21T01:30:00Z",
+      end: "2026-10-24T04:45:59Z",
+      lineRefs: ["kvv:21001:E:H:", "kvv:21001:E:R:", "kvv:21001:E:H:"],
+    }),
+    triasSituation({ summary: "Defektes Stellwerk", priority: "-1" }),
+  ]);
+
+  assert.deepEqual(parseTriasSituations(reply), [
+    {
+      id: "100004399_KVV_ICSKVV@7",
+      title: "Karlsruhe: Bauarbeiten im VBK-Netz",
+      listedLineNumbers: ["S2", "1", "SEV"],
+      lineRefs: ["kvv:21001:E:H:", "kvv:21001:E:R:"],
+      affectedStops: [],
+      details: ["Gleiserneuerung", "Phase 3"],
+      validFrom: "2026-09-21T01:30:00.000Z",
+      validUntil: "2026-10-24T04:45:59.000Z",
+      priority: 3,
+    },
+    {
+      id: "trias:Defektes Stellwerk",
+      title: "Defektes Stellwerk",
+      listedLineNumbers: [],
+      lineRefs: [],
+      affectedStops: [],
+      details: [],
+      validFrom: undefined,
+      validUntil: undefined,
+      priority: -1,
+    },
+  ]);
+  // The board itself carries none of it.
+  assert.equal("notices" in parseTriasStopEvents(reply, "7001003"), false);
 });

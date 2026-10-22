@@ -8,7 +8,7 @@ import {
   zentrumPlanOptions,
 } from "../src/lib/zentrum-plan-options.ts";
 import { buildZentrumSchematicReading } from "../src/lib/zentrum-schematic.ts";
-import { createDeparture } from "./support/fixtures.ts";
+import { createStopEvent } from "./support/fixtures.ts";
 
 const { act, createElement } = await import("react");
 const { createRoot } = await import("react-dom/client");
@@ -17,16 +17,16 @@ const { ZentrumSchematic } = await import("../src/components/zentrum/ZentrumSche
 test("stop selection follows the opened stop without offering style choices", async () => {
   const original = zentrumPlanOptions.read();
   zentrumPlanOptions.write({ ...getZentrumPlanOptionsFromStored(null), travelMeasure: "ride" });
-  const run = createDeparture({
+  const datedJourney = createStopEvent({
     lineId: "2",
-    tripCalls: ["europaplatz", "marktplatz", "ettlinger-tor"].map((localStopId) => ({
+    calls: ["europaplatz", "marktplatz", "ettlinger-tor"].map((localStopId) => ({
       localStopId,
       stopName: localStopId,
     })),
   });
   const container = document.createElement("div");
   const root = createRoot(container);
-  const layout = buildZentrumSchematicReading([run]);
+  const layout = buildZentrumSchematicReading([datedJourney]);
   const selections: (string | undefined)[] = [];
   const button = (label: string) => {
     const found = [...container.querySelectorAll<HTMLButtonElement>("button")].find(
@@ -43,8 +43,8 @@ test("stop selection follows the opened stop without offering style choices", as
           layout,
           getSign: createZentrumLineSignReader([]),
           selectedStopId,
-          runDepartures: [],
-          travelRuns: [],
+          datedJourneyStopEvents: [],
+          travelDatedJourneys: [],
           stopBoard: null,
           feedNow: 0,
           isLoading: false,

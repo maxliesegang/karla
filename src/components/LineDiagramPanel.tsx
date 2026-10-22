@@ -1,13 +1,13 @@
 import { useMemo, useRef } from "react";
 import type {
-  Departure,
-  DepartureBoard,
+  StopEvent,
+  StopEventBoard,
   TransitLine,
   TransitNetwork,
-  TransitStop,
-  TripCall,
+  StopPlace,
+  Call,
 } from "../data/transit-types";
-import { getDepartureAddressId, getSelectionPath, navigateTo, routePaths } from "../routing";
+import { getStopEventAddressId, getSelectionPath, navigateTo, routePaths } from "../routing";
 import { useTransientScrollbar } from "../hooks/scrollbar";
 import { usePullToRefresh } from "../hooks/pull-to-refresh";
 import { getLineRefreshLabel, PullToRefreshStrip } from "./PullToRefreshStrip";
@@ -29,7 +29,7 @@ import { EMPTY_LINE_BUNDLE_BRANCH_VEHICLES } from "./line-diagram/bundle";
 import {
   useCurrentStopMove,
   useStopPlacement,
-  useRequestedRunPosition,
+  useRequestedDatedJourneyPosition,
   useVehicleLayerGeometry,
 } from "./line-diagram/layout";
 import { useLineDiagramReading } from "./line-diagram/reading";
@@ -44,38 +44,42 @@ type LineDiagramPanelProps = {
   onChangeBundle?: (bundledLineIds: readonly string[]) => void;
   network: TransitNetwork;
   /** The stop this line was selected at, which this view steps back up to. */
-  stop: TransitStop;
-  departure?: Departure;
+  stop: StopPlace;
+  stopEvent?: StopEvent;
   /**
-   * The addressed trip; unlike `departure` it does not blink during re-reads, so placement keys on
-   * it.
+   * The addressed journey; unlike `departure` it does not blink during re-reads, so placement keys
+   * on it.
    */
   addressId?: string;
   /** Where the rider was last heading on this line, so the diagram keeps its direction. */
   preferredDestination?: string;
-  departureBoard: DepartureBoard | null;
+  stopEventBoard: StopEventBoard | null;
   /** The stop's board plus samples along the line. */
-  lineDepartureBoards: readonly DepartureBoard[];
+  lineStopEventBoards: readonly StopEventBoard[];
   /**
-   * The Zentrum observation boards, whose trips describe the lines met further out (for changes).
+   * The Zentrum observation boards, whose journeys describe the lines met further out (for
+   * changes).
    */
-  observationBoards: readonly DepartureBoard[];
+  observationBoards: readonly StopEventBoard[];
   /** A ride: the diagram alone at full width, with room to state changes at every stop. */
   isRide: boolean;
   /** The rider's Ausstieg, drawn as the end of the ride still ahead. */
   alightingStopId?: string;
   /** Marking an Ausstieg: on a ride, a row tap toggles it. */
   onToggleAlighting?: (stopId: string) => void;
-  /** Bumped when the rider asks to see the trip on the line. */
-  runPositionRequest?: number;
+  /** Bumped when the rider asks to see the journey on the line. */
+  datedJourneyPositionRequest?: number;
   /**
    * The stop the ride runs towards, as the ride card reads it (possibly from the rider's position),
    * so the position control scrolls to the stop the card names.
    */
-  rideNextCall?: TripCall;
+  rideNextCall?: Call;
   /** Stacked, the page owns the pull. */
   isStacked?: boolean;
-  /** Reads the runs in view again (pull down past the first stop); settles the pull when done. */
+  /**
+   * Reads the dated journeys in view again (pull down past the first stop); settles the pull when
+   * done.
+   */
   onRefresh?: () => Promise<unknown>;
 };
 
@@ -86,16 +90,16 @@ export function LineDiagramPanel({
   onChangeBundle,
   network,
   stop,
-  departure: observedDeparture,
+  stopEvent: observedStopEvent,
   addressId,
   preferredDestination,
-  departureBoard,
-  lineDepartureBoards,
+  stopEventBoard,
+  lineStopEventBoards,
   observationBoards,
   isRide,
   alightingStopId,
   onToggleAlighting,
-  runPositionRequest = 0,
+  datedJourneyPositionRequest = 0,
   rideNextCall,
   isStacked = false,
   onRefresh,
@@ -111,7 +115,7 @@ export function LineDiagramPanel({
   const stopListRef = useRef<HTMLDivElement>(null);
   // What is drawn; everything below is where it goes.
   const {
-    departure,
+    stopEvent,
     fork,
     branches,
     lineById,
@@ -125,10 +129,10 @@ export function LineDiagramPanel({
     vehiclesByBranchKey,
     transferKeysByBranchKey,
     totalVehicleCount,
-    runPositionStopIndex,
+    datedJourneyPositionStopIndex,
     rowFeedNow,
     statusLabel,
-    runPositionHint,
+    datedJourneyPositionHint,
     termini,
   } = useLineDiagramReading({
     line,
@@ -136,10 +140,10 @@ export function LineDiagramPanel({
     bundleOffers,
     network,
     stop,
-    departure: observedDeparture,
+    stopEvent: observedStopEvent,
     preferredDestination,
-    departureBoard,
-    lineDepartureBoards,
+    stopEventBoard,
+    lineStopEventBoards,
     observationBoards,
     isRide,
     rideNextCall,
@@ -168,7 +172,7 @@ export function LineDiagramPanel({
     </span>
   );
   // On a ride a row tap sets the Ausstieg; elsewhere it moves the reading to that stop, keeping the
-  // line and any pinned trip.
+  // line and any pinned journey.
   const onActivate = useMemo(
     () =>
       onToggleAlighting && isRide
@@ -181,11 +185,11 @@ export function LineDiagramPanel({
                   stopId,
                   lineId: line.id,
                   bundledLineIds: (bundledLines ?? []).map(({ id }) => id),
-                  addressId: departure && getDepartureAddressId(departure),
+                  addressId: stopEvent && getStopEventAddressId(stopEvent),
                 }),
               ),
           },
-    [bundledLines, departure, isRide, line.id, onToggleAlighting],
+    [bundledLines, stopEvent, isRide, line.id, onToggleAlighting],
   );
   // One leg; past the junction its vehicles are this line's alone.
   const renderBranch = (branch: LineBundleBranch, index: number) => {
@@ -202,7 +206,7 @@ export function LineDiagramPanel({
           vehiclesByBranchKey.get(getLineBundleBranchKey(branch)) ??
           EMPTY_LINE_BUNDLE_BRANCH_VEHICLES
         }
-        selectedDeparture={departure}
+        selectedStopEvent={stopEvent}
         junctionStopName={branch.direction === "ahead" ? junctionAhead : junctionBehind}
         /* The first leg continues the trunk's rail; others join the junction by a horizontal this
            far. */
@@ -211,7 +215,7 @@ export function LineDiagramPanel({
           index > 0 ? transferKeysByBranchKey.get(getLineBundleBranchKey(branch)) : undefined
         }
         rowFeedNow={rowFeedNow}
-        /* Past the junction, the leg's stops open on its own line; the pinned trip only if it is
+        /* Past the junction, the leg's stops open on its own line; the pinned journey only if it is
            that line's. */
         onOpenStop={(stopId) =>
           navigateTo(
@@ -219,8 +223,8 @@ export function LineDiagramPanel({
               stopId,
               lineId: branch.lineId,
               addressId:
-                departure && isSameLineFamily(departure.lineId, branch.lineId)
-                  ? getDepartureAddressId(departure)
+                stopEvent && isSameLineFamily(stopEvent.lineId, branch.lineId)
+                  ? getStopEventAddressId(stopEvent)
                   : undefined,
             }),
           )
@@ -240,7 +244,7 @@ export function LineDiagramPanel({
   });
   // Which way the rider's stop moved, so its note arrives from that side.
   const currentStopMove = useCurrentStopMove(currentStopIndex, vehicleCoordinateKey);
-  useRequestedRunPosition(runPositionRequest, scrollContainerRef);
+  useRequestedDatedJourneyPosition(datedJourneyPositionRequest, scrollContainerRef);
   useTransientScrollbar(scrollContainerRef);
 
   return (
@@ -248,7 +252,7 @@ export function LineDiagramPanel({
       className={classNames(
         "line-diagram",
         isRide && "ride",
-        departure && "has-selected-run",
+        stopEvent && "has-selected-run",
         /* A fork's legs stand side by side, so the diagram takes a wider column while there is
            one. */
         hasFork && "has-fork",
@@ -266,8 +270,8 @@ export function LineDiagramPanel({
           <>
             <LineDiagramLineSigns
               lines={displayedLines}
-              onClearRun={
-                departure
+              onClearDatedJourney={
+                stopEvent
                   ? () =>
                       navigateTo(
                         routePaths.line(
@@ -278,17 +282,17 @@ export function LineDiagramPanel({
                       )
                   : undefined
               }
-              clearRunLabel={
-                departure
-                  ? `Fahrt Richtung ${departure.destination} nicht mehr hervorheben, Linien ${displayedLines
+              clearDatedJourneyLabel={
+                stopEvent
+                  ? `Fahrt Richtung ${stopEvent.destinationText} nicht mehr hervorheben, Linien ${displayedLines
                       .map(({ id }) => id)
                       .join(", ")} zeigen`
                   : undefined
               }
             />
             <h1>
-              {departure ? (
-                renderHeadingEnd("↑", [departure.destination])
+              {stopEvent ? (
+                renderHeadingEnd("↑", [stopEvent.destinationText])
               ) : hasHeadingTermini ? (
                 <>
                   {renderHeadingEnd("↑", aheadTermini)}
@@ -323,11 +327,11 @@ export function LineDiagramPanel({
             </details>
           )}
           {/* The way into the ride; the step-up control is the way out. */}
-          {departure && !isRide && (
+          {stopEvent && !isRide && (
             <button
               type="button"
               className="line-diagram-ride-toggle"
-              onClick={() => navigateTo(routePaths.ride(getDepartureAddressId(departure), stop.id))}
+              onClick={() => navigateTo(routePaths.ride(getStopEventAddressId(stopEvent), stop.id))}
             >
               <i aria-hidden="true" />
               Fahrt begleiten
@@ -337,10 +341,10 @@ export function LineDiagramPanel({
         </div>
       </div>
 
-      {/* The pinned trip's missing mark, explained in words. */}
-      {runPositionHint && (
+      {/* The pinned journey's missing mark, explained in words. */}
+      {datedJourneyPositionHint && (
         <p className="line-diagram-trip-hint" role="status">
-          {runPositionHint}
+          {datedJourneyPositionHint}
         </p>
       )}
 
@@ -377,9 +381,9 @@ export function LineDiagramPanel({
               vehicleLabel={vehicleLabelByRowIndex.get(index) ?? ""}
               isFirst={index === 0 && branchesAhead.length === 0}
               isLast={index === diagramStops.length - 1 && branchesBehind.length === 0}
-              isSelectedDeparture={Boolean(departure)}
+              isSelectedStopEvent={Boolean(stopEvent)}
               isAlighting={Boolean(alightingStopId) && diagramStop.stopId === alightingStopId}
-              isRunPositionAnchor={index === runPositionStopIndex}
+              isDatedJourneyPositionAnchor={index === datedJourneyPositionStopIndex}
               onActivate={onActivate}
               feedNow={rowFeedNow}
             />
@@ -406,16 +410,16 @@ export function LineDiagramPanel({
           <p className="line-diagram-split behind">{fork.terminatingBehind}</p>
         )}
         {diagramStops.length === 0 &&
-          (departureBoard === null ? (
+          (stopEventBoard === null ? (
             <div className="panel-empty">
               <strong>Fahrtverlauf wird geladen …</strong>
             </div>
           ) : (
             <div className="panel-empty">
               <strong>Fahrtverlauf nicht verfügbar</strong>
-              {departureBoard.dataStatus === "unavailable" && (
+              {stopEventBoard.dataStatus === "unavailable" && (
                 <span>
-                  {departureBoard.errorMessage ?? "Der KVV-Feed konnte nicht gelesen werden."}
+                  {stopEventBoard.errorMessage ?? "Der KVV-Feed konnte nicht gelesen werden."}
                 </span>
               )}
             </div>

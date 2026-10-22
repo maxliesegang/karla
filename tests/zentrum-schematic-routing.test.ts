@@ -1,34 +1,34 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import type { TripCall } from "../src/data/transit-types.ts";
+import type { Call } from "../src/data/transit-types.ts";
 import { buildZentrumSchematicReading } from "../src/lib/zentrum-schematic.ts";
 import {
   type ZentrumSchematicNode,
   getEdgeKey,
   getZentrumSchematicRoutes,
 } from "../src/lib/zentrum-schematic-plan.ts";
-import { createDeparture } from "./support/fixtures.ts";
+import { createStopEvent } from "./support/fixtures.ts";
 
 test("a platform approach turns square without sharing an unrelated crossing corridor", () => {
-  const platform: ZentrumSchematicNode = {
+  const bay: ZentrumSchematicNode = {
     id: "platform",
     label: "Platform",
     x: 110,
     y: 0,
-    platformRun: "upright",
+    bayRun: "upright",
   };
   const south = { id: "south", label: "South", x: 44, y: 110 };
   const west = { id: "west", label: "West", x: 0, y: 44 };
   const east = { id: "east", label: "East", x: 154, y: 44 };
   const routes = getZentrumSchematicRoutes(
     [
-      [platform, south],
+      [bay, south],
       [west, east],
     ],
-    [platform, south, west, east],
+    [bay, south, west, east],
   );
-  const approach = routes.get(getEdgeKey(platform.id, south.id))!;
+  const approach = routes.get(getEdgeKey(bay.id, south.id))!;
   assert.deepEqual(
     approach.map(({ x, y }) => [x, y]),
     [
@@ -39,9 +39,9 @@ test("a platform approach turns square without sharing an unrelated crossing cor
   );
   assert.deepEqual(routes.get(getEdgeKey(west.id, east.id)), [west, east]);
   const blocker = { id: "blocker", label: "Blocker", x: 110, y: 88 };
-  const blocked = getZentrumSchematicRoutes([[platform, south]], [platform, south, blocker]);
+  const blocked = getZentrumSchematicRoutes([[bay, south]], [bay, south, blocker]);
   assert.deepEqual(
-    blocked.get(getEdgeKey(platform.id, south.id))?.map(({ x, y }) => [x, y]),
+    blocked.get(getEdgeKey(bay.id, south.id))?.map(({ x, y }) => [x, y]),
     [
       [110, 0],
       [110, 44],
@@ -51,11 +51,11 @@ test("a platform approach turns square without sharing an unrelated crossing cor
 });
 
 test("the eastern approach crosses the trunk square and keeps the lower stops on one straight", () => {
-  const samples: { lineId: string; tripCalls: TripCall[] }[] = JSON.parse(
-    readFileSync(new URL("./support/zentrum-stop-platforms.json", import.meta.url), "utf8"),
+  const samples: { lineId: string; calls: Call[] }[] = JSON.parse(
+    readFileSync(new URL("./support/zentrum-stop-bays.json", import.meta.url), "utf8"),
   );
   const reading = buildZentrumSchematicReading(
-    samples.map((sample, index) => createDeparture({ id: `routing-${index}`, ...sample })),
+    samples.map((sample, index) => createStopEvent({ id: `routing-${index}`, ...sample })),
     1450,
   );
   const wolf = reading.nodesById.get("wolfartsweierer-strasse")!;
@@ -74,14 +74,14 @@ test("the eastern approach crosses the trunk square and keeps the lower stops on
 
 test("approaches to two boarding places share their crossing and the corridor leading to it", () => {
   const west = { id: "west", label: "West", x: 0, y: 132 };
-  const main: ZentrumSchematicNode = { id: "hub", label: "Hub", x: 88, y: 0, platformRun: "level" };
+  const main: ZentrumSchematicNode = { id: "hub", label: "Hub", x: 88, y: 0, bayRun: "level" };
   const apart: ZentrumSchematicNode = {
     id: "hub@north",
     stopId: "hub",
     label: "Hub",
     x: 44,
     y: -44,
-    platformRun: "upright",
+    bayRun: "upright",
   };
   const routes = getZentrumSchematicRoutes(
     [

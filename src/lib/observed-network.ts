@@ -1,18 +1,12 @@
-import type {
-  Departure,
-  DepartureBoard,
-  TransitLine,
-  TransportMode,
-  TripCall,
-} from "../data/transit-types";
+import type { StopEvent, StopEventBoard, TransitLine, PtMode, Call } from "../data/transit-types";
 import { createLineSign } from "../data/line-signs";
 import { compareLineIds, getLineFamilyId } from "./line-families";
 import { isZentrumStop } from "../data/zentrum-stops";
-import { getFarthestLineRunTermini } from "./stop-services";
+import { getFarthestLineDatedJourneyTermini } from "./stop-services";
 import { addOnce, getDistinctByFrequency } from "./collections";
 
 /**
- * The network as the live feed shows it: trips read at a few boards spell out which stops have
+ * The network as the live feed shows it: journeys read at a few boards spell out which stops have
  * service today and which lines call there, so lines appear and disappear on their own. Only the
  * Zentrum's membership (`zentrum-stops.ts`) is authored.
  */
@@ -65,35 +59,38 @@ export type ObservedStop = {
   name: string;
   /** Line ids seen calling here, in order of first sighting. */
   lineIds: string[];
-  /** Trips that called here, for ordering the list. */
+  /** Journeys that called here, for ordering the list. */
   callCount: number;
 };
 
 export type ObservedLine = {
   id: string;
-  transportMode: TransportMode;
+  ptMode: PtMode;
   /** Destinations seen on this line, most frequent first — what a rider reads on the front. */
   destinations: string[];
   /**
-   * The farthest observed run's ends (`getFarthestLineRunTermini`), which name the line's extent.
+   * The farthest observed dated journey's ends (`getFarthestLineDatedJourneyTermini`), which name
+   * the line's extent.
    */
-  farthestRunTermini?: readonly string[];
+  farthestDatedJourneyTermini?: readonly string[];
 };
 
 export type ObservedNetwork = {
   stops: ObservedStop[];
   lines: ObservedLine[];
-  /** Trips the view was built from. */
-  tripCount: number;
+  /** Journeys the view was built from. */
+  journeyCount: number;
 };
 
-/** The timeless part of a trip: route topology without countdown, prediction, status or clocks. */
-export type ObservedTripTopology = Pick<
-  Departure,
-  "id" | "tripId" | "lineId" | "transportMode" | "destination" | "tripCalls"
+/**
+ * The timeless part of a journey: route topology without countdown, prediction, status or clocks.
+ */
+export type ObservedJourneyTopology = Pick<
+  StopEvent,
+  "id" | "journeyRef" | "lineId" | "ptMode" | "destinationText" | "calls"
 >;
 
-/** Where named stops are, from every trip's calls: a few posts locate hundreds of stops. */
+/** Where named stops are, from every journey's calls: a few posts locate hundreds of stops. */
 export type ObservedStopPosition = {
   id: string;
   name: string;
@@ -103,14 +100,14 @@ export type ObservedStopPosition = {
 };
 
 export function getObservedStopPositions(
-  boards: readonly DepartureBoard[],
+  boards: readonly StopEventBoard[],
 ): ObservedStopPosition[] {
   const positionById = new Map<string, ObservedStopPosition>();
 
   for (const board of boards) {
     if (board.dataStatus !== "live") continue;
-    for (const departure of board.departures) {
-      for (const call of departure.tripCalls ?? []) {
+    for (const stopEvent of board.stopEvents) {
+      for (const call of stopEvent.calls ?? []) {
         const { localStopId, latitude, longitude } = call;
         if (!localStopId || latitude === undefined || longitude === undefined) continue;
         if (positionById.has(localStopId)) continue;
@@ -128,32 +125,32 @@ export function getObservedStopPositions(
   return [...positionById.values()];
 }
 
-type IdentifiedCall = TripCall & { localStopId: string };
+type IdentifiedCall = Call & { localStopId: string };
 
-function isIdentifiedCall(call: TripCall): call is IdentifiedCall {
+function isIdentifiedCall(call: Call): call is IdentifiedCall {
   return Boolean(call.localStopId);
 }
 
-export function buildObservedNetworkFromTrips(
-  trips: readonly ObservedTripTopology[],
+export function buildObservedNetworkFromJourneys(
+  journeys: readonly ObservedJourneyTopology[],
 ): ObservedNetwork {
   const stops = new Map<string, ObservedStop>();
   const lines = new Map<
     string,
-    { transportMode: TransportMode; destinations: string[]; trips: ObservedTripTopology[] }
+    { ptMode: PtMode; destinations: string[]; journeys: ObservedJourneyTopology[] }
   >();
 
-  for (const trip of trips) {
-    const line = lines.get(trip.lineId) ?? {
-      transportMode: trip.transportMode,
+  for (const journey of journeys) {
+    const line = lines.get(journey.lineId) ?? {
+      ptMode: journey.ptMode,
       destinations: [],
-      trips: [],
+      journeys: [],
     };
-    line.destinations.push(trip.destination);
-    line.trips.push(trip);
-    lines.set(trip.lineId, line);
+    line.destinations.push(journey.destinationText);
+    line.journeys.push(journey);
+    lines.set(journey.lineId, line);
 
-    for (const call of (trip.tripCalls ?? []).filter(isIdentifiedCall)) {
+    for (const call of (journey.calls ?? []).filter(isIdentifiedCall)) {
       if (!isZentrumStop(call.localStopId)) continue;
       const stop = stops.get(call.localStopId) ?? {
         id: call.localStopId,
@@ -161,7 +158,7 @@ export function buildObservedNetworkFromTrips(
         lineIds: [],
         callCount: 0,
       };
-      addOnce(stop.lineIds, trip.lineId);
+      addOnce(stop.lineIds, journey.lineId);
       stop.callCount += 1;
       stops.set(call.localStopId, stop);
     }
@@ -171,43 +168,44 @@ export function buildObservedNetworkFromTrips(
     stops: [...stops.values()],
     lines: [...lines.entries()].map(([id, line]) => ({
       id,
-      transportMode: line.transportMode,
+      ptMode: line.ptMode,
       destinations: getDistinctByFrequency(line.destinations),
-      farthestRunTermini: getFarthestLineRunTermini(id, line.trips),
+      farthestDatedJourneyTermini: getFarthestLineDatedJourneyTermini(id, line.journeys),
     })),
-    tripCount: trips.length,
+    journeyCount: journeys.length,
   };
 }
 
 /**
  * Observed lines as views expect them: official sign or neutral, and the ends seen, at the farthest
- * run where known. A line not running is not offered.
+ * dated journey where known. A line not running is not offered.
  */
 type ObservedLineFamily = {
   sign: TransitLine;
   destinations: string[];
   zentrumCalls: string[];
-  farthestRunTermini?: readonly string[];
+  farthestDatedJourneyTermini?: readonly string[];
 };
 
 export function getObservedTransitLines(network: ObservedNetwork): TransitLine[] {
   const familyById = new Map<string, ObservedLineFamily>();
 
-  const getFamily = (lineId: string, transportMode: TransportMode): ObservedLineFamily => {
+  const getFamily = (lineId: string, ptMode: PtMode): ObservedLineFamily => {
     const familyId = getLineFamilyId(lineId);
     const existing = familyById.get(familyId);
     if (existing) return existing;
-    const sign = { ...createLineSign(lineId, transportMode), id: familyId, name: familyId };
+    const sign = { ...createLineSign(lineId, ptMode), id: familyId, name: familyId };
     const created: ObservedLineFamily = { sign, destinations: [], zentrumCalls: [] };
     familyById.set(familyId, created);
     return created;
   };
 
   for (const observed of network.lines) {
-    const family = getFamily(observed.id, observed.transportMode);
+    const family = getFamily(observed.id, observed.ptMode);
     for (const destination of observed.destinations) addOnce(family.destinations, destination);
     // The family's first observation stands; merged raw lines are not one extent.
-    if (!family.farthestRunTermini) family.farthestRunTermini = observed.farthestRunTermini;
+    if (!family.farthestDatedJourneyTermini)
+      family.farthestDatedJourneyTermini = observed.farthestDatedJourneyTermini;
   }
 
   // One pass over stops, which already list their lines.
@@ -219,11 +217,11 @@ export function getObservedTransitLines(network: ObservedNetwork): TransitLine[]
   }
 
   return [...familyById.values()]
-    .map(({ sign, destinations, zentrumCalls, farthestRunTermini }) => ({
+    .map(({ sign, destinations, zentrumCalls, farthestDatedJourneyTermini }) => ({
       ...sign,
       destinations,
       zentrumCalls,
-      ...(farthestRunTermini ? { farthestRunTermini } : {}),
+      ...(farthestDatedJourneyTermini ? { farthestDatedJourneyTermini } : {}),
     }))
     .sort((a, b) => compareLineIds(a.id, b.id));
 }

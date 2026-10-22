@@ -1,30 +1,30 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { DepartureBoard, TripCall } from "../src/data/transit-types.ts";
+import type { StopEventBoard, Call } from "../src/data/transit-types.ts";
 import { getZentrumStopView } from "../src/lib/zentrum-stop-view.ts";
-import { createDeparture } from "./support/fixtures.ts";
+import { createStopEvent } from "./support/fixtures.ts";
 
 const at = (minute: number) => `2026-09-04T12:${String(minute).padStart(2, "0")}:00+02:00`;
 const instant = (minute: number) => Date.parse(at(minute));
-const call = (localStopId: string, minute: number, delayMinutes?: number): TripCall => ({
+const call = (localStopId: string, minute: number, delayMinutes?: number): Call => ({
   localStopId,
   stopName: localStopId,
-  scheduledArrivalTime: at(minute),
-  scheduledDepartureTime: at(minute),
+  timetabledArrivalTime: at(minute),
+  timetabledDepartureTime: at(minute),
   delayMinutes,
 });
 
 test("split destinations rank by arrival even when a farther ride is shorter", () => {
-  const departures = [
-    createDeparture({ id: "soon", tripCalls: [call("europaplatz", 1), call("marktplatz", 5)] }),
-    createDeparture({ id: "later", tripCalls: [call("europaplatz", 10), call("karlstor", 11)] }),
+  const stopEvents = [
+    createStopEvent({ id: "soon", calls: [call("europaplatz", 1), call("marktplatz", 5)] }),
+    createStopEvent({ id: "later", calls: [call("europaplatz", 10), call("karlstor", 11)] }),
   ];
   const view = getZentrumStopView(
     "destinations",
     "europaplatz",
     null,
     [],
-    departures,
+    stopEvents,
     instant(0),
     "split",
   );
@@ -50,12 +50,12 @@ test("an unanswered board remains loading, while an answered empty board has no 
   );
   assert.equal(loading.rows, undefined);
   assert.deepEqual(loading.reachableStops, []);
-  const board: DepartureBoard = {
+  const board: StopEventBoard = {
     stopId: "marktplatz",
     receivedAt: instant(0),
     feedUpdatedAt: at(0),
     dataStatus: "live",
-    departures: [],
+    stopEvents: [],
   };
   const answered = getZentrumStopView(
     "departures",
@@ -71,16 +71,16 @@ test("an unanswered board remains loading, while an answered empty board has no 
 });
 
 test("the destination list and map share the selected ride's minutes and prediction source", () => {
-  const departures = [
-    createDeparture({
+  const stopEvents = [
+    createStopEvent({
       id: "slow",
       lineId: "2",
-      tripCalls: [call("europaplatz", 1, 0), call("marktplatz", 5, 0)],
+      calls: [call("europaplatz", 1, 0), call("marktplatz", 5, 0)],
     }),
-    createDeparture({
+    createStopEvent({
       id: "fast",
       lineId: "S1",
-      tripCalls: [call("europaplatz", 4), call("marktplatz", 6)],
+      calls: [call("europaplatz", 4), call("marktplatz", 6)],
     }),
   ];
   for (const measure of ["arrival", "ride"] as const) {
@@ -89,7 +89,7 @@ test("the destination list and map share the selected ride's minutes and predict
       "europaplatz",
       null,
       [],
-      departures,
+      stopEvents,
       instant(0),
       measure,
     );
@@ -97,7 +97,7 @@ test("the destination list and map share the selected ride's minutes and predict
     assert.equal(view.reachableStops.length, 1);
     const stop = view.reachableStops[0];
     assert.equal(stop.nodeId, "marktplatz");
-    assert.equal(stop.departure.id, measure === "arrival" ? "slow" : "fast");
+    assert.equal(stop.stopEvent.id, measure === "arrival" ? "slow" : "fast");
     assert.equal(stop.minutes, measure === "arrival" ? 5 : 2);
     assert.deepEqual(view.stopMinutesByNodeId?.get(stop.nodeId), {
       minutes: stop.minutes,
@@ -111,18 +111,18 @@ test("the destination list and map share the selected ride's minutes and predict
 });
 
 test("destinations are ordered by the chosen measure, using arrival time to break ties", () => {
-  const departures = [
-    createDeparture({
+  const stopEvents = [
+    createStopEvent({
       id: "near",
-      tripCalls: [call("europaplatz", 1), call("karlstor", 3)],
+      calls: [call("europaplatz", 1), call("karlstor", 3)],
     }),
-    createDeparture({
+    createStopEvent({
       id: "later",
-      tripCalls: [call("europaplatz", 4), call("marktplatz", 5)],
+      calls: [call("europaplatz", 4), call("marktplatz", 5)],
     }),
-    createDeparture({
+    createStopEvent({
       id: "tie",
-      tripCalls: [call("europaplatz", 4), call("kronenplatz", 6)],
+      calls: [call("europaplatz", 4), call("kronenplatz", 6)],
     }),
   ];
   for (const measure of ["arrival", "ride"] as const) {
@@ -131,7 +131,7 @@ test("destinations are ordered by the chosen measure, using arrival time to brea
       "europaplatz",
       null,
       [],
-      departures,
+      stopEvents,
       instant(0),
       measure,
     );
@@ -145,21 +145,21 @@ test("destinations are ordered by the chosen measure, using arrival time to brea
 });
 
 test("the split measure takes the soonest arrival and reads its ride and wait apart", () => {
-  const departures = [
-    createDeparture({
+  const stopEvents = [
+    createStopEvent({
       id: "slow",
       lineId: "2",
-      tripCalls: [call("europaplatz", 1), call("marktplatz", 5)],
+      calls: [call("europaplatz", 1), call("marktplatz", 5)],
     }),
-    createDeparture({
+    createStopEvent({
       id: "fast",
       lineId: "S1",
-      tripCalls: [call("europaplatz", 4), call("marktplatz", 6)],
+      calls: [call("europaplatz", 4), call("marktplatz", 6)],
     }),
-    createDeparture({
+    createStopEvent({
       id: "far",
       lineId: "3",
-      tripCalls: [call("europaplatz", 2), call("karlstor", 3)],
+      calls: [call("europaplatz", 2), call("karlstor", 3)],
     }),
   ];
   const view = getZentrumStopView(
@@ -167,12 +167,12 @@ test("the split measure takes the soonest arrival and reads its ride and wait ap
     "europaplatz",
     null,
     [],
-    departures,
+    stopEvents,
     instant(0),
     "split",
   );
   const marktplatz = view.reachableStops.find(({ nodeId }) => nodeId === "marktplatz");
-  assert.equal(marktplatz?.departure.id, "slow");
+  assert.equal(marktplatz?.stopEvent.id, "slow");
   assert.equal(marktplatz?.minutes, 4);
   assert.equal(marktplatz?.waitMinutes, 1);
   assert.deepEqual(

@@ -1,11 +1,11 @@
 /**
  * Measures what the feed states at a terminus, as evidence for turnaround pairing
  * (`src/lib/line-turnarounds.ts`):
- * 1. The scheduled turn per line, known only modulo the headway (printed beside it); a gap of zero
+ * 1. The timetabled turn per line, known only modulo the headway (printed beside it); a gap of zero
  *    or a whole headway is reported as impossible rather than as a turn.
- * 2. Whether the departure shares the arrival's platform (stub tracks do; loops do not).
- * 3. Whether an unstarted run carries its vehicle's deviation, and whether a predicted departure
- *    precedes the predicted arrival.
+ * 2. Whether the departure shares the arrival's bay (stub tracks do; loops do not).
+ * 3. Whether an unstarted dated journey carries its vehicle's deviation, and whether an estimated
+ * departure precedes the estimated arrival.
  *
  *     npm run probe:turnarounds -- [options]
  *
@@ -14,19 +14,19 @@
  *       --minutes 20              how long to run (default 20)
  *       --out probe.jsonl         also write every reading, for analysis afterwards
  *
- * Reads each terminus's board (starting runs) and its neighbours' boards (ending runs). Run by
- * hand, then stop.
+ * Reads each terminus's board (starting dated journeys) and its neighbours' boards (ending dated
+ * journeys). Run by hand, then stop.
  */
 
 import { appendFile } from "node:fs/promises";
 import { KvvEfaClient } from "../src/data/kvv-efa-client.ts";
-import type { KvvDeparture, KvvTripCall } from "../src/data/kvv-feed.ts";
+import type { KvvStopEvent, KvvCall } from "../src/data/kvv-feed.ts";
 
-/** The calls the feed marks as run ends, as in `lib/trip-calls.ts`. */
-const statesRunStart = (call: KvvTripCall): boolean =>
-  call.scheduledDepartureTime !== undefined && call.scheduledArrivalTime === undefined;
-const statesRunEnd = (call: KvvTripCall): boolean =>
-  call.scheduledArrivalTime !== undefined && call.scheduledDepartureTime === undefined;
+/** The calls the feed marks as dated journey ends, as in `lib/calls.ts`. */
+const statesDatedJourneyStart = (call: KvvCall): boolean =>
+  call.timetabledDepartureTime !== undefined && call.timetabledArrivalTime === undefined;
+const statesDatedJourneyEnd = (call: KvvCall): boolean =>
+  call.timetabledArrivalTime !== undefined && call.timetabledDepartureTime === undefined;
 
 const DEFAULT_TERMINUS_IDS = ["7000314", "7004500", "7000013", "7000089", "7000090", "7000084"];
 const DEFAULT_INTERVAL_SECONDS = 60;
@@ -37,8 +37,8 @@ const BOARD_ROW_LIMIT = 30;
 const NEIGHBOUR_LIMIT = 3;
 /** Below this slack, an arrival's lateness should show on the departure. */
 const MIN_TURN_MS = 60_000;
-/** The farthest a scheduled departure is looked at past a scheduled arrival. */
-const SCHEDULED_PAIRING_HORIZON_MS = 30 * 60_000;
+/** The farthest a timetabled departure is looked at past a timetabled arrival. */
+const TIMETABLED_PAIRING_HORIZON_MS = 30 * 60_000;
 
 type Options = {
   terminusIds: string[];
@@ -79,29 +79,29 @@ const hhmm = (instant: number | undefined): string =>
   instant === undefined ? "—" : clock.format(new Date(instant));
 const minutes = (ms: number): string => `${(ms / 60_000).toFixed(1)}`;
 
-const getTripKey = (departure: KvvDeparture): string =>
-  departure.tripInstanceId ??
-  departure.tripId ??
-  `${departure.lineId}@${departure.scheduledDepartureTime}`;
+const getJourneyKey = (stopEvent: KvvStopEvent): string =>
+  stopEvent.datedJourneyId ??
+  stopEvent.journeyRef ??
+  `${stopEvent.lineId}@${stopEvent.timetabledDepartureTime}`;
 
-/** One reading of a run's first call, at or after its stand. */
+/** One reading of a dated journey's first call, at or after its stand. */
 type StartReading = {
   feedNow: number;
   /** The row's deviation; `undefined` means not monitored yet. */
   rowDelayMinutes?: number;
   /** The first call's departure deviation as the sequence states it. */
   callDelayMinutes?: number;
-  status: KvvDeparture["status"];
+  status: KvvStopEvent["status"];
 };
 
 type Start = {
   key: string;
   lineId: string;
-  directionId?: string;
+  lineRef?: string;
   destination: string;
-  scheduledDeparture: number;
-  platform?: string;
-  /** The run's next stop, where its arrival counterpart is read. */
+  timetabledDeparture: number;
+  bay?: string;
+  /** The dated journey's next stop, where its arrival counterpart is read. */
   nextStopPointId?: string;
   readings: StartReading[];
 };
@@ -109,10 +109,10 @@ type Start = {
 type Arrival = {
   key: string;
   lineId: string;
-  directionId?: string;
+  lineRef?: string;
   origin: string;
-  scheduledArrival: number;
-  platform?: string;
+  timetabledArrival: number;
+  bay?: string;
   /** Latest arrival deviation at the terminus. */
   arrivalDelayMinutes?: number;
   lastSeenAt: number;
@@ -132,7 +132,7 @@ type TerminusRecord = {
 const terminusById = new Map<string, TerminusRecord>();
 let pollCount = 0;
 
-function isAtTerminus(call: KvvTripCall, terminus: TerminusRecord): boolean {
+function isAtTerminus(call: KvvCall, terminus: TerminusRecord): boolean {
   return (
     (call.providerId !== undefined && terminus.stopPointIds.has(call.providerId)) ||
     (terminus.stopName !== undefined && call.stopName === terminus.stopName)
@@ -144,40 +144,40 @@ async function readStarts(
   terminus: TerminusRecord,
   options: Options,
 ): Promise<void> {
-  const board = await client.fetchDepartureBoard(terminus.stopPointId, {
-    includeTripCalls: true,
+  const board = await client.fetchStopEventBoard(terminus.stopPointId, {
+    includeCalls: true,
     limit: BOARD_ROW_LIMIT,
   });
   const feedNow = toInstant(board.serverTime) ?? Date.now();
   terminus.stopName ??= board.stopName;
   terminus.polls += 1;
-  for (const departure of board.departures) {
-    terminus.stopPointIds.add(departure.stopPointId);
-    const calls = departure.tripCalls ?? [];
+  for (const stopEvent of board.stopEvents) {
+    terminus.stopPointIds.add(stopEvent.stopPointId);
+    const calls = stopEvent.calls ?? [];
     const first = calls[0];
-    if (!first || !statesRunStart(first) || !isAtTerminus(first, terminus)) continue;
-    const scheduledDeparture = toInstant(first.scheduledDepartureTime);
-    if (scheduledDeparture === undefined) continue;
-    const key = getTripKey(departure);
+    if (!first || !statesDatedJourneyStart(first) || !isAtTerminus(first, terminus)) continue;
+    const timetabledDeparture = toInstant(first.timetabledDepartureTime);
+    if (timetabledDeparture === undefined) continue;
+    const key = getJourneyKey(stopEvent);
     const nextStopPointId = calls.find((call) => !isAtTerminus(call, terminus))?.providerId;
     if (nextStopPointId && terminus.neighbourIds.size < NEIGHBOUR_LIMIT) {
       terminus.neighbourIds.add(nextStopPointId);
     }
     const start = terminus.starts.get(key) ?? {
       key,
-      lineId: departure.lineId,
-      directionId: departure.routeDirectionId,
-      destination: departure.destination,
-      scheduledDeparture,
-      platform: departure.platformCode || first.platformCode,
+      lineId: stopEvent.lineId,
+      lineRef: stopEvent.lineRef,
+      destination: stopEvent.destinationText,
+      timetabledDeparture,
+      bay: stopEvent.bay || first.bay,
       nextStopPointId,
       readings: [],
     };
     start.readings.push({
       feedNow,
-      rowDelayMinutes: departure.delayMinutes,
+      rowDelayMinutes: stopEvent.delayMinutes,
       callDelayMinutes: first.delayMinutes,
-      status: departure.status,
+      status: stopEvent.status,
     });
     terminus.starts.set(key, start);
     if (options.outPath) {
@@ -188,12 +188,12 @@ async function readStarts(
           terminus: terminus.stopPointId,
           serverTime: board.serverTime,
           key,
-          lineId: departure.lineId,
-          scheduledDeparture: first.scheduledDepartureTime,
-          platform: start.platform,
-          rowDelayMinutes: departure.delayMinutes,
+          lineId: stopEvent.lineId,
+          timetabledDeparture: first.timetabledDepartureTime,
+          bay: start.bay,
+          rowDelayMinutes: stopEvent.delayMinutes,
           callDelayMinutes: first.delayMinutes,
-          status: departure.status,
+          status: stopEvent.status,
         })}\n`,
       );
     }
@@ -206,26 +206,26 @@ async function readArrivals(
   neighbourId: string,
   options: Options,
 ): Promise<void> {
-  const board = await client.fetchDepartureBoard(neighbourId, {
-    includeTripCalls: true,
+  const board = await client.fetchStopEventBoard(neighbourId, {
+    includeCalls: true,
     limit: BOARD_ROW_LIMIT,
   });
   const feedNow = toInstant(board.serverTime) ?? Date.now();
-  for (const departure of board.departures) {
-    const calls = departure.tripCalls ?? [];
+  for (const stopEvent of board.stopEvents) {
+    const calls = stopEvent.calls ?? [];
     const last = calls[calls.length - 1];
-    if (!last || !statesRunEnd(last) || !isAtTerminus(last, terminus)) continue;
-    const scheduledArrival = toInstant(last.scheduledArrivalTime);
-    if (scheduledArrival === undefined) continue;
-    const key = getTripKey(departure);
+    if (!last || !statesDatedJourneyEnd(last) || !isAtTerminus(last, terminus)) continue;
+    const timetabledArrival = toInstant(last.timetabledArrivalTime);
+    if (timetabledArrival === undefined) continue;
+    const key = getJourneyKey(stopEvent);
     const arrivalDelayMinutes = last.arrivalDelayMinutes ?? last.delayMinutes;
     terminus.arrivals.set(key, {
       key,
-      lineId: departure.lineId,
-      directionId: departure.routeDirectionId,
+      lineId: stopEvent.lineId,
+      lineRef: stopEvent.lineRef,
       origin: calls[0]?.stopName ?? "?",
-      scheduledArrival,
-      platform: last.platformCode,
+      timetabledArrival,
+      bay: last.bay,
       arrivalDelayMinutes: arrivalDelayMinutes ?? terminus.arrivals.get(key)?.arrivalDelayMinutes,
       lastSeenAt: feedNow,
     });
@@ -238,11 +238,11 @@ async function readArrivals(
           neighbour: neighbourId,
           serverTime: board.serverTime,
           key,
-          lineId: departure.lineId,
-          scheduledArrival: last.scheduledArrivalTime,
-          platform: last.platformCode,
+          lineId: stopEvent.lineId,
+          timetabledArrival: last.timetabledArrivalTime,
+          bay: last.bay,
           arrivalDelayMinutes,
-          status: departure.status,
+          status: stopEvent.status,
         })}\n`,
       );
     }
@@ -266,31 +266,31 @@ async function poll(client: KvvEfaClient, options: Options): Promise<void> {
 // ---------------------------------------------------------------------------------------------
 // Report
 
-type Pair = { arrival: Arrival; start: Start; scheduledGapMs: number };
+type Pair = { arrival: Arrival; start: Start; timetabledGapMs: number };
 
 /**
- * The minimal FIFO pairing on scheduled times: each arrival takes the nearest later unclaimed start
- * of its line. Read the gaps against the headway: a zero gap disproves it, and a depot's extra
- * starts make it drift.
+ * The minimal FIFO pairing on timetabled times: each arrival takes the nearest later unclaimed
+ * start of its line. Read the gaps against the headway: a zero gap disproves it, and a depot's
+ * extra starts make it drift.
  */
 function pairOnSchedule(arrivals: readonly Arrival[], starts: readonly Start[]): Pair[] {
   const pairs: Pair[] = [];
   const taken = new Set<string>();
-  const sortedStarts = [...starts].sort((a, b) => a.scheduledDeparture - b.scheduledDeparture);
-  for (const arrival of [...arrivals].sort((a, b) => a.scheduledArrival - b.scheduledArrival)) {
+  const sortedStarts = [...starts].sort((a, b) => a.timetabledDeparture - b.timetabledDeparture);
+  for (const arrival of [...arrivals].sort((a, b) => a.timetabledArrival - b.timetabledArrival)) {
     const start = sortedStarts.find(
       (candidate) =>
         !taken.has(candidate.key) &&
         candidate.lineId === arrival.lineId &&
-        candidate.scheduledDeparture >= arrival.scheduledArrival &&
-        candidate.scheduledDeparture - arrival.scheduledArrival <= SCHEDULED_PAIRING_HORIZON_MS,
+        candidate.timetabledDeparture >= arrival.timetabledArrival &&
+        candidate.timetabledDeparture - arrival.timetabledArrival <= TIMETABLED_PAIRING_HORIZON_MS,
     );
     if (!start) continue;
     taken.add(start.key);
     pairs.push({
       arrival,
       start,
-      scheduledGapMs: start.scheduledDeparture - arrival.scheduledArrival,
+      timetabledGapMs: start.timetabledDeparture - arrival.timetabledArrival,
     });
   }
   return pairs;
@@ -320,10 +320,10 @@ function histogram(values: readonly number[]): string {
     .join(", ");
 }
 
-/** A start's deviation at the last reading before its scheduled departure. */
+/** A start's deviation at the last reading before its timetabled departure. */
 function findPreDepartureReading(start: Start): StartReading | undefined {
   const before = start.readings.filter(
-    ({ feedNow }) => feedNow < start.scheduledDeparture - 30_000,
+    ({ feedNow }) => feedNow < start.timetabledDeparture - 30_000,
   );
   return before[before.length - 1];
 }
@@ -338,7 +338,7 @@ function reportTerminus(terminus: TerminusRecord): void {
   console.log(`runs starting here ${starts.length}; runs ending here ${arrivals.length}`);
   if (starts.length === 0) return;
 
-  // 1. Scheduled turn time per line.
+  // 1. Timetabled turn time per line.
   console.log("\n— 1. scheduled turn, by line — the minimal pairing, read against the headway —");
   const pairs = pairOnSchedule(arrivals, starts);
   const byLine = new Map<string, Pair[]>();
@@ -348,9 +348,9 @@ function reportTerminus(terminus: TerminusRecord): void {
     const headway = findHeadwayMinutes(
       starts
         .filter((start) => start.lineId === lineId)
-        .map(({ scheduledDeparture }) => scheduledDeparture),
+        .map(({ timetabledDeparture }) => timetabledDeparture),
     );
-    const gaps = linePairs.map(({ scheduledGapMs }) => Math.round(scheduledGapMs / 60_000));
+    const gaps = linePairs.map(({ timetabledGapMs }) => Math.round(timetabledGapMs / 60_000));
     // A whole number of headways is impossible: the real turn is at least one headway longer.
     const isDegenerate = gaps.some(
       (gap) => gap === 0 || (headway !== undefined && headway > 0 && gap % headway === 0),
@@ -363,8 +363,8 @@ function reportTerminus(terminus: TerminusRecord): void {
   const unpairedArrivals = arrivals.filter((a) => !pairs.some((p) => p.arrival.key === a.key));
   if (unpairedArrivals.length > 0) {
     console.log(
-      `  arrivals with no start of their line within ${minutes(SCHEDULED_PAIRING_HORIZON_MS)} min: ${unpairedArrivals
-        .map((a) => `${a.lineId}@${hhmm(a.scheduledArrival)}`)
+      `  arrivals with no start of their line within ${minutes(TIMETABLED_PAIRING_HORIZON_MS)} min: ${unpairedArrivals
+        .map((a) => `${a.lineId}@${hhmm(a.timetabledArrival)}`)
         .join(", ")}`,
     );
   }
@@ -374,22 +374,19 @@ function reportTerminus(terminus: TerminusRecord): void {
       "    more vehicle standing. Compare periods before treating a value as the terminus's.",
   );
 
-  // 2. Platforms.
+  // 2. Bays.
   console.log("\n— 2. platform: does the start leave from the platform the arrival came in on? —");
-  const platformTally = { same: 0, different: 0, unknown: 0 };
+  const bayTally = { same: 0, different: 0, unknown: 0 };
   for (const { arrival, start } of pairs) {
-    if (!arrival.platform || !start.platform) platformTally.unknown += 1;
-    else if (arrival.platform === start.platform) platformTally.same += 1;
-    else platformTally.different += 1;
+    if (!arrival.bay || !start.bay) bayTally.unknown += 1;
+    else if (arrival.bay === start.bay) bayTally.same += 1;
+    else bayTally.different += 1;
   }
   console.log(
-    `  same ${platformTally.same}, different ${platformTally.different}, unknown ${platformTally.unknown}`,
+    `  same ${bayTally.same}, different ${bayTally.different}, unknown ${bayTally.unknown}`,
   );
-  const platformsSeen = new Set([
-    ...pairs.map((p) => p.arrival.platform),
-    ...pairs.map((p) => p.start.platform),
-  ]);
-  console.log(`  platforms seen: ${[...platformsSeen].filter(Boolean).join(", ") || "none"}`);
+  const baysSeen = new Set([...pairs.map((p) => p.arrival.bay), ...pairs.map((p) => p.start.bay)]);
+  console.log(`  platforms seen: ${[...baysSeen].filter(Boolean).join(", ") || "none"}`);
 
   // 3. Realtime before departure.
   console.log("\n— 3. does an unstarted run carry a deviation, and whose? —");
@@ -407,7 +404,7 @@ function reportTerminus(terminus: TerminusRecord): void {
     const first = start.readings.find(
       (r) => (r.rowDelayMinutes ?? r.callDelayMinutes) !== undefined,
     );
-    return first ? [Math.round((start.scheduledDeparture - first.feedNow) / 60_000)] : [];
+    return first ? [Math.round((start.timetabledDeparture - first.feedNow) / 60_000)] : [];
   });
   if (leads.length > 0) {
     console.log(
@@ -418,18 +415,19 @@ function reportTerminus(terminus: TerminusRecord): void {
   console.log(
     "\n  pair                              arr sched  arr Δ  dep sched  slack  dep Δ before dep  (readings)",
   );
-  for (const { arrival, start, scheduledGapMs } of pairs) {
+  for (const { arrival, start, timetabledGapMs } of pairs) {
     const reading = findPreDepartureReading(start);
     const depDelay = reading ? (reading.rowDelayMinutes ?? reading.callDelayMinutes) : undefined;
     const arrivalDelay = arrival.arrivalDelayMinutes;
-    const slackMs = arrivalDelay === undefined ? undefined : scheduledGapMs - arrivalDelay * 60_000;
-    // A predicted departure before the predicted arrival rules the pairing out.
-    const predictedGapMs =
+    const slackMs =
+      arrivalDelay === undefined ? undefined : timetabledGapMs - arrivalDelay * 60_000;
+    // An estimated departure before the estimated arrival rules the pairing out.
+    const estimatedGapMs =
       arrivalDelay === undefined || depDelay === undefined
         ? undefined
-        : scheduledGapMs + (depDelay - arrivalDelay) * 60_000;
+        : timetabledGapMs + (depDelay - arrivalDelay) * 60_000;
     const series = start.readings
-      .filter(({ feedNow }) => feedNow < start.scheduledDeparture + 60_000)
+      .filter(({ feedNow }) => feedNow < start.timetabledDeparture + 60_000)
       .map((r) => `${r.rowDelayMinutes ?? r.callDelayMinutes ?? "·"}`)
       .join("");
     const verdict =
@@ -437,17 +435,17 @@ function reportTerminus(terminus: TerminusRecord): void {
         ? arrivalDelay === undefined
           ? ""
           : "  no dep Δ stated"
-        : predictedGapMs === undefined
+        : estimatedGapMs === undefined
           ? ""
-          : predictedGapMs >= 0
+          : estimatedGapMs >= 0
             ? slackMs !== undefined && slackMs < MIN_TURN_MS
               ? "  ✓ consistent, and the arrival was late enough to test it"
               : "  ✓ consistent"
             : "  ✗ dep before arrival";
     console.log(
       `  ${`${start.lineId} ${arrival.origin.slice(0, 12)}→${start.destination.slice(0, 12)}`.padEnd(34)}` +
-        `${hhmm(arrival.scheduledArrival)}   ${String(arrivalDelay ?? "—").padStart(4)}   ` +
-        `${hhmm(start.scheduledDeparture)}   ${slackMs === undefined ? "  —" : minutes(slackMs).padStart(5)}  ` +
+        `${hhmm(arrival.timetabledArrival)}   ${String(arrivalDelay ?? "—").padStart(4)}   ` +
+        `${hhmm(start.timetabledDeparture)}   ${slackMs === undefined ? "  —" : minutes(slackMs).padStart(5)}  ` +
         `${String(depDelay ?? "—").padStart(5)}             (${series || "none"})${verdict}`,
     );
   }

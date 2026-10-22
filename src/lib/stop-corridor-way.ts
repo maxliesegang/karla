@@ -1,14 +1,16 @@
-import type { TripCall } from "../data/transit-types";
+import type { Call } from "../data/transit-types";
 import { getDistanceMeters } from "./geo";
 import { getBaseName } from "./stop-naming";
-import { getVisitedStopKeys, getCallSequenceKey } from "./trip-calls";
+import { getVisitedStopKeys, getCallSequenceKey } from "./calls";
 
-/** The way a corridor's row sketches: its trips' ends, and the places between worth naming. */
+/** The way a corridor's row sketches: its journeys' ends, and the places between worth naming. */
 
-/** One place along a corridor's way: an end a trip turns back at, or a place the way passes. */
+/** One place along a corridor's way: an end a journey turns back at, or a place the way passes. */
 export type StopServiceCorridorPlace = {
   label: string;
-  /** Whether a trip ends here. Ends are always shown; places between only where there is room. */
+  /**
+   * Whether a journey ends here. Ends are always shown; places between only where there is room.
+   */
   isTerminus: boolean;
   /**
    * Prominence among the way's places (connections, then calls), most prominent first; ends have
@@ -27,7 +29,7 @@ const CORRIDOR_PLACE_COUNT = 3;
  * Where a line family was seen serving a place. One name can mean two places (`Friedrichstal` on
  * the S2 and on the S8, 70 km apart), so connections count only where positions agree.
  */
-export type PlaceSighting = Pick<TripCall, "latitude" | "longitude">;
+export type PlaceSighting = Pick<Call, "latitude" | "longitude">;
 
 /** The line families each place is served by, and where each was seen. */
 export type PlaceLineFamilies = ReadonlyMap<string, ReadonlyMap<string, PlaceSighting>>;
@@ -57,7 +59,7 @@ export type CorridorWayKnowledge = {
  * The place a call names a direction by: the feed's place (a municipality or a Karlsruhe district
  * like `Durlach`), or the stop name where that is the rider's own place.
  */
-export function getCallDirectionLabel(call: TripCall, boardPlaceName: string | undefined): string {
+export function getCallDirectionLabel(call: Call, boardPlaceName: string | undefined): string {
   const placeName = call.placeName && getBaseName(call.placeName);
   return placeName && placeName !== boardPlaceName ? placeName : call.stopName;
 }
@@ -84,9 +86,9 @@ type WayEvent = StopServiceCorridorPlace & { index: number };
  * its through service). Routes that genuinely part return nothing.
  */
 function findContinuationRoutes(
-  sequences: readonly (readonly TripCall[])[],
-): readonly (readonly TripCall[])[] | undefined {
-  const routeByKey = new Map<string, readonly TripCall[]>();
+  sequences: readonly (readonly Call[])[],
+): readonly (readonly Call[])[] | undefined {
+  const routeByKey = new Map<string, readonly Call[]>();
   for (const sequence of sequences) routeByKey.set(getCallSequenceKey(sequence), sequence);
   const routes = [...routeByKey.values()].sort(
     (first, second) =>
@@ -104,7 +106,7 @@ function findContinuationRoutes(
 
 /** Where each route turns back; two ends in one place both stay. */
 function findTerminusEvents(
-  routes: readonly (readonly TripCall[])[],
+  routes: readonly (readonly Call[])[],
   boardPlaceName: string | undefined,
 ): WayEvent[] {
   return routes.flatMap((route) => {
@@ -125,7 +127,7 @@ function findTerminusEvents(
  * rider's own place is not counted.
  */
 function findWayPlaceEvents(
-  longest: readonly TripCall[],
+  longest: readonly Call[],
   terminusLabels: ReadonlySet<string>,
   { boardPlaceName, lineFamiliesByPlace, lineFamilyId }: CorridorWayKnowledge,
 ): WayEvent[] {
@@ -161,7 +163,7 @@ function findWayPlaceEvents(
 
 /** The places along the way in route order: every end, and prominent places between. */
 export function getCorridorWayPlaces(
-  sequences: readonly (readonly TripCall[])[],
+  sequences: readonly (readonly Call[])[],
   knowledge: CorridorWayKnowledge,
 ): StopServiceCorridorPlace[] {
   const routes = findContinuationRoutes(sequences);

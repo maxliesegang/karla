@@ -29,12 +29,6 @@
       "short_name": "Zentrum",
       "url": "./#/center",
       "icons": [{ "src": "./icon-192.png", "sizes": "192x192", "type": "image/png" }]
-    },
-    {
-      "name": "Meldungen",
-      "short_name": "Meldungen",
-      "url": "./#/notices",
-      "icons": [{ "src": "./icon-192.png", "sizes": "192x192", "type": "image/png" }]
     }
   ]
 }

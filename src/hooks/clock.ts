@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { getFeedNow } from "../lib/feed-clock";
-import type { DepartureBoard } from "../data/transit-types";
+import type { StopEventBoard } from "../data/transit-types";
 import { isVisibleResumeEvent, type ResumeEventType } from "./refresh-backoff";
 
 const VEHICLE_TICK_MS = 1_000;
@@ -76,8 +76,8 @@ function useClockTick(intervalMs: number, isEnabled = true): number {
 }
 
 /** The feed's clock, ticking: the device tick shifted by the board's fixed offset. */
-export function useFeedNow(departureBoard: DepartureBoard | null): number {
-  return getFeedNow(departureBoard, useClockTick(FEED_CLOCK_TICK_MS));
+export function useFeedNow(stopEventBoard: StopEventBoard | null): number {
+  return getFeedNow(stopEventBoard, useClockTick(FEED_CLOCK_TICK_MS));
 }
 
 /** The device clock on the countdown cadence, for the age of readings (device timestamps). */
@@ -88,12 +88,12 @@ export function useDeviceNow(): number {
 /** A finer feed clock for vehicle positions, so marks move between refreshes. */
 export function useVehicleFeedNow(
   enabled = true,
-  departureBoard: DepartureBoard | null = null,
+  stopEventBoard: StopEventBoard | null = null,
   { isAnimated = true }: { isAnimated?: boolean } = {},
 ): number {
   // Placements compare against the feed's call times, so this must be the feed's clock.
   return getFeedNow(
-    departureBoard,
+    stopEventBoard,
     useClockTick(isAnimated ? VEHICLE_TICK_MS : FEED_CLOCK_TICK_MS, enabled),
   );
 }

@@ -1,26 +1,17 @@
 import { useMemo } from "react";
 import { getLineSign } from "../data/line-signs";
-import type { Departure, DepartureBoard, TransitStop, TransitNetwork } from "../data/transit-types";
+import type { StopEvent, StopEventBoard, StopPlace, TransitNetwork } from "../data/transit-types";
 import {
   formatClockTime,
   getCountdownReading,
-  getDepartureAccessibilityLabel,
+  getStopEventAccessibilityLabel,
   getDepartureTimeReading,
   getViaSummary,
-} from "../lib/departure-presentation";
+} from "../lib/stop-event-presentation";
 import { getBoardAgeMs, getCountdownMinutes } from "../lib/feed-clock";
-import { groupDeparturesByPlatform } from "../lib/departure-order";
-import {
-  findSharedPlatformKind,
-  formatPlatformLabel,
-  getPlatformWord,
-} from "../lib/platform-naming";
-import {
-  getPlatformLabel,
-  isPlatformMatch,
-  normalizePlatformCode,
-  type StationBoardConfig,
-} from "../station-board";
+import { groupStopEventsByBay } from "../lib/stop-event-order";
+import { findSharedBayKind, formatBayText, getBayWord } from "../lib/bay-naming";
+import { getBayText, isBayMatch, normalizeBay, type StationBoardConfig } from "../station-board";
 import { LineBadge } from "./LineBadge";
 import { classNames } from "../lib/class-names";
 
@@ -35,49 +26,49 @@ const PAGE_DURATION_MS = 15_000;
 const STALE_BOARD_MS = 3 * 60_000;
 
 type StationBoardViewProps = {
-  stop: TransitStop;
-  departures: readonly Departure[];
-  departureBoard: DepartureBoard | null;
+  stop: StopPlace;
+  stopEvents: readonly StopEvent[];
+  stopEventBoard: StopEventBoard | null;
   network: TransitNetwork;
   stationBoardConfig: StationBoardConfig;
   feedNow: number;
 };
 
 function StationBoardRow({
-  departure,
+  stopEvent,
   network,
   stationBoardConfig,
   feedNow,
 }: {
-  departure: Departure;
+  stopEvent: StopEvent;
   network: TransitNetwork;
   stationBoardConfig: StationBoardConfig;
   feedNow: number;
 }) {
-  const line = getLineSign(network.lines, departure.lineId, departure.transportMode);
-  const reading = getCountdownReading(departure, feedNow);
-  const timeReading = getDepartureTimeReading(departure);
+  const line = getLineSign(network.lines, stopEvent.lineId, stopEvent.ptMode);
+  const reading = getCountdownReading(stopEvent, feedNow);
+  const timeReading = getDepartureTimeReading(stopEvent);
   // An operating note outranks the route; neither is ever truncated away.
-  const platformWord = getPlatformWord(departure.platformKind);
+  const bayWord = getBayWord(stopEvent.bayKind);
   const detail =
     stationBoardConfig.detail === "off"
       ? ""
-      : departure.serviceNote ||
-        (stationBoardConfig.detail !== "note" ? getViaSummary(departure) : "");
+      : stopEvent.serviceNote ||
+        (stationBoardConfig.detail !== "note" ? getViaSummary(stopEvent) : "");
 
   return (
     <div
       className={classNames(
         "station-board-row",
-        departure.status === "cancelled" && "cancelled",
-        departure.status === "diverted" && "diverted",
+        stopEvent.status === "cancelled" && "cancelled",
+        stopEvent.status === "diverted" && "diverted",
       )}
       role="listitem"
-      aria-label={getDepartureAccessibilityLabel(departure, feedNow)}
+      aria-label={getStopEventAccessibilityLabel(stopEvent, feedNow)}
     >
       <LineBadge line={line} />
       <span className="station-board-destination">
-        <strong>{departure.destination}</strong>
+        <strong>{stopEvent.destinationText}</strong>
         {detail && <em>{detail}</em>}
       </span>
       {/* From afar a struck time looks broken, so only the expected time shows. */}
@@ -86,8 +77,8 @@ function StationBoardRow({
       </span>
       {/* On a whole-stop board the word captions the ambiguous code. */}
       <span className="station-board-platform">
-        {stationBoardConfig.mode === "stop" && platformWord && <small>{platformWord}</small>}
-        {departure.platformCode || "–"}
+        {stationBoardConfig.mode === "stop" && bayWord && <small>{bayWord}</small>}
+        {stopEvent.bay || "–"}
       </span>
       {/* Block-prefixed so it does not collide with the interactive board's column class. */}
       <span
@@ -108,69 +99,67 @@ function StationBoardRow({
 
 export function StationBoardView({
   stop,
-  departures,
-  departureBoard,
+  stopEvents,
+  stopEventBoard,
   network,
   stationBoardConfig,
   feedNow,
 }: StationBoardViewProps) {
-  const { rowCount, platformCodes, mode, minimumMinutes, grouping } = stationBoardConfig;
+  const { rowCount, bays, mode, minimumMinutes, grouping } = stationBoardConfig;
 
-  const platformDepartures = useMemo(
+  const bayStopEvents = useMemo(
     () =>
       mode === "platform"
-        ? departures.filter((departure) => isPlatformMatch(departure.platformCode, platformCodes))
-        : departures,
-    [departures, mode, platformCodes],
+        ? stopEvents.filter((stopEvent) => isBayMatch(stopEvent.bay, bays))
+        : stopEvents,
+    [stopEvents, mode, bays],
   );
-  const matchingDepartures = useMemo(
+  const matchingStopEvents = useMemo(
     () =>
-      platformDepartures.filter((departure) => {
+      bayStopEvents.filter((stopEvent) => {
         // A departure nobody can still reach is clutter.
         return (
-          departure.status === "cancelled" ||
-          getCountdownMinutes(departure, feedNow) >= minimumMinutes
+          stopEvent.status === "cancelled" ||
+          getCountdownMinutes(stopEvent, feedNow) >= minimumMinutes
         );
       }),
-    [platformDepartures, minimumMinutes, feedNow],
+    [bayStopEvents, minimumMinutes, feedNow],
   );
 
-  const orderedDepartures = useMemo(
+  const orderedStopEvents = useMemo(
     () =>
       grouping === "platform"
-        ? groupDeparturesByPlatform(matchingDepartures).flatMap(({ departures: group }) => group)
-        : matchingDepartures,
-    [matchingDepartures, grouping],
+        ? groupStopEventsByBay(matchingStopEvents).flatMap(({ stopEvents: group }) => group)
+        : matchingStopEvents,
+    [matchingStopEvents, grouping],
   );
 
   // Pages derived from the clock, not a timer, so nothing is kept in state for weeks.
-  const pageCount = Math.max(1, Math.ceil(orderedDepartures.length / rowCount));
+  const pageCount = Math.max(1, Math.ceil(orderedStopEvents.length / rowCount));
   const pageIndex = Math.floor(feedNow / PAGE_DURATION_MS) % pageCount;
-  const visibleDepartures = orderedDepartures.slice(
+  const visibleStopEvents = orderedStopEvents.slice(
     pageIndex * rowCount,
     pageIndex * rowCount + rowCount,
   );
 
-  const ageMs = getBoardAgeMs(departureBoard, feedNow);
-  const isStale = departureBoard?.dataStatus === "live" && ageMs > STALE_BOARD_MS;
-  // A platform matching nothing is usually a URL typo, so list the platforms the feed reports.
-  const reportedPlatformNames = useMemo(
+  const ageMs = getBoardAgeMs(stopEventBoard, feedNow);
+  const isStale = stopEventBoard?.dataStatus === "live" && ageMs > STALE_BOARD_MS;
+  // A bay matching nothing is usually a URL typo, so list the bays the feed reports.
+  const reportedBayNames = useMemo(
     () =>
-      groupDeparturesByPlatform(departures)
-        .filter(({ platformCode }) => platformCode)
+      groupStopEventsByBay(stopEvents)
+        .filter(({ bay }) => bay)
         // Named as the heading names them, ready to copy into the URL.
-        .map(({ platformCode, platformKind }) => formatPlatformLabel(platformCode, platformKind)),
-    [departures],
+        .map(({ bay, bayKind }) => formatBayText(bay, bayKind)),
+    [stopEvents],
   );
-  // The heading's word must suit every row; without the configured platform, read it off the rows.
-  const platformKind = findSharedPlatformKind(
-    platformDepartures.length > 0 ? platformDepartures : departures,
-  );
-  const hasPlatformMismatch =
+  // The heading's word must suit every row; without the configured bay, read it off the rows.
+  const bayKind = findSharedBayKind(bayStopEvents.length > 0 ? bayStopEvents : stopEvents);
+  const hasBayMismatch =
     mode === "platform" &&
-    departureBoard?.dataStatus === "live" &&
-    departures.length > 0 &&
-    platformDepartures.length === 0;
+    stopEventBoard?.dataStatus === "live" &&
+    stopEvents.length > 0 &&
+    bayStopEvents.length === 0;
 
   return (
     <section
@@ -183,7 +172,7 @@ export function StationBoardView({
           {stop.name}
           {mode === "platform" && (
             <span className="station-board-heading-platform">
-              {formatPlatformLabel(getPlatformLabel(stationBoardConfig), platformKind)}
+              {formatBayText(getBayText(stationBoardConfig), bayKind)}
             </span>
           )}
         </h1>
@@ -196,16 +185,16 @@ export function StationBoardView({
 
       {isStale && (
         <p className="station-board-stale" role="status">
-          Stand {formatClockTime(departureBoard.feedUpdatedAt)} · seit {Math.floor(ageMs / 60_000)}{" "}
+          Stand {formatClockTime(stopEventBoard.feedUpdatedAt)} · seit {Math.floor(ageMs / 60_000)}{" "}
           Min ohne Aktualisierung
         </p>
       )}
 
       <div className="station-board-rows" role="list">
-        {visibleDepartures.map((departure) => (
+        {visibleStopEvents.map((stopEvent) => (
           <StationBoardRow
-            key={departure.id}
-            departure={departure}
+            key={stopEvent.id}
+            stopEvent={stopEvent}
             network={network}
             stationBoardConfig={stationBoardConfig}
             feedNow={feedNow}
@@ -213,30 +202,30 @@ export function StationBoardView({
         ))}
       </div>
 
-      {departureBoard === null && (
+      {stopEventBoard === null && (
         <p className="station-board-message">Abfahrten werden geladen …</p>
       )}
-      {departureBoard?.dataStatus === "unavailable" && (
+      {stopEventBoard?.dataStatus === "unavailable" && (
         <p className="station-board-message">
           Abfahrten nicht verfügbar
           <small>
-            {departureBoard.errorMessage ?? "Der KVV-Feed konnte nicht gelesen werden."}
+            {stopEventBoard.errorMessage ?? "Der KVV-Feed konnte nicht gelesen werden."}
           </small>
         </p>
       )}
-      {hasPlatformMismatch && (
+      {hasBayMismatch && (
         <p className="station-board-message">
-          {formatPlatformLabel(getPlatformLabel(stationBoardConfig), platformKind)} nicht im Feed
+          {formatBayText(getBayText(stationBoardConfig), bayKind)} nicht im Feed
           <small>
-            Gemeldet werden: {reportedPlatformNames.join(", ") || "keine Abfahrtsorte"}
-            {reportedPlatformNames.some((name) => normalizePlatformCode(name)) &&
+            Gemeldet werden: {reportedBayNames.join(", ") || "keine Abfahrtsorte"}
+            {reportedBayNames.some((name) => normalizeBay(name)) &&
               " — Konfiguration der Anzeige prüfen"}
           </small>
         </p>
       )}
-      {departureBoard?.dataStatus === "live" &&
-        !hasPlatformMismatch &&
-        orderedDepartures.length === 0 && (
+      {stopEventBoard?.dataStatus === "live" &&
+        !hasBayMismatch &&
+        orderedStopEvents.length === 0 && (
           <p className="station-board-message">Keine weiteren Abfahrten</p>
         )}
     </section>

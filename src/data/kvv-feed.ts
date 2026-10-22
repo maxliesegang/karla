@@ -2,101 +2,102 @@
  * The provider boundary below `TransitSource`: what a KVV feed answers, in one model whichever
  * interface (EFA or TRIAS) read it.
  */
-import type {
-  DepartureStatus,
-  PlatformKind,
-  TransportMode,
-  TripCall,
-  VehicleAccess,
-} from "./transit-types";
+import type { StopEventStatus, BayKind, PtMode, Call, VehicleAccess } from "./transit-types";
 
-export type KvvDepartureBoardOptions = {
+export type KvvStopEventBoardOptions = {
   limit?: number;
-  includeTripCalls?: boolean;
-  /** Line-direction ids (`routeDirectionId`) to filter by. */
+  includeCalls?: boolean;
+  /** Line-direction ids (`lineRef`) to filter by. */
   lineIds?: readonly string[];
   eventKind?: "departure" | "arrival";
 };
 
-/** Timed KVV readings. Every method rejects when the provider could not be read. */
-export interface KvvLiveFeed {
-  fetchDepartureBoard(
+/**
+ * What the app reads from KVV, through one interface for the whole session (`kvv-feed-config.ts`).
+ * Every method rejects when the provider could not be read.
+ */
+export interface KvvFeed {
+  fetchStopEventBoard(
     stopPointId: string,
-    options?: KvvDepartureBoardOptions,
-  ): Promise<KvvDepartureBoard>;
-  fetchTrip(locator: KvvTripLocator): Promise<KvvTrip>;
+    options?: KvvStopEventBoardOptions,
+  ): Promise<KvvStopEventBoard>;
+  fetchTripInfo(locator: KvvJourneyLocator): Promise<KvvTripInfo>;
   searchStops(query: string): Promise<KvvStopSearchResult[]>;
-}
-
-/** EFA also supplies timetable routes and published notices. */
-export interface KvvFeed extends KvvLiveFeed {
-  fetchLineRoute(locator: KvvTripLocator): Promise<KvvTripCall[]>;
-  fetchServiceNotices(): Promise<KvvServiceNotice[]>;
+  /** A line-direction's stops, addressed through one of its dated journeys. */
+  fetchLineRoute(locator: KvvJourneyLocator): Promise<KvvCall[]>;
 }
 
 /** A calling point as the feed states it, still carrying the provider stop id it was read from. */
-export type KvvTripCall = TripCall & { providerId?: string };
+export type KvvCall = Call & { providerId?: string };
 
-/** The provider tuple that identifies one dated trip; every field is copied from its board row. */
-export type KvvTripLocator = {
-  tripCode: string;
+/**
+ * The provider tuple that identifies one dated journey; every field is copied from its board row.
+ */
+export type KvvJourneyLocator = {
+  journeyCode: string;
   /** The provider's own key for the service designation (`servingLine.stateless`), not the sign. */
-  line: string;
+  lineRef: string;
   stopPointId: string;
-  /** The row's scheduled calendar day and minute, `YYYYMMDD` and `HHMM`, in network time. */
+  /** The row's timetabled calendar day and minute, `YYYYMMDD` and `HHMM`, in network time. */
   date: string;
   time: string;
   /** TRIAS's `OperatingDayRef` (`YYYY-MM-DD`), which differs from `date` after midnight. */
-  operatingDay?: string;
+  operatingDayRef?: string;
 };
 
-export type KvvTrip = {
+export type KvvTripInfo = {
   serverTime: string;
-  tripCalls: KvvTripCall[];
-  /** Only exceptional whole-trip states override the fresher stop-specific DM row. */
-  status?: Extract<DepartureStatus, "cancelled" | "diverted">;
+  calls: KvvCall[];
+  /** Only exceptional whole-journey states override the fresher stop-specific DM row. */
+  status?: Extract<StopEventStatus, "cancelled" | "diverted">;
 };
 
-export type KvvDeparture = {
+export type KvvStopEvent = {
   /** Provider stop point the vehicle departs from; a complex reports several of these. */
   stopPointId: string;
   stopPointName: string;
-  /** The timetable-trip identity: EFA's `RealtimeTripId` (AVMS as fallback), TRIAS's `JourneyRef`. */
-  tripId?: string;
+  /**
+   * The timetable-journey identity: EFA's `RealtimeTripId` (AVMS as fallback), TRIAS's
+   * `JourneyRef`.
+   */
+  journeyRef?: string;
   /** Dated identity, for matching older shared links and deduplicating operating instances. */
-  tripInstanceId?: string;
+  datedJourneyId?: string;
   /** `servingLine.trainNum`, including where two separately addressed portions share one train. */
-  trainNumber?: string;
+  publishedJourneyNumber?: string;
   lineId: string;
   /** Opaque identity for this line and operating direction (`kvv:21005:E:R:s26`). */
-  routeDirectionId?: string;
-  transportMode: TransportMode;
-  destination: string;
+  lineRef?: string;
+  ptMode: PtMode;
+  destinationText: string;
   minutesUntilDeparture: number;
   delayMinutes?: number;
-  platformCode: string;
-  platformKind?: PlatformKind;
-  status: DepartureStatus;
-  scheduledDepartureTime: string;
-  predictedDepartureTime?: string;
+  bay: string;
+  bayKind?: BayKind;
+  status: StopEventStatus;
+  timetabledDepartureTime: string;
+  estimatedDepartureTime?: string;
   /** The prediction is stated to the second (TRIAS); EFA's is truncated to the minute. */
-  isPredictedToTheSecond?: boolean;
+  isEstimatedToTheSecond?: boolean;
   serviceNote?: string;
   /** What the feed states about boarding this vehicle, where it states anything at all. */
   vehicleAccess?: VehicleAccess;
-  /** Opaque provider state used below `TransitSource` to load only this trip. */
-  tripLocator?: KvvTripLocator;
-  tripCalls?: KvvTripCall[];
+  /** Opaque provider state used below `TransitSource` to load only this journey. */
+  journeyLocator?: KvvJourneyLocator;
+  calls?: KvvCall[];
 };
 
-export type KvvDepartureBoard = {
+export type KvvStopEventBoard = {
   stopPointId: string;
   stopName: string;
   /** Server time of the feed, so countdowns are anchored to the source, not the browser clock. */
   serverTime: string;
-  /** Scheduled line-directions the stop monitor can query; never evidence of a departure itself. */
+  /**
+   * Timetabled line-directions the stop monitor can query; never evidence of a departure itself.
+   * EFA states them; TRIAS does not, so its boards leave them empty.
+   */
   servingLines: KvvServingLine[];
-  departures: KvvDeparture[];
+  stopEvents: KvvStopEvent[];
 };
 
 /**
@@ -105,8 +106,8 @@ export type KvvDepartureBoard = {
  */
 export type KvvServingLine = {
   lineId?: string;
-  directionId: string;
-  transportMode?: TransportMode;
+  lineRef: string;
+  ptMode?: PtMode;
 };
 
 export type KvvStopSearchResult = {
@@ -119,33 +120,19 @@ export type KvvStopSearchResult = {
   longitude?: number;
 };
 
-/** A published notice in the operator's terms: its line spellings and provider stop ids. */
-export type KvvServiceNotice = {
-  id: string;
-  title: string;
-  /** Line numbers as published, normalised to the form a departure states (`007` is line 7). */
-  lineNumbers: string[];
-  concernedStops: { providerId?: string; name: string }[];
-  /** The operator's own wording, as the paragraphs it published it in. */
-  details: string[];
-  validFrom?: string;
-  validUntil?: string;
-  priority: "normal" | "high";
-};
-
 /**
- * A dated run id: the trip id is reused on later dates, so it is paired with the first
- * scheduled call. Exported so a single-trip reading yields the same id as a board's.
+ * A dated journey id: the journey id is reused on later dates, so it is paired with the first
+ * timetabled call. Exported so a single-journey reading yields the same id as a board's.
  */
-export function getTripInstanceId(
-  tripId: string | undefined,
-  tripCalls:
-    | readonly { scheduledArrivalTime?: string; scheduledDepartureTime?: string }[]
+export function getDatedJourneyId(
+  journeyRef: string | undefined,
+  calls:
+    | readonly { timetabledArrivalTime?: string; timetabledDepartureTime?: string }[]
     | undefined,
 ): string | undefined {
-  if (!tripId) return undefined;
-  const firstCall = tripCalls?.[0];
-  const tripStartTime = firstCall?.scheduledDepartureTime ?? firstCall?.scheduledArrivalTime;
+  if (!journeyRef) return undefined;
+  const firstCall = calls?.[0];
+  const journeyStartTime = firstCall?.timetabledDepartureTime ?? firstCall?.timetabledArrivalTime;
   // To the minute: rows publish the first call to the minute, sequences to the second.
-  return tripStartTime ? `${tripId}@${tripStartTime.slice(0, 16)}` : tripId;
+  return journeyStartTime ? `${journeyRef}@${journeyStartTime.slice(0, 16)}` : journeyRef;
 }

@@ -1,23 +1,23 @@
 import type { CSSProperties } from "react";
 import { createLineSign } from "../../data/line-signs";
-import type { DepartureBoard } from "../../data/transit-types";
+import type { StopEventBoard } from "../../data/transit-types";
 import {
   type CountdownReading,
   getCountdownReading,
-  getDepartureAccessibilityLabel,
-  getDepartureStatusLabel,
+  getStopEventAccessibilityLabel,
+  getStopEventStatusLabel,
   getDepartureTimeReading,
   getStaleBoardLabel,
-} from "../../lib/departure-presentation";
+} from "../../lib/stop-event-presentation";
 import {
   type ZentrumStopBoardRow,
   type ZentrumTravelMeasure,
 } from "../../lib/zentrum-schematic-overlays";
-import { formatPlatformLabel } from "../../lib/platform-naming";
+import { formatBayText } from "../../lib/bay-naming";
 import type { ZentrumReachableStop, ZentrumStopReading } from "../../lib/zentrum-stop-view";
 import { getZentrumRidePresentation } from "../../lib/zentrum-presentation";
-import { isRailDeparture } from "../../lib/zentrum-schematic-plan";
-import { getDepartureOpenPath, navigateTo, routePaths } from "../../routing";
+import { isRailStopEvent } from "../../lib/zentrum-schematic-plan";
+import { getStopEventOpenPath, navigateTo, routePaths } from "../../routing";
 import { DepartureCountdown } from "../DepartureCountdown";
 import { DepartureTime } from "../DepartureTime";
 import { LineBadge } from "../LineBadge";
@@ -31,7 +31,7 @@ const toCountdownReading = (minutes: number): CountdownReading =>
     ? { kind: "due", label: "jetzt" }
     : { kind: "minutes", minutes, label: `${minutes} min` };
 
-/** Direct destinations and the whole departure board for the opened stop. */
+/** Direct destinations and the whole stop event board for the opened stop. */
 export function ZentrumStopPanel({
   stopId,
   label,
@@ -53,7 +53,7 @@ export function ZentrumStopPanel({
   reading: ZentrumStopReading;
   /** The stop's board read against the plan, or undefined until it answers. */
   rows?: readonly ZentrumStopBoardRow[];
-  board: DepartureBoard | null;
+  board: StopEventBoard | null;
   reachableStops: readonly ZentrumReachableStop[];
   travelMeasure: ZentrumTravelMeasure;
   isLoading: boolean;
@@ -108,56 +108,52 @@ export function ZentrumStopPanel({
           ) : rows.length === 0 ? (
             <p className="panel-empty">Gerade keine Abfahrten.</p>
           ) : (
-            rows.map(({ departure, vehicleId }, index) => {
-              const timeReading = getDepartureTimeReading(departure);
+            rows.map(({ stopEvent, vehicleId }, index) => {
+              const timeReading = getDepartureTimeReading(stopEvent);
               const isSelected = vehicleId !== undefined && selectedVehicleId === vehicleId;
               return (
                 <button
-                  key={departure.id}
+                  key={stopEvent.id}
                   type="button"
                   className={`departure${isSelected ? " selected" : ""}${
-                    departure.status === "cancelled" ? " cancelled" : ""
+                    stopEvent.status === "cancelled" ? " cancelled" : ""
                   }`}
                   style={{ "--departure-index": index } as CSSProperties}
                   aria-pressed={vehicleId === undefined ? undefined : isSelected}
-                  aria-label={`${getDepartureAccessibilityLabel(departure, feedNow)}, ${
+                  aria-label={`${getStopEventAccessibilityLabel(stopEvent, feedNow)}, ${
                     vehicleId === undefined ? "Fahrtverlauf öffnen" : "im Plan zeigen"
                   }`}
                   onClick={() =>
                     vehicleId === undefined
-                      ? navigateTo(getDepartureOpenPath(departure, stopId, false, undefined))
+                      ? navigateTo(getStopEventOpenPath(stopEvent, stopId, false, undefined))
                       : onSelectVehicle(vehicleId)
                   }
                 >
                   <LineBadge
                     line={
-                      isRailDeparture(departure)
-                        ? getSign(departure.lineId)
-                        : createLineSign(departure.lineId, departure.transportMode)
+                      isRailStopEvent(stopEvent)
+                        ? getSign(stopEvent.lineId)
+                        : createLineSign(stopEvent.lineId, stopEvent.ptMode)
                     }
                   />
                   <span className="departure-countdown">
-                    <DepartureCountdown reading={getCountdownReading(departure, feedNow)} />
+                    <DepartureCountdown reading={getCountdownReading(stopEvent, feedNow)} />
                   </span>
                   <span className="departure-destination">
                     {vehicleId !== undefined && (
                       <span className="zentrum-panel-on-plan" title="Schon im Plan" />
                     )}
-                    {departure.destination}
+                    {stopEvent.destinationText}
                   </span>
                   <span className="departure-meta">
                     {timeReading && <DepartureTime reading={timeReading} />}
-                    {departure.status !== "cancelled" && getDepartureStatusLabel(departure)}
+                    {stopEvent.status !== "cancelled" && getStopEventStatusLabel(stopEvent)}
                     <span className="zentrum-departure-boarding">
-                      {formatPlatformLabel(
-                        departure.platformCode,
-                        departure.platformKind,
-                        "unbekannt",
-                      )}
+                      {formatBayText(stopEvent.bay, stopEvent.bayKind, "unbekannt")}
                     </span>
                   </span>
-                  {departure.serviceNote && (
-                    <small className="zentrum-departure-note">{departure.serviceNote}</small>
+                  {stopEvent.serviceNote && (
+                    <small className="zentrum-departure-note">{stopEvent.serviceNote}</small>
                   )}
                 </button>
               );
@@ -182,7 +178,7 @@ export function ZentrumStopPanel({
                     type="button"
                     className="zentrum-destination-row"
                     onClick={() => onSelectDestination(reachable.nodeId)}
-                    aria-label={`${reachable.label}, Linie ${reachable.lineId}, ${ride.waitLabel}, ${ride.rideMinutes} min Fahrt, Ankunft ${ride.arrivalTime}, ${ride.platformLabel}, ${ride.sourceLabel}. Fahrten vergleichen`}
+                    aria-label={`${reachable.label}, Linie ${reachable.lineId}, ${ride.waitLabel}, ${ride.rideMinutes} min Fahrt, Ankunft ${ride.arrivalTime}, ${ride.bayText}, ${ride.sourceLabel}. Fahrten vergleichen`}
                   >
                     <LineBadge line={getSign(reachable.lineId)} size="sm" />
                     <span className="zentrum-panel-destinations-name">

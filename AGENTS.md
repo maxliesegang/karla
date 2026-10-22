@@ -19,6 +19,7 @@ npm run solve:zentrum  # measures the Zentrum plan against the feed, and solves 
 npm run solve:region   # derives the region plan's nodes from the feed and solves its layout
 npm run probe:*        # live feed measurements behind the timing constants
 npm run proxy          # the TRIAS proxy on :8080; run the app with VITE_TRIAS_PROXY_URL=/api/ to use it
+VITE_USE_EFA=true npm run dev   # the whole app on EFA instead of TRIAS
 ```
 
 GitHub Actions tests, builds and deploys `dist` on push to `main`; don't commit it.
@@ -36,7 +37,7 @@ GitHub Actions tests, builds and deploys `dist` on push to `main`; don't commit 
 | [src/lib/](src/lib/) | pure domain logic |
 | [src/hooks/](src/hooks/) | React glue: polling (`useKeyedLoad`), store subscriptions, device state; imported by module |
 | [src/components/](src/components/) | views; German copy |
-| [src/data/](src/data/) | `TransitSource` boundary, run store, the `KvvFeed` model, TRIAS and EFA clients and parsers |
+| [src/data/](src/data/) | `TransitSource` boundary, dated journey store, the `KvvFeed` model, TRIAS and EFA clients and parsers |
 | [src/data/generated/](src/data/generated/) | written by [scripts/](scripts/); never edited by hand |
 | [proxy/](proxy/) | the PHP TRIAS proxy: holds the requestor ref, caches, passes XML through |
 | [tests/](tests/) | `node --test`; no network. Type-checked by `npm run build`. Fixtures in `tests/support/fixtures.ts`; hooks are tested with `tests/support/render-hook.ts` (happy-dom) |
@@ -50,14 +51,14 @@ These describe outcomes, not implementations. If a simpler design meets them, pr
   repo.
 - **Views never touch the provider.** Fetching, id resolution and merging live behind
   `TransitSource`.
-- **The network is observed.** The stops and lines shown come from live trips, so a line that stops
+- **The network is observed.** The stops and lines shown come from live journeys, so a line that stops
   running disappears on its own.
 - **Bandwidth matters.** Hidden pages neither poll nor tick. To see further along a line, filter the
-  board by that line rather than asking for more rows. Fetch a run's trip once, not once per stop.
-- **One run, one reading.** Every view shows the same data for the same run.
-- **Run keys carry no date.** A run is keyed `line|tripCode`, and codes are reused the next day, so a
-  run's record must retire well before then (see `run-reading-store.ts`).
-- **Addresses degrade gracefully.** A trip that is gone falls back to its line, and a line to its
+  board by that line rather than asking for more rows. Fetch a dated journey's calls once, not once per stop.
+- **One dated journey, one reading.** Every view shows the same data for the same dated journey.
+- **Journey keys carry no date.** A dated journey is keyed `lineRef|journeyCode`, and codes are reused
+  the next day, so its record must retire well before then (see `dated-journey-reading-store.ts`).
+- **Addresses degrade gracefully.** A journey that is gone falls back to its line, and a line to its
   stop. A bundle (`line/S1+S11`) exists only when the rider chooses it.
 - **Routing goes through `routePaths` / `navigateTo`.** Components take time from props or clock
   hooks, never from `window.location` or `Date.now()`.
@@ -72,7 +73,7 @@ These describe outcomes, not implementations. If a simpler design meets them, pr
 - Keep times to the second where the feed states them (TRIAS predictions); a call's instant comes
   from `getCallShiftMs`. Delays print as whole minutes, rounded. Only by the rider's setting, and only
   for a prediction to the second, does the last minute count in seconds, in ten-second steps.
-- Quote service notices verbatim.
+- Quote service notices verbatim, once the app shows them again.
 
 ## Code style
 

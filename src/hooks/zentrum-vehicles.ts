@@ -1,71 +1,89 @@
 import { useMemo } from "react";
-import type { Departure, DepartureBoard } from "../data/transit-types";
+import type { StopEvent, StopEventBoard } from "../data/transit-types";
 import { runsEveryDay } from "../lib/daily-lines";
-import { getZentrumRunObservation } from "../lib/zentrum-run-observation";
-import { useLineRunDepartures } from "./line-run-departures";
-import { useRunDiscovery } from "./run-discovery";
+import { getZentrumDatedJourneyObservation } from "../lib/zentrum-dated-journey-observation";
+import { useLineDatedJourneyStopEvents } from "./line-dated-journey-stop-events";
+import { useDatedJourneyDiscovery } from "./dated-journey-discovery";
 import { zentrumStopIds } from "../data/zentrum-stops";
-import { isRunInArea } from "../lib/run-discovery";
-import { getDistinctRuns } from "../lib/trips";
-import { DEPARTURE_BOARD_REFRESH_MS } from "./departure-board";
+import { isDatedJourneyInArea } from "../lib/dated-journey-discovery";
+import { getDistinctDatedJourneys } from "../lib/journeys";
+import { STOP_EVENT_BOARD_REFRESH_MS } from "./stop-event-board";
 
 const areaStops = new Set(zentrumStopIds);
-const includesZentrumRun = (run: Departure, feedNow: number) =>
-  isRunInArea(run, feedNow, areaStops);
+const includesZentrumDatedJourney = (datedJourney: StopEvent, feedNow: number) =>
+  isDatedJourneyInArea(datedJourney, feedNow, areaStops);
 
 /** One retention for the whole Zentrum, so following a line keeps what was observed of the others. */
 const ZENTRUM_VEHICLE_RETENTION_KEY = "zentrum";
 
-export type ZentrumRunReading = {
-  /** The runs to draw. */
-  runDepartures: readonly Departure[];
-  /** The drawn runs and every other run the posts name, including those not near the plan yet. */
-  travelRuns: readonly Departure[];
+export type ZentrumDatedJourneyReading = {
+  /** The dated journeys to draw. */
+  datedJourneyStopEvents: readonly StopEvent[];
+  /**
+   * The drawn dated journeys and every other dated journey the posts name, including those not near
+   * the plan yet.
+   */
+  travelDatedJourneys: readonly StopEvent[];
   feedNow: number;
 };
 
-/** Discover area exits and termini, then place each run from its shared reading. */
+/** Discover area exits and termini, then place each dated journey from its shared reading. */
 export function useZentrumVehicles(
-  departureBoards: readonly DepartureBoard[],
+  stopEventBoards: readonly StopEventBoard[],
   { scopeToArea = true, animatesVehicles = true } = {},
-): ZentrumRunReading & { isLoading: boolean } {
-  const observation = useMemo(() => getZentrumRunObservation(departureBoards), [departureBoards]);
-  const discovery = useRunDiscovery(zentrumStopIds, departureBoards);
-  const runs = useMemo(
-    () => getDistinctRuns([...observation.runDepartures, ...(discovery?.runDepartures ?? [])]),
-    [observation.runDepartures, discovery?.runDepartures],
+): ZentrumDatedJourneyReading & { isLoading: boolean } {
+  const observation = useMemo(
+    () => getZentrumDatedJourneyObservation(stopEventBoards),
+    [stopEventBoards],
+  );
+  const discovery = useDatedJourneyDiscovery(zentrumStopIds, stopEventBoards);
+  const datedJourneys = useMemo(
+    () =>
+      getDistinctDatedJourneys([
+        ...observation.datedJourneyStopEvents,
+        ...(discovery?.datedJourneyStopEvents ?? []),
+      ]),
+    [observation.datedJourneyStopEvents, discovery?.datedJourneyStopEvents],
   );
   const clockBoard =
     discovery?.clockBoard &&
     (!observation.clockBoard || discovery.clockBoard.receivedAt > observation.clockBoard.receivedAt)
       ? discovery.clockBoard
       : observation.clockBoard;
-  const reading = useLineRunDepartures(ZENTRUM_VEHICLE_RETENTION_KEY, runs, clockBoard, false, {
-    includesRun: scopeToArea ? includesZentrumRun : undefined,
-    refreshOnEntry: false,
-    runMaxAgeMs: animatesVehicles ? DEPARTURE_BOARD_REFRESH_MS : undefined,
-    animatesVehicles,
-    readsBeforeMerges: animatesVehicles,
-  });
-  const travelRuns = useMemo(
-    () => getDistinctRuns([...reading.runDepartures, ...runs]),
-    [reading.runDepartures, runs],
+  const reading = useLineDatedJourneyStopEvents(
+    ZENTRUM_VEHICLE_RETENTION_KEY,
+    datedJourneys,
+    clockBoard,
+    false,
+    {
+      includesDatedJourney: scopeToArea ? includesZentrumDatedJourney : undefined,
+      refreshOnEntry: false,
+      datedJourneyMaxAgeMs: animatesVehicles ? STOP_EVENT_BOARD_REFRESH_MS : undefined,
+      animatesVehicles,
+      readsBeforeMerges: animatesVehicles,
+    },
   );
-  return { ...reading, travelRuns, isLoading: discovery === null };
+  const travelDatedJourneys = useMemo(
+    () => getDistinctDatedJourneys([...reading.datedJourneyStopEvents, ...datedJourneys]),
+    [reading.datedJourneyStopEvents, datedJourneys],
+  );
+  return { ...reading, travelDatedJourneys, isLoading: discovery === null };
 }
 
-/** The Zentrum's runs on lines that run every day: the network maps leave out the rest. */
-export function useDailyZentrumVehicles(departureBoards: readonly DepartureBoard[]): {
-  runDepartures: readonly Departure[];
+/**
+ * The Zentrum's dated journeys on lines that run every day: the network maps leave out the rest.
+ */
+export function useDailyZentrumVehicles(stopEventBoards: readonly StopEventBoard[]): {
+  datedJourneyStopEvents: readonly StopEvent[];
   feedNow: number;
 } {
-  const { runDepartures, feedNow } = useZentrumVehicles(departureBoards, {
+  const { datedJourneyStopEvents, feedNow } = useZentrumVehicles(stopEventBoards, {
     scopeToArea: false,
     animatesVehicles: false,
   });
-  const dailyRuns = useMemo(
-    () => runDepartures.filter(({ lineId }) => runsEveryDay(lineId)),
-    [runDepartures],
+  const dailyDatedJourneys = useMemo(
+    () => datedJourneyStopEvents.filter(({ lineId }) => runsEveryDay(lineId)),
+    [datedJourneyStopEvents],
   );
-  return { runDepartures: dailyRuns, feedNow };
+  return { datedJourneyStopEvents: dailyDatedJourneys, feedNow };
 }

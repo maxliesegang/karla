@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { Departure, DepartureBoard, TripCall } from "../src/data/transit-types.ts";
+import type { StopEvent, StopEventBoard, Call } from "../src/data/transit-types.ts";
 import { updateStopCorridorPatterns } from "../src/lib/stop-corridor-patterns.ts";
 import {
   chooseLineBundleChain,
@@ -14,53 +14,53 @@ import {
   isSelectedLine,
   parseLineSelection,
 } from "../src/lib/line-bundles.ts";
-import { createDeparture } from "./support/fixtures.ts";
+import { createStopEvent } from "./support/fixtures.ts";
 
-function departure(
-  overrides: Partial<Departure> & Pick<Departure, "id" | "destination">,
-): Departure {
-  return createDeparture({
-    tripId: overrides.id,
+function stopEvent(
+  overrides: Partial<StopEvent> & Pick<StopEvent, "id" | "destinationText">,
+): StopEvent {
+  return createStopEvent({
+    journeyRef: overrides.id,
     lineId: "S1",
-    transportMode: "lightRail",
+    ptMode: "lightRail",
     minutesUntilDeparture: 4,
-    platformCode: "1",
+    bay: "1",
     boardingLocalStopId: "hochstetten",
     status: "realtime",
-    scheduledDepartureTime: "2026-08-24T12:04:00+02:00",
+    timetabledDepartureTime: "2026-08-24T12:04:00+02:00",
     ...overrides,
   });
 }
 
-const calls = (...stopNames: string[]): TripCall[] =>
+const calls = (...stopNames: string[]): Call[] =>
   stopNames.map((stopName, index) => ({
     stopName,
     localStopId: stopName.toLowerCase(),
-    isCurrentStop: index === 0,
+    isThisCall: index === 0,
   }));
 
 /** Both lines out of Hochstetten: together to Busenbach, apart after. */
 const TRUNK = ["hochstetten", "linkenheim", "eggenstein", "neureut", "busenbach"];
-const s1 = departure({
+const s1 = stopEvent({
   id: "s1-trip",
   lineId: "S1",
-  destination: "Bad Herrenalb",
-  tripCalls: calls(...TRUNK, "etzenrot", "bad herrenalb"),
+  destinationText: "Bad Herrenalb",
+  calls: calls(...TRUNK, "etzenrot", "bad herrenalb"),
 });
-const s11 = departure({
+const s11 = stopEvent({
   id: "s11-trip",
   lineId: "S11",
-  destination: "Ittersbach",
-  tripCalls: calls(...TRUNK, "langensteinbach", "ittersbach"),
+  destinationText: "Ittersbach",
+  calls: calls(...TRUNK, "langensteinbach", "ittersbach"),
 });
 
-const patternsFor = (departures: readonly Departure[], stopId = "hochstetten") =>
-  updateStopCorridorPatterns(null, stopId, departures);
+const patternsFor = (stopEvents: readonly StopEvent[], stopId = "hochstetten") =>
+  updateStopCorridorPatterns(null, stopId, stopEvents);
 
 test("offers a sibling line observed running the same corridor out of this stop", () => {
   const offers = findLineBundleOffers({
     lineId: "S1",
-    departures: [s1, s11],
+    stopEvents: [s1, s11],
     patterns: patternsFor([s1, s11]),
   });
 
@@ -78,17 +78,17 @@ test("offers a sibling line observed running the same corridor out of this stop"
  * calls north and six south, and the southbound trip must still get its offer.
  */
 test("keeps the stretch out of each end of a stop, not the longer of the two", () => {
-  const between = (id: string, lineId: string, ...stopNames: string[]): Departure =>
-    departure({
+  const between = (id: string, lineId: string, ...stopNames: string[]): StopEvent =>
+    stopEvent({
       id,
       lineId,
       boardingLocalStopId: "neureut",
-      destination: stopNames[stopNames.length - 1],
-      tripCalls: calls("neureut", ...stopNames),
+      destinationText: stopNames[stopNames.length - 1],
+      calls: calls("neureut", ...stopNames),
     });
   const northbound = ["eggenstein", "linkenheim", "hochstetten", "grenzstraße", "altenheim"];
   const southbound = ["ettlingen", "albgaubad", "busenbach"];
-  const departures = [
+  const stopEvents = [
     between("s1-north", "S1", ...northbound),
     between("s11-north", "S11", ...northbound),
     between("s1-south", "S1", ...southbound, "etzenrot"),
@@ -97,8 +97,8 @@ test("keeps the stretch out of each end of a stop, not the longer of the two", (
 
   const offers = findLineBundleOffers({
     lineId: "S1",
-    departures,
-    patterns: patternsFor(departures, "neureut"),
+    stopEvents,
+    patterns: patternsFor(stopEvents, "neureut"),
   });
 
   assert.deepEqual(
@@ -112,17 +112,17 @@ test("keeps the stretch out of each end of a stop, not the longer of the two", (
 
 test("does not offer a line that only leaves the stop the same way", () => {
   // One shared link, then apart.
-  const s2 = departure({
+  const s2 = stopEvent({
     id: "s2-trip",
     lineId: "S2",
-    destination: "Spöck",
-    tripCalls: calls("hochstetten", "linkenheim", "blankenloch", "spöck"),
+    destinationText: "Spöck",
+    calls: calls("hochstetten", "linkenheim", "blankenloch", "spöck"),
   });
 
   assert.deepEqual(
     findLineBundleOffers({
       lineId: "S1",
-      departures: [s1, s2],
+      stopEvents: [s1, s2],
       patterns: patternsFor([s1, s2]),
     }),
     [],
@@ -130,18 +130,18 @@ test("does not offer a line that only leaves the stop the same way", () => {
 });
 
 test("does not offer a line of another mode over the same corridor", () => {
-  const bus = departure({
+  const bus = stopEvent({
     id: "bus-trip",
     lineId: "123",
-    transportMode: "bus",
-    destination: "Busenbach",
-    tripCalls: calls(...TRUNK),
+    ptMode: "bus",
+    destinationText: "Busenbach",
+    calls: calls(...TRUNK),
   });
 
   assert.deepEqual(
     findLineBundleOffers({
       lineId: "S1",
-      departures: [s1, bus],
+      stopEvents: [s1, bus],
       patterns: patternsFor([s1, bus]),
     }),
     [],
@@ -151,12 +151,12 @@ test("does not offer a line of another mode over the same corridor", () => {
 test("offers nothing until a whole route has been observed, not only an outgoing link", () => {
   // Plain board rows: nothing known about routes.
   const plain = [
-    { ...s1, tripCalls: undefined },
-    { ...s11, tripCalls: undefined },
+    { ...s1, calls: undefined },
+    { ...s11, calls: undefined },
   ];
 
   assert.deepEqual(
-    findLineBundleOffers({ lineId: "S1", departures: plain, patterns: patternsFor(plain) }),
+    findLineBundleOffers({ lineId: "S1", stopEvents: plain, patterns: patternsFor(plain) }),
     [],
   );
 });
@@ -164,8 +164,8 @@ test("offers nothing until a whole route has been observed, not only an outgoing
 test("draws the bundle over the shared stretch and names where the lines part", () => {
   const trunk = getLineBundleTrunk(
     [
-      { lineId: "S1", calls: s1.tripCalls ?? [], destination: "Bad Herrenalb" },
-      { lineId: "S11", calls: s11.tripCalls ?? [], destination: "Ittersbach" },
+      { lineId: "S1", calls: s1.calls ?? [], destination: "Bad Herrenalb" },
+      { lineId: "S11", calls: s11.calls ?? [], destination: "Ittersbach" },
     ],
     ["hochstetten"],
   );
@@ -204,8 +204,8 @@ test("draws the bundle over the shared stretch and names where the lines part", 
 test("keeps the different branch termini for the bundled heading", () => {
   const branches = getLineBundleTrunk(
     [
-      { lineId: "S1", calls: s1.tripCalls ?? [], destination: "Bad Herrenalb" },
-      { lineId: "S11", calls: s11.tripCalls ?? [], destination: "Ittersbach" },
+      { lineId: "S1", calls: s1.calls ?? [], destination: "Bad Herrenalb" },
+      { lineId: "S11", calls: s11.calls ?? [], destination: "Ittersbach" },
     ],
     ["hochstetten"],
   )?.branches;
@@ -244,16 +244,16 @@ test("states one terminus once when bundled lines share it", () => {
 });
 
 test("states the short working of the pair rather than leaving it blank", () => {
-  const shortWorking = departure({
+  const shortWorking = stopEvent({
     id: "s11-short",
     lineId: "S11",
-    destination: "Busenbach",
-    tripCalls: calls(...TRUNK),
+    destinationText: "Busenbach",
+    calls: calls(...TRUNK),
   });
   const trunk = getLineBundleTrunk(
     [
-      { lineId: "S1", calls: s1.tripCalls ?? [], destination: "Bad Herrenalb" },
-      { lineId: "S11", calls: shortWorking.tripCalls ?? [], destination: "Busenbach" },
+      { lineId: "S1", calls: s1.calls ?? [], destination: "Bad Herrenalb" },
+      { lineId: "S11", calls: shortWorking.calls ?? [], destination: "Busenbach" },
     ],
     ["hochstetten"],
   );
@@ -274,25 +274,25 @@ test("states the short working of the pair rather than leaving it blank", () => 
 
 test("measures the shared stretch outwards from the rider's own stop", () => {
   // Read from the middle: the lines part ahead and behind.
-  const northern = departure({
+  const northern = stopEvent({
     id: "north",
     lineId: "S1",
-    destination: "Bad Herrenalb",
+    destinationText: "Bad Herrenalb",
     boardingLocalStopId: "neureut",
-    tripCalls: calls("hochstetten", "eggenstein", "neureut", "busenbach", "bad herrenalb"),
+    calls: calls("hochstetten", "eggenstein", "neureut", "busenbach", "bad herrenalb"),
   });
-  const southern = departure({
+  const southern = stopEvent({
     id: "south",
     lineId: "S11",
-    destination: "Ittersbach",
+    destinationText: "Ittersbach",
     boardingLocalStopId: "neureut",
-    tripCalls: calls("spöck", "blankenloch", "neureut", "busenbach", "ittersbach"),
+    calls: calls("spöck", "blankenloch", "neureut", "busenbach", "ittersbach"),
   });
 
   const trunk = getLineBundleTrunk(
     [
-      { lineId: "S1", calls: northern.tripCalls ?? [], destination: "Bad Herrenalb" },
-      { lineId: "S11", calls: southern.tripCalls ?? [], destination: "Ittersbach" },
+      { lineId: "S1", calls: northern.calls ?? [], destination: "Bad Herrenalb" },
+      { lineId: "S11", calls: southern.calls ?? [], destination: "Ittersbach" },
     ],
     ["neureut"],
   );
@@ -323,7 +323,7 @@ test("measures the shared stretch outwards from the rider's own stop", () => {
 });
 
 test("does not fork where one line states two consecutive platforms of the same stop", () => {
-  const platformCall = (stopName: string, localStopId: string): TripCall => ({
+  const bayCall = (stopName: string, localStopId: string): Call => ({
     stopName,
     localStopId,
   });
@@ -335,8 +335,8 @@ test("does not fork where one line states two consecutive platforms of the same 
         lineId: "S1",
         calls: [
           ...sharedNorth,
-          platformCall("Marktplatz (Kaiserstraße U)", "marktplatz"),
-          platformCall("Marktplatz (Pyramide U)", "marktplatz"),
+          bayCall("Marktplatz (Kaiserstraße U)", "marktplatz"),
+          bayCall("Marktplatz (Pyramide U)", "marktplatz"),
           ...sharedSouth,
           ...calls("bad herrenalb"),
         ],
@@ -346,7 +346,7 @@ test("does not fork where one line states two consecutive platforms of the same 
         lineId: "S11",
         calls: [
           ...sharedNorth,
-          platformCall("Marktplatz (Pyramide U)", "marktplatz"),
+          bayCall("Marktplatz (Pyramide U)", "marktplatz"),
           ...sharedSouth,
           ...calls("ittersbach"),
         ],
@@ -370,7 +370,7 @@ test("keeps the lines apart where a chain does not call at the rider's stop", ()
   assert.equal(
     getLineBundleTrunk(
       [
-        { lineId: "S1", calls: s1.tripCalls ?? [], destination: "Bad Herrenalb" },
+        { lineId: "S1", calls: s1.calls ?? [], destination: "Bad Herrenalb" },
         { lineId: "S11", calls: calls("ettlingen", "rastatt"), destination: "Rastatt" },
       ],
       ["hochstetten"],
@@ -380,22 +380,22 @@ test("keeps the lines apart where a chain does not call at the rider's stop", ()
 });
 
 test("draws the sibling trip that runs with this one farthest, not the opposite direction", () => {
-  const s11Back = departure({
+  const s11Back = stopEvent({
     id: "s11-back",
     lineId: "S11",
-    destination: "Ittersbach",
-    tripCalls: calls("neureut", "hochstetten"),
+    destinationText: "Ittersbach",
+    calls: calls("neureut", "hochstetten"),
   });
   const chosen = chooseLineBundleChain(
-    { lineId: "S1", calls: s1.tripCalls ?? [], destination: "Bad Herrenalb" },
+    { lineId: "S1", calls: s1.calls ?? [], destination: "Bad Herrenalb" },
     [
-      { lineId: "S11", calls: s11Back.tripCalls ?? [], destination: "Ittersbach" },
-      { lineId: "S11", calls: s11.tripCalls ?? [], destination: "Ittersbach" },
+      { lineId: "S11", calls: s11Back.calls ?? [], destination: "Ittersbach" },
+      { lineId: "S11", calls: s11.calls ?? [], destination: "Ittersbach" },
     ],
     ["hochstetten"],
   );
 
-  assert.equal(chosen?.calls.length, s11.tripCalls?.length);
+  assert.equal(chosen?.calls.length, s11.calls?.length);
 });
 
 test("uses the sibling's farthest observed end when candidates share the same trunk", () => {
@@ -411,7 +411,7 @@ test("uses the sibling's farthest observed end when candidates share the same tr
   };
 
   const chosen = chooseLineBundleChain(
-    { lineId: "S1", calls: s1.tripCalls ?? [], destination: "Bad Herrenalb" },
+    { lineId: "S1", calls: s1.calls ?? [], destination: "Bad Herrenalb" },
     [short, full],
     ["hochstetten"],
   );
@@ -433,7 +433,7 @@ test("keeps an addressed bundle until the new stop's board has answered", () => 
     getResolvedBundledLineIds(["S11"], {
       stopId: "ettlingen-neuwiesenreben--sc3hvj",
       receivedAt: 1,
-      departures: [],
+      stopEvents: [],
       dataStatus: "unavailable",
       errorMessage: "nicht erreichbar",
     }),
@@ -445,14 +445,14 @@ test("resolves a bundle from all lines serving the stop, not only its limited ro
   const board = {
     stopId: "ettlingen-neuwiesenreben--sc3hvj",
     receivedAt: 1,
-    departures: [s1],
+    stopEvents: [s1],
     servingLines: [
-      { lineId: "S1", directionId: "s1-north" },
-      { lineId: "S11", directionId: "s11-north" },
+      { lineId: "S1", lineRef: "s1-north" },
+      { lineId: "S11", lineRef: "s11-north" },
     ],
     dataStatus: "live",
     feedUpdatedAt: "2026-09-04T12:00:00+02:00",
-  } satisfies DepartureBoard;
+  } satisfies StopEventBoard;
 
   assert.deepEqual(getResolvedBundledLineIds(["S11"], board), ["S11"]);
   assert.deepEqual(getResolvedBundledLineIds(["S2"], board), []);
@@ -462,10 +462,10 @@ test("falls back to live departure rows when a whole-stop line list is absent", 
   const board = {
     stopId: "hochstetten",
     receivedAt: 1,
-    departures: [s11],
+    stopEvents: [s11],
     dataStatus: "live",
     feedUpdatedAt: "2026-09-04T12:00:00+02:00",
-  } satisfies DepartureBoard;
+  } satisfies StopEventBoard;
 
   assert.deepEqual(getResolvedBundledLineIds(["S11"], board), ["S11"]);
 });

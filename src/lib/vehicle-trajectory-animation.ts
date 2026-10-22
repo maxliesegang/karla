@@ -1,7 +1,7 @@
 import {
   FOLLOW_STEP_MS,
-  getRunTrajectoryProgress,
-  type RunSegmentTrajectory,
+  getDatedJourneyTrajectoryProgress,
+  type DatedJourneySegmentTrajectory,
 } from "./vehicle-positioning";
 
 /**
@@ -41,7 +41,7 @@ export type TrajectoryKeyframe = { value: string; offset: number };
 
 export type TrajectoryKeyframeOptions = {
   /** The trajectory the mark follows, as the placement sampled it. */
-  trajectory: RunSegmentTrajectory;
+  trajectory: DatedJourneySegmentTrajectory;
   /** Feed-clock instant the animation starts at. */
   animationStartsAt: number;
   /** The animated property value at a progress. */
@@ -62,7 +62,7 @@ export function getTrajectoryKeyframes({
 }: TrajectoryKeyframeOptions): TrajectoryKeyframe[] {
   const duration = trajectory.arrivesAt - animationStartsAt;
   if (duration <= 0) return [];
-  const fromProgress = getRunTrajectoryProgress(trajectory, animationStartsAt);
+  const fromProgress = getDatedJourneyTrajectoryProgress(trajectory, animationStartsAt);
   const boundaryProgressesWithin = boundaryProgresses.filter(
     (progress) => progress > fromProgress && progress < 1,
   );
@@ -72,7 +72,7 @@ export function getTrajectoryKeyframes({
     // The curve is monotonic, so a short binary search finds each boundary crossing.
     for (let pass = 0; pass < 24; pass += 1) {
       const middle = (before + after) / 2;
-      if (getRunTrajectoryProgress(trajectory, middle) < targetProgress) before = middle;
+      if (getDatedJourneyTrajectoryProgress(trajectory, middle) < targetProgress) before = middle;
       else after = middle;
     }
     return (before + after) / 2;
@@ -98,7 +98,7 @@ export function getTrajectoryKeyframes({
     .sort((left, right) => left - right)
     .filter((instant, index, all) => index === 0 || instant !== all[index - 1]);
   return times.flatMap((instant, index) => {
-    const progress = getRunTrajectoryProgress(trajectory, instant);
+    const progress = getDatedJourneyTrajectoryProgress(trajectory, instant);
     const value = index === 0 && paintedValue ? paintedValue : getValue(progress);
     return value ? [{ value, offset: (instant - animationStartsAt) / duration }] : [];
   });

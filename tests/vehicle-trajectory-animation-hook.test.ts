@@ -5,9 +5,12 @@ import {
   useVehicleTrajectoryAnimations,
   type TrajectoryAnimationFields,
 } from "../src/hooks/vehicle-trajectory-animation.ts";
-import { createRunMotions, getRunPlacement } from "../src/lib/vehicle-positioning";
+import {
+  createDatedJourneyMotions,
+  getDatedJourneyPlacement,
+} from "../src/lib/vehicle-positioning";
 import { createCall } from "./support/calls";
-import { createDeparture } from "./support/fixtures";
+import { createStopEvent } from "./support/fixtures";
 
 const start = Date.parse("2026-10-06T10:00:00Z");
 const progresses = Array.from({ length: 61 }, (_, second) => second / 60);
@@ -69,14 +72,14 @@ test("a resize keeps the progress the animation has reached between clock ticks"
 
 test("a revised arrival gives the browser an animation ending exactly at the station deadline", async (t) => {
   const call = createCall(start);
-  const run = (arrival: number) =>
-    createDeparture({
-      tripId: "browser-arrival",
-      tripCalls: [call("a", 0), call("b", arrival), call("c", 6)],
+  const datedJourney = (arrival: number) =>
+    createStopEvent({
+      journeyRef: "browser-arrival",
+      calls: [call("a", 0), call("b", arrival), call("c", 6)],
     });
-  const motions = createRunMotions();
-  const before = getRunPlacement(motions, run(4), start + 60_250);
-  const after = getRunPlacement(motions, run(1.5), start + 61_250);
+  const motions = createDatedJourneyMotions();
+  const before = getDatedJourneyPlacement(motions, datedJourney(4), start + 60_250);
+  const after = getDatedJourneyPlacement(motions, datedJourney(1.5), start + 61_250);
   assert.ok(before?.trajectory && after?.trajectory);
   const container = document.createElement("div");
   const element = document.createElement("div");
@@ -89,7 +92,7 @@ test("a revised arrival gives the browser an animation ending exactly at the sta
     timings.push(options);
     return new Animation();
   });
-  const toMark = (placement: NonNullable<ReturnType<typeof getRunPlacement>>) => ({
+  const toMark = (placement: NonNullable<ReturnType<typeof getDatedJourneyPlacement>>) => ({
     ...placement,
     key: "browser-arrival",
     linkKey: "a-b",

@@ -5,10 +5,10 @@
 import { findCatalogStop } from "../data/generated/kvv-stop-catalog";
 import { kvvStopMappingByLocalStopId } from "../data/kvv-stop-mappings";
 import { getVerifiedLineColor } from "../data/line-signs";
-import type { Departure } from "../data/transit-types";
+import type { StopEvent } from "../data/transit-types";
 import { isZentrumStop } from "../data/zentrum-stops";
 import { getLineTrunkId } from "./line-families";
-import type { PlatformRun } from "./platform-runs";
+import type { BayRun } from "./bay-runs";
 
 /**
  * The window drawn, cropped to the outermost dots and labels: any margin shrinks the plan, whose
@@ -20,8 +20,8 @@ export const ZENTRUM_SCHEMATIC_GRID = 22;
 
 /**
  * A boarding place on the plan, and its shared stop address. Positions are octilinear
- * and solved against platform coordinates (`npm run solve:zentrum`), north up; they decide only
- * where an observed trip is drawn.
+ * and solved against bay coordinates (`npm run solve:zentrum`), north up; they decide only
+ * where an observed journey is drawn.
  */
 export type ZentrumSchematicNode = {
   /** The stop, and the page the dot opens. */
@@ -32,10 +32,10 @@ export type ZentrumSchematicNode = {
   /** The side the name stands on, clear of the corridors; solved with the position. */
   labelSide?: "left" | "right" | "above" | "below";
   /**
-   * The way the platforms run. Corridors leave along it and turn towards the stop they serve,
+   * The way the bays run. Corridors leave along it and turn towards the stop they serve,
    * through a junction (`getZentrumSchematicRoutes`).
    */
-  platformRun?: PlatformRun;
+  bayRun?: BayRun;
   /** A boarding place drawn apart from its stop: the stop's id. */
   stopId?: string;
   geographicPosition?: { latitude: number; longitude: number };
@@ -82,7 +82,7 @@ const authoredZentrumNodes: readonly ZentrumSchematicNode[] = [
     x: 770,
     y: 374,
     labelSide: "right",
-    platformRun: "level",
+    bayRun: "level",
   },
   { id: "werderstrasse", label: "Werderstraße", x: 726, y: 462, labelSide: "right" },
   { id: "zkm", label: "ZKM", x: 198, y: 484, labelSide: "right" },
@@ -100,7 +100,7 @@ const authoredZentrumNodes: readonly ZentrumSchematicNode[] = [
     x: 418,
     y: 660,
     labelSide: "below",
-    platformRun: "upright",
+    bayRun: "upright",
   },
 ] as const;
 
@@ -132,25 +132,25 @@ const isInsideSegment = (
   );
 };
 
-/** The way a platform run points, in plan units; `rising` climbs eastwards. */
-export const PLATFORM_RUN_VECTORS = {
+/** The way a bay run points, in plan units; `rising` climbs eastwards. */
+export const BAY_RUN_VECTORS = {
   level: { x: 1, y: 0 },
   upright: { x: 0, y: 1 },
   rising: { x: 1, y: -1 },
   falling: { x: 1, y: 1 },
-} as const satisfies Record<PlatformRun, SchematicPoint>;
+} as const satisfies Record<BayRun, SchematicPoint>;
 
 const isOctilinear = ({ x, y }: SchematicPoint): boolean =>
   x === 0 || y === 0 || Math.abs(x) === Math.abs(y);
 
-/** A platform approach turns square where clear, otherwise at the nearest octilinear bend. */
-const getPlatformRunBend = (
+/** A bay approach turns square where clear, otherwise at the nearest octilinear bend. */
+const getBayRunBend = (
   stop: ZentrumSchematicNode,
   other: ZentrumSchematicNode,
   nodes: readonly ZentrumSchematicNode[],
 ): SchematicPoint | undefined => {
-  if (!stop.platformRun) return undefined;
-  const run = PLATFORM_RUN_VECTORS[stop.platformRun];
+  if (!stop.bayRun) return undefined;
+  const run = BAY_RUN_VECTORS[stop.bayRun];
   const offset = subtractPoints(other, stop);
   if (crossProduct(run, offset) === 0) return undefined;
   const sign = Math.sign(dotProduct(run, offset));
@@ -185,7 +185,7 @@ const getOctilinearBend = (
   return { x: to.x - Math.sign(dx) * step, y: to.y - Math.sign(dy) * step };
 };
 
-/** Corridors to two places of one stop share the intersection of their platform axes. */
+/** Corridors to two places of one stop share the intersection of their bay axes. */
 const getSharedPlaceApproach = (
   from: ZentrumSchematicNode,
   to: ZentrumSchematicNode,
@@ -196,8 +196,8 @@ const getSharedPlaceApproach = (
     [from, to],
     [to, from],
   ]) {
-    if (!place.platformRun) continue;
-    const run = PLATFORM_RUN_VECTORS[place.platformRun];
+    if (!place.bayRun) continue;
+    const run = BAY_RUN_VECTORS[place.bayRun];
     const stopId = place.stopId ?? place.id;
     for (const corridor of corridors) {
       const sibling =
@@ -206,13 +206,9 @@ const getSharedPlaceApproach = (
           : corridor[1].id === neighbor.id
             ? corridor[0]
             : undefined;
-      if (
-        !sibling?.platformRun ||
-        sibling.id === place.id ||
-        (sibling.stopId ?? sibling.id) !== stopId
-      )
+      if (!sibling?.bayRun || sibling.id === place.id || (sibling.stopId ?? sibling.id) !== stopId)
         continue;
-      const otherRun = PLATFORM_RUN_VECTORS[sibling.platformRun];
+      const otherRun = BAY_RUN_VECTORS[sibling.bayRun];
       const point = getLineIntersection(place, run, sibling, otherRun);
       if (!point || !Number.isInteger(point.x) || !Number.isInteger(point.y)) continue;
       if ([place, sibling, neighbor].some((node) => node.x === point.x && node.y === point.y))
@@ -220,16 +216,11 @@ const getSharedPlaceApproach = (
       const approach = subtractPoints(neighbor, point);
       const fit = (axis: SchematicPoint) =>
         Math.abs(dotProduct(axis, approach)) / Math.hypot(axis.x, axis.y);
-      const platformRun = [place.platformRun, sibling.platformRun].sort(
+      const bayRun = [place.bayRun, sibling.bayRun].sort(
         (left, right) =>
-          fit(PLATFORM_RUN_VECTORS[right]) - fit(PLATFORM_RUN_VECTORS[left]) ||
-          left.localeCompare(right),
+          fit(BAY_RUN_VECTORS[right]) - fit(BAY_RUN_VECTORS[left]) || left.localeCompare(right),
       )[0];
-      const bend = getPlatformRunBend(
-        { id: "", label: "", ...point, platformRun },
-        neighbor,
-        nodes,
-      );
+      const bend = getBayRunBend({ id: "", label: "", ...point, bayRun }, neighbor, nodes);
       if (!bend && !isOctilinear(approach)) continue;
       const path = [neighbor, ...(bend ? [bend] : []), point, place];
       const segments = path.slice(1).map((end, index) => [path[index], end] as const);
@@ -274,11 +265,11 @@ export const getZentrumSchematicRoutes = (
       ];
       return from.id === shared.neighbor.id ? approach : approach.reverse();
     }
-    // A boarding place's own run first: it is read from where its platforms stand.
+    // A boarding place's own run first: it is read from where its bays stand.
     const [first, second] = to.stopId && !from.stopId ? [to, from] : [from, to];
     const point =
-      getPlatformRunBend(first, second, nodes) ??
-      getPlatformRunBend(second, first, nodes) ??
+      getBayRunBend(first, second, nodes) ??
+      getBayRunBend(second, first, nodes) ??
       getOctilinearBend(from, to);
     if (!point) return [from, to];
     return [from, junctionAt(point), to];
@@ -302,8 +293,8 @@ export const getZentrumSchematicRoutes = (
 };
 
 /** Only rail is drawn. */
-export const isRailDeparture = ({ transportMode }: Pick<Departure, "transportMode">): boolean =>
-  transportMode === "tram" || transportMode === "lightRail";
+export const isRailStopEvent = ({ ptMode }: Pick<StopEvent, "ptMode">): boolean =>
+  ptMode === "tram" || ptMode === "lightRail";
 
 /** The shared board address of a drawn boarding place. */
 export const getZentrumSchematicStopId = (nodeId: string): string => nodeId.split("@", 1)[0];
@@ -502,17 +493,17 @@ export const getLineIntersection = (
 };
 
 /**
- * One place to stand at a stop, by the corridors its trips use: the feed gives one coordinate per
- * stop point, so a platform is located by what runs through it.
+ * One place to stand at a stop, by the corridors its journeys use: the feed gives one coordinate
+ * per stop point, so a bay is located by what runs through it.
  */
 export type ZentrumSchematicBoardingPlace = {
-  /** Trips per corridor boarding here, by the far end's stop. */
-  armTripCounts: ReadonlyMap<string, number>;
+  /** Journeys per corridor boarding here, by the far end's stop. */
+  armJourneyCounts: ReadonlyMap<string, number>;
   /** Calls observed boarding here, ranking places at the stop. */
-  tripCount: number;
-  platformCodes?: readonly string[];
-  platformKeys?: readonly string[];
-  platformRun?: PlatformRun;
+  journeyCount: number;
+  bays?: readonly string[];
+  bayKeys?: readonly string[];
+  bayRun?: BayRun;
   latitude?: number;
   longitude?: number;
 };

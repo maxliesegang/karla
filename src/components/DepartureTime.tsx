@@ -1,4 +1,4 @@
-import type { DepartureTimeReading } from "../lib/departure-presentation";
+import type { DepartureTimeReading } from "../lib/stop-event-presentation";
 import { classNames } from "../lib/class-names";
 
 /**
@@ -11,7 +11,9 @@ export function DepartureTime({ reading }: { reading: DepartureTimeReading }) {
       <span className={classNames("departure-expected-time", reading.punctuality)}>
         {reading.expectedTime}
       </span>
-      {reading.scheduledTime && <s className="departure-scheduled-time">{reading.scheduledTime}</s>}
+      {reading.timetabledTime && (
+        <s className="departure-scheduled-time">{reading.timetabledTime}</s>
+      )}
     </span>
   );
 }

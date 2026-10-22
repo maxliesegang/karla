@@ -5,67 +5,95 @@ Where two terms are easy to confuse, the entry says how they differ.
 
 ## Stops
 
-**Local stop** (`TransitStop`): the app's own stop identity, with one page and one URL. It may cover
-several stop points (a *stop complex*, such as Europaplatz).
+**Stop place** (`StopPlace`): the app's own stop identity, with one page and one URL. It may cover
+several stop points (a *stop complex*, such as Europaplatz), as TRIAS's StopPlace does.
+_Avoid_: local stop, transit stop
 
-**Stop point**: the operator's identity for where a vehicle actually stands. Row facts such as the
-platform live at this level.
+**Stop point**: the operator's identity for where a vehicle actually stands (TRIAS `StopPointRef`).
+Stop event facts such as the bay live at this level.
+
+**Bay** (`bay`, `bayText`, `bayKind`): the signed place at a stop point a vehicle stops at, TRIAS's
+`PlannedBay`: its code (`3`), its text (`Gleis 3`) and whether it is a track or a stand.
+_Avoid_: platform (in code; German copy says Gleis and Bstg.)
 
 **Authored / dynamic stop**: an authored stop ships with the app; a dynamic stop is first met live
 (through a search hit or a call) and is registered for the rest of the session.
 
-**Boarding place**: what a rider walks to at a stop, usually one stop point. It is derived from trips
-calling at several platforms in turn. The Zentrum plan reads its places from the corridors each
-platform serves and how near platforms stand, and draws one capsule per place.
+**Boarding place**: what a rider walks to at a stop, usually one stop point. It is derived from
+journeys calling at several bays in turn. The Zentrum plan reads its places from the corridors each
+bay serves and how near bays stand, and draws one capsule per place.
 
-## Boards and rows
+## Boards and stop events
 
-**DepartureBoard**: one reading of a stop's departures: its rows, its status (live or unavailable)
+**StopEventBoard**: one reading of a stop's stop events: its rows, its status (live or unavailable)
 and when it was read.
+_Avoid_: departure board
 
-**Departure**: one row, meaning one run at one stop at the moment the board was read. It holds
-facts about that stop (countdown, platform), not about the whole vehicle.
+**StopEvent**: one row, meaning one dated journey at one stop at the moment the board was read (a
+TRIAS `StopEvent`). It holds facts about that stop (countdown, bay), not about the whole vehicle.
+An arrival board's rows are stop events too.
+_Avoid_: departure (for the row; the departure of a call is still its departure)
 
-**Serving lines**: the line directions a stop states from its schedule. They are not evidence that
-anything is running.
+**Serving lines**: the line directions a stop is served by: what EFA states from its schedule, and
+what dated journeys read this session were seen to call there (the only source with TRIAS). They
+are query candidates, not evidence that anything is running.
 
-**Route direction id**: the provider's id for one direction of a line. It is used for board filters
-and is never shown to a rider.
+**Line ref** (`lineRef`): the provider's id for one direction of a line (`kvv:21005:E:R:s26`),
+TRIAS's `LineRef`. It is used for board filters and is never shown to a rider.
+_Avoid_: route direction id, direction id
 
-**Board order**: one of three orderings of a board: by time, by platform, or by line.
+**PtMode**: what kind of vehicle serves a line (tram, light rail, bus), after TRIAS's `PtMode`.
+_Avoid_: transport mode
 
-## Runs
+**Board order**: one of three orderings of a board: by time, by bay, or by line.
 
-**Trip**: the timetable entry, which repeats every day (`tripId`).
+## Journeys
 
-**Run**: one dated instance of a trip on the road today (`tripInstanceId`). This is what gets
-tracked and drawn.
+**Journey** (`journeyRef`): the timetable entry, which repeats every day; TRIAS's `JourneyRef`.
+_Avoid_: trip (TRIAS's Trip is a passenger's planned itinerary)
 
-**Vehicle**: the mark drawn for a run.
+**Dated journey** (`datedJourneyId`): one dated instance of a journey on the road today, a
+`JourneyRef` on an `OperatingDayRef`. This is what gets tracked and drawn.
+_Avoid_: run
 
-**TripCall**: one stop in a run's sequence, with its times and platform.
+**Vehicle**: the mark drawn for a dated journey.
 
-**RunSequence**: a run's calls as the feed stated them, read at a single moment. It holds nothing
-specific to one stop. Only a trip request yields one; a board's embedded calls are that board's
-observation.
+**Call**: one stop in a dated journey's sequence, with its times and bay (TRIAS `CallAtStop`). The
+board's own call is its *this call* (`isThisCall`).
+_Avoid_: trip call
 
-**RunReadingStore**: inside `TransitSource`, it holds the latest rows and sequence for each run.
-Every view reads runs from it.
+**DatedJourneyCalls**: a dated journey's calls as the feed stated them, read at a single moment. It
+holds nothing specific to one stop. Only a trip info request yields one; a board's embedded calls
+are that board's observation.
+_Avoid_: run sequence
 
-**Run keys** (in `lib/trips.ts`):
-- `getRunRecordKey` (`line|tripCode`, undated) shares a run's data and requests.
-- `getRunMarkKey` (dated) identifies a drawn vehicle.
-- `getBoardRowKey` merges a board's duplicate rows for one run.
+**DatedJourneyReadingStore**: inside `TransitSource`, it holds the latest stop events and calls for
+each dated journey. Every view reads dated journeys from it.
 
-**KvvTripLocator**: the provider's address for fetching one run's trip.
+**Journey keys**:
+- `getJourneyRecordKey` (`lineRef|journeyCode`, undated; `data/dated-journey-reading-store.ts`)
+  shares a dated journey's data and requests.
+- `getDatedJourneyMarkKey` (dated; `lib/journeys.ts`) identifies a drawn vehicle.
+- `getBoardRowKey` (`data/stop-event-dated-journeys.ts`) merges a board's duplicate rows for one
+  dated journey.
+
+**KvvJourneyLocator**: the provider's address for fetching one dated journey's trip info.
+
+**Published journey number** (`publishedJourneyNumber`): the train number a stop event states.
+_Avoid_: train number
 
 ## Time
 
 **Feed clock**: the operator's clock, anchored when a board is read and advanced by the device. All
 countdowns and staleness checks use it.
 
-**Expected departure instant**: the prediction if there is one, otherwise the schedule. It is the
-one time a row is read against. TRIAS predicts to the second; delays print as whole minutes.
+**Timetabled / estimated time**: a call end's time from the timetable, and its prediction, after
+TRIAS's `TimetabledTime` and `EstimatedTime`.
+_Avoid_: scheduled, predicted
+
+**Expected departure instant**: the estimated time if there is one, otherwise the timetabled one.
+It is the one time a row is read against. TRIAS estimates to the second; delays print as whole
+minutes.
 
 ## Lines
 
@@ -77,14 +105,14 @@ one time a row is read against. TRIAS predicts to the second; delays print as wh
 (`line/S1+S11`). They are never merged automatically.
 
 **Observed network**: the lines and stops seen live at the observation posts, the fixed stops read
-to learn the network, and in every run requested for its calls.
+to learn the network, and in every dated journey requested for its calls.
 
 **Line observation**: the stops and directions learned for one line, which decide which boards to
 read for it.
 
 ## Riding
 
-**Ride**: one run read on its own, for a rider on board.
+**Ride**: one dated journey read on its own, for a rider on board.
 
 **Ausstieg**: the stop where the rider plans to get off, as chosen by the rider and carried in the
 URL.
@@ -129,8 +157,8 @@ lighting and travel times.
 
 **TransitSource**: the only module that talks to the provider. Views use it and nothing else.
 
-**KvvFeed**: what a KVV feed answers, in one model (`kvv-feed.ts`). Read from TRIAS while the proxy
-answers, else from EFA.
+**KvvFeed**: what a KVV feed answers, in one model (`kvv-feed.ts`). One feed per build: TRIAS, or
+EFA with `VITE_USE_EFA=true` (`kvv-feed-config.ts`).
 
 **KvvTrias**: the operator's TRIAS interface, read through `proxy/`. See
 [docs/kvv-trias-api.md](docs/kvv-trias-api.md).

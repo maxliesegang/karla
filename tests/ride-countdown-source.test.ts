@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   getRideCountdownSourceLabel,
-  type TripCallTimeReading,
-} from "../src/lib/departure-presentation.ts";
+  type CallTimeReading,
+} from "../src/lib/stop-event-presentation.ts";
 
-const callTime = (punctuality: TripCallTimeReading["punctuality"]): TripCallTimeReading => ({
+const callTime = (punctuality: CallTimeReading["punctuality"]): CallTimeReading => ({
   expectedTime: "21:51",
   punctuality,
   accessibilityLabel: "",

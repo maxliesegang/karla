@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { RunSegmentTrajectory } from "../src/lib/vehicle-positioning.ts";
+import type { DatedJourneySegmentTrajectory } from "../src/lib/vehicle-positioning.ts";
 import {
   canReuseAnimatedValue,
   getTrajectoryKeyframes,
@@ -13,7 +13,7 @@ const start = Date.parse("2026-08-23T10:00:00Z");
 
 /** One 60-second link sampled every second, as the placement plans it. */
 const progresses = Array.from({ length: 61 }, (_, second) => second / 60);
-const trajectory: RunSegmentTrajectory = {
+const trajectory: DatedJourneySegmentTrajectory = {
   startsAt: start,
   progresses,
   startProgress: 0,

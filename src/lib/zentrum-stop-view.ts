@@ -1,5 +1,5 @@
 /** An opened Zentrum stop's rows, destinations and map annotations from one reading. */
-import type { Departure, DepartureBoard } from "../data/transit-types";
+import type { StopEvent, StopEventBoard } from "../data/transit-types";
 import type { ZentrumSchematicVehicle } from "./zentrum-schematic";
 import { zentrumSchematicNodeById } from "./zentrum-schematic-plan";
 import {
@@ -51,15 +51,15 @@ export type ZentrumStopView = {
 export const getZentrumStopView = (
   reading: ZentrumStopReading,
   stopId: string,
-  board: DepartureBoard | null,
+  board: StopEventBoard | null,
   vehicles: readonly ZentrumSchematicVehicle[],
-  runDepartures: readonly Departure[],
+  datedJourneyStopEvents: readonly StopEvent[],
   feedNow: number,
   travelMeasure: ZentrumTravelMeasure,
 ): ZentrumStopView => {
   if (reading === "departures") {
     const { rows, overlay, vehicleMinutesById } = getZentrumStopBoard(
-      board?.departures ?? [],
+      board?.stopEvents ?? [],
       vehicles,
       stopId,
       feedNow,
@@ -67,7 +67,7 @@ export const getZentrumStopView = (
     return { overlay, rows: board ? rows : undefined, reachableStops: [], vehicleMinutesById };
   }
   const { travelTimesByNodeId, overlay } = getZentrumTravelTimes(
-    runDepartures,
+    datedJourneyStopEvents,
     stopId,
     feedNow,
     travelMeasure,

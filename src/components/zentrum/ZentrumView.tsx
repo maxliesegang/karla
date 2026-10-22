@@ -1,11 +1,11 @@
 import { getZentrumSchematicLineIdsByStopId } from "../../lib/zentrum-schematic-plan";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { DepartureBoard, DepartureBoardCoverage } from "../../data/transit-types";
-import { useDepartureBoard } from "../../hooks/departure-board";
+import type { StopEventBoard, StopEventBoardCoverage } from "../../data/transit-types";
+import { useStopEventBoard } from "../../hooks/stop-event-board";
 import type { NearbyStopsController } from "../../hooks/nearby-stops";
 import { useSteadyValue } from "../../hooks/steady-value";
 import { useNearestZentrumStopOpening } from "../../hooks/zentrum-nearest-stop";
-import { type ZentrumRunReading, useZentrumVehicles } from "../../hooks/zentrum-vehicles";
+import { type ZentrumDatedJourneyReading, useZentrumVehicles } from "../../hooks/zentrum-vehicles";
 import type { ObservedNetwork } from "../../lib/observed-network";
 import { createZentrumSchematicReader } from "../../lib/zentrum-schematic";
 import { navigateTo, replaceCurrentRoute, routePaths } from "../../routing";
@@ -29,9 +29,9 @@ const zentrumEmptyLabels = {
 type ZentrumViewProps = {
   network: ObservedNetwork;
   /** How many observation posts this reading rests on. */
-  coverage: DepartureBoardCoverage;
-  /** The trips stating which corridors are in service. */
-  departureBoards: readonly DepartureBoard[];
+  coverage: StopEventBoardCoverage;
+  /** The journeys stating which corridors are in service. */
+  stopEventBoards: readonly StopEventBoard[];
   /** The followed line, as the address names it. */
   selectedLineId?: string;
   /** The opened stop, as the address names it. */
@@ -46,13 +46,13 @@ type ZentrumViewProps = {
 
 /** Lines appear first; vehicles wait for the initial readings and layout. */
 export function ZentrumView(props: ZentrumViewProps) {
-  const { network, coverage, departureBoards, selectedStopId } = props;
-  const { board: openedStopBoard } = useDepartureBoard(selectedStopId);
+  const { network, coverage, stopEventBoards, selectedStopId } = props;
+  const { board: openedStopBoard } = useStopEventBoard(selectedStopId);
   const evidenceBoards = useMemo(
-    () => (openedStopBoard ? [...departureBoards, openedStopBoard] : departureBoards),
-    [departureBoards, openedStopBoard],
+    () => (openedStopBoard ? [...stopEventBoards, openedStopBoard] : stopEventBoards),
+    [stopEventBoards, openedStopBoard],
   );
-  const { isLoading, ...runReading } = useZentrumVehicles(evidenceBoards);
+  const { isLoading, ...datedJourneyReading } = useZentrumVehicles(evidenceBoards);
   const isInitialLoading = coverage.status === "loading" || isLoading;
   if (network.stops.length === 0 && !isInitialLoading) {
     return (
@@ -65,7 +65,7 @@ export function ZentrumView(props: ZentrumViewProps) {
   return (
     <ZentrumPlan
       {...props}
-      {...runReading}
+      {...datedJourneyReading}
       openedStopBoard={openedStopBoard}
       isInitialLoading={isInitialLoading}
     />
@@ -80,19 +80,22 @@ function ZentrumPlan({
   isFullscreen,
   isStacked,
   nearbyStops,
-  runDepartures,
-  travelRuns,
+  datedJourneyStopEvents,
+  travelDatedJourneys,
   feedNow,
   openedStopBoard,
   isInitialLoading,
 }: ZentrumViewProps &
-  ZentrumRunReading & {
-    openedStopBoard: DepartureBoard | null;
+  ZentrumDatedJourneyReading & {
+    openedStopBoard: StopEventBoard | null;
     isInitialLoading: boolean;
   }) {
   const [hasLoaded, setHasLoaded] = useState(false);
   const [readSchematic] = useState(createZentrumSchematicReader);
-  const readLayout = useMemo(() => readSchematic(runDepartures), [readSchematic, runDepartures]);
+  const readLayout = useMemo(
+    () => readSchematic(datedJourneyStopEvents),
+    [readSchematic, datedJourneyStopEvents],
+  );
   const layout = useSteadyValue(readLayout, readLayout.layoutKey, {
     ...ZENTRUM_LAYOUT_PACE,
     intervalMs: hasLoaded ? ZENTRUM_LAYOUT_PACE.intervalMs : 0,
@@ -151,8 +154,8 @@ function ZentrumPlan({
         getSign={getSign}
         selectedLineId={followedLineId}
         selectedStopId={openedStopId}
-        runDepartures={runDepartures}
-        travelRuns={travelRuns}
+        datedJourneyStopEvents={datedJourneyStopEvents}
+        travelDatedJourneys={travelDatedJourneys}
         stopBoard={openedStopBoard}
         feedNow={feedNow}
         isLoading={isLoading}

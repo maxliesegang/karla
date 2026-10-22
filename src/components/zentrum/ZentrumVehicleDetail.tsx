@@ -1,4 +1,4 @@
-import { getTripCallTimeReading } from "../../lib/departure-presentation";
+import { getCallTimeReading } from "../../lib/stop-event-presentation";
 import { getVehiclePositionSourceLabel } from "../../lib/vehicle-position-presentation";
 import {
   getZentrumVehiclePlaceLabel,
@@ -9,7 +9,7 @@ import {
   getZentrumSchematicStopId,
   zentrumSchematicNodeById,
 } from "../../lib/zentrum-schematic-plan";
-import { getDepartureAddressId, routePaths } from "../../routing";
+import { getStopEventAddressId, routePaths } from "../../routing";
 import { DepartureTime } from "../DepartureTime";
 import { LineBadge } from "../LineBadge";
 import type { ZentrumLineSignReader } from "./line-sign";
@@ -17,7 +17,7 @@ import type { ZentrumPanelEntranceMotion } from "../../lib/zentrum-panel";
 
 /**
  * An opened vehicle: line, destination and its remaining Zentrum stops with board times. It says
- * in words what the drawing only implies, that the position is an estimate, and links the trip.
+ * in words what the drawing only implies, that the position is an estimate, and links the journey.
  */
 export function ZentrumVehicleDetail({
   vehicle,
@@ -67,18 +67,18 @@ export function ZentrumVehicleDetail({
         </span>
         {" · "}
         {getVehiclePositionSourceLabel(
-          vehicle.departure,
+          vehicle.stopEvent,
           readingNow,
           getZentrumSchematicStopId(vehicle.from.id),
           getZentrumSchematicStopId(vehicle.to.id),
         )}
         {" · "}
-        {getZentrumPositionFreshness([vehicle.departure], readingNow)}
+        {getZentrumPositionFreshness([vehicle.stopEvent], readingNow)}
       </p>
       {aheadStops.length > 0 && (
         <ol className="zentrum-panel-calls" aria-label="Nächste Halte im Zentrum">
           {aheadStops.map((stop) => {
-            const reading = getTripCallTimeReading(stop.call, feedNow);
+            const reading = getCallTimeReading(stop.call, feedNow);
             return (
               <li key={`${stop.nodeId}:${stop.departsAt ?? ""}`}>
                 <span>
@@ -93,8 +93,8 @@ export function ZentrumVehicleDetail({
       )}
       <a
         className="zentrum-panel-link"
-        href={`#${routePaths.trip(
-          getDepartureAddressId(vehicle.departure),
+        href={`#${routePaths.journey(
+          getStopEventAddressId(vehicle.stopEvent),
           vehicle.lineId,
           vehicle.to.id,
         )}`}

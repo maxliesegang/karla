@@ -1,4 +1,4 @@
-import type { Departure, ServingLine, TransitLine } from "../data/transit-types";
+import type { StopEvent, ServingLine, TransitLine } from "../data/transit-types";
 import { getLineFamilyId, isSameLineFamily } from "./line-families";
 import { addOnce, toSortedIds } from "./collections";
 import { getLineSelectionIds, type LineSelection } from "./line-bundles";
@@ -11,28 +11,28 @@ import { getLineSelectionIds, type LineSelection } from "./line-bundles";
 
 /** One line as the visit has observed it. Empty until a board has been read for it. */
 export type LineObservation = {
-  /** Every stop a trip of this line was seen calling at, in discovery order. */
+  /** Every stop a journey of this line was seen calling at, in discovery order. */
   stopIds: readonly string[];
-  /** Every `routeDirectionId` seen on this line, plus opposites a whole-stop board confirmed. */
-  directionIds: readonly string[];
+  /** Every `lineRef` seen on this line, plus opposites a whole-stop board confirmed. */
+  lineRefs: readonly string[];
 };
 
 export type LineObservations = ReadonlyMap<string, LineObservation>;
 
-export const EMPTY_LINE_OBSERVATION: LineObservation = { stopIds: [], directionIds: [] };
+export const EMPTY_LINE_OBSERVATION: LineObservation = { stopIds: [], lineRefs: [] };
 
 /**
  * A board as the crawl reads it. `servingLines` only on a whole-stop board; a filtered board's
  * absence of it says nothing.
  */
 export type LineObservationBoard = {
-  departures: readonly Departure[];
+  stopEvents: readonly StopEvent[];
   servingLines?: readonly ServingLine[];
 };
 
 /**
  * The stops a line is read at, filtered to the line so the whole row budget goes to it. Every known
- * calling point is read and none is forgotten between readings, since this hour's trips may not
+ * calling point is read and none is forgotten between readings, since this hour's journeys may not
  * cover the whole line. The rider's own board is one of these, never an extra request.
  */
 export function getLineObservationStopIds(
@@ -50,7 +50,7 @@ export const MAX_UNFILTERED_LINE_OBSERVATION_STOPS = 6;
 
 /**
  * Stops one filtered round may read: above every tram and Stadtbahn line (about thirty), below the
- * regional runs (S-Bahn to Öhringen is seventy).
+ * regional journeys (S-Bahn to Öhringen is seventy).
  */
 export const MAX_LINE_OBSERVATION_STOPS = 40;
 
@@ -72,29 +72,29 @@ export function sampleLineObservationStopIds(
 }
 
 /** A line-direction whose route may be asked for, and a row that addresses it. */
-export type LineRouteRequest = { lineId: string; directionId: string; rowId: string };
+export type LineRouteRequest = { lineId: string; lineRef: string; rowId: string };
 
 /** One route request per line-direction: routes are addressed by any row of it. */
 export function getLineRouteRequests(
   selection: LineSelection,
   boards: readonly LineObservationBoard[],
 ): readonly LineRouteRequest[] {
-  const requestByDirectionId = new Map<string, LineRouteRequest>();
+  const requestByLineRef = new Map<string, LineRouteRequest>();
   for (const lineId of getLineSelectionIds(selection)) {
     for (const board of boards) {
-      for (const departure of board.departures) {
-        const { routeDirectionId: directionId, id: rowId } = departure;
-        if (!directionId || !rowId || requestByDirectionId.has(directionId)) continue;
-        if (!isSameLineFamily(departure.lineId, lineId)) continue;
-        requestByDirectionId.set(directionId, {
+      for (const stopEvent of board.stopEvents) {
+        const { lineRef, id: rowId } = stopEvent;
+        if (!lineRef || !rowId || requestByLineRef.has(lineRef)) continue;
+        if (!isSameLineFamily(stopEvent.lineId, lineId)) continue;
+        requestByLineRef.set(lineRef, {
           lineId: getLineFamilyId(lineId),
-          directionId,
+          lineRef,
           rowId,
         });
       }
     }
   }
-  return [...requestByDirectionId.values()];
+  return [...requestByLineRef.values()];
 }
 
 /**
@@ -135,12 +135,12 @@ export function extendLineObservationRoutes(
 /** Adds newly observed stops in discovery order; returns the input when nothing was learned. */
 export function extendLineCallStopIds(
   knownStopIds: readonly string[],
-  trips: readonly Departure[],
+  journeys: readonly StopEvent[],
 ): readonly string[] {
   const known = new Set(knownStopIds);
   let expanded: string[] | undefined;
-  for (const { tripCalls } of trips) {
-    for (const { localStopId } of tripCalls ?? []) {
+  for (const { calls } of journeys) {
+    for (const { localStopId } of calls ?? []) {
       if (!localStopId || known.has(localStopId)) continue;
       known.add(localStopId);
       if (!expanded) expanded = [...knownStopIds];
@@ -151,12 +151,10 @@ export function extendLineCallStopIds(
 }
 
 /** The provider direction ids (`:H:`, `:R:`) a line's departures state. */
-export function getLineDirectionIds(lineId: string, departures: readonly Departure[]): string[] {
+export function getLineRefs(lineId: string, stopEvents: readonly StopEvent[]): string[] {
   return toSortedIds(
-    departures.flatMap((departure) =>
-      departure.routeDirectionId && isSameLineFamily(departure.lineId, lineId)
-        ? [departure.routeDirectionId]
-        : [],
+    stopEvents.flatMap((stopEvent) =>
+      stopEvent.lineRef && isSameLineFamily(stopEvent.lineId, lineId) ? [stopEvent.lineRef] : [],
     ),
   );
 }
@@ -168,8 +166,8 @@ const OPPOSITE_DIRECTION_FIELD: Record<string, string> = { H: "R", R: "H" };
  * The opposite direction: `kvv:21003:E:H:s26` ⇄ `kvv:21003:E:R:s26`. Only used to check whether two
  * stated ids make a whole filter (`hasBothLineDirections`), never to learn an id.
  */
-export function getOppositeDirectionId(routeDirectionId: string): string | undefined {
-  const fields = routeDirectionId.split(":");
+export function getOppositeLineRef(lineRef: string): string | undefined {
+  const fields = lineRef.split(":");
   const directionIndex = fields.length - 2;
   if (directionIndex < 1) return undefined;
   const opposite = OPPOSITE_DIRECTION_FIELD[fields[directionIndex]];
@@ -179,10 +177,10 @@ export function getOppositeDirectionId(routeDirectionId: string): string | undef
 }
 
 /** Whether both directions are named, the condition for asking a filtered board. */
-const hasBothLineDirections = ({ directionIds }: LineObservation): boolean =>
-  directionIds.some((directionId) => {
-    const opposite = getOppositeDirectionId(directionId);
-    return Boolean(opposite && directionIds.includes(opposite));
+const hasBothLineDirections = ({ lineRefs }: LineObservation): boolean =>
+  lineRefs.some((lineRef) => {
+    const opposite = getOppositeLineRef(lineRef);
+    return Boolean(opposite && lineRefs.includes(opposite));
   });
 
 /**
@@ -191,7 +189,7 @@ const hasBothLineDirections = ({ directionIds }: LineObservation): boolean =>
  * outbound rows). Unfiltered boards reach less far but name both directions, so the next round is
  * filtered again.
  */
-export function getLineFilterDirectionIds(
+export function getLineFilterLineRefs(
   observations: LineObservations,
   selection: LineSelection,
 ): readonly string[] {
@@ -201,7 +199,7 @@ export function getLineFilterDirectionIds(
   if (!observed.every((observation) => observation && hasBothLineDirections(observation)))
     return [];
   // Pooled across lines, so a bundle still costs one request per stop.
-  return toSortedIds(observed.flatMap((observation) => [...(observation?.directionIds ?? [])]));
+  return toSortedIds(observed.flatMap((observation) => [...(observation?.lineRefs ?? [])]));
 }
 
 /** Every stop the reading's lines are known to call at, in discovery order, without repeats. */
@@ -226,30 +224,30 @@ export function extendLineObservation(
   lineId: string,
   boards: readonly LineObservationBoard[],
 ): LineObservation {
-  const trips = boards.flatMap((board) =>
-    board.departures.filter((departure) => isSameLineFamily(departure.lineId, lineId)),
+  const journeys = boards.flatMap((board) =>
+    board.stopEvents.filter((stopEvent) => isSameLineFamily(stopEvent.lineId, lineId)),
   );
-  const stopIds = extendLineCallStopIds(known.stopIds, trips);
+  const stopIds = extendLineCallStopIds(known.stopIds, journeys);
 
-  const directionIds = new Set(known.directionIds);
-  for (const directionId of getLineDirectionIds(lineId, trips)) directionIds.add(directionId);
+  const lineRefs = new Set(known.lineRefs);
+  for (const lineRef of getLineRefs(lineId, journeys)) lineRefs.add(lineRef);
   // A whole-stop board names every line calling there, due or not: the only way to learn a
   // direction that only arrives at a terminus, or a line without a row on a busy board.
   for (const board of boards) {
     for (const servingLine of board.servingLines ?? []) {
       const servedLineId = servingLine.lineId;
       if (servedLineId && isSameLineFamily(servedLineId, lineId)) {
-        directionIds.add(servingLine.directionId);
+        lineRefs.add(servingLine.lineRef);
       }
     }
   }
 
   const hasNewStops = stopIds !== known.stopIds;
-  const hasNewDirections = directionIds.size !== known.directionIds.length;
+  const hasNewDirections = lineRefs.size !== known.lineRefs.length;
   if (!hasNewStops && !hasNewDirections) return known;
   return {
     stopIds,
-    directionIds: hasNewDirections ? toSortedIds([...directionIds]) : known.directionIds,
+    lineRefs: hasNewDirections ? toSortedIds([...lineRefs]) : known.lineRefs,
   };
 }
 
@@ -289,7 +287,7 @@ export function seedLineObservations(
     const zentrumCalls = lines.find((line) => isSameLineFamily(line.id, lineId))?.zentrumCalls;
     seeded.set(
       lineId,
-      zentrumCalls?.length ? { stopIds: zentrumCalls, directionIds: [] } : EMPTY_LINE_OBSERVATION,
+      zentrumCalls?.length ? { stopIds: zentrumCalls, lineRefs: [] } : EMPTY_LINE_OBSERVATION,
     );
   }
   return seeded;

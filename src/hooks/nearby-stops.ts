@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { TransitStop } from "../data/transit-types";
+import type { StopPlace } from "../data/transit-types";
 import { getNearbyStops, type NearbyStop } from "../lib/nearby-stops";
 import { IS_GEOLOCATION_SUPPORTED, isPermissionDenied, useGrantedGeolocation } from "./geolocation";
 
@@ -17,7 +17,7 @@ export type NearbyStopsController = NearbyStopsState & { locate: () => Promise<v
  * granted; never stored or sent. Capped by distance as well as count.
  */
 export function useNearbyStops(
-  stops: readonly TransitStop[],
+  stops: readonly StopPlace[],
   isEnabled = true,
 ): NearbyStopsController {
   const [state, setState] = useState<NearbyStopsState>({ status: "idle", stops: [] });

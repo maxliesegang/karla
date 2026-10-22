@@ -1,12 +1,12 @@
 /**
  * The experiment page's geographic map: stops where the feed locates them, linked in the order the
- * observed runs call them. Straight links between stops, not track.
+ * observed dated journeys call them. Straight links between stops, not track.
  */
-import type { Departure, TripCall } from "../data/transit-types";
+import type { StopEvent, Call } from "../data/transit-types";
 import { type DirectTravelTime, getMinutesUntilArrival } from "./direct-travel-times";
 import { toLocalMeters } from "./geo";
 import { getBaseName } from "./stop-naming";
-import { collapseTurnaroundCalls, getCallKey } from "./trip-calls";
+import { collapseTurnaroundCalls, getCallKey } from "./calls";
 
 export type GeoPosition = { latitude: number; longitude: number };
 
@@ -18,7 +18,7 @@ export type GeoStop = GeoPosition & {
   lineIds: readonly string[];
 };
 
-/** Two stops some run calls one after the other; `fromId` sorts first. */
+/** Two stops some dated journey calls one after the other; `fromId` sorts first. */
 export type GeoLink = { id: string; fromId: string; toId: string; lineIds: readonly string[] };
 
 export type GeoNetwork = { stops: ReadonlyMap<string, GeoStop>; links: readonly GeoLink[] };
@@ -51,20 +51,20 @@ export const toGeoDrawing = (network: GeoNetwork): MapDrawing => ({
 });
 
 /** A stop's id on the map: the local stop, else the operator's stop. */
-export const getGeoStopId = (call: TripCall): string =>
+export const getGeoStopId = (call: Call): string =>
   call.localStopId ?? call.providerStopPointId ?? getCallKey(call);
 
 export const getGeoLinkId = (left: string, right: string): string =>
   left < right ? `${left}\u0000${right}` : `${right}\u0000${left}`;
 
-const callPosition = ({ latitude, longitude }: TripCall): GeoPosition | undefined =>
+const callPosition = ({ latitude, longitude }: Call): GeoPosition | undefined =>
   latitude === undefined || longitude === undefined ? undefined : { latitude, longitude };
 
 type StopRecord = {
   id: string;
   name: string;
   placeName?: string;
-  /** Each stop point's position once, so a busy platform does not pull the average. */
+  /** Each stop point's position once, so a busy bay does not pull the average. */
   positions: Map<string, GeoPosition>;
   lineIds: string[];
 };
@@ -74,17 +74,17 @@ const addOnce = (list: string[], value: string) => {
 };
 
 /**
- * Reads runs into the map, keeping what earlier runs showed for the session, so the map does not
- * shrink as runs end. A call the feed leaves unlocated (a board's own call) is placed by `locate`,
- * or linked across.
+ * Reads dated journeys into the map, keeping what earlier dated journeys showed for the session, so
+ * the map does not shrink as dated journeys end. A call the feed leaves unlocated (a board's own
+ * call) is placed by `locate`, or linked across.
  */
 export function createGeoNetworkReader(
-  locate: (call: TripCall) => GeoPosition | undefined = () => undefined,
-): (departures: readonly Departure[]) => GeoNetwork {
+  locate: (call: Call) => GeoPosition | undefined = () => undefined,
+): (stopEvents: readonly StopEvent[]) => GeoNetwork {
   const stops = new Map<string, StopRecord>();
   const links = new Map<string, { id: string; fromId: string; toId: string; lineIds: string[] }>();
 
-  const recordStop = (call: TripCall, lineId: string): string | undefined => {
+  const recordStop = (call: Call, lineId: string): string | undefined => {
     const id = getGeoStopId(call);
     const position = callPosition(call) ?? locate(call);
     let stop = stops.get(id);
@@ -99,18 +99,18 @@ export function createGeoNetworkReader(
     return id;
   };
 
-  return (departures) => {
-    for (const departure of departures) {
+  return (stopEvents) => {
+    for (const stopEvent of stopEvents) {
       let previous: string | undefined;
-      for (const call of collapseTurnaroundCalls(departure.tripCalls ?? [])) {
-        const id = recordStop(call, departure.lineId);
+      for (const call of collapseTurnaroundCalls(stopEvent.calls ?? [])) {
+        const id = recordStop(call, stopEvent.lineId);
         if (!id || id === previous) continue;
         if (previous) {
           const linkId = getGeoLinkId(previous, id);
           const [fromId, toId] = previous < id ? [previous, id] : [id, previous];
           const link = links.get(linkId) ?? { id: linkId, fromId, toId, lineIds: [] };
           links.set(linkId, link);
-          addOnce(link.lineIds, departure.lineId);
+          addOnce(link.lineIds, stopEvent.lineId);
         }
         previous = id;
       }

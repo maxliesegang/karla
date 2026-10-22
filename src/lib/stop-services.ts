@@ -1,29 +1,24 @@
 import type {
-  Departure,
+  StopEvent,
   TransitLine,
   TransitNetwork,
-  TransitStop,
-  TripCall,
+  StopPlace,
+  Call,
 } from "../data/transit-types";
 import { createStopSlug } from "./stop-slug";
 import { findHomePlaceName, getBaseName, getQualifiedStopName } from "./stop-naming";
 import { isSameLineFamily } from "./line-families";
-import {
-  getCallKey,
-  getCallSequenceKey,
-  getCallsAfterCurrentStop,
-  runsInOrderOf,
-} from "./trip-calls";
+import { getCallKey, getCallSequenceKey, getCallsAfterCurrentStop, runsInOrderOf } from "./calls";
 
 /** Every name a stop goes by. */
-const getStopNameVariants = (stop: TransitStop): string[] =>
+const getStopNameVariants = (stop: StopPlace): string[] =>
   [stop.name, stop.alias].filter((name): name is string => Boolean(name));
 
 /**
- * Resolves a call's stop name to a local stop, also by base name, since a call names its platform
+ * Resolves a call's stop name to a local stop, also by base name, since a call names its bay
  * (`Marktplatz (Kaiserstraße U)`). The fallback where the provider id did not resolve.
  */
-export function findStopByName(network: TransitNetwork, name: string): TransitStop | undefined {
+export function findStopByName(network: TransitNetwork, name: string): StopPlace | undefined {
   const baseName = getBaseName(name);
   const slugs = new Set([createStopSlug(name), createStopSlug(baseName)]);
   return network.stops.find(
@@ -34,9 +29,9 @@ export function findStopByName(network: TransitNetwork, name: string): TransitSt
 }
 
 /** Whether two departures share direction and route pattern. */
-export function hasCompatibleStopPattern(first: Departure, second: Departure): boolean {
+export function hasCompatibleStopPattern(first: StopEvent, second: StopEvent): boolean {
   if (!isSameLineFamily(first.lineId, second.lineId)) return false;
-  if (first.destination !== second.destination) return false;
+  if (first.destinationText !== second.destinationText) return false;
 
   const firstCalls = getCallsAfterCurrentStop(first);
   const secondCalls = getCallsAfterCurrentStop(second);
@@ -45,47 +40,50 @@ export function hasCompatibleStopPattern(first: Departure, second: Departure): b
   return getCallSequenceKey(firstCalls) === getCallSequenceKey(secondCalls);
 }
 
-/** The next running trip on the same observed route. */
-export function findNextCompatibleDeparture(
-  departures: readonly Departure[],
-  departure: Departure,
-): Departure | undefined {
-  const currentIndex = departures.indexOf(departure);
+/** The next running journey on the same observed route. */
+export function findNextCompatibleStopEvent(
+  stopEvents: readonly StopEvent[],
+  stopEvent: StopEvent,
+): StopEvent | undefined {
+  const currentIndex = stopEvents.indexOf(stopEvent);
   if (currentIndex < 0) return undefined;
-  return departures
+  return stopEvents
     .slice(currentIndex + 1)
     .find(
       (candidate) =>
-        candidate.status !== "cancelled" && hasCompatibleStopPattern(departure, candidate),
+        candidate.status !== "cancelled" && hasCompatibleStopPattern(stopEvent, candidate),
     );
 }
 
 /** The line's ends as seen from one stop; one where it only leaves one way. */
 export function getLineTermini(line: TransitLine): string[] {
-  if (line.farthestRunTermini?.length) return [...line.farthestRunTermini];
+  if (line.farthestDatedJourneyTermini?.length) return [...line.farthestDatedJourneyTermini];
   return [...new Set(line.destinations)].slice(0, 2);
 }
 
-/** The farthest run observed for a line, by distinct calls, so a whole run beats short workings. */
-function findFarthestLineRunCalls(
+/**
+ * The farthest dated journey observed for a line, by distinct calls, so a whole dated journey beats
+ * short workings.
+ */
+function findFarthestLineDatedJourneyCalls(
   lineId: string,
-  departures: readonly Pick<Departure, "lineId" | "tripCalls">[],
-): readonly TripCall[] | undefined {
-  let farthestCalls: readonly TripCall[] | undefined;
+  stopEvents: readonly Pick<StopEvent, "lineId" | "calls">[],
+): readonly Call[] | undefined {
+  let farthestCalls: readonly Call[] | undefined;
   let farthestReach = 0;
-  for (const departure of departures) {
-    if (!isSameLineFamily(departure.lineId, lineId) || !departure.tripCalls?.length) continue;
-    const reach = new Set(departure.tripCalls.map(getCallKey)).size;
+  for (const stopEvent of stopEvents) {
+    if (!isSameLineFamily(stopEvent.lineId, lineId) || !stopEvent.calls?.length) continue;
+    const reach = new Set(stopEvent.calls.map(getCallKey)).size;
     if (reach > farthestReach) {
-      farthestCalls = departure.tripCalls;
+      farthestCalls = stopEvent.calls;
       farthestReach = reach;
     }
   }
   return farthestCalls;
 }
 
-/** A run's ends, qualified for a compact heading. */
-function getRunTermini(calls: readonly TripCall[]): {
+/** A dated journey's ends, qualified for a compact heading. */
+function getDatedJourneyTermini(calls: readonly Call[]): {
   firstTerminus: string;
   lastTerminus: string;
 } {
@@ -99,37 +97,37 @@ function getRunTermini(calls: readonly TripCall[]): {
 }
 
 /**
- * The line's ends at its farthest observed run, for the line list. `undefined` where none reached
- * far enough or it loops; the destinations then stand in.
+ * The line's ends at its farthest observed dated journey, for the line list. `undefined` where none
+ * reached far enough or it loops; the destinations then stand in.
  */
-export function getFarthestLineRunTermini(
+export function getFarthestLineDatedJourneyTermini(
   lineId: string,
-  departures: readonly Pick<Departure, "lineId" | "tripCalls">[],
+  stopEvents: readonly Pick<StopEvent, "lineId" | "calls">[],
 ): readonly string[] | undefined {
-  const calls = findFarthestLineRunCalls(lineId, departures);
+  const calls = findFarthestLineDatedJourneyCalls(lineId, stopEvents);
   if (!calls || calls.length < 2) return undefined;
-  const { firstTerminus, lastTerminus } = getRunTermini(calls);
+  const { firstTerminus, lastTerminus } = getDatedJourneyTermini(calls);
   return firstTerminus === lastTerminus ? undefined : [firstTerminus, lastTerminus];
 }
 
-/** The farthest run observed for a line. */
-export type FarthestLineRun = {
+/** The farthest dated journey observed for a line. */
+export type FarthestLineDatedJourney = {
   firstTerminus: string;
   lastTerminus: string;
   /** Its calls, oriented like the diagram; `undefined` where none reached far enough. */
-  calls: readonly TripCall[] | undefined;
+  calls: readonly Call[] | undefined;
 };
 
 /**
- * The farthest complete run observed for a line, oriented like the diagram, so a view first drawn
- * from a short working can show the whole line.
+ * The farthest complete dated journey observed for a line, oriented like the diagram, so a view
+ * first drawn from a short working can show the whole line.
  */
-export function getFarthestLineRun(
+export function getFarthestLineDatedJourney(
   line: TransitLine,
-  departures: readonly Departure[],
-  diagramCalls: readonly TripCall[],
-): FarthestLineRun {
-  const farthestCalls = findFarthestLineRunCalls(line.id, departures);
+  stopEvents: readonly StopEvent[],
+  diagramCalls: readonly Call[],
+): FarthestLineDatedJourney {
+  const farthestCalls = findFarthestLineDatedJourneyCalls(line.id, stopEvents);
 
   if (!farthestCalls || farthestCalls.length < 2) {
     const [firstTerminus, lastTerminus] = getLineTermini(line);
@@ -142,5 +140,5 @@ export function getFarthestLineRun(
     runsInOrderOf(farthestCalls, diagramCalls) ??
     getCallKey(diagramCalls[0] ?? last) === getCallKey(first);
   const calls = runsTowardStart ? farthestCalls : [...farthestCalls].reverse();
-  return { ...getRunTermini(calls), calls };
+  return { ...getDatedJourneyTermini(calls), calls };
 }

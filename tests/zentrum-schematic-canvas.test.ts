@@ -7,8 +7,8 @@ import {
   buildZentrumSchematicReading,
   getZentrumSchematicVehicles,
 } from "../src/lib/zentrum-schematic.ts";
-import { createRunMotions } from "../src/lib/vehicle-positioning.ts";
-import { createDeparture } from "./support/fixtures.ts";
+import { createDatedJourneyMotions } from "../src/lib/vehicle-positioning.ts";
+import { createStopEvent } from "./support/fixtures.ts";
 
 const { act, createElement } = await import("react");
 const { createRoot } = await import("react-dom/client");
@@ -22,33 +22,33 @@ for (const [place, lineId, stops] of [
 ] as const) {
   test(`a foreground ${place}'s lit stretch animates with its route and retires when dimmed`, async (t) => {
     const start = Date.parse("2026-10-06T10:00:00Z");
-    const run = createDeparture({
+    const datedJourney = createStopEvent({
       id: "north-south",
       lineId,
-      transportMode: "tram",
-      tripCalls: stops.map((localStopId, index) => ({
+      ptMode: "tram",
+      calls: stops.map((localStopId, index) => ({
         localStopId,
         stopName: localStopId,
-        scheduledArrivalTime: new Date(start + index * 60_000).toISOString(),
-        scheduledDepartureTime: new Date(start + index * 60_000).toISOString(),
+        timetabledArrivalTime: new Date(start + index * 60_000).toISOString(),
+        timetabledDepartureTime: new Date(start + index * 60_000).toISOString(),
       })),
     });
-    const crossing = createDeparture({
+    const crossing = createStopEvent({
       id: "east-west",
       lineId: "1",
-      transportMode: "tram",
-      tripCalls: ["kronenplatz", "durlacher-tor", "gottesauer-platz"].map((localStopId) => ({
+      ptMode: "tram",
+      calls: ["kronenplatz", "durlacher-tor", "gottesauer-platz"].map((localStopId) => ({
         localStopId,
         stopName: localStopId,
       })),
     });
-    const schematic = buildZentrumSchematicReading([run, crossing]);
+    const schematic = buildZentrumSchematicReading([datedJourney, crossing]);
     assert.ok(schematic.drawnPaths.some((path) => path.foregroundRegions.length > 0));
     const [placed] = getZentrumSchematicVehicles(
       schematic,
-      [run],
+      [datedJourney],
       start + 20_000,
-      createRunMotions(),
+      createDatedJourneyMotions(),
     );
     assert.ok(placed);
     const vehicle = {
@@ -131,25 +131,25 @@ for (const atStation of [true, false]) {
   test(`overlapping marks ${atStation ? "at a station open individually" : "between stations open individually"}`, async (t) => {
     t.mock.method(HTMLElement.prototype, "animate", () => new Animation());
     const start = Date.parse("2026-10-07T12:00:00Z");
-    const first = createDeparture({
+    const first = createStopEvent({
       id: "first",
-      tripInstanceId: "first",
+      datedJourneyId: "first",
       lineId: "S1",
-      transportMode: "tram",
-      tripCalls: ["kronenplatz", "durlacher-tor"].map((localStopId, index) => ({
+      ptMode: "tram",
+      calls: ["kronenplatz", "durlacher-tor"].map((localStopId, index) => ({
         localStopId,
         stopName: localStopId,
-        scheduledArrivalTime: new Date(start + index * 60_000).toISOString(),
-        scheduledDepartureTime: new Date(start + index * 60_000).toISOString(),
+        timetabledArrivalTime: new Date(start + index * 60_000).toISOString(),
+        timetabledDepartureTime: new Date(start + index * 60_000).toISOString(),
       })),
     });
     const second = {
       ...first,
       id: "second",
-      tripInstanceId: "second",
+      datedJourneyId: "second",
       destination: "Anderes Ziel",
       lineId: "S2",
-      tripCalls: first.tripCalls?.map((call) => ({ ...call, delayMinutes: 0 })),
+      calls: first.calls?.map((call) => ({ ...call, delayMinutes: 0 })),
       readAt: {
         rowReadAt: start,
         sequenceReadAt: start - 180_000,
@@ -161,7 +161,7 @@ for (const atStation of [true, false]) {
       schematic,
       [first, second],
       start + (atStation ? 0 : 30_000),
-      createRunMotions(),
+      createDatedJourneyMotions(),
     );
     assert.equal(vehicles.length, 2);
     const coordinates = vehicles.map(({ x, y }) => [x, y]);

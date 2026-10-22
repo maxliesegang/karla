@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { TripCall } from "../src/data/transit-types.ts";
+import type { Call } from "../src/data/transit-types.ts";
 import { extendLineDiagramCalls } from "../src/lib/line-diagram.ts";
 
 /** Chains in the diagram's order, destination first. */
-const calls = (...stopIds: string[]): TripCall[] =>
+const calls = (...stopIds: string[]): Call[] =>
   stopIds.map((localStopId) => ({ stopName: localStopId.toUpperCase(), localStopId }));
 
 test("a short working is drawn out to the run observed farthest, past both of its ends", () => {
@@ -43,7 +43,7 @@ test("a drawn chain is never narrowed by the run it is extended with", () => {
 });
 
 test("separate published calls at one stop are merged by occurrence", () => {
-  const marktplatz = (stopName: string): TripCall => ({ stopName, localStopId: "marktplatz" });
+  const marktplatz = (stopName: string): Call => ({ stopName, localStopId: "marktplatz" });
   const route = [
     ...calls("d"),
     marktplatz("Marktplatz (Kaiserstraße U)"),
@@ -57,11 +57,11 @@ test("separate published calls at one stop are merged by occurrence", () => {
 test("a repeated call the two chains name identically still lines up with its own occurrence", () => {
   // Europaplatz's street platforms share a stop point and name (`Gleis 3` at 08:58, `Gleis 5` at
   // 08:59 on line 4); calls align by occurrence, not by anything printed.
-  const europaplatz = (platformLabel: string): TripCall => ({
+  const europaplatz = (bayText: string): Call => ({
     stopName: "Europaplatz",
     placeName: "Karlsruhe",
     localStopId: "europaplatz",
-    platformLabel,
+    bayText,
   });
   const drawn = [europaplatz("Gleis 5"), ...calls("muehlburger-tor")];
   const farthest = [
@@ -77,10 +77,10 @@ test("a repeated call the two chains name identically still lines up with its ow
 test("a repeated stop read from the opposite direction lines up place by place", () => {
   // Line 4 calls Europaplatz at `Gleis 3` then `Gleis 5` towards Oberreut, and at `Gleis 6` then
   // `Gleis 4` towards Waldstadt; 5/6 and 3/4 face each other.
-  const europaplatz = (platformCode: string): TripCall => ({
+  const europaplatz = (bay: string): Call => ({
     stopName: "Europaplatz",
     localStopId: "europaplatz",
-    platformCode,
+    bay,
   });
   const drawn = [
     ...calls("muehlburger-tor"),

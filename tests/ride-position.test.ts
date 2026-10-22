@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { TripCall } from "../src/data/transit-types.ts";
+import type { Call } from "../src/data/transit-types.ts";
 import {
   getRidePosition,
   MAX_RIDE_POSITION_FIX_ACCURACY_METERS,
@@ -13,13 +13,13 @@ const createCall = (
   latitude: number | undefined,
   longitude: number | undefined,
   minute: number,
-): TripCall => ({
+): Call => ({
   stopName: stopId,
   localStopId: stopId,
   latitude,
   longitude,
-  scheduledArrivalTime: `2026-08-29T10:${String(minute).padStart(2, "0")}:00Z`,
-  scheduledDepartureTime: `2026-08-29T10:${String(minute).padStart(2, "0")}:00Z`,
+  timetabledArrivalTime: `2026-08-29T10:${String(minute).padStart(2, "0")}:00Z`,
+  timetabledDepartureTime: `2026-08-29T10:${String(minute).padStart(2, "0")}:00Z`,
 });
 
 const calls = [

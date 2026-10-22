@@ -1,16 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { Departure } from "../src/data/transit-types.ts";
+import type { StopEvent } from "../src/data/transit-types.ts";
 import {
   EMPTY_LINE_OBSERVATION,
   extendLineCallStopIds,
   extendLineObservation,
   extendLineObservations,
-  getLineFilterDirectionIds,
-  getLineDirectionIds,
+  getLineFilterLineRefs,
+  getLineRefs,
   getLineObservationStopIds,
   getLineObservationsStopIds,
-  getOppositeDirectionId,
+  getOppositeLineRef,
   MAX_UNFILTERED_LINE_OBSERVATION_STOPS,
   sampleLineObservationStopIds,
   seedLineObservations,
@@ -18,7 +18,7 @@ import {
 } from "../src/lib/line-observation.ts";
 import { createLineSelection } from "../src/lib/line-bundles.ts";
 import { withStopVisit } from "../src/lib/recent-stops.ts";
-import { createDeparture, createLine } from "./support/fixtures.ts";
+import { createStopEvent, createLine } from "./support/fixtures.ts";
 
 /** The line as the network states it, before any board has been read for it. */
 const line3 = createLine({ id: "3", zentrumCalls: ["kronenplatz", "europaplatz"] });
@@ -37,23 +37,23 @@ const lineStopIds = [
   "hauptbahnhof",
 ];
 
-function lineDeparture(lineId: string, routeDirectionId: string | undefined): Departure {
-  return createDeparture({
-    id: `${lineId}-${routeDirectionId ?? "none"}`,
+function lineStopEvent(lineId: string, lineRef: string | undefined): StopEvent {
+  return createStopEvent({
+    id: `${lineId}-${lineRef ?? "none"}`,
     lineId,
-    transportMode: "tram",
-    destination: "Ziel",
+    ptMode: "tram",
+    destinationText: "Ziel",
     minutesUntilDeparture: 4,
     status: "realtime",
-    ...(routeDirectionId ? { routeDirectionId } : {}),
-  }) as Departure;
+    ...(lineRef ? { lineRef } : {}),
+  }) as StopEvent;
 }
 
-function tripWithCalls(stopIds: readonly string[]): Departure {
-  return createDeparture({
-    ...lineDeparture("3", "kvv:21003:E:H:s26"),
-    tripCalls: stopIds.map((stopId) => ({ stopName: stopId.toUpperCase(), localStopId: stopId })),
-  }) as Departure;
+function journeyWithCalls(stopIds: readonly string[]): StopEvent {
+  return createStopEvent({
+    ...lineStopEvent("3", "kvv:21003:E:H:s26"),
+    calls: stopIds.map((stopId) => ({ stopName: stopId.toUpperCase(), localStopId: stopId })),
+  }) as StopEvent;
 }
 
 test("reads every known stop of a line, so no trip can hide between observations", () => {
@@ -123,26 +123,23 @@ test("the stop just read leads the list, once, and the oldest falls off it", () 
 
 test("names both directions of a line, and nothing from the lines beside it", () => {
   // A one-direction filter would lose every vehicle running the other way.
-  const departures = [
-    lineDeparture("3", "kvv:21003:E:H:s26"),
-    lineDeparture("3", "kvv:21003:E:R:s26"),
-    lineDeparture("3", "kvv:21003:E:H:s26"),
-    lineDeparture("4", "kvv:21004:E:H:s26"),
+  const stopEvents = [
+    lineStopEvent("3", "kvv:21003:E:H:s26"),
+    lineStopEvent("3", "kvv:21003:E:R:s26"),
+    lineStopEvent("3", "kvv:21003:E:H:s26"),
+    lineStopEvent("4", "kvv:21004:E:H:s26"),
   ];
 
-  assert.deepEqual(getLineDirectionIds("3", departures), [
-    "kvv:21003:E:H:s26",
-    "kvv:21003:E:R:s26",
-  ]);
+  assert.deepEqual(getLineRefs("3", stopEvents), ["kvv:21003:E:H:s26", "kvv:21003:E:R:s26"]);
 });
 
 test("reads no line filter from departures that state no direction", () => {
-  assert.deepEqual(getLineDirectionIds("3", [lineDeparture("3", undefined)]), []);
+  assert.deepEqual(getLineRefs("3", [lineStopEvent("3", undefined)]), []);
 });
 
 test("reads the whole run a loaded trip describes, not just its core stretch", () => {
   // Core stops are already seen by the posts; the outer thirds are where marks were missing.
-  const trip = tripWithCalls([
+  const journey = journeyWithCalls([
     "durlach",
     "gottesauer-platz",
     "kronenplatz",
@@ -152,20 +149,20 @@ test("reads the whole run a loaded trip describes, not just its core stretch", (
   const seeded = seedLineObservations(createLineSelection("3"), [line3], () => undefined);
 
   assert.deepEqual(
-    extendLineObservations(seeded, createLineSelection("3"), [{ departures: [trip] }]).get("3")
+    extendLineObservations(seeded, createLineSelection("3"), [{ stopEvents: [journey] }]).get("3")
       ?.stopIds,
     ["kronenplatz", "europaplatz", "durlach", "gottesauer-platz", "knielingen"],
   );
 });
 
 test("combines branches and short workings instead of trusting one longest trip", () => {
-  const trunk = tripWithCalls(["a", "b", "c", "d", "e"]);
-  const branch = tripWithCalls(["a", "b", "x", "y"]);
-  const shortWorking = tripWithCalls(["b", "c", "d"]);
+  const trunk = journeyWithCalls(["a", "b", "c", "d", "e"]);
+  const branch = journeyWithCalls(["a", "b", "x", "y"]);
+  const shortWorking = journeyWithCalls(["b", "c", "d"]);
 
   assert.deepEqual(
     extendLineObservation(EMPTY_LINE_OBSERVATION, "3", [
-      { departures: [trunk, branch, shortWorking] },
+      { stopEvents: [trunk, branch, shortWorking] },
     ]).stopIds,
     ["a", "b", "c", "d", "e", "x", "y"],
   );
@@ -173,13 +170,13 @@ test("combines branches and short workings instead of trusting one longest trip"
 
 test("line discovery is a stable fixed-point transition", () => {
   const known = ["a", "b"];
-  const unchanged = extendLineCallStopIds(known, [tripWithCalls(["a", "b"])]);
+  const unchanged = extendLineCallStopIds(known, [journeyWithCalls(["a", "b"])]);
   assert.equal(unchanged, known);
 
-  const expanded = extendLineCallStopIds(unchanged, [tripWithCalls(["b", "x", "y"])]);
+  const expanded = extendLineCallStopIds(unchanged, [journeyWithCalls(["b", "x", "y"])]);
   assert.deepEqual(expanded, ["a", "b", "x", "y"]);
   assert.notEqual(expanded, known);
-  assert.equal(extendLineCallStopIds(expanded, [tripWithCalls(["x", "y"])]), expanded);
+  assert.equal(extendLineCallStopIds(expanded, [journeyWithCalls(["x", "y"])]), expanded);
 });
 
 test("falls back to the line's core stops until a trip carries its calls", () => {
@@ -191,7 +188,7 @@ test("falls back to the line's core stops until a trip carries its calls", () =>
 
 test("a line read before starts from what that reading learned, not from this hour's trips", () => {
   // An outer stretch discovered once is read even when no running trip describes it.
-  const remembered = { stopIds: ["knielingen", "europaplatz"], directionIds: [] };
+  const remembered = { stopIds: ["knielingen", "europaplatz"], lineRefs: [] };
 
   assert.deepEqual(
     seedLineObservations(createLineSelection("3"), [line3], () => remembered).get("3"),
@@ -203,25 +200,25 @@ test("names the direction a terminus lists no departure for, because the stop st
   // At a terminus the inbound id is on no row, but the stop names it with its line.
   const observation = extendLineObservation(EMPTY_LINE_OBSERVATION, "3", [
     {
-      departures: [lineDeparture("3", "kvv:21003:E:H:s26")],
+      stopEvents: [lineStopEvent("3", "kvv:21003:E:H:s26")],
       servingLines: [
-        { lineId: "3", directionId: "kvv:21003:E:H:s26" },
-        { lineId: "3", directionId: "kvv:21003:E:R:s26" },
-        { lineId: "4", directionId: "kvv:21004:E:H:s26" },
+        { lineId: "3", lineRef: "kvv:21003:E:H:s26" },
+        { lineId: "3", lineRef: "kvv:21003:E:R:s26" },
+        { lineId: "4", lineRef: "kvv:21004:E:H:s26" },
       ],
     },
   ]);
 
-  assert.deepEqual(observation.directionIds, ["kvv:21003:E:H:s26", "kvv:21003:E:R:s26"]);
+  assert.deepEqual(observation.lineRefs, ["kvv:21003:E:H:s26", "kvv:21003:E:R:s26"]);
 });
 
 test("the opposite of a direction is the same route the other way, and nothing else", () => {
-  assert.equal(getOppositeDirectionId("kvv:21003:E:H:s26"), "kvv:21003:E:R:s26");
-  assert.equal(getOppositeDirectionId("kvv:21003:E:R:s26"), "kvv:21003:E:H:s26");
-  assert.equal(getOppositeDirectionId("kvv:flix:N1912:H:s26"), "kvv:flix:N1912:R:s26");
+  assert.equal(getOppositeLineRef("kvv:21003:E:H:s26"), "kvv:21003:E:R:s26");
+  assert.equal(getOppositeLineRef("kvv:21003:E:R:s26"), "kvv:21003:E:H:s26");
+  assert.equal(getOppositeLineRef("kvv:flix:N1912:H:s26"), "kvv:flix:N1912:R:s26");
   // No opposite for a direction field the provider does not use.
-  assert.equal(getOppositeDirectionId("kvv:21003:E:X:s26"), undefined);
-  assert.equal(getOppositeDirectionId("21003"), undefined);
+  assert.equal(getOppositeLineRef("kvv:21003:E:X:s26"), undefined);
+  assert.equal(getOppositeLineRef("21003"), undefined);
 });
 
 test("a direction nobody has confirmed is never sent as a filter", () => {
@@ -229,15 +226,15 @@ test("a direction nobody has confirmed is never sent as a filter", () => {
   // corrects itself next round.
   const selection = createLineSelection("3");
   const oneWay = extendLineObservations(new Map() as LineObservations, selection, [
-    { departures: [lineDeparture("3", "kvv:21003:E:H:s26")] },
+    { stopEvents: [lineStopEvent("3", "kvv:21003:E:H:s26")] },
   ]);
 
-  assert.deepEqual(getLineFilterDirectionIds(oneWay, selection), []);
+  assert.deepEqual(getLineFilterLineRefs(oneWay, selection), []);
 
   const bothWays = extendLineObservations(oneWay, selection, [
-    { departures: [lineDeparture("3", "kvv:21003:E:R:s26")] },
+    { stopEvents: [lineStopEvent("3", "kvv:21003:E:R:s26")] },
   ]);
-  assert.deepEqual(getLineFilterDirectionIds(bothWays, selection), [
+  assert.deepEqual(getLineFilterLineRefs(bothWays, selection), [
     "kvv:21003:E:H:s26",
     "kvv:21003:E:R:s26",
   ]);
@@ -246,34 +243,34 @@ test("a direction nobody has confirmed is never sent as a filter", () => {
 test("a filtered board never teaches a stop what else calls there", () => {
   // A filtered board's silence about the other direction is not evidence.
   const observation = extendLineObservation(EMPTY_LINE_OBSERVATION, "3", [
-    { departures: [lineDeparture("3", "kvv:21003:E:H:s26")] },
+    { stopEvents: [lineStopEvent("3", "kvv:21003:E:H:s26")] },
   ]);
 
-  assert.deepEqual(observation.directionIds, ["kvv:21003:E:H:s26"]);
+  assert.deepEqual(observation.lineRefs, ["kvv:21003:E:H:s26"]);
 });
 
 test("a bundle is filtered only where both of its lines are known both ways", () => {
   const selection = createLineSelection("3", ["4"]);
   const observations = extendLineObservations(new Map() as LineObservations, selection, [
     {
-      departures: [
-        lineDeparture("3", "kvv:21003:E:H:s26"),
-        lineDeparture("4", "kvv:21004:E:H:s26"),
+      stopEvents: [
+        lineStopEvent("3", "kvv:21003:E:H:s26"),
+        lineStopEvent("4", "kvv:21004:E:H:s26"),
       ],
-      servingLines: [{ lineId: "3", directionId: "kvv:21003:E:R:s26" }],
+      servingLines: [{ lineId: "3", lineRef: "kvv:21003:E:R:s26" }],
     },
   ]);
 
   // Line 4 is not named both ways, so nothing is filtered: a filter of three of four directions
   // would drop the fourth.
-  assert.deepEqual(getLineFilterDirectionIds(observations, selection), []);
+  assert.deepEqual(getLineFilterLineRefs(observations, selection), []);
 });
 
 test("a bundle reads the union of its lines' routes", () => {
   const selection = createLineSelection("3", ["4"]);
   const observations = extendLineObservations(new Map() as LineObservations, selection, [
-    { departures: [{ ...tripWithCalls(["a", "b"]), lineId: "3" } as Departure] },
-    { departures: [{ ...tripWithCalls(["b", "c"]), lineId: "4" } as Departure] },
+    { stopEvents: [{ ...journeyWithCalls(["a", "b"]), lineId: "3" } as StopEvent] },
+    { stopEvents: [{ ...journeyWithCalls(["b", "c"]), lineId: "4" } as StopEvent] },
   ]);
 
   assert.deepEqual(getLineObservationsStopIds(observations, selection), ["a", "b", "c"]);
@@ -281,7 +278,7 @@ test("a bundle reads the union of its lines' routes", () => {
 
 test("line observation is a stable fixed-point transition", () => {
   const selection = createLineSelection("3");
-  const boards = [{ departures: [tripWithCalls(["a", "b"])] }];
+  const boards = [{ stopEvents: [journeyWithCalls(["a", "b"])] }];
   const known = extendLineObservations(new Map() as LineObservations, selection, boards);
 
   assert.equal(extendLineObservations(known, selection, boards), known);
@@ -317,20 +314,20 @@ test("a line with no row among a busy stop's few is still named by the stop", ()
   // its directions.
   const observation = extendLineObservation(EMPTY_LINE_OBSERVATION, "S4", [
     {
-      departures: [lineDeparture("S1", "kvv:22301:E:H:s26")],
+      stopEvents: [lineStopEvent("S1", "kvv:22301:E:H:s26")],
       servingLines: [
-        { lineId: "S1", directionId: "kvv:22301:E:H:s26" },
-        { lineId: "S1", directionId: "kvv:22301:E:R:s26" },
-        { lineId: "S4", directionId: "kvv:22304:E:H:s26" },
-        { lineId: "S4", directionId: "kvv:22304:E:R:s26" },
+        { lineId: "S1", lineRef: "kvv:22301:E:H:s26" },
+        { lineId: "S1", lineRef: "kvv:22301:E:R:s26" },
+        { lineId: "S4", lineRef: "kvv:22304:E:H:s26" },
+        { lineId: "S4", lineRef: "kvv:22304:E:R:s26" },
       ],
     },
   ]);
 
-  assert.deepEqual(observation.directionIds, ["kvv:22304:E:H:s26", "kvv:22304:E:R:s26"]);
+  assert.deepEqual(observation.lineRefs, ["kvv:22304:E:H:s26", "kvv:22304:E:R:s26"]);
   // A whole filter, so this stop is read for the line.
   const selection = createLineSelection("S4");
-  assert.deepEqual(getLineFilterDirectionIds(new Map([["S4", observation]]), selection), [
+  assert.deepEqual(getLineFilterLineRefs(new Map([["S4", observation]]), selection), [
     "kvv:22304:E:H:s26",
     "kvv:22304:E:R:s26",
   ]);
@@ -339,8 +336,8 @@ test("a line with no row among a busy stop's few is still named by the stop", ()
 test("an id a stop states without naming its line is not attributed to one", () => {
   // An id without its line is unusable; guessing would draw another line's rows.
   const observation = extendLineObservation(EMPTY_LINE_OBSERVATION, "S4", [
-    { departures: [], servingLines: [{ directionId: "kvv:22304:E:H:s26" }] },
+    { stopEvents: [], servingLines: [{ lineRef: "kvv:22304:E:H:s26" }] },
   ]);
 
-  assert.deepEqual(observation.directionIds, []);
+  assert.deepEqual(observation.lineRefs, []);
 });

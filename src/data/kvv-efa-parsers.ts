@@ -2,23 +2,24 @@
 import {
   isLocalNetworkPool,
   joinServiceNotes,
-  parsePlatformKind,
+  normalizeNoticeLineNumber,
+  parseNoticeDetails,
+  parseBayKind,
   readOperatingNote,
   readVehicleAccess,
   splitDestination,
 } from "./kvv-conventions";
 import {
-  getTripInstanceId,
-  type KvvDeparture,
-  type KvvDepartureBoard,
-  type KvvServiceNotice,
+  getDatedJourneyId,
+  type KvvStopEvent,
+  type KvvStopEventBoard,
   type KvvServingLine,
   type KvvStopSearchResult,
-  type KvvTrip,
-  type KvvTripCall,
-  type KvvTripLocator,
+  type KvvTripInfo,
+  type KvvCall,
+  type KvvJourneyLocator,
 } from "./kvv-feed";
-import type { DepartureStatus, TransportMode, VehicleAccess } from "./transit-types";
+import type { StopEventStatus, PtMode, VehicleAccess } from "./transit-types";
 
 /** The timezone the feed states its times in, and the one riders read off a KVV clock. */
 const NETWORK_TIME_ZONE = "Europe/Berlin";
@@ -81,11 +82,11 @@ export function parseStopSearchResponse(payload: unknown): KvvStopSearchResult[]
   });
 }
 
-export function parseDepartureBoardResponse(
+export function parseStopEventBoardResponse(
   payload: unknown,
   stopPointId: string,
   eventKind: "departure" | "arrival" = "departure",
-): KvvDepartureBoard {
+): KvvStopEventBoard {
   if (!isRecord(payload))
     throw new KvvEfaError(`Abfahrtstafel ${stopPointId}: unerwartete Antwort`);
 
@@ -95,7 +96,7 @@ export function parseDepartureBoardResponse(
     isRecord(stopPoint) && typeof stopPoint.name === "string"
       ? removeMunicipalityPrefix(stopPoint.name)
       : "";
-  const departureEntries = readRecordList(
+  const stopEventEntries = readRecordList(
     eventKind === "arrival" ? payload.arrivalList : payload.departureList,
   );
   const servingLines = isRecord(payload.servingLines)
@@ -107,10 +108,10 @@ export function parseDepartureBoardResponse(
     stopName,
     serverTime: requireServerTime(payload.parameters),
     servingLines: parseServingLines(servingLines),
-    departures: departureEntries
+    stopEvents: stopEventEntries
       .filter(isRecord)
-      .map((entry) => parseDeparture(entry, eventKind))
-      .filter((entry): entry is KvvDeparture => entry !== null),
+      .map((entry) => parseStopEvent(entry, eventKind))
+      .filter((entry): entry is KvvStopEvent => entry !== null),
   };
 }
 
@@ -132,14 +133,14 @@ export const findOperatingHint = (hints: unknown): string | undefined =>
  * the minute and disagrees with `realDateTime` on about one row in twenty (docs/kvv-efa-api.md).
  */
 function findPublishedDelayMinutes(
-  scheduledDepartureTime: string,
-  predictedDepartureTime: string | undefined,
+  timetabledDepartureTime: string,
+  estimatedDepartureTime: string | undefined,
   delayMinutes: number | undefined,
 ): number | undefined {
-  const scheduled = Date.parse(scheduledDepartureTime);
-  const predicted = predictedDepartureTime ? Date.parse(predictedDepartureTime) : Number.NaN;
-  if (!Number.isFinite(scheduled) || !Number.isFinite(predicted)) return delayMinutes;
-  return Math.round((predicted - scheduled) / 60_000);
+  const timetabled = Date.parse(timetabledDepartureTime);
+  const estimated = estimatedDepartureTime ? Date.parse(estimatedDepartureTime) : Number.NaN;
+  if (!Number.isFinite(timetabled) || !Number.isFinite(estimated)) return delayMinutes;
+  return Math.round((estimated - timetabled) / 60_000);
 }
 
 /**
@@ -147,35 +148,35 @@ function findPublishedDelayMinutes(
  * before `number`), so a line is recognised before any of its departures is due.
  */
 function parseServingLines(lines: readonly Record<string, unknown>[]): KvvServingLine[] {
-  const byDirectionId = new Map<string, KvvServingLine>();
+  const byLineRef = new Map<string, KvvServingLine>();
   for (const line of lines) {
     const mode = isRecord(line.mode) ? line.mode : undefined;
     const diva = isRecord(mode?.diva) ? mode.diva : undefined;
-    const directionId = readOptionalString(diva?.stateless) ?? readOptionalString(line.stateless);
+    const lineRef = readOptionalString(diva?.stateless) ?? readOptionalString(line.stateless);
     const lineId =
       readOptionalString(line.symbol) ??
       readOptionalString(mode?.symbol) ??
       readOptionalString(mode?.number) ??
       readOptionalString(line.number);
     if (
-      !directionId ||
-      !isLocalNetworkLine(readOptionalString(mode?.type), directionId) ||
-      byDirectionId.has(directionId)
+      !lineRef ||
+      !isLocalNetworkLine(readOptionalString(mode?.type), lineRef) ||
+      byLineRef.has(lineRef)
     )
       continue;
-    byDirectionId.set(directionId, {
+    byLineRef.set(lineRef, {
       ...(lineId ? { lineId } : {}),
-      directionId,
-      ...(mode?.type ? { transportMode: parseTransportMode(readOptionalString(mode.type)) } : {}),
+      lineRef,
+      ...(mode?.type ? { ptMode: parsePtMode(readOptionalString(mode.type)) } : {}),
     });
   }
-  return [...byDirectionId.values()];
+  return [...byLineRef.values()];
 }
 
-function parseDeparture(
+function parseStopEvent(
   entry: Record<string, unknown>,
   eventKind: "departure" | "arrival",
-): KvvDeparture | null {
+): KvvStopEvent | null {
   const servingLine = isRecord(entry.servingLine) ? entry.servingLine : null;
   const lineId = readOptionalString(servingLine?.symbol) ?? readOptionalString(servingLine?.number);
   const destination = readOptionalString(servingLine?.direction);
@@ -184,31 +185,31 @@ function parseDeparture(
   if (!isLocalNetworkLine(motType, readOptionalString(servingLine.stateless))) return null;
 
   const delayMinutes = parseDelayMinutes(servingLine.delay);
-  const tripStatus =
+  const journeyStatus =
     readOptionalString(servingLine.realtimeTripStatus) ??
     readOptionalString(entry.realtimeTripStatus);
   const stopStatus = readOptionalString(entry.realtimeStatus);
   const [plainDestination, serviceNote] = splitDestination(destination);
-  const tripId =
+  const journeyRef =
     findAttributeValue(entry.attrs, "RealtimeTripId") ??
     findAttributeValue(entry.attrs, "AVMSTripID");
-  const scheduledDepartureTime = parseDateTime(entry.dateTime) ?? "";
-  const predictedDepartureTime = parseDateTime(entry.realDateTime);
+  const timetabledDepartureTime = parseDateTime(entry.dateTime) ?? "";
+  const estimatedDepartureTime = parseDateTime(entry.realDateTime);
   // The row is the only statement of the call at its own stop, and the only one with a prediction;
   // completed from the stated delay instead, it would disagree with the board row by a minute.
-  const tripCalls = parseTripCalls(entry, {
-    scheduledDepartureTime,
+  const calls = parseCalls(entry, {
+    timetabledDepartureTime,
     delayMinutes: findPublishedDelayMinutes(
-      scheduledDepartureTime,
-      predictedDepartureTime,
+      timetabledDepartureTime,
+      estimatedDepartureTime,
       delayMinutes,
     ),
   });
   if (eventKind === "arrival") {
-    for (const call of tripCalls ?? []) {
-      if (!call.isCurrentStop) continue;
-      call.scheduledArrivalTime = call.scheduledDepartureTime;
-      call.scheduledDepartureTime = undefined;
+    for (const call of calls ?? []) {
+      if (!call.isThisCall) continue;
+      call.timetabledArrivalTime = call.timetabledDepartureTime;
+      call.timetabledDepartureTime = undefined;
       call.arrivalDelayMinutes = call.delayMinutes;
       call.delayMinutes = undefined;
     }
@@ -217,13 +218,13 @@ function parseDeparture(
   return {
     stopPointId: readOptionalString(entry.stopID) ?? "",
     stopPointName: readOptionalString(entry.nameWO) ?? "",
-    tripId,
-    tripInstanceId: getTripInstanceId(tripId, tripCalls),
-    trainNumber: readOptionalString(servingLine.trainNum),
+    journeyRef,
+    datedJourneyId: getDatedJourneyId(journeyRef, calls),
+    publishedJourneyNumber: readOptionalString(servingLine.trainNum),
     lineId,
-    routeDirectionId: readOptionalString(servingLine.stateless),
-    transportMode: parseTransportMode(motType),
-    destination: plainDestination,
+    lineRef: readOptionalString(servingLine.stateless),
+    ptMode: parsePtMode(motType),
+    destinationText: plainDestination,
     minutesUntilDeparture: Math.max(
       0,
       Number.parseInt(readOptionalString(entry.countdown) ?? "", 10) || 0,
@@ -231,23 +232,25 @@ function parseDeparture(
     delayMinutes,
     // `platform` is the signed code (the identity boards group and URLs match on); `pointType` is
     // the operator's word for it.
-    platformCode: readOptionalString(entry.platform) ?? "",
-    platformKind: parsePlatformKind(readOptionalString(entry.pointType)),
-    status: parseDepartureStatus(tripStatus, stopStatus, delayMinutes),
-    scheduledDepartureTime,
-    predictedDepartureTime,
+    bay: readOptionalString(entry.platform) ?? "",
+    bayKind: parseBayKind(readOptionalString(entry.pointType)),
+    status: parseStopEventStatus(journeyStatus, stopStatus, delayMinutes),
+    timetabledDepartureTime,
+    estimatedDepartureTime,
     serviceNote: joinServiceNotes(serviceNote, findOperatingHint(servingLine.hints)),
     vehicleAccess: findVehicleAccess(servingLine.hints),
-    tripLocator: parseTripLocator(entry, servingLine),
-    tripCalls,
+    journeyLocator: parseJourneyLocator(entry, servingLine),
+    calls,
   };
 }
 
-/** All five parts are required; partial provider state must never become a plausible wrong trip. */
-function parseTripLocator(
+/**
+ * All five parts are required; partial provider state must never become a plausible wrong journey.
+ */
+function parseJourneyLocator(
   entry: Record<string, unknown>,
   servingLine: Record<string, unknown>,
-): KvvTripLocator | undefined {
+): KvvJourneyLocator | undefined {
   const dateTime = isRecord(entry.dateTime) ? entry.dateTime : undefined;
   const parts = dateTime
     ? [dateTime.year, dateTime.month, dateTime.day, dateTime.hour, dateTime.minute].map((value) =>
@@ -255,16 +258,16 @@ function parseTripLocator(
       )
     : [];
   const [year, month, day, hour, minute] = parts;
-  const tripCode = readOptionalString(servingLine.key);
+  const journeyCode = readOptionalString(servingLine.key);
   const line = readOptionalString(servingLine.stateless);
   const stopPointId = readOptionalString(entry.stopID);
-  if (!tripCode || !line || !stopPointId || parts.some((part) => !Number.isFinite(part)))
+  if (!journeyCode || !line || !stopPointId || parts.some((part) => !Number.isFinite(part)))
     return undefined;
 
   const pad = (value: number) => String(value).padStart(2, "0");
   return {
-    tripCode,
-    line,
+    journeyCode,
+    lineRef: line,
     stopPointId,
     date: `${year}${pad(month)}${pad(day)}`,
     time: `${pad(hour)}${pad(minute)}`,
@@ -272,47 +275,48 @@ function parseTripLocator(
 }
 
 /**
- * A line-direction's whole route, end to end, from the run a locator names: the only reading of
- * where a line goes rather than where its current trips go. Validated against the echoed
- * `diva.stateless`; a wrong `tripCode` comes back as HTTP 200 with an empty sequence.
+ * A line-direction's whole route, end to end, from the dated journey a locator names: the only
+ * reading of where a line goes rather than where its current journeys go. Validated against the
+ * echoed `diva.stateless`; a wrong `tripCode` comes back as HTTP 200 with an empty sequence.
  */
-export function parseLineRouteResponse(payload: unknown, locator: KvvTripLocator): KvvTripCall[] {
-  if (!isRecord(payload)) throw new KvvEfaError(`Linie ${locator.line}: unerwartete Antwort`);
+export function parseLineRouteResponse(payload: unknown, locator: KvvJourneyLocator): KvvCall[] {
+  if (!isRecord(payload)) throw new KvvEfaError(`Linie ${locator.lineRef}: unerwartete Antwort`);
   const stopSeqCoords = isRecord(payload.stopSeqCoords) ? payload.stopSeqCoords : undefined;
   const params = isRecord(stopSeqCoords?.params) ? stopSeqCoords.params : undefined;
   const mode = isRecord(params?.mode) ? params.mode : undefined;
   const diva = isRecord(mode?.diva) ? mode.diva : undefined;
-  if (readOptionalString(diva?.stateless) !== locator.line) {
-    throw new KvvEfaError(`Linie ${locator.line}: nicht gefunden`);
+  if (readOptionalString(diva?.stateless) !== locator.lineRef) {
+    throw new KvvEfaError(`Linie ${locator.lineRef}: nicht gefunden`);
   }
 
   const route = readRecordList(params?.stopSeq)
-    .map((entry) => parseTripCall(entry, false))
-    .filter((call): call is KvvTripCall => call !== null);
-  if (route.length === 0) throw new KvvEfaError(`Linie ${locator.line}: keine Halte`);
+    .map((entry) => parseCall(entry, false))
+    .filter((call): call is KvvCall => call !== null);
+  if (route.length === 0) throw new KvvEfaError(`Linie ${locator.lineRef}: keine Halte`);
   return route;
 }
 
 /**
  * Validates the echoed tuple: a failed lookup is an HTTP 200 with an empty or mismatched answer.
  */
-export function parseTripResponse(payload: unknown, locator: KvvTripLocator): KvvTrip {
-  if (!isRecord(payload)) throw new KvvEfaError(`Fahrt ${locator.tripCode}: unerwartete Antwort`);
+export function parseTripInfoResponse(payload: unknown, locator: KvvJourneyLocator): KvvTripInfo {
+  if (!isRecord(payload))
+    throw new KvvEfaError(`Fahrt ${locator.journeyCode}: unerwartete Antwort`);
   const echoed = isRecord(payload.vehicleCallAtStop) ? payload.vehicleCallAtStop : undefined;
   const entries = readRecordList(payload.stopSeq);
   const matchesLocator =
-    readOptionalString(echoed?.tC) === locator.tripCode &&
+    readOptionalString(echoed?.tC) === locator.journeyCode &&
     readOptionalString(echoed?.stopID) === locator.stopPointId &&
-    readOptionalString(echoed?.line) === locator.line;
+    readOptionalString(echoed?.line) === locator.lineRef;
   if (!matchesLocator || entries.length === 0) {
-    throw new KvvEfaError(`Fahrt ${locator.tripCode}: nicht gefunden`);
+    throw new KvvEfaError(`Fahrt ${locator.journeyCode}: nicht gefunden`);
   }
 
   const rowCallIndex = findRowCallIndex(entries, locator);
-  const tripCalls = entries
-    .map((entry, index) => parseTripCall(entry, index === rowCallIndex))
-    .filter((call): call is KvvTripCall => call !== null);
-  if (tripCalls.length === 0) throw new KvvEfaError(`Fahrt ${locator.tripCode}: keine Halte`);
+  const calls = entries
+    .map((entry, index) => parseCall(entry, index === rowCallIndex))
+    .filter((call): call is KvvCall => call !== null);
+  if (calls.length === 0) throw new KvvEfaError(`Fahrt ${locator.journeyCode}: keine Halte`);
 
   const statuses = entries.map((entry) => readOptionalString(entry.realtimeStatus));
   const status = statuses.some(
@@ -324,7 +328,7 @@ export function parseTripResponse(payload: unknown, locator: KvvTripLocator): Kv
       : undefined;
   return {
     serverTime: requireServerTime(payload.parameters),
-    tripCalls,
+    calls,
     status,
   };
 }
@@ -336,7 +340,7 @@ export function parseTripResponse(payload: unknown, locator: KvvTripLocator): Kv
  */
 function findRowCallIndex(
   entries: readonly Record<string, unknown>[],
-  locator: KvvTripLocator,
+  locator: KvvJourneyLocator,
 ): number {
   const minute = `${locator.date} ${locator.time.slice(0, 2)}:${locator.time.slice(2)}`;
   const atStop = (entry: Record<string, unknown>): boolean => {
@@ -365,15 +369,15 @@ function readRecordList(value: unknown): Record<string, unknown>[] {
 }
 
 /**
- * The trip's calls, completed with the board's own stop: `prevStopSeq` ends one call before it and
- * `onwardStopSeq` starts one after, so only the row states that call. Without it a mark would skip
- * the stop, and each board would leave the gap in a different place.
+ * The journey's calls, completed with the board's own stop: `prevStopSeq` ends one call before it
+ * and `onwardStopSeq` starts one after, so only the row states that call. Without it a mark would
+ * skip the stop, and each board would leave the gap in a different place.
  */
-function parseTripCalls(
+function parseCalls(
   entry: Record<string, unknown>,
   /** The row's facts about its own call, which the sequence omits. */
-  rowCall: { scheduledDepartureTime: string; delayMinutes: number | undefined },
-): KvvTripCall[] | undefined {
+  rowCall: { timetabledDepartureTime: string; delayMinutes: number | undefined },
+): KvvCall[] | undefined {
   const previous = readRecordList(entry.prevStopSeq);
   const onward = readRecordList(entry.onwardStopSeq);
   if (previous.length === 0 && onward.length === 0) return undefined;
@@ -389,17 +393,17 @@ function parseTripCalls(
     coords: `${entry.x},${entry.y}`,
   };
   return [
-    ...previous.map((stop) => parseTripCall(stop, false)),
-    parseTripCall(current, true, rowCall),
-    ...onward.map((stop) => parseTripCall(stop, false)),
-  ].filter((call): call is KvvTripCall => call !== null);
+    ...previous.map((stop) => parseCall(stop, false)),
+    parseCall(current, true, rowCall),
+    ...onward.map((stop) => parseCall(stop, false)),
+  ].filter((call): call is KvvCall => call !== null);
 }
 
-function parseTripCall(
+function parseCall(
   entry: Record<string, unknown>,
-  isCurrentStop: boolean,
-  rowCall?: { scheduledDepartureTime: string; delayMinutes: number | undefined },
-): KvvTripCall | null {
+  isThisCall: boolean,
+  rowCall?: { timetabledDepartureTime: string; delayMinutes: number | undefined },
+): KvvCall | null {
   const ref = isRecord(entry.ref) ? entry.ref : undefined;
   // `nameWO` already lacks the locality, and may contain a comma of its own (`Bahnhof, Vorplatz`).
   const nameWithoutPlace = readOptionalString(entry.nameWO);
@@ -410,37 +414,37 @@ function parseTripCall(
   // A terminus carries a placeholder `depDelay: 0` with `depValid: 0`; its real deviation is on the
   // arrival.
   const hasArrival = readOptionalString(ref?.arrValid) !== "0";
-  const hasDeparture = readOptionalString(ref?.depValid) !== "0";
-  // With neither prediction valid, EFA still supplies the scheduled calls.
-  const isScheduledOnly = !hasArrival && !hasDeparture;
+  const hasStopEvent = readOptionalString(ref?.depValid) !== "0";
+  // With neither prediction valid, EFA still supplies the timetabled calls.
+  const isTimetabledOnly = !hasArrival && !hasStopEvent;
   // Planned times with the deviation beside them. Arrival and departure delays are separate facts:
   // a vehicle can arrive four minutes late at a terminus and leave on time.
   const arrivalDelayMinutes = hasArrival ? parseDelayMinutes(ref?.arrDelay) : undefined;
-  const departureDelayMinutes = hasDeparture ? parseDelayMinutes(ref?.depDelay) : undefined;
-  const scheduledDepartureTime =
-    hasDeparture || isScheduledOnly
+  const departureDelayMinutes = hasStopEvent ? parseDelayMinutes(ref?.depDelay) : undefined;
+  const timetabledDepartureTime =
+    hasStopEvent || isTimetabledOnly
       ? parseSequenceTime(ref?.depDateTimeSec ?? ref?.depDateTime)
       : undefined;
   // The sequence omits the board's own call, so the row is the only account of it.
   const delayMinutes =
     departureDelayMinutes ?? arrivalDelayMinutes ?? (ref ? undefined : rowCall?.delayMinutes);
-  const platformCode = readOptionalString(ref?.platform) ?? readOptionalString(entry.platform);
+  const bay = readOptionalString(ref?.platform) ?? readOptionalString(entry.platform);
   return {
     stopName: name,
     placeName: readOptionalString(entry.place),
     // The operator words some platforms and only numbers others (`Waidweg`: `Gleis 1`, `Gleis 2`,
     // `3`), so the code stands in where no label is given.
-    platformLabel: readOptionalString(entry.platformName) ?? platformCode,
-    platformCode,
+    bayText: readOptionalString(entry.platformName) ?? bay,
+    bay,
     providerId: readOptionalString(ref?.id) ?? readOptionalString(entry.stopID),
-    isCurrentStop: isCurrentStop || undefined,
+    isThisCall: isThisCall || undefined,
     latitude: coordinates?.latitude,
     longitude: coordinates?.longitude,
-    scheduledArrivalTime:
-      hasArrival || isScheduledOnly
+    timetabledArrivalTime:
+      hasArrival || isTimetabledOnly
         ? parseSequenceTime(ref?.arrDateTimeSec ?? ref?.arrDateTime)
         : undefined,
-    scheduledDepartureTime: ref ? scheduledDepartureTime : rowCall?.scheduledDepartureTime,
+    timetabledDepartureTime: ref ? timetabledDepartureTime : rowCall?.timetabledDepartureTime,
     delayMinutes,
     // Stated only where it differs from the departure delay.
     arrivalDelayMinutes: arrivalDelayMinutes === delayMinutes ? undefined : arrivalDelayMinutes,
@@ -470,6 +474,23 @@ function parseSequenceTime(value: unknown): string | undefined {
  * The published notices, verbatim. Only notices that are published, valid and not deactivated are
  * kept; a withdrawn notice stays in the answer with its flags off.
  */
+/**
+ * A notice EFA published (`XSLT_ADDINFO_REQUEST`), in the operator's terms: its line spellings and
+ * provider stop ids. TRIAS's counterpart is `TriasSituation`; the app reads neither for now.
+ */
+export type KvvServiceNotice = {
+  id: string;
+  title: string;
+  /** Line numbers as published, normalised to the form a departure states (`007` is line 7). */
+  lineNumbers: string[];
+  concernedStops: { providerId?: string; name: string }[];
+  /** The operator's own wording, as the paragraphs it published it in. */
+  details: string[];
+  validFrom?: string;
+  validUntil?: string;
+  priority: "normal" | "high";
+};
+
 export function parseServiceNoticeResponse(payload: unknown): KvvServiceNotice[] {
   if (!isRecord(payload) || !isRecord(payload.additionalInformation)) return [];
   const travelInformations = payload.additionalInformation.travelInformations;
@@ -524,16 +545,6 @@ function parseServiceNotice(entry: Record<string, unknown>): KvvServiceNotice | 
   };
 }
 
-/**
- * Strips a notice's zero padding (`007` is line `7`). Suffixes stay (`104s` is not `104`); the
- * comparison ignores their case.
- */
-export function normalizeNoticeLineNumber(number: string | undefined): string | undefined {
-  const trimmed = number?.trim();
-  if (!trimmed) return undefined;
-  return trimmed.replace(/^0+(?=[A-Za-z]*\d)/, "");
-}
-
 /** From the earliest period the notice names to the latest. */
 function parseValidityPeriod(value: unknown): { validFrom?: string; validUntil?: string } {
   const periods = readRecordList(value);
@@ -558,69 +569,14 @@ function parseNoticeDateTime(value: unknown): string | undefined {
   return resolveNetworkWallTime(Date.UTC(year, month - 1, day, hour, minute));
 }
 
-/** The notice's rich text as plain paragraphs: tags stripped, breaks become paragraphs. */
-function parseNoticeDetails(html: string | undefined): string[] {
-  if (!html) return [];
-  return html
-    .replace(/<\/(?:p|div|li|tr|h[1-6])\s*>|<br\s*\/?>/gi, "\n")
-    .replace(/<[^>]*>/g, "")
-    .split("\n")
-    .map((line) => decodeHtmlEntities(line).replace(/\s+/g, " ").trim())
-    .filter((line) => line.length > 0);
-}
-
-/** The named entities the operator's text uses, plus the numeric form. */
-const HTML_ENTITIES: Record<string, string> = {
-  amp: "&",
-  lt: "<",
-  gt: ">",
-  quot: '"',
-  apos: "'",
-  nbsp: " ",
-  auml: "ä",
-  ouml: "ö",
-  uuml: "ü",
-  Auml: "Ä",
-  Ouml: "Ö",
-  Uuml: "Ü",
-  szlig: "ß",
-  bull: "•",
-  ndash: "–",
-  mdash: "—",
-  euro: "€",
-  hellip: "…",
-  rarr: "→",
-  laquo: "«",
-  raquo: "»",
-  bdquo: "„",
-  ldquo: "“",
-  rdquo: "”",
-  sbquo: "‚",
-  lsquo: "‘",
-  rsquo: "’",
-  deg: "°",
-};
-
-function decodeHtmlEntities(text: string): string {
-  return text.replace(/&(#\d+|#[xX][0-9a-fA-F]+|[A-Za-z]+);/g, (match, entity: string) => {
-    if (entity.startsWith("#")) {
-      const code =
-        entity[1] === "x" || entity[1] === "X"
-          ? Number.parseInt(entity.slice(2), 16)
-          : Number.parseInt(entity.slice(1), 10);
-      return Number.isFinite(code) && code > 0 ? String.fromCodePoint(code) : match;
-    }
-    return HTML_ENTITIES[entity] ?? match;
-  });
-}
-
-function parseDepartureStatus(
-  tripStatus: string | undefined,
+function parseStopEventStatus(
+  journeyStatus: string | undefined,
   stopStatus: string | undefined,
   delay: number | undefined,
-): DepartureStatus {
-  if (tripStatus === "TRIP_CANCELLED" || stopStatus === "DEPARTURE_CANCELLED") return "cancelled";
-  if (tripStatus === "EXTRA_STOPS" || tripStatus === "EXTRA_TRIP") return "diverted";
+): StopEventStatus {
+  if (journeyStatus === "TRIP_CANCELLED" || stopStatus === "DEPARTURE_CANCELLED")
+    return "cancelled";
+  if (journeyStatus === "EXTRA_STOPS" || journeyStatus === "EXTRA_TRIP") return "diverted";
   return delay === undefined ? "scheduled" : "realtime";
 }
 
@@ -644,7 +600,7 @@ function isLocalNetworkLine(
   return isLocalNetworkMode(motType) && isLocalNetworkPool(lineStatelessId);
 }
 
-function parseTransportMode(motType: string | undefined): TransportMode {
+function parsePtMode(motType: string | undefined): PtMode {
   if (motType === "1") return "lightRail";
   if (motType === "4") return "tram";
   if (motType === "5" || motType === "6" || motType === "11") return "bus";

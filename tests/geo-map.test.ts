@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { TripCall } from "../src/data/transit-types.ts";
+import type { Call } from "../src/data/transit-types.ts";
 import { getDirectTravelTimes } from "../src/lib/direct-travel-times.ts";
 import {
   createGeoNetworkReader,
@@ -12,7 +12,7 @@ import {
   toOctagon,
   projectGeoPosition,
 } from "../src/lib/geo-map.ts";
-import { createDeparture } from "./support/fixtures.ts";
+import { createStopEvent } from "./support/fixtures.ts";
 
 const at = (minute: number) => `2026-10-04T12:${String(minute).padStart(2, "0")}:00+02:00`;
 const instant = (minute: number) => Date.parse(at(minute));
@@ -25,25 +25,19 @@ type CallSpec = {
   isLocal?: boolean;
 };
 
-const call = ({
-  id,
-  minute,
-  place = "Karlsruhe",
-  position,
-  isLocal = true,
-}: CallSpec): TripCall => ({
+const call = ({ id, minute, place = "Karlsruhe", position, isLocal = true }: CallSpec): Call => ({
   stopName: `${id} (Gleis 1)`,
   placeName: place,
   ...(isLocal ? { localStopId: id } : {}),
   providerStopPointId: `700${id.length}`,
   ...(position ? { latitude: position[0], longitude: position[1] } : {}),
-  scheduledArrivalTime: at(minute),
-  scheduledDepartureTime: at(minute),
+  timetabledArrivalTime: at(minute),
+  timetabledDepartureTime: at(minute),
   delayMinutes: 0,
 });
 
-const run = (id: string, lineId: string, calls: readonly CallSpec[]) =>
-  createDeparture({ id, tripInstanceId: id, lineId, tripCalls: calls.map(call) });
+const datedJourney = (id: string, lineId: string, calls: readonly CallSpec[]) =>
+  createStopEvent({ id, datedJourneyId: id, lineId, calls: calls.map(call) });
 
 const MARKTPLATZ: CallSpec = { id: "marktplatz", minute: 1, position: [49.0093, 8.4037] };
 const KRONENPLATZ: CallSpec = { id: "kronenplatz", minute: 3, position: [49.0093, 8.411] };
@@ -64,8 +58,8 @@ test("draws each stop where the feed locates it, linked to the stops its runs ca
   const read = createGeoNetworkReader();
 
   const network = read([
-    run("a", "S5", [MARKTPLATZ, KRONENPLATZ, DURLACH]),
-    run("b", "1", [MARKTPLATZ, KRONENPLATZ]),
+    datedJourney("a", "S5", [MARKTPLATZ, KRONENPLATZ, DURLACH]),
+    datedJourney("b", "1", [MARKTPLATZ, KRONENPLATZ]),
   ]);
 
   assert.deepEqual([...network.stops.keys()].sort(), ["durlach", "kronenplatz", "marktplatz"]);
@@ -91,11 +85,11 @@ test("places a stop its runs leave unlocated from elsewhere, or links across it"
   const read = createGeoNetworkReader((stop) =>
     stop.localStopId === "kronenplatz" ? { latitude: 49.0093, longitude: 8.411 } : undefined,
   );
-  const placed = read([run("a", "S5", [MARKTPLATZ, unlocatedKronenplatz, DURLACH])]);
+  const placed = read([datedJourney("a", "S5", [MARKTPLATZ, unlocatedKronenplatz, DURLACH])]);
   assert.equal(placed.stops.get("kronenplatz")?.longitude, 8.411);
 
   const bridged = createGeoNetworkReader(() => undefined)([
-    run("a", "S5", [MARKTPLATZ, unlocatedKronenplatz, DURLACH]),
+    datedJourney("a", "S5", [MARKTPLATZ, unlocatedKronenplatz, DURLACH]),
   ]);
   assert.equal(bridged.stops.has("kronenplatz"), false);
   assert.deepEqual(
@@ -106,9 +100,9 @@ test("places a stop its runs leave unlocated from elsewhere, or links across it"
 
 test("keeps what it has drawn after the run that showed it is gone", () => {
   const read = createGeoNetworkReader();
-  read([run("a", "S5", [MARKTPLATZ, KRONENPLATZ, DURLACH])]);
+  read([datedJourney("a", "S5", [MARKTPLATZ, KRONENPLATZ, DURLACH])]);
 
-  const later = read([run("b", "1", [MARKTPLATZ, KRONENPLATZ])]);
+  const later = read([datedJourney("b", "1", [MARKTPLATZ, KRONENPLATZ])]);
 
   assert.equal(later.stops.has("durlach"), true);
   assert.equal(later.links.length, 2);
@@ -121,7 +115,7 @@ test("names a stop the feed resolved to no local stop by its provider id", () =>
 
 test("anchors each place at the middle of its stops", () => {
   const network = createGeoNetworkReader()([
-    run("a", "S5", [
+    datedJourney("a", "S5", [
       MARKTPLATZ,
       DURLACH,
       { id: "untermuehl", minute: 11, place: "Durlach", position: [49.0019, 8.456] },
@@ -147,16 +141,22 @@ test("projects positions to kilometres east and south of Marktplatz", () => {
 });
 
 test("reaches stops beyond any plan, on the soonest direct tram", () => {
-  const runs = [
-    run("slow", "S5", [MARKTPLATZ, KRONENPLATZ, DURLACH, GROETZINGEN]),
-    run("fast", "1", [
+  const datedJourneys = [
+    datedJourney("slow", "S5", [MARKTPLATZ, KRONENPLATZ, DURLACH, GROETZINGEN]),
+    datedJourney("fast", "1", [
       { ...MARKTPLATZ, minute: 2 },
       { ...KRONENPLATZ, minute: 4 },
       { ...DURLACH, minute: 10 },
     ]),
   ];
 
-  const times = getDirectTravelTimes(runs, "marktplatz", instant(0), "arrival", getGeoStopId);
+  const times = getDirectTravelTimes(
+    datedJourneys,
+    "marktplatz",
+    instant(0),
+    "arrival",
+    getGeoStopId,
+  );
 
   assert.equal(times.get("durlach")?.lineId, "1");
   assert.deepEqual(times.get("groetzingen"), {
@@ -164,16 +164,22 @@ test("reaches stops beyond any plan, on the soonest direct tram", () => {
     lineId: "S5",
     departsAt: instant(1),
     stopIds: ["marktplatz", "kronenplatz", "durlach", "groetzingen"],
-    departure: runs[0],
-    boardingCall: runs[0].tripCalls![0],
-    arrivalCall: runs[0].tripCalls![3],
+    stopEvent: datedJourneys[0],
+    boardingCall: datedJourneys[0].calls![0],
+    arrivalCall: datedJourneys[0].calls![3],
   });
 });
 
 test("labels the end of each way and the first stop in each place before the rest", () => {
-  const runs = [run("a", "S5", [MARKTPLATZ, KRONENPLATZ, DURLACH, GROETZINGEN])];
-  const network = createGeoNetworkReader()(runs);
-  const times = getDirectTravelTimes(runs, "marktplatz", instant(0), "arrival", getGeoStopId);
+  const datedJourneys = [datedJourney("a", "S5", [MARKTPLATZ, KRONENPLATZ, DURLACH, GROETZINGEN])];
+  const network = createGeoNetworkReader()(datedJourneys);
+  const times = getDirectTravelTimes(
+    datedJourneys,
+    "marktplatz",
+    instant(0),
+    "arrival",
+    getGeoStopId,
+  );
 
   const labels = getGeoDestinationLabels(network, times, instant(0));
 

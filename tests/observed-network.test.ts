@@ -1,45 +1,45 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { Departure, DepartureBoard, TripCall } from "../src/data/transit-types.ts";
+import type { StopEvent, StopEventBoard, Call } from "../src/data/transit-types.ts";
 import { ObservedNetworkStore } from "../src/data/observed-network-store.ts";
 import { getObservedTransitLines } from "../src/lib/observed-network.ts";
-import { createDeparture } from "./support/fixtures.ts";
+import { createStopEvent } from "./support/fixtures.ts";
 
-const call = (stopName: string, localStopId: string, placeName?: string): TripCall => ({
+const call = (stopName: string, localStopId: string, placeName?: string): Call => ({
   stopName,
   localStopId,
   ...(placeName ? { placeName } : {}),
 });
 
-const trip = (
-  overrides: Partial<Departure> &
-    Pick<Departure, "id" | "tripId" | "destination"> & {
-      tripCalls: readonly TripCall[];
+const journey = (
+  overrides: Partial<StopEvent> &
+    Pick<StopEvent, "id" | "journeyRef" | "destinationText"> & {
+      calls: readonly Call[];
     },
-): Departure =>
-  createDeparture({
+): StopEvent =>
+  createStopEvent({
     lineId: "2",
-    transportMode: "tram",
+    ptMode: "tram",
     minutesUntilDeparture: 4,
-    platformCode: "1",
+    bay: "1",
     boardingLocalStopId: "europaplatz",
     status: "realtime",
-    scheduledDepartureTime: "2026-09-05T12:04:00+02:00",
+    timetabledDepartureTime: "2026-09-05T12:04:00+02:00",
     ...overrides,
   });
 
 /** The network as the app learns it: every live board passes through the store. */
-const buildObservedNetwork = (boards: readonly DepartureBoard[]) => {
+const buildObservedNetwork = (boards: readonly StopEventBoard[]) => {
   const store = new ObservedNetworkStore();
   for (const liveBoard of boards) store.rememberBoard(liveBoard, 0);
   return store.getSnapshot();
 };
 
-const board = (departures: readonly Departure[]): DepartureBoard[] => [
+const board = (stopEvents: readonly StopEvent[]): StopEventBoard[] => [
   {
     stopId: "europaplatz",
     receivedAt: 1,
-    departures,
+    stopEvents,
     dataStatus: "live",
     feedUpdatedAt: "2026-09-05T12:00:00+02:00",
   },
@@ -50,20 +50,20 @@ test("the observed line states its extent off the farthest run, not off the sign
   // further than any of them says.
   const observedNetwork = buildObservedNetwork(
     board([
-      trip({
+      journey({
         id: "short",
-        tripId: "short",
-        destination: "Rheinhafen über Kühler Krug",
-        tripCalls: [
+        journeyRef: "short",
+        destinationText: "Rheinhafen über Kühler Krug",
+        calls: [
           call("Kühler Krug", "kuehler-krug", "Karlsruhe"),
           call("Rheinhafen", "rheinhafen", "Karlsruhe"),
         ],
       }),
-      trip({
+      journey({
         id: "full",
-        tripId: "full",
-        destination: "Rheinhafen",
-        tripCalls: [
+        journeyRef: "full",
+        destinationText: "Rheinhafen",
+        calls: [
           call("Nord", "knielingen-nord", "Knielingen"),
           call("Feierabendweg", "feierabendweg", "Karlsruhe"),
           call("Rheinhafen", "rheinhafen", "Karlsruhe"),
@@ -76,17 +76,17 @@ test("the observed line states its extent off the farthest run, not off the sign
   assert.equal(observedLine.id, "2");
   // Most frequent first, as the signs are read.
   assert.deepEqual(observedLine.destinations, ["Rheinhafen über Kühler Krug", "Rheinhafen"]);
-  assert.deepEqual(observedLine.farthestRunTermini, ["Knielingen Nord", "Rheinhafen"]);
+  assert.deepEqual(observedLine.farthestDatedJourneyTermini, ["Knielingen Nord", "Rheinhafen"]);
 });
 
 test("the observed line carries no extent where the farthest run turns on itself", () => {
   const observedNetwork = buildObservedNetwork(
     board([
-      trip({
+      journey({
         id: "loop",
-        tripId: "loop",
-        destination: "Stupferich",
-        tripCalls: [
+        journeyRef: "loop",
+        destinationText: "Stupferich",
+        calls: [
           call("Turmberg", "turmberg", "Karlsruhe"),
           call("Rathaus", "stupferich-rathaus", "Stupferich"),
           call("Turmberg", "turmberg", "Karlsruhe"),
@@ -95,20 +95,20 @@ test("the observed line carries no extent where the farthest run turns on itself
     ]),
   );
 
-  assert.equal(observedNetwork.lines[0].farthestRunTermini, undefined);
+  assert.equal(observedNetwork.lines[0].farthestDatedJourneyTermini, undefined);
 });
 
 test("the transit line keeps its mode and its extent through the family", () => {
   const transitLines = getObservedTransitLines(
     buildObservedNetwork(
       board([
-        trip({
+        journey({
           id: "full",
-          tripId: "full",
+          journeyRef: "full",
           lineId: "S2",
-          transportMode: "lightRail",
-          destination: "Rheinstetten",
-          tripCalls: [
+          ptMode: "lightRail",
+          destinationText: "Rheinstetten",
+          calls: [
             call("Richard-Hecht-Schule", "richard-hecht-schule", "Rheinstetten"),
             call("Mühlburger Tor", "muehlburger-tor", "Karlsruhe"),
             call("Hauptbahnhof", "hauptbahnhof", "Karlsruhe"),
@@ -120,8 +120,8 @@ test("the transit line keeps its mode and its extent through the family", () => 
   );
 
   const [line] = transitLines;
-  assert.equal(line.transportMode, "lightRail");
-  assert.deepEqual(line.farthestRunTermini, [
+  assert.equal(line.ptMode, "lightRail");
+  assert.deepEqual(line.farthestDatedJourneyTermini, [
     "Rheinstetten Richard-Hecht-Schule",
     "Spöck Bach-West",
   ]);

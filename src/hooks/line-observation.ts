@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { DepartureBoard, TransitLine } from "../data/transit-types";
+import type { StopEventBoard, TransitLine } from "../data/transit-types";
 import { recallLineObservation, rememberLineObservation } from "../data/line-observation-memory";
 import { transitSource } from "../data/transit-source";
 import { addOnce } from "../lib/collections";
 import {
   extendLineObservationRoutes,
   extendLineObservations,
-  getLineFilterDirectionIds,
+  getLineFilterLineRefs,
   getLineObservationStopIds,
   getLineObservationsStopIds,
   getLineRouteRequests,
@@ -20,9 +20,9 @@ import {
 import { getLineSelectionIds, type LineSelection } from "../lib/line-bundles";
 import {
   LINE_OBSERVATION_REFRESH_MS,
-  useDepartureBoardCollection,
-} from "./departure-board-collection";
-import { LINE_RUN_READING_MAX_AGE_MS } from "./run-reading-loader";
+  useStopEventBoardCollection,
+} from "./stop-event-board-collection";
+import { LINE_DATED_JOURNEY_READING_MAX_AGE_MS } from "./dated-journey-reading-loader";
 
 const NO_OBSERVATIONS: LineObservations = new Map();
 const EMPTY_STOP_IDS: readonly string[] = [];
@@ -30,7 +30,7 @@ const NO_ROUTES: ReadonlyMap<string, readonly string[]> = new Map();
 
 /**
  * The published routes of the selected lines, once per line-direction. A seed for where boards are
- * read (off-peak trips may not cover the whole line), never for what is drawn.
+ * read (off-peak journeys may not cover the whole line), never for what is drawn.
  */
 export function useLineRoutes(
   selection: LineSelection,
@@ -43,15 +43,15 @@ export function useLineRoutes(
   );
   const [routeStopIdsByLineId, setRouteStopIdsByLineId] = useState(NO_ROUTES);
   // Once per direction; the source keeps routes for the session.
-  const askedDirectionIds = useRef(new Set<string>());
+  const askedLineRefs = useRef(new Set<string>());
 
   useEffect(() => {
-    for (const { lineId, directionId, rowId } of requests) {
-      if (askedDirectionIds.current.has(directionId)) continue;
-      askedDirectionIds.current.add(directionId);
+    for (const { lineId, lineRef, rowId } of requests) {
+      if (askedLineRefs.current.has(lineRef)) continue;
+      askedLineRefs.current.add(lineRef);
       transitSource.getLineRoute(rowId).then((routeStopIds) => {
         // Asked again with the next boards.
-        if (routeStopIds === undefined) askedDirectionIds.current.delete(directionId);
+        if (routeStopIds === undefined) askedLineRefs.current.delete(lineRef);
         if (!routeStopIds?.length) return;
         setRouteStopIdsByLineId((current) => {
           // The second direction adds only stops the first lacks (the other half of a one-way
@@ -73,26 +73,23 @@ export function useLineRoutes(
  * The `line` filter from the boards in hand alone, for the rider's own stop. Without one the board
  * is read unfiltered, which the source answers from the rider's existing board.
  */
-export function useLineFilterDirectionIds(
+export function useLineFilterLineRefs(
   selection: LineSelection,
   boards: readonly LineObservationBoard[],
 ): readonly string[] {
   return useMemo(
     () =>
-      getLineFilterDirectionIds(
-        extendLineObservations(NO_OBSERVATIONS, selection, boards),
-        selection,
-      ),
+      getLineFilterLineRefs(extendLineObservations(NO_OBSERVATIONS, selection, boards), selection),
     [boards, selection],
   );
 }
 
 /** The crawl's boards, and whether it has answered for this route. */
 export type LineObservationReading = {
-  boards: readonly DepartureBoard[];
+  boards: readonly StopEventBoard[];
   /**
    * Whether boards for the route as known are still outstanding: whether a reading could still name
-   * a trip that left the rider's stop.
+   * a journey that left the rider's stop.
    */
   isReading: boolean;
 };
@@ -115,8 +112,8 @@ export function useLineObservation({
   /** The rider's stop, whose board is in hand and never requested twice. */
   stopId: string;
   /**
-   * Boards read outside the crawl (rider's board, network observation, this stop's trips), learned
-   * first.
+   * Boards read outside the crawl (rider's board, network observation, this stop's journeys),
+   * learned first.
    */
   evidenceBoards: readonly LineObservationBoard[];
   isEnabled?: boolean;
@@ -142,26 +139,23 @@ export function useLineObservation({
     [evidenceBoards, routeStopIdsByLineId, seeded, selection],
   );
   const stopIds = useMemo(() => getLineObservationsStopIds(known, selection), [known, selection]);
-  const filterDirectionIds = useMemo(
-    () => getLineFilterDirectionIds(known, selection),
-    [known, selection],
-  );
+  const filterLineRefs = useMemo(() => getLineFilterLineRefs(known, selection), [known, selection]);
   const observationStopIds = useMemo(() => {
     if (!isEnabled) return EMPTY_STOP_IDS;
     const readable = getLineObservationStopIds(stopIds, stopId);
     // A round without a filter reads a sample: it reads whole stops, to learn the filter.
     return sampleLineObservationStopIds(
       readable,
-      filterDirectionIds.length > 0
+      filterLineRefs.length > 0
         ? MAX_LINE_OBSERVATION_STOPS
         : MAX_UNFILTERED_LINE_OBSERVATION_STOPS,
     );
-  }, [filterDirectionIds, isEnabled, stopIds, stopId]);
-  const { departureBoards: boards, coverage } = useDepartureBoardCollection(
+  }, [filterLineRefs, isEnabled, stopIds, stopId]);
+  const { stopEventBoards: boards, coverage } = useStopEventBoardCollection(
     observationStopIds,
     LINE_OBSERVATION_REFRESH_MS,
-    filterDirectionIds,
-    LINE_RUN_READING_MAX_AGE_MS,
+    filterLineRefs,
+    LINE_DATED_JOURNEY_READING_MAX_AGE_MS,
   );
 
   const observations = useMemo(

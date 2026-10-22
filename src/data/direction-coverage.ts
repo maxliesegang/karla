@@ -1,11 +1,11 @@
 import type {
-  Departure,
-  DepartureBoard,
-  DepartureBoardRequest,
-  LiveDepartureBoard,
+  StopEvent,
+  StopEventBoard,
+  StopEventBoardRequest,
+  LiveStopEventBoard,
 } from "./transit-types";
-import { createRunCollector, isDepartureWithin } from "./departure-runs";
-import { sortDeparturesByExpectedInstant } from "../lib/departure-order";
+import { createDatedJourneyCollector, isStopEventWithin } from "./stop-event-dated-journeys";
+import { sortStopEventsByExpectedInstant } from "../lib/stop-event-order";
 import { ReadingCache } from "./reading-cache";
 
 /** One supplement serves every sparse direction, so it gets more rows. */
@@ -28,10 +28,10 @@ const DEFAULT_DIRECTION_COVERAGE_HORIZON_MS = 2 * 60 * 60_000;
 export type DirectionCoverage = { minimum: number; horizonMs: number; key: string };
 
 export function readDirectionCoverage(
-  request: DepartureBoardRequest,
+  request: StopEventBoardRequest,
 ): DirectionCoverage | undefined {
-  const requested = request.minimumDeparturesPerDirection ?? 0;
-  if (request.includeTripCalls || requested <= 0) return undefined;
+  const requested = request.minimumStopEventsPerDirection ?? 0;
+  if (request.includeCalls || requested <= 0) return undefined;
   const minimum = Math.max(1, Math.floor(requested));
   const horizonMs = Math.max(0, request.coverageHorizonMs ?? DEFAULT_DIRECTION_COVERAGE_HORIZON_MS);
   return { minimum, horizonMs, key: `${minimum}:${horizonMs}` };
@@ -41,7 +41,7 @@ export function readDirectionCoverage(
 type FetchSupplement = (
   lineIds: readonly string[],
   limit: number,
-) => Promise<{ departures: readonly Departure[]; rowLimitReached: boolean }>;
+) => Promise<{ stopEvents: readonly StopEvent[]; rowLimitReached: boolean }>;
 
 /**
  * Completes a basic board so the line overview can answer "what runs here?". Candidates come from
@@ -51,36 +51,34 @@ type FetchSupplement = (
  */
 export class DirectionCoverageCompleter {
   /** Query candidates from the monitor's metadata; never shown without a live row. */
-  private readonly servingDirectionIdsByStopId = new ReadingCache<readonly string[]>(
+  private readonly servingLineRefsByStopId = new ReadingCache<readonly string[]>(
     DIRECTION_CACHE_CAPACITY,
     SERVING_DIRECTIONS_MAX_AGE_MS,
   );
   /** The short-lived supplements for directions the board missed. */
   private readonly supplements = new ReadingCache<{
     receivedAt: number;
-    departures: readonly Departure[];
+    stopEvents: readonly StopEvent[];
   }>(DIRECTION_CACHE_CAPACITY, DIRECTION_SUPPLEMENT_TTL_MS);
 
   /** What the stop's unfiltered board says it serves; a filtered board would shrink the set. */
-  rememberServingDirections(stopId: string, directionIds: readonly string[]): void {
-    this.servingDirectionIdsByStopId.set(stopId, directionIds);
+  rememberServingDirections(stopId: string, lineRefs: readonly string[]): void {
+    this.servingLineRefsByStopId.set(stopId, lineRefs);
   }
 
   async complete(
-    base: LiveDepartureBoard,
+    base: LiveStopEventBoard,
     coverage: DirectionCoverage,
     fetchSupplement: FetchSupplement,
-  ): Promise<DepartureBoard> {
+  ): Promise<StopEventBoard> {
     const { minimum, horizonMs, key: coverageKey } = coverage;
     const feedNow = Date.parse(base.feedUpdatedAt);
     if (!Number.isFinite(feedNow)) return base;
 
     const candidates = [
       ...new Set([
-        ...(this.servingDirectionIdsByStopId.get(base.stopId) ?? []),
-        ...base.departures.flatMap(({ routeDirectionId }) =>
-          routeDirectionId ? [routeDirectionId] : [],
-        ),
+        ...(this.servingLineRefsByStopId.get(base.stopId) ?? []),
+        ...base.stopEvents.flatMap(({ lineRef }) => (lineRef ? [lineRef] : [])),
       ]),
     ];
     if (candidates.length === 0) return base;
@@ -90,11 +88,11 @@ export class DirectionCoverageCompleter {
     const heldAgeMs = held ? Date.now() - held.receivedAt : Number.POSITIVE_INFINITY;
     const isHeldReadable = heldAgeMs < DIRECTION_SUPPLEMENT_TTL_MS;
 
-    const collected = createRunCollector(base.departures);
+    const collected = createDatedJourneyCollector(base.stopEvents);
     if (isHeldReadable && held) {
-      for (const departure of held.departures) {
-        if (isDepartureWithin(departure, feedNow + heldAgeMs, feedNow + horizonMs)) {
-          collected.add(departure);
+      for (const stopEvent of held.stopEvents) {
+        if (isStopEventWithin(stopEvent, feedNow + heldAgeMs, feedNow + horizonMs)) {
+          collected.add(stopEvent);
         }
       }
     }
@@ -102,23 +100,21 @@ export class DirectionCoverageCompleter {
     // One pass over the departures, not one per direction; re-run after every read.
     const getMissing = () => {
       const coveredByDirection = new Map<string, number>();
-      for (const departure of collected.departureById.values()) {
-        const directionId = departure.routeDirectionId;
-        if (!directionId || !isDepartureWithin(departure, feedNow, feedNow + horizonMs)) continue;
-        coveredByDirection.set(directionId, (coveredByDirection.get(directionId) ?? 0) + 1);
+      for (const stopEvent of collected.stopEventById.values()) {
+        const lineRef = stopEvent.lineRef;
+        if (!lineRef || !isStopEventWithin(stopEvent, feedNow, feedNow + horizonMs)) continue;
+        coveredByDirection.set(lineRef, (coveredByDirection.get(lineRef) ?? 0) + 1);
       }
-      return candidates.filter(
-        (directionId) => (coveredByDirection.get(directionId) ?? 0) < minimum,
-      );
+      return candidates.filter((lineRef) => (coveredByDirection.get(lineRef) ?? 0) < minimum);
     };
 
     if (isHeldReadable)
-      return this.toCoveredBoard(base, collected.departureById, feedNow, horizonMs);
+      return this.toCoveredBoard(base, collected.stopEventById, feedNow, horizonMs);
 
     let missing = getMissing();
     if (missing.length === 0) return base;
 
-    const supplemented: Departure[] = [];
+    const supplemented: StopEvent[] = [];
     try {
       // The limit applies to the combined answer. A full answer that still starves directions earns
       // a pass for only those, and only after progress.
@@ -128,10 +124,10 @@ export class DirectionCoverageCompleter {
           Math.max(minimum, missing.length * minimum),
         );
         const supplement = await fetchSupplement(missing, limit);
-        for (const departure of supplement.departures) {
-          if (!isDepartureWithin(departure, feedNow, feedNow + horizonMs)) continue;
-          if (!collected.add(departure)) continue;
-          supplemented.push(departure);
+        for (const stopEvent of supplement.stopEvents) {
+          if (!isStopEventWithin(stopEvent, feedNow, feedNow + horizonMs)) continue;
+          if (!collected.add(stopEvent)) continue;
+          supplemented.push(stopEvent);
         }
         const nextMissing = getMissing();
         if (!supplement.rowLimitReached || nextMissing.length === missing.length) break;
@@ -141,22 +137,22 @@ export class DirectionCoverageCompleter {
       return base;
     }
 
-    this.supplements.set(supplementKey, { receivedAt: Date.now(), departures: supplemented });
-    return this.toCoveredBoard(base, collected.departureById, feedNow, horizonMs);
+    this.supplements.set(supplementKey, { receivedAt: Date.now(), stopEvents: supplemented });
+    return this.toCoveredBoard(base, collected.stopEventById, feedNow, horizonMs);
   }
 
   /** The completed board: live facts, one order, inside the window. */
   private toCoveredBoard(
-    base: LiveDepartureBoard,
-    departureById: ReadonlyMap<string, Departure>,
+    base: LiveStopEventBoard,
+    stopEventById: ReadonlyMap<string, StopEvent>,
     feedNow: number,
     horizonMs: number,
-  ): DepartureBoard {
+  ): StopEventBoard {
     return {
       ...base,
-      departures: sortDeparturesByExpectedInstant(
-        [...departureById.values()].filter((departure) =>
-          isDepartureWithin(departure, feedNow, feedNow + horizonMs),
+      stopEvents: sortStopEventsByExpectedInstant(
+        [...stopEventById.values()].filter((stopEvent) =>
+          isStopEventWithin(stopEvent, feedNow, feedNow + horizonMs),
         ),
         feedNow,
       ),

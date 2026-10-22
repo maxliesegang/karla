@@ -1,6 +1,6 @@
 import { lazy, Suspense, useMemo, useRef, useState } from "react";
 import { DataProvenanceFooter } from "./components/DataProvenanceFooter";
-import { DepartureBoardPanel } from "./components/DepartureBoardPanel";
+import { StopEventBoardPanel } from "./components/StopEventBoardPanel";
 import { StationBoardView } from "./components/StationBoardView";
 import { AppHeader } from "./components/AppHeader";
 import { AppLoadingScreen } from "./components/AppLoadingScreen";
@@ -8,10 +8,8 @@ import { StopNotFoundView } from "./components/StopNotFoundView";
 import { LineDiagramPanel } from "./components/LineDiagramPanel";
 import { NetworkView } from "./components/NetworkView";
 import { NearbyStopsView } from "./components/NearbyStopsView";
-import { StopBottomMenu } from "./components/StopBottomMenu";
 import { RideStatusPanel } from "./components/RideStatusPanel";
 import { HomeEntry } from "./components/HomeEntry";
-import { ServiceNoticesView } from "./components/ServiceNoticesView";
 import { SettingsView } from "./components/SettingsView";
 import {
   BOARD_REFRESH_LABEL,
@@ -19,7 +17,7 @@ import {
   NEARBY_REFRESH_LABEL,
   PullToRefreshStrip,
 } from "./components/PullToRefreshStrip";
-import { useZentrumNetwork } from "./hooks/departure-board-collection";
+import { useZentrumNetwork } from "./hooks/stop-event-board-collection";
 import { useAppRoute } from "./hooks/route";
 import { useFeedNow } from "./hooks/clock";
 import { useInitialLanding, useStopRecall } from "./hooks/stop-recall";
@@ -29,14 +27,13 @@ import { usePullToRefresh } from "./hooks/pull-to-refresh";
 import { useLocatableStops, useTransitNetwork } from "./hooks/transit-network";
 import { useNearbyStops } from "./hooks/nearby-stops";
 import { useRidePosition } from "./hooks/ride-position";
-import { useServiceNotices, useStopTopologyBoard } from "./hooks/departure-board";
+import { useStopTopologyBoard } from "./hooks/stop-event-board";
 import { useStopCorridorPatterns } from "./hooks/stop-corridor-patterns";
 import { useStopBoardingPlaces } from "./hooks/boarding-places";
 import { useSelectionChain } from "./selection";
 import { getRideProgress } from "./lib/ride-progress";
 import { classNames } from "./lib/class-names";
-import { findNoticesForStop } from "./lib/service-notices";
-import { getDepartureAddressId, getSelectionPath, routePaths, navigateTo } from "./routing";
+import { getStopEventAddressId, getSelectionPath, routePaths, navigateTo } from "./routing";
 import { isStationBoardMode, stationBoardConfig } from "./station-board";
 import { findLineBundleOffers } from "./lib/line-bundles";
 import {
@@ -70,9 +67,9 @@ type PageRefresh = {
 };
 
 export default function App() {
-  const departurePanelRef = useRef<HTMLElement>(null);
+  const stopEventPanelRef = useRef<HTMLElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
-  const [runPositionRequest, setRunPositionRequest] = useState(0);
+  const [datedJourneyPositionRequest, setDatedJourneyPositionRequest] = useState(0);
   const [nearbyReturnStopId, setNearbyReturnStopId] = useState<string>();
   const route = useAppRoute();
   const isNarrowViewport = useIsNarrowViewport();
@@ -82,21 +79,21 @@ export default function App() {
   const isObservedNetworkInView = readsObservedNetwork(route.view);
   const {
     network: observedNetwork,
-    departureBoards: observationBoards,
+    stopEventBoards: observationBoards,
     coverage: zentrumCoverage,
   } = useZentrumNetwork({ isEnabled: !isStationBoardView, isInView: isObservedNetworkInView });
   const network = useTransitNetwork(observedNetwork);
-  // Stop, line and trip resolve against live data; the shell picks a panel for the result.
+  // Stop, line and journey resolve against live data; the shell picks a panel for the result.
   const selection = useSelectionChain(route, network, observationBoards);
   const { selectedStop } = selection;
   const stopTopologyBoard = useStopTopologyBoard(
     route.view === "stop" && !route.lineId && !isStationBoardView ? selectedStop?.id : undefined,
   );
-  // The line's boards also teach this stop's corridors (their trips carry full sequences read
+  // The line's boards also teach this stop's corridors (their journeys carry full sequences read
   // here), at no extra request.
   const stopTopologyBoards = useMemo(
-    () => [...selection.lineDepartureBoards, ...observationBoards],
-    [observationBoards, selection.lineDepartureBoards],
+    () => [...selection.lineStopEventBoards, ...observationBoards],
+    [observationBoards, selection.lineStopEventBoards],
   );
   const stopCorridorPatterns = useStopCorridorPatterns(
     route.view === "stop" ? selectedStop?.id : undefined,
@@ -108,7 +105,7 @@ export default function App() {
     route.view === "stop" ? selectedStop?.id : undefined,
     stopTopologyBoard,
     stopTopologyBoards,
-    selection.departureBoard,
+    selection.stopEventBoard,
   );
   // Bundle offers from what the visit observed; no extra request.
   const selectedLineId = selection.lineSelection.lineId;
@@ -116,18 +113,16 @@ export default function App() {
     () =>
       findLineBundleOffers({
         lineId: selectedLineId,
-        departures: selection.departures,
+        stopEvents: selection.stopEvents,
         patterns: stopCorridorPatterns,
       }),
-    [selectedLineId, selection.departures, stopCorridorPatterns],
+    [selectedLineId, selection.stopEvents, stopCorridorPatterns],
   );
-  const feedNow = useFeedNow(selection.departureBoard);
+  const feedNow = useFeedNow(selection.stopEventBoard);
   const locatableStops = useLocatableStops(network, observationBoards);
   const nearbyStopsController = useNearbyStops(locatableStops, !isStationBoardView);
   // Only a ride uses the position.
   const ridePosition = useRidePosition(route.isRide && !isStationBoardMode);
-  // A station board skips notices.
-  const noticeBoard = useServiceNotices(!isStationBoardView);
   // Only stops actually read are remembered, never ones passed on a ride.
   const { recentStopId, recentStops } = useStopRecall(
     route.view === "stop" && !route.isRide ? selectedStop : undefined,
@@ -139,8 +134,8 @@ export default function App() {
     selection: {
       stopId: selection.stopId,
       lineId: selection.selectedLine?.id,
-      addressId: selection.selectedDeparture && getDepartureAddressId(selection.selectedDeparture),
-      hasSelectedDeparture: Boolean(selection.selectedDeparture),
+      addressId: selection.selectedStopEvent && getStopEventAddressId(selection.selectedStopEvent),
+      hasSelectedStopEvent: Boolean(selection.selectedStopEvent),
       isRide: selection.isRide,
       originStopId: selection.originStopId,
     },
@@ -157,14 +152,14 @@ export default function App() {
         ? {
             onRefresh: selection.refreshLine,
             label: getLineRefreshLabel(layout.isRideInView),
-            isReady: selection.departureBoard !== null || Boolean(selection.selectedDeparture),
+            isReady: selection.stopEventBoard !== null || Boolean(selection.selectedStopEvent),
           }
         : layout.activeView === "stop"
           ? {
               onRefresh: selection.refreshBoard,
               readingCount: selection.boardReadingCount,
               label: BOARD_REFRESH_LABEL,
-              isReady: selection.departureBoard !== null,
+              isReady: selection.stopEventBoard !== null,
             }
           : layout.activeView === "nearby"
             ? {
@@ -193,7 +188,7 @@ export default function App() {
     navigateTo(routePaths.nearby());
   };
 
-  if (selection.isStopLoading || selection.isAwaitingStopBoardTrip) {
+  if (selection.isStopLoading || selection.isAwaitingStopBoardJourney) {
     return <AppLoadingScreen />;
   }
 
@@ -210,16 +205,7 @@ export default function App() {
     );
   }
 
-  const { activeView, isLineInView, isRideInView, isStandaloneView } = layout;
-
-  // Notices for the stop in view and its lines.
-  const stopNotices =
-    noticeBoard?.dataStatus === "live" && !isStandaloneView && selectedStop
-      ? findNoticesForStop(noticeBoard.notices, selectedStop.id, [
-          ...selection.departures.map((departure) => departure.lineId),
-          ...(selection.selectedLine ? [selection.selectedLine.id] : []),
-        ])
-      : [];
+  const { activeView, isLineInView, isRideInView } = layout;
 
   // KVV red by default; a line in view lends its colour so bar, panel and badges read as one.
   const shellThemeStyle =
@@ -232,16 +218,16 @@ export default function App() {
 
   // The ride uses the rider's position where granted (`lib/ride-position.ts`).
   const rideProgress =
-    isRideInView && selection.selectedDeparture
-      ? getRideProgress(selection.selectedDeparture.tripCalls ?? [], feedNow, {
+    isRideInView && selection.selectedStopEvent
+      ? getRideProgress(selection.selectedStopEvent.calls ?? [], feedNow, {
           alightingStopId: selection.alightingStopId,
           fix: ridePosition.fix,
         })
       : undefined;
 
   const toggleAlighting = (stopId: string) => {
-    if (!selection.selectedDeparture) return;
-    const addressId = getDepartureAddressId(selection.selectedDeparture);
+    if (!selection.selectedStopEvent) return;
+    const addressId = getStopEventAddressId(selection.selectedStopEvent);
     navigateTo(
       routePaths.ride(
         addressId,
@@ -279,8 +265,8 @@ export default function App() {
         {layout.isStationBoardView && stationBoardConfig ? (
           <StationBoardView
             stop={selectedStop!}
-            departures={selection.departures}
-            departureBoard={selection.departureBoard}
+            stopEvents={selection.stopEvents}
+            stopEventBoard={selection.stopEventBoard}
             network={network}
             stationBoardConfig={stationBoardConfig}
             feedNow={feedNow}
@@ -289,7 +275,7 @@ export default function App() {
           <>
             {/* The diagram beside the board, or the whole width where there is no board. */}
             {layout.hasPrimaryPanel && (
-              /* Keyed by what it shows: another line re-mounts it; another trip or stop of the
+              /* Keyed by what it shows: another line re-mounts it; another journey or stop of the
                  line glides. */
               <section className="primary-panel" key={layout.primaryKey}>
                 {activeView === "home" && (
@@ -311,7 +297,7 @@ export default function App() {
                     <GeoMapView
                       network={observedNetwork}
                       coverage={zentrumCoverage}
-                      departureBoards={observationBoards}
+                      stopEventBoards={observationBoards}
                       selectedStopId={route.mapStopId || undefined}
                       isFullscreen={route.isMapFullscreen}
                     />
@@ -320,7 +306,7 @@ export default function App() {
                     <RegionPlanView
                       network={observedNetwork}
                       coverage={zentrumCoverage}
-                      departureBoards={observationBoards}
+                      stopEventBoards={observationBoards}
                       selectedStopId={route.mapStopId || undefined}
                       isFullscreen={route.isMapFullscreen}
                     />
@@ -329,7 +315,7 @@ export default function App() {
                     <ZentrumView
                       network={observedNetwork}
                       coverage={zentrumCoverage}
-                      departureBoards={observationBoards}
+                      stopEventBoards={observationBoards}
                       selectedLineId={route.zentrumLineId || undefined}
                       selectedStopId={route.zentrumStopId || undefined}
                       isFullscreen={route.isMapFullscreen}
@@ -345,33 +331,28 @@ export default function App() {
                     isStacked={isNarrowViewport}
                   />
                 )}
-                {activeView === "notices" && (
-                  <ServiceNoticesView
-                    network={network}
-                    noticeBoard={noticeBoard}
-                    feedNow={feedNow}
-                  />
-                )}
                 {activeView === "settings" && <SettingsView />}
                 {isLineInView && selection.selectedLine && (
                   <>
                     {/* The ride's status card, outside the scrollport so it stays. */}
-                    {rideProgress && selection.selectedDeparture && (
+                    {rideProgress && selection.selectedStopEvent && (
                       <RideStatusPanel
                         line={selection.selectedLine}
-                        departure={selection.selectedDeparture}
+                        stopEvent={selection.selectedStopEvent}
                         rideProgress={rideProgress}
                         feedNow={feedNow}
-                        isRetainedObservation={selection.isSelectedDepartureRetained}
-                        observedAt={selection.selectedDepartureObservedAt}
+                        isRetainedObservation={selection.isSelectedStopEventRetained}
+                        observedAt={selection.selectedStopEventObservedAt}
                         ridePosition={ridePosition}
                         onClearAlighting={
                           selection.alightingStopId
                             ? () => toggleAlighting(selection.alightingStopId ?? "")
                             : undefined
                         }
-                        onShowPosition={() => setRunPositionRequest((request) => request + 1)}
-                        /* Ending a ride lands at the Ausstieg or the trip's end; stepping up
+                        onShowPosition={() =>
+                          setDatedJourneyPositionRequest((request) => request + 1)
+                        }
+                        /* Ending a ride lands at the Ausstieg or the journey's end; stepping up
                            returns to its origin. */
                         onEndRide={() =>
                           navigateTo(
@@ -389,13 +370,13 @@ export default function App() {
                       line={selection.selectedLine}
                       network={network}
                       stop={selectedStop!}
-                      departure={selection.selectedDeparture}
+                      stopEvent={selection.selectedStopEvent}
                       /* The address, not the departure, which blinks while boards re-key after a
                          step. */
                       addressId={route.addressId}
                       preferredDestination={selection.preferredDestination}
-                      departureBoard={selection.departureBoard}
-                      lineDepartureBoards={selection.lineDepartureBoards}
+                      stopEventBoard={selection.stopEventBoard}
+                      lineStopEventBoards={selection.lineStopEventBoards}
                       observationBoards={observationBoards}
                       isRide={selection.isRide}
                       bundledLines={selection.bundledLines}
@@ -408,13 +389,13 @@ export default function App() {
                             lineId: selection.selectedLine?.id,
                             bundledLineIds,
                             addressId: route.addressId,
-                            tripParent: route.tripParent,
+                            journeyParent: route.journeyParent,
                           }),
                         )
                       }
                       alightingStopId={selection.alightingStopId}
                       onToggleAlighting={isRideInView ? toggleAlighting : undefined}
-                      runPositionRequest={runPositionRequest}
+                      datedJourneyPositionRequest={datedJourneyPositionRequest}
                       rideNextCall={rideProgress?.nextCall}
                       isStacked={isNarrowViewport}
                       onRefresh={selection.refreshLine}
@@ -423,57 +404,37 @@ export default function App() {
                 )}
               </section>
             )}
-            {layout.hasDepartureBoard && (
-              /* Keyed by stop: a line or trip chosen from this board leaves it standing. */
-              <DepartureBoardPanel
+            {layout.hasStopEventBoard && (
+              /* Keyed by stop: a line or journey chosen from this board leaves it standing. */
+              <StopEventBoardPanel
                 key={layout.boardKey}
-                panelRef={departurePanelRef}
+                panelRef={stopEventPanelRef}
                 stop={selectedStop!}
-                departures={selection.departures}
-                completedLineDepartures={selection.lineRunDepartures}
-                departureBoard={selection.departureBoard}
+                stopEvents={selection.stopEvents}
+                completedLineStopEvents={selection.lineDatedJourneyStopEvents}
+                stopEventBoard={selection.stopEventBoard}
                 network={network}
                 feedNow={feedNow}
                 lineSelection={selection.selectedLine ? selection.lineSelection : undefined}
-                selectedDeparture={selection.selectedDeparture}
+                selectedStopEvent={selection.selectedStopEvent}
                 corridorPatterns={stopCorridorPatterns}
                 boardingPlaces={stopBoardingPlaces}
                 isStacked={isNarrowViewport}
                 boardReadingCount={selection.boardReadingCount}
                 onRefresh={selection.refreshBoard}
                 onPageRefresh={pageRefresh && pagePull.refresh}
-                /* The stop's notices at the board's foot, kept while one of its lines shows. */
-                bottomMenu={
-                  activeView === "stop" || isLineInView ? (
-                    <StopBottomMenu
-                      stop={selectedStop!}
-                      noticeBoard={noticeBoard}
-                      notices={stopNotices}
-                      lines={network.lines}
-                      feedNow={feedNow}
-                    />
-                  ) : undefined
-                }
               />
             )}
           </>
         )}
       </div>
       <DataProvenanceFooter
-        /* Not under a board whose own notice bar already leads there. */
-        showsNoticesLink={
-          !isStationBoardMode &&
-          activeView !== "notices" &&
-          !(layout.hasDepartureBoard && stopNotices.length > 0)
-        }
         /* Home and settings read nothing, so the footer names the source without a status. */
-        {...(activeView === "notices"
-          ? { serviceNoticeBoard: noticeBoard }
-          : activeView === "home" || activeView === "settings"
-            ? {}
-            : isObservedNetworkInView
-              ? { departureBoards: observationBoards, coverage: zentrumCoverage }
-              : { departureBoard: selection.departureBoard })}
+        {...(activeView === "home" || activeView === "settings"
+          ? {}
+          : isObservedNetworkInView
+            ? { stopEventBoards: observationBoards, coverage: zentrumCoverage }
+            : { stopEventBoard: selection.stopEventBoard })}
       />
     </main>
   );

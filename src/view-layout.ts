@@ -26,9 +26,9 @@ export type ResolvedViewSelection = {
   stopId: string;
   /** The line resolving at the stop, which makes a stop view a line view. */
   lineId: string | undefined;
-  /** The resolved run's address. */
+  /** The resolved dated journey's address. */
   addressId: string | undefined;
-  hasSelectedDeparture: boolean;
+  hasSelectedStopEvent: boolean;
   isRide: boolean;
   originStopId: string | undefined;
 };
@@ -46,7 +46,7 @@ export type ViewLayout = {
   /** The home page. */
   isHomeView: boolean;
   isLineInView: boolean;
-  /** A ride: the trip alone, the diagram at full width. */
+  /** A ride: the journey alone, the diagram at full width. */
   isRideInView: boolean;
   /** Views with no stop beneath them, so no board beside them. */
   isStandaloneView: boolean;
@@ -54,7 +54,7 @@ export type ViewLayout = {
   isStopBoardOnly: boolean;
   isStationBoardView: boolean;
   hasPrimaryPanel: boolean;
-  hasDepartureBoard: boolean;
+  hasStopEventBoard: boolean;
   /** Whether the dashboard collapses its second track (the animated width step). */
   isSinglePanel: boolean;
   /** See {@link PanelKeys}. */
@@ -66,9 +66,9 @@ export type ViewLayout = {
 
 /**
  * Identities of what each dashboard half shows. Each half is mounted under its key, so a half whose
- * key is unchanged stays put and the other enters on its own (another trip beside the same board;
- * another stop beside the same diagram). A key names the thing, not the reading: a trip of the same
- * line keeps the diagram's key so it can glide, while a ride is its own thing.
+ * key is unchanged stays put and the other enters on its own (another journey beside the same
+ * board; another stop beside the same diagram). A key names the thing, not the reading: a journey
+ * of the same line keeps the diagram's key so it can glide, while a ride is its own thing.
  */
 export type PanelKeys = {
   /** What the primary panel shows, or would where mounted. */
@@ -99,16 +99,16 @@ export function getViewLayout({
   const activeView: ActiveView = route.view === "stop" && selection.lineId ? "line" : route.view;
   const isHomeView = activeView === "home";
   const isLineInView = activeView === "line";
-  const isRideInView = isLineInView && selection.isRide && selection.hasSelectedDeparture;
+  const isRideInView = isLineInView && selection.isRide && selection.hasSelectedStopEvent;
   // Every view but a stop and its line stands alone.
   const isStandaloneView = activeView !== "stop" && !isLineInView;
   const isStationBoardView = isStationBoardStopView(route.view, isStationBoardMode);
   const isStopBoardOnly = activeView === "stop" && !isStationBoardView;
   // A ride hides the board as soon as the address names it, so it never flashes open.
-  const hasDepartureBoard =
+  const hasStopEventBoard =
     !isStandaloneView && !(isLineInView && selection.isRide) && !isStationBoardView;
   // Two panels only for a board beside a diagram.
-  const isSinglePanel = !hasDepartureBoard || isStopBoardOnly;
+  const isSinglePanel = !hasStopEventBoard || isStopBoardOnly;
 
   return {
     activeView,
@@ -119,7 +119,7 @@ export function getViewLayout({
     isStopBoardOnly,
     isStationBoardView,
     hasPrimaryPanel: !isStopBoardOnly && !isStationBoardView,
-    hasDepartureBoard,
+    hasStopEventBoard,
     isSinglePanel,
     ...getPanelKeys(activeView, selection, isRideInView),
     backPath: getBackPath(route, selection, isRideInView, nearbyReturnStopId),
@@ -152,7 +152,7 @@ function getBackPath(
     stopId: selection.stopId,
     lineId: selection.lineId,
     addressId: selection.addressId,
-    tripParent: route.tripParent,
+    journeyParent: route.journeyParent,
     isRide: isRideInView,
     originStopId: selection.originStopId,
   });

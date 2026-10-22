@@ -3,7 +3,7 @@ import test from "node:test";
 import { findCatalogStop, kvvStopCatalog } from "../src/data/generated/kvv-stop-catalog.ts";
 import { kvvStopMappingByLocalStopId } from "../src/data/kvv-stop-mappings.ts";
 import { transitNetwork } from "../src/data/transit-network.ts";
-import type { TransitStop } from "../src/data/transit-types.ts";
+import type { StopPlace } from "../src/data/transit-types.ts";
 import { getDistanceMeters } from "../src/lib/geo.ts";
 
 /**
@@ -78,7 +78,7 @@ test("a place's other stop points stand near the one its board is requested for"
  */
 test("no two local stops are the same place under two names", () => {
   const located = transitNetwork.stops.filter(
-    (stop): stop is TransitStop & { latitude: number; longitude: number } =>
+    (stop): stop is StopPlace & { latitude: number; longitude: number } =>
       stop.latitude !== undefined && stop.longitude !== undefined,
   );
 

@@ -55,7 +55,7 @@ feed's `countdown` is a difference of whole minutes.
 | [`XML_TRIPSTOPTIMES_REQUEST`](https://projekte.kvv-efa.de/sl3-alone/XML_TRIPSTOPTIMES_REQUEST?) | One trip's calls and times | In use for runs on a line and the selected trip |
 | [`XML_STOPSEQCOORD_REQUEST`](https://projekte.kvv-efa.de/sl3-alone/XML_STOPSEQCOORD_REQUEST?) | A line's whole route plus geometry | In use to seed a line's reading (`fetchLineRoute`) |
 | [`XSLT_STOPFINDER_REQUEST`](https://projekte.kvv-efa.de/sl3-alone/XSLT_STOPFINDER_REQUEST?) | Stop and location search | In use for stops |
-| [`XSLT_ADDINFO_REQUEST`](https://projekte.kvv-efa.de/sl3-alone/XSLT_ADDINFO_REQUEST?) | Published service notices | In use |
+| [`XSLT_ADDINFO_REQUEST`](https://projekte.kvv-efa.de/sl3-alone/XSLT_ADDINFO_REQUEST?) | Published service notices | Not read by the app; `KvvEfaClient.fetchServiceNotices` is kept |
 | `XML_STOPLIST_REQUEST` | Every stop of a municipality, with locality | Offline, `scripts/refresh-stop-catalog.ts` (`rapidJSON` only) |
 | `XML_SERVINGLINES_REQUEST` | Lines serving one stop | Not used: every DM board embeds `servingLines` |
 | [`XSLT_COORD_REQUEST`](https://projekte.kvv-efa.de/sl3-alone/XSLT_COORD_REQUEST?) | Stops inside a bounding box | Verified, not used |
@@ -184,7 +184,7 @@ directions (`kvv-efa-parsers.ts`).
 
 Repeated `line` parameters with `servingLine.stateless` values restrict the board exactly (unlike
 `lineRestriction`). Ids are **per direction** (`kvv:21003:E:H:s26` and `kvv:21003:E:R:s26` are the two
-directions of line 3), so a line needs both. Every departure carries its id as `routeDirectionId`.
+directions of line 3), so a line needs both. Every departure carries its id as `lineRef`.
 
 The filter buys horizon as well as bandwidth: twenty unfiltered rows at a Zentrum post reach
 minutes; twenty rows of one line reach hours.
@@ -261,7 +261,7 @@ Also send `outputFormat=json`, `coordOutputFormat=WGS84[DD.ddddd]`, `useRealtime
 (9 calls) with `NEXT`; a one-row detailed DM response for it was 62.5 kB.
 
 - The path is `XML_…`; `XSLT_TRIPSTOPTIMES_REQUEST` returns HTTP 400.
-- Missing, wrong, `tripId`-only and `RealtimeTripId`-only locators return HTTP 200 with an empty
+- Missing, wrong, `journeyRef`-only and `RealtimeTripId`-only locators return HTTP 200 with an empty
   `stopSeq`. Validate a non-empty sequence and the echoed `vehicleCallAtStop`.
 - Read realtime from each call's `arrValid` / `depValid`, delay and `realtimeStatus`; `mode.realtime`
   stayed `"0"` on trips with valid predictions.
@@ -370,7 +370,7 @@ read (`src/lib/boarding-places.ts`). Verified 4 September 2026, such a board als
 - **lists a vehicle twice where it calls at two places in turn.** Line 4 to Oberreut
   (`de:kvv:00004_:.kvv-21-4-E.5.T0.1054.s26`) appears at `Gleis 3` at 08:58 and `Gleis 5` at 08:59,
   both under stop id `7000037` in its trip sequence. Trams carry no `trainNum`, so
-  `keepOneRowPerRun` keeps both, as it should: a rider may stand at either.
+  `keepOneRowPerDatedJourney` keeps both, as it should: a rider may stand at either.
 
 ## Line route: `XML_STOPSEQCOORD_REQUEST`
 
@@ -451,6 +451,8 @@ XSLT_STOPFINDER_REQUEST
 ids stay behind `TransitSource`.
 
 ## Published notices: `XSLT_ADDINFO_REQUEST`
+
+The app shows no notices for now; `KvvEfaClient.fetchServiceNotices` still reads this request.
 
 ```text
 XSLT_ADDINFO_REQUEST
@@ -604,7 +606,7 @@ Examples, not guarantees; decompressed bodies.
 4. A plain board stays light and polls only while visible; the core observation idles on views that
    only borrow its signs and positions (`readsObservedNetwork` in `src/view-layout.ts`).
 5. Whole-stop sequences stay on observation and topology cadences. A line's boards (which runs
-   exist) and its runs (their calls, re-read at `LINE_RUN_READING_MAX_AGE_MS`) are two readings on
+   exist) and its runs (their calls, re-read at `LINE_DATED_JOURNEY_READING_MAX_AGE_MS`) are two readings on
    two clocks; the ride reads on the board cadence.
 6. No departure response is written to the service-worker cache.
 7. Feed time anchors countdowns and freshness.

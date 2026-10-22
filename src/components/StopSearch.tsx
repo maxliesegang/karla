@@ -1,6 +1,6 @@
 import { useEffect, useId, useImperativeHandle, useRef, useState } from "react";
 import { transitSource } from "../data/transit-source";
-import type { TransitStop } from "../data/transit-types";
+import type { StopPlace } from "../data/transit-types";
 import type { RecentStop } from "../lib/recent-stops";
 import { navigateTo, routePaths } from "../routing";
 
@@ -18,12 +18,12 @@ type SearchOption = { stopId: string; name: string; detail?: string; isRecent?: 
  */
 type SettledSearch = {
   query: string;
-  results: readonly TransitStop[];
+  results: readonly StopPlace[];
   /** The provider could not be read, as opposed to answering with nothing. */
   failed: boolean;
 };
 
-const NO_RESULTS: readonly TransitStop[] = [];
+const NO_RESULTS: readonly StopPlace[] = [];
 
 export function StopSearch({
   inputRef,

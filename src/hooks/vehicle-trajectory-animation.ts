@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import {
-  getRunTrajectoryProgress,
-  type RunPlacementMotion,
-  type RunSegmentTrajectory,
+  getDatedJourneyTrajectoryProgress,
+  type DatedJourneyPlacementMotion,
+  type DatedJourneySegmentTrajectory,
 } from "../lib/vehicle-positioning";
 import {
   type TrajectoryAnimationProperty,
@@ -25,10 +25,10 @@ export type TrajectoryAnimationFields = {
    * The link's appointment as placed. Absent where nothing can be planned; the mark is then painted
    * at its tick position, corrected over where the placement allows.
    */
-  trajectory?: RunSegmentTrajectory;
+  trajectory?: DatedJourneySegmentTrajectory;
   /** Only travelled motion is animated. */
-  motion: RunPlacementMotion;
-  /** See `RunPlacement.placedAfterLinks`. */
+  motion: DatedJourneyPlacementMotion;
+  /** See `DatedJourneyPlacement.placedAfterLinks`. */
   placedAfterLinks?: number;
   /** The tick's progress, which the base style is painted at. */
   progress: number;
@@ -40,8 +40,8 @@ type KeptAnimation = {
   signature: string;
   linkKey: string;
   geometrySignature: string | undefined;
-  motion: RunPlacementMotion;
-  trajectory?: RunSegmentTrajectory;
+  motion: DatedJourneyPlacementMotion;
+  trajectory?: DatedJourneySegmentTrajectory;
   sampledAt?: number;
   animation: Animation;
 };
@@ -164,7 +164,7 @@ export function useVehicleTrajectoryAnimations<Mark extends TrajectoryAnimationF
       const animationStartsAt = waitingMs > 0 ? trajectory.startsAt : sampledAt;
       // The first keyframe is the present position, so paint and animation agree from the first
       // frame.
-      const movingFrom = getRunTrajectoryProgress(trajectory, animationStartsAt);
+      const movingFrom = getDatedJourneyTrajectoryProgress(trajectory, animationStartsAt);
       const movingFromValue = getValue(mark, movingFrom);
       if (!movingFromValue) continue;
       const movingDuration =

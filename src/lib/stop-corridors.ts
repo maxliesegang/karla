@@ -1,4 +1,4 @@
-import type { Departure, TransitLine, TripCall } from "../data/transit-types";
+import type { StopEvent, TransitLine, Call } from "../data/transit-types";
 import { createLineSign } from "../data/line-signs";
 import { compareLineIds, getLineFamilyId } from "./line-families";
 import { findStopCorridorPattern, type StopCorridorPatterns } from "./stop-corridor-patterns";
@@ -10,9 +10,9 @@ import {
   type StopServiceCorridorPlace,
 } from "./stop-corridor-way";
 import { compareGermanNames } from "./text";
-import { findFirstCallBeyondStop, getCallKey, getCommonCallPrefix } from "./trip-calls";
+import { findFirstCallBeyondStop, getCallKey, getCommonCallPrefix } from "./calls";
 
-/** Trips that leave the current stop over the same first scheduled link. */
+/** Journeys that leave the current stop over the same first timetabled link. */
 export type StopServiceCorridor = {
   id: string;
   /**
@@ -25,13 +25,13 @@ export type StopServiceCorridor = {
    * in all. The places between are enrichment, shown where there is width.
    */
   places: StopServiceCorridorPlace[];
-  /** The trips' headsigns, in board order. */
+  /** The journeys' headsigns, in board order. */
   destinations: string[];
-  departures: Departure[];
+  stopEvents: StopEvent[];
   hasObservedTopology: boolean;
   /**
-   * Whether every trip matched a full observed route and those routes run together; a shared first
-   * link alone does not show they stay together.
+   * Whether every journey matched a full observed route and those routes run together; a shared
+   * first link alone does not show they stay together.
    */
   hasObservedSharedRoute: boolean;
 };
@@ -42,19 +42,19 @@ export type StopServiceCorridorLineGroup = {
   corridors: StopServiceCorridor[];
 };
 
-/** What a corridor's trips were observed doing, before it is named. */
+/** What a corridor's journeys were observed doing, before it is named. */
 type StopCorridorDraft = {
-  departures: Departure[];
-  sequences: (readonly TripCall[])[];
-  /** The call every trip leaves this stop by: the corridor's identity. */
-  firstCall: TripCall | undefined;
-  /** Trips matched over their full remaining route. */
+  stopEvents: StopEvent[];
+  sequences: (readonly Call[])[];
+  /** The call every journey leaves this stop by: the corridor's identity. */
+  firstCall: Call | undefined;
+  /** Journeys matched over their full remaining route. */
   fullRoutes: number;
   hasObservedTopology: boolean;
 };
 
 /**
- * A corridor with the stop its trips part at, which distinguishes a line's corridors where the
+ * A corridor with the stop its journeys part at, which distinguishes a line's corridors where the
  * place names collide. Undefined where nothing was observed.
  */
 type NamedStopCorridor = StopServiceCorridor & { partingLabel: string | undefined };
@@ -71,7 +71,9 @@ function nameStopCorridor(
   knowledge: CorridorNamingKnowledge,
 ): NamedStopCorridor {
   const { boardPlaceName } = knowledge;
-  const destinations = [...new Set(draft.departures.map(({ destination }) => destination))];
+  const destinations = [
+    ...new Set(draft.stopEvents.map(({ destinationText: destination }) => destination)),
+  ];
   const sharedCall = getCommonCallPrefix(draft.sequences).at(-1);
   const places = getCorridorWayPlaces(draft.sequences, knowledge);
   // The nearest end names the direction.
@@ -85,10 +87,10 @@ function nameStopCorridor(
     places,
     partingLabel: draft.firstCall?.stopName || undefined,
     destinations,
-    departures: draft.departures,
+    stopEvents: draft.stopEvents,
     hasObservedTopology: draft.hasObservedTopology,
     hasObservedSharedRoute:
-      draft.fullRoutes === draft.departures.length && nearestPlace !== undefined,
+      draft.fullRoutes === draft.stopEvents.length && nearestPlace !== undefined,
   };
 }
 
@@ -123,13 +125,14 @@ function resolveCollidingLabels(corridors: readonly NamedStopCorridor[]): StopSe
 }
 
 /**
- * The line order's groups: trips by outgoing corridor rather than terminus, so a short working and
- * a through service sharing a first link group together. A trip's own route is preferred, else its
- * line's predominant route to that headsign (`StopCorridorPatterns`); unknown or contested trips
- * group by headsign. Corridors are named by the place they head into; headsigns stay on countdowns.
+ * The line order's groups: journeys by outgoing corridor rather than terminus, so a short working
+ * and a through service sharing a first link group together. A journey's own route is preferred,
+ * else its line's predominant route to that headsign (`StopCorridorPatterns`); unknown or contested
+ * journeys group by headsign. Corridors are named by the place they head into; headsigns stay on
+ * countdowns.
  */
 export function getStopServiceCorridorLineGroups(
-  departures: readonly Departure[],
+  stopEvents: readonly StopEvent[],
   patterns: StopCorridorPatterns,
 ): StopServiceCorridorLineGroup[] {
   const { boardPlaceName, lineFamiliesByPlace } = patterns;
@@ -138,19 +141,19 @@ export function getStopServiceCorridorLineGroups(
     { line: TransitLine; corridors: Map<string, StopCorridorDraft> }
   >();
 
-  for (const departure of departures) {
-    const lineId = getLineFamilyId(departure.lineId);
-    const match = findStopCorridorPattern(patterns, departure);
+  for (const stopEvent of stopEvents) {
+    const lineId = getLineFamilyId(stopEvent.lineId);
+    const match = findStopCorridorPattern(patterns, stopEvent);
     const firstObservedStop = match
       ? findFirstCallBeyondStop(match.calls, patterns.stopId)
       : undefined;
-    // An unknown route groups by headsign, so rows do not appear and vanish as trips resolve.
+    // An unknown route groups by headsign, so rows do not appear and vanish as journeys resolve.
     const corridorId = firstObservedStop
       ? `observed:${getCallKey(firstObservedStop)}`
-      : `unknown:${departure.destination}`;
+      : `unknown:${stopEvent.destinationText}`;
     const group = groups.get(lineId) ?? {
       line: {
-        ...createLineSign(departure.lineId, departure.transportMode),
+        ...createLineSign(stopEvent.lineId, stopEvent.ptMode),
         id: lineId,
         name: lineId,
         destinations: [],
@@ -158,13 +161,13 @@ export function getStopServiceCorridorLineGroups(
       corridors: new Map(),
     };
     const corridor = group.corridors.get(corridorId) ?? {
-      departures: [],
+      stopEvents: [],
       sequences: [],
       firstCall: firstObservedStop,
       fullRoutes: 0,
       hasObservedTopology: Boolean(firstObservedStop),
     };
-    corridor.departures.push(departure);
+    corridor.stopEvents.push(stopEvent);
     if (match?.hasFullRoute) {
       corridor.sequences.push(match.calls);
       corridor.fullRoutes += 1;

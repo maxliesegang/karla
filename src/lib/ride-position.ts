@@ -1,10 +1,11 @@
-import type { TripCall } from "../data/transit-types";
+import type { Call } from "../data/transit-types";
 import { toLocalMeters, type LocalPoint } from "./geo";
 
 /**
- * Where the rider is, from the device: a fix projected onto the trip's links, the next stop being
- * that link's far end. `null` unless the fix is accurate enough, the calls have coordinates, and it
- * lands near the line. Where a line doubles back, the link nearest the timetable's reading wins.
+ * Where the rider is, from the device: a fix projected onto the journey's links, the next stop
+ * being that link's far end. `null` unless the fix is accurate enough, the calls have coordinates,
+ * and it lands near the line. Where a line doubles back, the link nearest the timetable's reading
+ * wins.
  */
 
 export type RidePositionFix = {
@@ -16,7 +17,7 @@ export type RidePositionFix = {
 
 /** Wider than this, a fix cannot tell one urban link from the next. */
 export const MAX_RIDE_POSITION_FIX_ACCURACY_METERS = 250;
-/** How far off the line a fix may land and still be about this trip. */
+/** How far off the line a fix may land and still be about this journey. */
 const MAX_RIDE_POSITION_OFF_ROUTE_METERS = 400;
 /** Links this close in distance are tied; the timetable decides. */
 const AMBIGUOUS_LINK_MARGIN_METERS = 120;
@@ -51,9 +52,9 @@ function projectOntoLink(from: LocalPoint, to: LocalPoint) {
   };
 }
 
-/** The fix placed on the trip, or `null`. `preferredCallIndex` (the timetable's) breaks ties. */
+/** The fix placed on the journey, or `null`. `preferredCallIndex` (the timetable's) breaks ties. */
 export function getRidePosition(
-  calls: readonly TripCall[],
+  calls: readonly Call[],
   fix: RidePositionFix,
   preferredCallIndex?: number,
 ): RidePosition | null {

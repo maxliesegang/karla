@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { DepartureBoard, TripCall } from "../src/data/transit-types.ts";
+import type { StopEventBoard, Call } from "../src/data/transit-types.ts";
 import {
-  findZentrumBoardingDeparture,
-  getZentrumBoardingPlatformLabel,
+  findZentrumBoardingStopEvent,
+  getZentrumBoardingBayText,
   getZentrumTravelSourceLabel,
   getZentrumVehiclePlaceLabel,
   getZentrumPositionFreshness,
@@ -12,26 +12,26 @@ import {
   getZentrumDirectRides,
   getZentrumTravelTimes,
 } from "../src/lib/zentrum-schematic-overlays.ts";
-import { createDeparture } from "./support/fixtures.ts";
+import { createStopEvent } from "./support/fixtures.ts";
 
 const at = (minute: number) => `2026-09-04T12:${String(minute).padStart(2, "0")}:00+02:00`;
 const instant = (minute: number) => Date.parse(at(minute));
-const call = (id: string, minute: number, platformCode = "1"): TripCall => ({
+const call = (id: string, minute: number, bay = "1"): Call => ({
   localStopId: id,
   stopName: id,
   providerStopPointId: id,
-  platformCode,
-  platformLabel: `Gleis ${platformCode}`,
-  scheduledArrivalTime: at(minute),
-  scheduledDepartureTime: at(minute),
+  bay,
+  bayText: `Gleis ${bay}`,
+  timetabledArrivalTime: at(minute),
+  timetabledDepartureTime: at(minute),
   delayMinutes: 0,
 });
-const board = (stopId: string, minute: number): DepartureBoard => ({
+const board = (stopId: string, minute: number): StopEventBoard => ({
   stopId,
   receivedAt: instant(minute),
   feedUpdatedAt: at(minute),
   dataStatus: "live",
-  departures: [],
+  stopEvents: [],
 });
 
 test("vehicle labels distinguish a stand, travel, and the end of a run", () => {
@@ -57,9 +57,9 @@ test("vehicle labels distinguish a stand, travel, and the end of a run", () => {
 });
 
 test("an unmonitored arrival stays a timetable estimate even with a predicted departure", () => {
-  const departure = createDeparture({ tripCalls: [call("europaplatz", 1), call("marktplatz", 4)] });
+  const stopEvent = createStopEvent({ calls: [call("europaplatz", 1), call("marktplatz", 4)] });
   const time = getZentrumTravelTimes(
-    [departure],
+    [stopEvent],
     "europaplatz",
     instant(0),
   ).travelTimesByNodeId.get("marktplatz")!;
@@ -81,55 +81,55 @@ test("an unmonitored arrival stays a timetable estimate even with a predicted de
 });
 
 test("a direct ride retains its last boarding call in a complex, never another stop's platform", () => {
-  const departure = createDeparture({
+  const stopEvent = createStopEvent({
     id: "origin-reading",
-    tripId: "run-2",
+    journeyRef: "run-2",
     lineId: "2",
-    platformCode: "9",
+    bay: "9",
     boardingLocalStopId: "kronenplatz",
     boardingProviderStopPointId: "kronenplatz",
-    tripCalls: [call("europaplatz", 1), call("europaplatz", 2, "4"), call("marktplatz", 5)],
+    calls: [call("europaplatz", 1), call("europaplatz", 2, "4"), call("marktplatz", 5)],
   });
   const time = getZentrumTravelTimes(
-    [departure],
+    [stopEvent],
     "europaplatz",
     instant(0),
   ).travelTimesByNodeId.get("marktplatz")!;
   assert.equal(time.departsAt, instant(2));
-  assert.equal(time.departure, departure);
-  assert.equal(getZentrumBoardingPlatformLabel(time.boardingCall), "Gleis 4");
-  const wrongPlace = createDeparture({
-    ...departure,
+  assert.equal(time.stopEvent, stopEvent);
+  assert.equal(getZentrumBoardingBayText(time.boardingCall), "Gleis 4");
+  const wrongPlace = createStopEvent({
+    ...stopEvent,
     id: "other-platform",
     boardingLocalStopId: "europaplatz",
     boardingProviderStopPointId: "europaplatz",
-    platformCode: "1",
+    bay: "1",
   });
-  const boardingRow = createDeparture({
+  const boardingRow = createStopEvent({
     ...wrongPlace,
     id: "boarding",
-    platformCode: "4",
-    platformKind: "track",
+    bay: "4",
+    bayKind: "track",
     serviceNote: "Einstieg hinten",
   });
-  const originBoard: DepartureBoard = {
+  const originBoard: StopEventBoard = {
     ...board("europaplatz", 0),
-    departures: [departure, wrongPlace, boardingRow],
+    stopEvents: [stopEvent, wrongPlace, boardingRow],
   };
-  assert.equal(findZentrumBoardingDeparture(originBoard, time), boardingRow);
+  assert.equal(findZentrumBoardingStopEvent(originBoard, time), boardingRow);
   assert.equal(
-    findZentrumBoardingDeparture({ ...originBoard, departures: [departure, wrongPlace] }, time),
+    findZentrumBoardingStopEvent({ ...originBoard, stopEvents: [stopEvent, wrongPlace] }, time),
     undefined,
   );
-  assert.equal(getZentrumBoardingPlatformLabel({ stopName: "Unbekannt" }), "Ohne Steigangabe");
+  assert.equal(getZentrumBoardingBayText({ stopName: "Unbekannt" }), "Ohne Steigangabe");
 });
 
 test("every run's direct ride between two stops is listed, soonest departure first", () => {
   const ride = (id: string, lineId: string, leaves: number, arrives: number) =>
-    createDeparture({
+    createStopEvent({
       id,
       lineId,
-      tripCalls: [call("europaplatz", leaves), call("marktplatz", arrives)],
+      calls: [call("europaplatz", leaves), call("marktplatz", arrives)],
     });
   const rides = getZentrumDirectRides(
     [ride("later", "2", 8, 11), ride("sooner", "S1", 3, 5), ride("gone", "2", 0, 1)],
@@ -138,20 +138,28 @@ test("every run's direct ride between two stops is listed, soonest departure fir
     instant(1),
   );
   assert.deepEqual(
-    rides.map(({ departure }) => departure.id),
+    rides.map(({ stopEvent }) => stopEvent.id),
     ["sooner", "later"],
   );
 });
 
 test("position freshness uses sequence age and retained coverage rather than board age", () => {
-  const run = createDeparture({ readAt: { rowReadAt: 0, sequenceReadAt: 100_000 } });
-  assert.equal(getZentrumPositionFreshness([run], 120_000), "Positionsdaten · bis zu 20 s alt");
+  const datedJourney = createStopEvent({ readAt: { rowReadAt: 0, sequenceReadAt: 100_000 } });
+  assert.equal(
+    getZentrumPositionFreshness([datedJourney], 120_000),
+    "Positionsdaten · bis zu 20 s alt",
+  );
   assert.equal(
     getZentrumPositionFreshness(
-      [{ ...run, readAt: { ...run.readAt!, rowReadAt: 119_000, coverageReadAt: 10_000 } }],
+      [
+        {
+          ...datedJourney,
+          readAt: { ...datedJourney.readAt!, rowReadAt: 119_000, coverageReadAt: 10_000 },
+        },
+      ],
       120_000,
     ),
     "Ältere Positionsdaten · bis zu 1 min alt",
   );
-  assert.equal(getZentrumPositionFreshness([createDeparture()], 120_000), "Datenalter unbekannt");
+  assert.equal(getZentrumPositionFreshness([createStopEvent()], 120_000), "Datenalter unbekannt");
 });

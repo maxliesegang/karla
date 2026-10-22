@@ -1,12 +1,12 @@
 import { useMemo, useRef } from "react";
 import type { CSSProperties } from "react";
-import type { Departure, TransitLine, TransitNetwork } from "../../data/transit-types";
+import type { StopEvent, TransitLine, TransitNetwork } from "../../data/transit-types";
 import type { LineBundleBranch } from "../../lib/line-bundles";
 import type { LineDiagramVehicle } from "../../lib/line-diagram";
 import {
   buildLineDiagramStops,
   getLineDiagramCoordinateKey,
-  getRunPositionAnchorIndex,
+  getDatedJourneyPositionAnchorIndex,
   getVehicleLabelsByRowIndex,
 } from "../../lib/line-diagram";
 import { classNames } from "../../lib/class-names";
@@ -26,7 +26,7 @@ export function LineDiagramBranch({
   network,
   lineById,
   vehicles,
-  selectedDeparture,
+  selectedStopEvent,
   junctionStopName,
   connectorOffset,
   branchTransferKeys,
@@ -41,7 +41,7 @@ export function LineDiagramBranch({
   lineById: ReadonlyMap<string, TransitLine>;
   /** This leg's placed vehicles. */
   vehicles: readonly LineDiagramVehicle[];
-  selectedDeparture: Departure | undefined;
+  selectedStopEvent: StopEvent | undefined;
   /** The stop the lines part at. */
   junctionStopName: string;
   /**
@@ -57,10 +57,10 @@ export function LineDiagramBranch({
 }) {
   const stopListRef = useRef<HTMLDivElement>(null);
   // Reversed like the trunk, so the stub is always the row touching the trunk.
-  const diagramTripCalls = useMemo(() => [...branch.calls].reverse(), [branch.calls]);
+  const diagramCalls = useMemo(() => [...branch.calls].reverse(), [branch.calls]);
   const diagramStops = useMemo(
-    () => buildLineDiagramStops(network, diagramTripCalls),
-    [network, diagramTripCalls],
+    () => buildLineDiagramStops(network, diagramCalls),
+    [network, diagramCalls],
   );
   const junctionIndex = branch.direction === "ahead" ? diagramStops.length - 1 : 0;
   const coordinateKey = getLineDiagramCoordinateKey(line.id, diagramStops);
@@ -72,7 +72,11 @@ export function LineDiagramBranch({
   );
   const geometry = useVehicleLayerGeometry({ stopListRef, coordinateKey });
   // The leg never states a next call; the trunk does, so the position control has one anchor.
-  const runPositionStopIndex = getRunPositionAnchorIndex(diagramStops, vehicles, undefined);
+  const datedJourneyPositionStopIndex = getDatedJourneyPositionAnchorIndex(
+    diagramStops,
+    vehicles,
+    undefined,
+  );
   const onActivate = useMemo(() => ({ kind: "open" as const, run: onOpenStop }), [onOpenStop]);
 
   return (
@@ -125,9 +129,9 @@ export function LineDiagramBranch({
               vehicleLabel={vehicleLabelByRowIndex.get(index) ?? ""}
               isFirst={index === 0}
               isLast={index === diagramStops.length - 1}
-              isSelectedDeparture={Boolean(selectedDeparture)}
+              isSelectedStopEvent={Boolean(selectedStopEvent)}
               isAlighting={false}
-              isRunPositionAnchor={index === runPositionStopIndex}
+              isDatedJourneyPositionAnchor={index === datedJourneyPositionStopIndex}
               onActivate={onActivate}
               feedNow={rowFeedNow}
             />

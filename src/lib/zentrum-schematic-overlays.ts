@@ -3,7 +3,7 @@
  * mark onwards. Progress (where trams are still going), a stop's departures (the way the next trams
  * take to it), and travel times (how soon each stop is reached without changing).
  */
-import type { Departure, TripCall } from "../data/transit-types";
+import type { StopEvent, Call } from "../data/transit-types";
 import { getCountdownMinutes } from "./feed-clock";
 import {
   type DirectRideTime,
@@ -12,9 +12,9 @@ import {
 } from "./direct-travel-times";
 import { createSchematicBoardingReading } from "./schematic-boarding-places";
 import { compareLineIds } from "./line-families";
-import { isSameRun } from "./trips";
+import { isSameDatedJourney } from "./journeys";
 import type { ZentrumSchematicVehicle } from "./zentrum-schematic";
-import { getZentrumSchematicStopId, getEdgeKey, isRailDeparture } from "./zentrum-schematic-plan";
+import { getZentrumSchematicStopId, getEdgeKey, isRailStopEvent } from "./zentrum-schematic-plan";
 
 /** A stretch of a mark's path, lit from the mark to `end`. */
 export type ZentrumSchematicLitStretch = {
@@ -60,10 +60,10 @@ export function getZentrumVehiclePathsOverlay(
 }
 
 /** A tram on the plan that will leave a stop, and when. */
-export type ZentrumStopDeparture = {
+export type ZentrumStopEvent = {
   vehicle: ZentrumSchematicVehicle;
   /** The call the tram leaves the stop by. */
-  call: TripCall;
+  call: Call;
   departsAt: number;
   /** Standing at the stop, not on its way. */
   isAtStop: boolean;
@@ -72,10 +72,10 @@ export type ZentrumStopDeparture = {
 /**
  * The next tram per line and destination a rider at a stop can take, and the way it has to come.
  */
-export function getZentrumStopDepartures(
+export function getZentrumStopEvents(
   vehicles: readonly ZentrumSchematicVehicle[],
   nodeId: string,
-): { departures: readonly ZentrumStopDeparture[]; overlay: ZentrumSchematicOverlay } {
+): { stopEvents: readonly ZentrumStopEvent[]; overlay: ZentrumSchematicOverlay } {
   const candidates = getZentrumStopApproaches(vehicles, nodeId);
   const nextByWay = new Map<string, ZentrumStopApproach>();
   for (const candidate of candidates) {
@@ -88,7 +88,7 @@ export function getZentrumStopDepartures(
       left.departsAt - right.departsAt || compareLineIds(left.vehicle.lineId, right.vehicle.lineId),
   );
   return {
-    departures: next.map(({ vehicle, call, departsAt, isAtStop }) => ({
+    stopEvents: next.map(({ vehicle, call, departsAt, isAtStop }) => ({
       vehicle,
       call,
       departsAt,
@@ -98,7 +98,7 @@ export function getZentrumStopDepartures(
   };
 }
 
-type ZentrumStopApproach = ZentrumStopDeparture & {
+type ZentrumStopApproach = ZentrumStopEvent & {
   /** Corridors past the end of the tram's path, lit whole. */
   corridorIds: readonly string[];
   /** Where the lit stretch on the tram's path ends, if ahead of it. */
@@ -179,7 +179,7 @@ export const getZentrumApproachingVehicleIds = (
 
 /** One row of a stop's board, read against the plan. */
 export type ZentrumStopBoardRow = {
-  departure: Departure;
+  stopEvent: StopEvent;
   /** The tram on the plan this row is, if drawn. */
   vehicleId?: string;
 };
@@ -189,7 +189,7 @@ export type ZentrumStopBoardRow = {
  * their way; trams not yet on the plan stay on the board only.
  */
 export function getZentrumStopBoard(
-  boardDepartures: readonly Departure[],
+  boardStopEvents: readonly StopEvent[],
   vehicles: readonly ZentrumSchematicVehicle[],
   nodeId: string,
   feedNow: number,
@@ -203,14 +203,16 @@ export function getZentrumStopBoard(
   const rows: ZentrumStopBoardRow[] = [];
   const shown: ZentrumStopApproach[] = [];
   const vehicleMinutesById = new Map<string, number>();
-  for (const departure of boardDepartures) {
-    const approach = approaches.find(({ vehicle }) => isSameRun(departure, vehicle.departure));
-    rows.push(approach ? { departure, vehicleId: approach.vehicle.id } : { departure });
-    if (!approach || departure.status === "cancelled") continue;
+  for (const stopEvent of boardStopEvents) {
+    const approach = approaches.find(({ vehicle }) =>
+      isSameDatedJourney(stopEvent, vehicle.stopEvent),
+    );
+    rows.push(approach ? { stopEvent, vehicleId: approach.vehicle.id } : { stopEvent });
+    if (!approach || stopEvent.status === "cancelled") continue;
     // A multi-place stop lists a tram once per place; the first row counts.
     if (vehicleMinutesById.has(approach.vehicle.id)) continue;
     shown.push(approach);
-    vehicleMinutesById.set(approach.vehicle.id, getCountdownMinutes(departure, feedNow));
+    vehicleMinutesById.set(approach.vehicle.id, getCountdownMinutes(stopEvent, feedNow));
   }
   return { rows, overlay: lightApproaches(shown), vehicleMinutesById };
 }
@@ -229,12 +231,12 @@ export const getRideMinutes = ({
   Math.max(1, Math.round((arrivesAt - departsAt) / 60_000));
 
 /**
- * How soon, or how briefly, a rider at a stop reaches every other stop on one tram, from every run
- * the posts named (waits for trams outside the Zentrum count). A run's reach ends where it leaves
- * the plan.
+ * How soon, or how briefly, a rider at a stop reaches every other stop on one tram, from every
+ * dated journey the posts named (waits for trams outside the Zentrum count). A dated journey's
+ * reach ends where it leaves the plan.
  */
 export function getZentrumTravelTimes(
-  departures: readonly Departure[],
+  stopEvents: readonly StopEvent[],
   nodeId: string,
   feedNow: number,
   measure: ZentrumTravelMeasure = "arrival",
@@ -242,10 +244,10 @@ export function getZentrumTravelTimes(
   travelTimesByNodeId: ReadonlyMap<string, ZentrumTravelTime>;
   overlay: ZentrumSchematicOverlay;
 } {
-  const railRuns = departures.filter(isRailDeparture);
-  const { resolveNodeId } = createSchematicBoardingReading(railRuns);
+  const railDatedJourneys = stopEvents.filter(isRailStopEvent);
+  const { resolveNodeId } = createSchematicBoardingReading(railDatedJourneys);
   const times = getDirectTravelTimes(
-    railRuns,
+    railDatedJourneys,
     nodeId,
     feedNow,
     measure === "ride" ? "ride" : "arrival",
@@ -276,9 +278,9 @@ export function getZentrumTravelTimes(
   return {
     travelTimesByNodeId: new Map(
       [...chosen].map(
-        ([id, { arrivesAt, departsAt, lineId, departure, boardingCall, arrivalCall }]) => [
+        ([id, { arrivesAt, departsAt, lineId, stopEvent, boardingCall, arrivalCall }]) => [
           id,
-          { arrivesAt, departsAt, lineId, departure, boardingCall, arrivalCall },
+          { arrivesAt, departsAt, lineId, stopEvent, boardingCall, arrivalCall },
         ],
       ),
     ),
@@ -286,20 +288,22 @@ export function getZentrumTravelTimes(
   };
 }
 
-/** Each run's direct ride from one plan stop to another, soonest departure first. */
+/** Each dated journey's direct ride from one plan stop to another, soonest departure first. */
 export function getZentrumDirectRides(
-  departures: readonly Departure[],
+  stopEvents: readonly StopEvent[],
   originNodeId: string,
   destinationNodeId: string,
   feedNow: number,
 ): ZentrumTravelTime[] {
-  const railRuns = departures.filter(isRailDeparture);
-  const { resolveNodeId } = createSchematicBoardingReading(railRuns);
-  const getNodeId = (call: TripCall) =>
+  const railDatedJourneys = stopEvents.filter(isRailStopEvent);
+  const { resolveNodeId } = createSchematicBoardingReading(railDatedJourneys);
+  const getNodeId = (call: Call) =>
     call.localStopId === originNodeId ? originNodeId : resolveNodeId(call);
-  return railRuns
-    .flatMap((run) => {
-      const rides = [...getDirectTravelTimes([run], originNodeId, feedNow, "arrival", getNodeId)]
+  return railDatedJourneys
+    .flatMap((datedJourney) => {
+      const rides = [
+        ...getDirectTravelTimes([datedJourney], originNodeId, feedNow, "arrival", getNodeId),
+      ]
         .filter(([id]) => getZentrumSchematicStopId(id) === destinationNodeId)
         .map(([, ride]) => ride)
         .sort((left, right) => left.arrivesAt - right.arrivesAt);

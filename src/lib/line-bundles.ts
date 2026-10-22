@@ -1,4 +1,4 @@
-import type { Departure, DepartureBoard, TransportMode, TripCall } from "../data/transit-types";
+import type { StopEvent, StopEventBoard, PtMode, Call } from "../data/transit-types";
 import { compareLineIds, getLineFamilyId, isSameLineFamily } from "./line-families";
 import { findStopCorridorPattern, type StopCorridorPatterns } from "./stop-corridor-patterns";
 import {
@@ -6,7 +6,7 @@ import {
   getCallsPastIndex,
   getCommonCallPrefix,
   getCommonCallPrefixAlignment,
-} from "./trip-calls";
+} from "./calls";
 
 /**
  * Reading two lines as one along the stretch they share (S1 and S11 from Hochstetten). A bundle is
@@ -51,16 +51,16 @@ export const isSelectedLine = (selection: LineSelection, lineId: string): boolea
  */
 export function getResolvedBundledLineIds(
   bundledLineIds: readonly string[],
-  departureBoard: DepartureBoard | null,
+  stopEventBoard: StopEventBoard | null,
 ): readonly string[] {
-  if (departureBoard?.dataStatus !== "live") return bundledLineIds;
+  if (stopEventBoard?.dataStatus !== "live") return bundledLineIds;
 
   return bundledLineIds.filter(
     (lineId) =>
-      departureBoard.servingLines?.some(
+      stopEventBoard.servingLines?.some(
         (servingLine) => servingLine.lineId && isSameLineFamily(servingLine.lineId, lineId),
       ) ||
-      departureBoard.departures.some((departure) => isSameLineFamily(departure.lineId, lineId)),
+      stopEventBoard.stopEvents.some((stopEvent) => isSameLineFamily(stopEvent.lineId, lineId)),
   );
 }
 
@@ -85,22 +85,22 @@ export type LineBundleOffer = {
   /**
    * Every stretch both lines were observed running together past this stop, longest first. Several,
    * because two lines may share a stretch out of each end (S1/S11 at Ettlingen Neuwiesenreben: 39
-   * calls north, six south), and the drawn trip picks which applies.
+   * calls north, six south), and the drawn journey picks which applies.
    */
-  sharedRoutes: readonly (readonly TripCall[])[];
+  sharedRoutes: readonly (readonly Call[])[];
 };
 
-/** An offer read against the drawn trip: the stretch it promises and the stop that ends it. */
+/** An offer read against the drawn journey: the stretch it promises and the stop that ends it. */
 export type DrawableLineBundleOffer = {
   lineId: string;
-  sharedCalls: readonly TripCall[];
+  sharedCalls: readonly Call[];
   /** Where the lines part. */
   sharedUntilStopName: string;
 };
 
 const toDrawableLineBundleOffer = (
   lineId: string,
-  sharedCalls: readonly TripCall[],
+  sharedCalls: readonly Call[],
 ): DrawableLineBundleOffer => ({
   lineId,
   sharedCalls,
@@ -110,8 +110,9 @@ const toDrawableLineBundleOffer = (
 const EMPTY_DRAWABLE_OFFERS: readonly DrawableLineBundleOffer[] = [];
 
 /**
- * The offers that apply to the drawn trip. Corridors are direction-blind, so each is tried against
- * the drawn chain on both sides of the rider's stop, and capped at the calls the trip confirms.
+ * The offers that apply to the drawn journey. Corridors are direction-blind, so each is tried
+ * against the drawn chain on both sides of the rider's stop, and capped at the calls the journey
+ * confirms.
  */
 export function getDrawableLineBundleOffers({
   offers,
@@ -119,7 +120,7 @@ export function getDrawableLineBundleOffers({
   riderStopIds,
 }: {
   offers: readonly LineBundleOffer[];
-  drawnCalls: readonly TripCall[];
+  drawnCalls: readonly Call[];
   riderStopIds: readonly string[];
 }): readonly DrawableLineBundleOffer[] {
   if (offers.length === 0) return EMPTY_DRAWABLE_OFFERS;
@@ -138,13 +139,13 @@ export function getDrawableLineBundleOffers({
   });
 }
 
-/** The longest shared stretch the drawn trip follows; ahead wins a tie. */
+/** The longest shared stretch the drawn journey follows; ahead wins a tie. */
 function findDrawnSharedCalls(
   offer: LineBundleOffer,
-  drawnAhead: readonly TripCall[],
-  drawnBehind: readonly TripCall[],
-): readonly TripCall[] | undefined {
-  let best: readonly TripCall[] = [];
+  drawnAhead: readonly Call[],
+  drawnBehind: readonly Call[],
+): readonly Call[] | undefined {
+  let best: readonly Call[] = [];
   for (const drawn of [drawnAhead, drawnBehind]) {
     for (const sharedRoute of offer.sharedRoutes) {
       const common = getCommonCallPrefix([drawn, sharedRoute]);
@@ -155,30 +156,30 @@ function findDrawnSharedCalls(
 }
 
 type ObservedLineRoutes = {
-  transportMode: TransportMode;
-  routes: (readonly TripCall[])[];
+  ptMode: PtMode;
+  routes: (readonly Call[])[];
 };
 
 /** The routes out of this stop observed so far, by line. Only full routes count. */
 function collectObservedLineRoutes(
-  departures: readonly Departure[],
+  stopEvents: readonly StopEvent[],
   patterns: StopCorridorPatterns,
 ): Map<string, ObservedLineRoutes> {
   const byLine = new Map<string, ObservedLineRoutes>();
   const seenSequences = new Map<string, Set<string>>();
 
-  for (const departure of departures) {
-    const match = findStopCorridorPattern(patterns, departure);
+  for (const stopEvent of stopEvents) {
+    const match = findStopCorridorPattern(patterns, stopEvent);
     if (!match?.hasFullRoute || match.calls.length === 0) continue;
 
-    const lineId = getLineFamilyId(departure.lineId);
+    const lineId = getLineFamilyId(stopEvent.lineId);
     const sequenceKey = getCallSequenceKey(match.calls);
     const seen = seenSequences.get(lineId) ?? new Set<string>();
     if (seen.has(sequenceKey)) continue;
     seen.add(sequenceKey);
     seenSequences.set(lineId, seen);
 
-    const entry = byLine.get(lineId) ?? { transportMode: departure.transportMode, routes: [] };
+    const entry = byLine.get(lineId) ?? { ptMode: stopEvent.ptMode, routes: [] };
     entry.routes.push(match.calls);
     byLine.set(lineId, entry);
   }
@@ -188,30 +189,30 @@ function collectObservedLineRoutes(
 
 /**
  * The lines this one could be read with here, from routes already observed for this board (no
- * fetches, no authored bundles). Same mode only, since tram and S-Bahn use different platforms.
+ * fetches, no authored bundles). Same mode only, since tram and S-Bahn use different bays.
  */
 export function findLineBundleOffers({
   lineId,
-  departures,
+  stopEvents,
   patterns,
 }: {
   lineId: string;
-  departures: readonly Departure[];
+  stopEvents: readonly StopEvent[];
   patterns: StopCorridorPatterns;
 }): readonly LineBundleOffer[] {
   if (!lineId) return [];
-  const byLine = collectObservedLineRoutes(departures, patterns);
+  const byLine = collectObservedLineRoutes(stopEvents, patterns);
   const primary = byLine.get(getLineFamilyId(lineId));
   if (!primary) return [];
 
   const offers: LineBundleOffer[] = [];
   for (const [candidateId, candidate] of byLine) {
     if (isSameLineFamily(candidateId, lineId)) continue;
-    if (candidate.transportMode !== primary.transportMode) continue;
+    if (candidate.ptMode !== primary.ptMode) continue;
 
     // Each pairing of the two lines' routes (short workings, through services, directions) is a
     // candidate corridor.
-    const shared: (readonly TripCall[])[] = [];
+    const shared: (readonly Call[])[] = [];
     for (const primaryRoute of primary.routes) {
       for (const candidateRoute of candidate.routes) {
         const common = getCommonCallPrefix([primaryRoute, candidateRoute]);
@@ -224,7 +225,7 @@ export function findLineBundleOffers({
     offers.push({ lineId: candidateId, sharedRoutes });
   }
 
-  // Not capped here: which siblings can be drawn beside the trip is not known yet.
+  // Not capped here: which siblings can be drawn beside the journey is not known yet.
   return offers.sort(
     (first, second) =>
       second.sharedRoutes[0].length - first.sharedRoutes[0].length ||
@@ -237,9 +238,9 @@ export function findLineBundleOffers({
  * through service's corridor, which add nothing.
  */
 function keepLongestSharedRoutes(
-  routes: readonly (readonly TripCall[])[],
-): readonly (readonly TripCall[])[] {
-  const kept: (readonly TripCall[])[] = [];
+  routes: readonly (readonly Call[])[],
+): readonly (readonly Call[])[] {
+  const kept: (readonly Call[])[] = [];
   for (const route of [...routes].sort((first, second) => second.length - first.length)) {
     if (
       kept.some(
@@ -256,7 +257,7 @@ function keepLongestSharedRoutes(
 
 export type LineBundleChain = {
   lineId: string;
-  calls: readonly TripCall[];
+  calls: readonly Call[];
   /** The headsign, which the split is worded in. */
   destination: string;
 };
@@ -274,7 +275,7 @@ export type LineBundleBranch = {
    * The branch in travel order, keeping the parting call at its trunk end so its first link can
    * carry a vehicle. Empty where the line does not run past the stretch; that is stated in words.
    */
-  calls: readonly TripCall[];
+  calls: readonly Call[];
 };
 
 /**
@@ -285,7 +286,7 @@ export type LineBundleBranch = {
 export function getLineBundleTrunk(
   chains: readonly LineBundleChain[],
   riderStopIds: readonly string[],
-): { calls: readonly TripCall[]; branches: readonly LineBundleBranch[] } | undefined {
+): { calls: readonly Call[]; branches: readonly LineBundleBranch[] } | undefined {
   if (chains.length < 2) return undefined;
 
   const riderIndexes = chains.map(({ calls }) =>
@@ -293,8 +294,8 @@ export function getLineBundleTrunk(
   );
   if (riderIndexes.some((index) => index < 0)) return undefined;
 
-  // Align consecutive platforms of one stop as a run, so they do not shift later stops into a false
-  // fork.
+  // Align consecutive bays of one stop as a dated journey, so they do not shift later stops into a
+  // false fork.
   const ahead = getCommonCallPrefixAlignment(
     chains.map(({ calls }, index) => calls.slice(riderIndexes[index] + 1)),
   );
@@ -352,7 +353,7 @@ export function getLineBundleTrunk(
 }
 
 /**
- * The sibling's trip that runs with the primary farthest; the opposite direction scores nothing.
+ * The sibling's journey that runs with the primary farthest; the opposite direction scores nothing.
  */
 export function chooseLineBundleChain(
   primary: LineBundleChain,

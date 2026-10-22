@@ -1,10 +1,10 @@
-import type { Departure, TransitLine } from "../data/transit-types";
+import type { StopEvent, TransitLine } from "../data/transit-types";
 import type { RidePositionController } from "../hooks/ride-position";
 import {
   formatClockTime,
   getRideCountdownSourceLabel,
-  getTripCallTimeReading,
-} from "../lib/departure-presentation";
+  getCallTimeReading,
+} from "../lib/stop-event-presentation";
 import type { RideProgress } from "../lib/ride-progress";
 import { classNames } from "../lib/class-names";
 import { LineBadge } from "./LineBadge";
@@ -12,11 +12,11 @@ import { LineBadge } from "./LineBadge";
 /**
  * The ride card, always in view: the next stop as a countdown, and the Ausstieg with its stop
  * count. It says whether the countdown comes from the rider's position or the feed's estimate, and
- * once boards stop listing the trip, that it shows the last observation and when it was taken.
+ * once boards stop listing the journey, that it shows the last observation and when it was taken.
  */
 export function RideStatusPanel({
   line,
-  departure,
+  stopEvent,
   rideProgress,
   feedNow,
   isRetainedObservation,
@@ -27,16 +27,16 @@ export function RideStatusPanel({
   onEndRide,
 }: {
   line: TransitLine;
-  departure: Departure;
+  stopEvent: StopEvent;
   rideProgress: RideProgress;
   feedNow: number;
-  /** Boards no longer carry the trip; this is its last reading. */
+  /** Boards no longer carry the journey; this is its last reading. */
   isRetainedObservation: boolean;
   observedAt: number;
   /** The device's position reading, and the way to grant it. */
   ridePosition: RidePositionController;
   onClearAlighting?: () => void;
-  /** Shows the trip's position in the line diagram. */
+  /** Shows the journey's position in the line diagram. */
   onShowPosition: () => void;
   onEndRide: () => void;
 }) {
@@ -49,8 +49,8 @@ export function RideStatusPanel({
     isFinished,
     finalCall,
   } = rideProgress;
-  const alightingCallTime = alightingCall && getTripCallTimeReading(alightingCall, feedNow);
-  const nextCallTime = nextCall && getTripCallTimeReading(nextCall, feedNow);
+  const alightingCallTime = alightingCall && getCallTimeReading(alightingCall, feedNow);
+  const nextCallTime = nextCall && getCallTimeReading(nextCall, feedNow);
   const countdownSourceLabel = getRideCountdownSourceLabel(rideProgress, nextCallTime);
 
   if (isFinished) {
@@ -60,7 +60,7 @@ export function RideStatusPanel({
           <LineBadge line={line} />
           <h1 className="ride-status-destination">Fahrt beendet</h1>
         </div>
-        <p className="ride-status-primary">{finalCall?.stopName ?? departure.destination}</p>
+        <p className="ride-status-primary">{finalCall?.stopName ?? stopEvent.destinationText}</p>
         <button type="button" className="ride-status-action" onClick={onEndRide}>
           Abfahrten hier
         </button>
@@ -71,12 +71,12 @@ export function RideStatusPanel({
   return (
     <section
       className={classNames("ride-status", isAlightingNext && "ride-status-alighting-next")}
-      aria-label={`Fahrt ${line.id} Richtung ${departure.destination}`}
+      aria-label={`Fahrt ${line.id} Richtung ${stopEvent.destinationText}`}
       aria-live="polite"
     >
       <div className="ride-status-line">
         <LineBadge line={line} />
-        <h1 className="ride-status-destination">{departure.destination}</h1>
+        <h1 className="ride-status-destination">{stopEvent.destinationText}</h1>
         <button
           type="button"
           className="ride-status-end"
@@ -105,7 +105,7 @@ export function RideStatusPanel({
                   aria-hidden="true"
                 >
                   an {nextCallTime.expectedTime}
-                  {nextCallTime.scheduledTime && <s>{nextCallTime.scheduledTime}</s>}
+                  {nextCallTime.timetabledTime && <s>{nextCallTime.timetabledTime}</s>}
                 </span>
                 <span className="ride-status-sr">{nextCallTime.accessibilityLabel}</span>
               </>
@@ -137,7 +137,7 @@ export function RideStatusPanel({
         </div>
       )}
 
-      {/* Finding the trip on the line, and, until an Ausstieg is marked, how to mark one. */}
+      {/* Finding the journey on the line, and, until an Ausstieg is marked, how to mark one. */}
       <div className="ride-status-foot">
         <button type="button" className="ride-status-position" onClick={onShowPosition}>
           Position auf Linie
@@ -152,7 +152,7 @@ export function RideStatusPanel({
         )}
       </div>
 
-      {/* The disclosure that the boards no longer list the trip. */}
+      {/* The disclosure that the boards no longer list the journey. */}
       {/* Location denied or unanswered: the ride uses the feed's estimate and says so once. */}
       {ridePosition.message && (
         <p className="ride-status-note" role="status">

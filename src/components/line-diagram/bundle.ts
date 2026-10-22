@@ -1,6 +1,6 @@
 import { useLayoutEffect, useMemo, useRef, useState } from "react";
-import type { Departure, TransitLine, TransitNetwork, TripCall } from "../../data/transit-types";
-import type { JoinedRunPortionPair } from "../../lib/joined-run-portions";
+import type { StopEvent, TransitLine, TransitNetwork, Call } from "../../data/transit-types";
+import type { JoinedDatedJourneyPortionPair } from "../../lib/joined-dated-journey-portions";
 import {
   chooseLineBundleChain,
   createLineSelection,
@@ -16,10 +16,10 @@ import {
 } from "../../lib/line-bundles";
 import { isSameLineFamily } from "../../lib/line-families";
 import type { TurnaroundIndex } from "../../lib/line-turnarounds";
-import type { RunMotions } from "../../lib/vehicle-positioning";
+import type { DatedJourneyMotions } from "../../lib/vehicle-positioning";
 import {
   buildLineDiagramStops,
-  getLineDiagramRunDepartures,
+  getLineDiagramDatedJourneyStopEvents,
   getLineDiagramVehicles,
   getShownLineDiagramVehicles,
   type LineDiagramVehicle,
@@ -38,10 +38,10 @@ const EMPTY_TRANSFER_KEYS: ReadonlyMap<string, ReadonlySet<string>> = new Map();
 /** The drawn shape of a reading: one trunk, and what stands at either end of it. */
 export type LineDiagramFork = {
   /**
-   * The stretch drawn as one line: the drawn trip, or with a sibling, up to the last call every
+   * The stretch drawn as one line: the drawn journey, or with a sibling, up to the last call every
    * bundled line was observed making.
    */
-  calls: readonly TripCall[];
+  calls: readonly Call[];
   /** Drawable legs at the end the line runs towards, and at the end it came from. */
   branchesAhead: readonly LineBundleBranch[];
   branchesBehind: readonly LineBundleBranch[];
@@ -61,17 +61,17 @@ export function useLineDiagramFork({
   drawnCalls,
   destination,
   riderStopIds,
-  candidateDepartures,
+  candidateStopEvents,
 }: {
   lineId: string;
   bundledLines: readonly TransitLine[];
-  /** The drawn trip's calls in travel order: the diagram the bundle narrows. */
-  drawnCalls: readonly TripCall[];
-  /** The drawn trip's headsign, which its split is worded in. */
+  /** The drawn journey's calls in travel order: the diagram the bundle narrows. */
+  drawnCalls: readonly Call[];
+  /** The drawn journey's headsign, which its split is worded in. */
   destination: string | undefined;
   riderStopIds: readonly string[];
-  /** Whole-trip readings each sibling's chain is chosen from. */
-  candidateDepartures: readonly Departure[];
+  /** Whole-journey readings each sibling's chain is chosen from. */
+  candidateStopEvents: readonly StopEvent[];
 }): LineDiagramFork {
   return useMemo(() => {
     const trunk =
@@ -80,7 +80,7 @@ export function useLineDiagramFork({
             primary: { lineId, calls: drawnCalls, destination },
             bundledLineIds: bundledLines.map(({ id }) => id),
             riderStopIds,
-            candidateDepartures,
+            candidateStopEvents,
           })
         : undefined;
     const calls = trunk?.calls ?? drawnCalls;
@@ -99,29 +99,29 @@ export function useLineDiagramFork({
       terminatingBehind: getLineBundleTerminatingLabel(branches, "behind", junctionBehind),
       hasFork: branchesAhead.length > 0 || branchesBehind.length > 0,
     };
-  }, [bundledLines, candidateDepartures, destination, drawnCalls, lineId, riderStopIds]);
+  }, [bundledLines, candidateStopEvents, destination, drawnCalls, lineId, riderStopIds]);
 }
 
-/** Each sibling's drawn trip and the stretch they all share. */
+/** Each sibling's drawn journey and the stretch they all share. */
 function getObservedLineBundleTrunk({
   primary,
   bundledLineIds,
   riderStopIds,
-  candidateDepartures,
+  candidateStopEvents,
 }: {
   primary: LineBundleChain;
   bundledLineIds: readonly string[];
   riderStopIds: readonly string[];
-  candidateDepartures: readonly Departure[];
+  candidateStopEvents: readonly StopEvent[];
 }) {
   const chains = bundledLineIds.flatMap((bundledLineId) => {
-    const candidates = candidateDepartures.flatMap((candidate) =>
-      isSameLineFamily(candidate.lineId, bundledLineId) && candidate.tripCalls?.length
+    const candidates = candidateStopEvents.flatMap((candidate) =>
+      isSameLineFamily(candidate.lineId, bundledLineId) && candidate.calls?.length
         ? [
             {
               lineId: bundledLineId,
-              calls: candidate.tripCalls,
-              destination: candidate.destination,
+              calls: candidate.calls,
+              destination: candidate.destinationText,
             },
           ]
         : [],
@@ -133,14 +133,14 @@ function getObservedLineBundleTrunk({
 }
 
 /**
- * The offers that apply to the drawn trip: corridors are direction-blind, so each is tried against
- * the drawn chain on both sides of the rider's stop, and the matching stretch is named. Tested
- * against the corridor, not the sibling's trips, which are not loaded until it is added; if they do
- * not draw beside this trip, `getLineBundleTrunk` draws the line alone.
+ * The offers that apply to the drawn journey: corridors are direction-blind, so each is tried
+ * against the drawn chain on both sides of the rider's stop, and the matching stretch is named.
+ * Tested against the corridor, not the sibling's journeys, which are not loaded until it is added;
+ * if they do not draw beside this journey, `getLineBundleTrunk` draws the line alone.
  */
 export function useDrawableLineBundleOffers(options: {
   offers: readonly LineBundleOffer[];
-  drawnCalls: readonly TripCall[];
+  drawnCalls: readonly Call[];
   riderStopIds: readonly string[];
 }): readonly DrawableLineBundleOffer[] {
   const { offers, drawnCalls, riderStopIds } = options;
@@ -158,30 +158,30 @@ export function useLineBundleBranchVehicles({
   branches,
   lineById,
   network,
-  runDepartures,
+  datedJourneyStopEvents,
   joinedPortionPairs,
-  selectedDeparture,
+  selectedStopEvent,
   feedNow,
   motions,
   turnaroundIndex,
   showWaitingVehicles = true,
-  areOtherRunsShown = true,
+  areOtherDatedJourneysShown = true,
   trunkVehicles,
 }: {
   branches: readonly LineBundleBranch[];
   lineById: ReadonlyMap<string, TransitLine>;
   network: TransitNetwork;
-  runDepartures: readonly Departure[];
-  joinedPortionPairs: readonly JoinedRunPortionPair[];
-  selectedDeparture: Departure | undefined;
+  datedJourneyStopEvents: readonly StopEvent[];
+  joinedPortionPairs: readonly JoinedDatedJourneyPortionPair[];
+  selectedStopEvent: StopEvent | undefined;
   feedNow: number;
-  /** The diagram's motion record; legs place the same runs as the trunk. */
-  motions: RunMotions;
+  /** The diagram's motion record; legs place the same dated journeys as the trunk. */
+  motions: DatedJourneyMotions;
   turnaroundIndex: TurnaroundIndex;
   /** See `getLineDiagramVehicles`. */
   showWaitingVehicles?: boolean;
   /** See `getShownLineDiagramVehicles`. */
-  areOtherRunsShown?: boolean;
+  areOtherDatedJourneysShown?: boolean;
   trunkVehicles: readonly LineDiagramVehicle[];
 }): {
   vehiclesByBranchKey: ReadonlyMap<string, readonly LineDiagramVehicle[]>;
@@ -194,38 +194,38 @@ export function useLineBundleBranchVehicles({
       if (!branchLine) continue;
       const branchStops = buildLineDiagramStops(network, [...branch.calls].reverse());
       // Past the junction only this line runs.
-      const branchDepartures = getLineDiagramRunDepartures(
+      const branchStopEvents = getLineDiagramDatedJourneyStopEvents(
         createLineSelection(branch.lineId),
-        runDepartures,
+        datedJourneyStopEvents,
       );
       byKey.set(
         getLineBundleBranchKey(branch),
         getShownLineDiagramVehicles(
           getLineDiagramVehicles(
             branchStops,
-            branchDepartures,
+            branchStopEvents,
             joinedPortionPairs,
-            selectedDeparture,
+            selectedStopEvent,
             feedNow,
             { motions, turnaroundIndex, showWaitingVehicles },
           ),
-          areOtherRunsShown,
+          areOtherDatedJourneysShown,
         ),
       );
     }
     return byKey;
   }, [
-    areOtherRunsShown,
+    areOtherDatedJourneysShown,
     branches,
     feedNow,
     joinedPortionPairs,
     lineById,
     motions,
     network,
-    selectedDeparture,
+    selectedStopEvent,
     turnaroundIndex,
     showWaitingVehicles,
-    runDepartures,
+    datedJourneyStopEvents,
   ]);
 
   const previousTrunkMarkerKeysRef = useRef<ReadonlySet<string>>(new Set());

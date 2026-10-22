@@ -1,25 +1,27 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import type { KvvTripCall } from "../src/data/kvv-feed.ts";
+import type { KvvCall } from "../src/data/kvv-feed.ts";
 import { StopRegistry } from "../src/data/stop-registry.ts";
 import { transitNetwork } from "../src/data/transit-network.ts";
-import type { TransportMode } from "../src/data/transit-types.ts";
+import type { PtMode } from "../src/data/transit-types.ts";
 import { buildZentrumSchematicReading } from "../src/lib/zentrum-schematic.ts";
 import { getEdgeKey, getLineTrackPoint } from "../src/lib/zentrum-schematic-plan.ts";
-import { createDeparture } from "./support/fixtures.ts";
+import { createStopEvent } from "./support/fixtures.ts";
 
 const fixture: {
-  runs: {
-    tripCode: string;
-    line: string;
-    transportMode: TransportMode;
-    destination: string;
-    tripCalls: KvvTripCall[];
+  datedJourneys: {
+    journeyCode: string;
+    lineRef: string;
+    ptMode: PtMode;
+    destinationText: string;
+    calls: KvvCall[];
   }[];
-} = JSON.parse(readFileSync(new URL("./support/zentrum-e-runs.json", import.meta.url), "utf8"));
+} = JSON.parse(
+  readFileSync(new URL("./support/zentrum-e-dated-journeys.json", import.meta.url), "utf8"),
+);
 
-const expectedStopsByTripCode: Record<string, readonly string[]> = {
+const expectedStopsByJourneyCode: Record<string, readonly string[]> = {
   "23": [
     "hauptbahnhof",
     "ebertstrasse",
@@ -44,23 +46,23 @@ const expectedStopsByTripCode: Record<string, readonly string[]> = {
   ],
 };
 
-for (const run of fixture.runs) {
-  test(`draws the observed E run ${run.tripCode} continuously through Philipp-Reis-Straße`, () => {
+for (const datedJourney of fixture.datedJourneys) {
+  test(`draws the observed E run ${datedJourney.journeyCode} continuously through Philipp-Reis-Straße`, () => {
     const stops = new StopRegistry(transitNetwork.stops);
-    const tripCalls = stops.toTripCalls(run.tripCalls);
+    const calls = stops.toCalls(datedJourney.calls);
     const reading = buildZentrumSchematicReading([
-      createDeparture({
-        id: `${run.line}|${run.tripCode}`,
+      createStopEvent({
+        id: `${datedJourney.lineRef}|${datedJourney.journeyCode}`,
         lineId: "E",
-        transportMode: run.transportMode,
-        destination: run.destination,
-        tripCalls,
+        ptMode: datedJourney.ptMode,
+        destinationText: datedJourney.destinationText,
+        calls,
       }),
     ]);
-    const expectedStops = expectedStopsByTripCode[run.tripCode];
+    const expectedStops = expectedStopsByJourneyCode[datedJourney.journeyCode];
 
     assert.deepEqual(
-      tripCalls.map(({ localStopId }) => localStopId),
+      calls.map(({ localStopId }) => localStopId),
       expectedStops,
     );
     assert.equal(reading.linePaths.length, 1);
@@ -75,13 +77,13 @@ for (const run of fixture.runs) {
     assert.ok(!reading.linePaths[0].nodes.some(({ id }) => id.startsWith("exit:")));
   });
 
-  test(`draws E run ${run.tripCode} west–east through Philipp-Reis-Straße's platforms`, () => {
+  test(`draws E run ${datedJourney.journeyCode} west–east through Philipp-Reis-Straße's platforms`, () => {
     const stops = new StopRegistry(transitNetwork.stops);
     const reading = buildZentrumSchematicReading([
-      createDeparture({
+      createStopEvent({
         lineId: "E",
-        transportMode: run.transportMode,
-        tripCalls: stops.toTripCalls(run.tripCalls),
+        ptMode: datedJourney.ptMode,
+        calls: stops.toCalls(datedJourney.calls),
       }),
     ]);
     const stopId = "philipp-reis-strasse";
@@ -108,10 +110,10 @@ test("keeps through lanes aligned where Stadtbahn lines join between Ebertstraß
   };
   const reading = buildZentrumSchematicReading(
     Object.entries(routes).map(([lineId, stops]) =>
-      createDeparture({
+      createStopEvent({
         id: lineId,
         lineId,
-        tripCalls: stops.map((localStopId) => ({ stopName: localStopId, localStopId })),
+        calls: stops.map((localStopId) => ({ stopName: localStopId, localStopId })),
       }),
     ),
   );

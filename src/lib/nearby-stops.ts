@@ -1,14 +1,14 @@
-import type { TransitStop } from "../data/transit-types";
+import type { StopPlace } from "../data/transit-types";
 import { getDistanceMeters } from "./geo";
 
 const MAX_NEARBY_DISTANCE_METERS = 900;
 const MAX_NEARBY_STOP_COUNT = 6;
 
-export type NearbyStop = { stop: TransitStop; distanceMeters: number };
+export type NearbyStop = { stop: StopPlace; distanceMeters: number };
 
 /** Nearby, locatable stops in distance order, bounded so a remote stop is never offered as local. */
 export function getNearbyStops(
-  stops: readonly TransitStop[],
+  stops: readonly StopPlace[],
   latitude: number,
   longitude: number,
   maxDistanceMeters = MAX_NEARBY_DISTANCE_METERS,

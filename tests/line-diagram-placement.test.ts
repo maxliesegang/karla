@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createDeparture } from "./support/fixtures.ts";
+import { createStopEvent } from "./support/fixtures.ts";
 
 const { describeCurrentStopMove, getVehicleLeftOffset, getMeasuredNodeCenterOffset } = await import(
   "../src/components/line-diagram/layout.ts"
@@ -55,38 +55,37 @@ test("a note that was not on the diagram has not moved onto it", () => {
   assert.equal(describeCurrentStopMove(place(2), place(-1)), undefined);
 });
 
-const { chooseLineDiagramRun, getCurrentStopIndex, isCurrentLineDiagramStop } = await import(
-  "../src/lib/line-diagram.ts"
-);
+const { chooseLineDiagramDatedJourney, getCurrentStopIndex, isCurrentLineDiagramStop } =
+  await import("../src/lib/line-diagram.ts");
 
 /** A line 2 trip, by its stops in travel order. */
-const trip = (id: string, destination: string, stopIds: readonly string[]) =>
-  createDeparture({
+const journey = (id: string, destination: string, stopIds: readonly string[]) =>
+  createStopEvent({
     id,
-    tripId: id,
-    destination,
+    journeyRef: id,
+    destinationText: destination,
     boardingLocalStopId: stopIds[0],
     status: "scheduled",
-    tripCalls: stopIds.map((localStopId) => ({ stopName: localStopId.toUpperCase(), localStopId })),
+    calls: stopIds.map((localStopId) => ({ stopName: localStopId.toUpperCase(), localStopId })),
   });
 
-const OUTBOUND = trip("outbound", "Wörth", ["a", "b", "c", "d"]);
-const INBOUND = trip("inbound", "Durlach", ["d", "c", "b", "a"]);
-const SHORT_OUTBOUND = trip("outbound-short", "Wörth", ["b", "c"]);
+const OUTBOUND = journey("outbound", "Wörth", ["a", "b", "c", "d"]);
+const INBOUND = journey("inbound", "Durlach", ["d", "c", "b", "a"]);
+const SHORT_OUTBOUND = journey("outbound-short", "Wörth", ["b", "c"]);
 
 const chooseAt = (
   stopId: string,
   held: typeof OUTBOUND | undefined,
   candidates = [OUTBOUND, INBOUND],
 ) =>
-  chooseLineDiagramRun({
+  chooseLineDiagramDatedJourney({
     lineId: "2",
     riderStopIds: [stopId],
-    pinnedDeparture: undefined,
-    retainedDeparture: held,
+    pinnedStopEvent: undefined,
+    retainedStopEvent: held,
     preferredDestination: undefined,
-    stopRunDepartures: candidates,
-    boardDepartures: candidates,
+    stopDatedJourneyStopEvents: candidates,
+    boardStopEvents: candidates,
   });
 
 test("walking along the line keeps the trip the line is already drawn from", () => {
@@ -96,42 +95,42 @@ test("walking along the line keeps the trip the line is already drawn from", () 
 
 test("a stop the held trip does not call at is drawn afresh, pointing the same way", () => {
   // Nothing to hold, but the last direction still stands.
-  const chosen = chooseLineDiagramRun({
+  const chosen = chooseLineDiagramDatedJourney({
     lineId: "2",
     riderStopIds: ["b"],
-    pinnedDeparture: undefined,
-    retainedDeparture: trip("gone", "Wörth", ["x", "y"]),
+    pinnedStopEvent: undefined,
+    retainedStopEvent: journey("gone", "Wörth", ["x", "y"]),
     preferredDestination: undefined,
-    stopRunDepartures: [INBOUND, SHORT_OUTBOUND, OUTBOUND],
-    boardDepartures: [],
+    stopDatedJourneyStopEvents: [INBOUND, SHORT_OUTBOUND, OUTBOUND],
+    boardStopEvents: [],
   });
-  assert.equal(chosen?.destination, "Wörth");
+  assert.equal(chosen?.destinationText, "Wörth");
   // The farthest-running trip that way, not a short working.
   assert.equal(chosen, OUTBOUND);
 });
 
 test("the trip the address names draws the line, held or not", () => {
-  const chosen = chooseLineDiagramRun({
+  const chosen = chooseLineDiagramDatedJourney({
     lineId: "2",
     riderStopIds: ["c"],
-    pinnedDeparture: INBOUND,
-    retainedDeparture: OUTBOUND,
+    pinnedStopEvent: INBOUND,
+    retainedStopEvent: OUTBOUND,
     preferredDestination: "Wörth",
-    stopRunDepartures: [OUTBOUND],
-    boardDepartures: [OUTBOUND],
+    stopDatedJourneyStopEvents: [OUTBOUND],
+    boardStopEvents: [OUTBOUND],
   });
   assert.equal(chosen, INBOUND);
 });
 
 test("a line opened with nothing held is pointed where the rider was last heading", () => {
-  const chosen = chooseLineDiagramRun({
+  const chosen = chooseLineDiagramDatedJourney({
     lineId: "2",
     riderStopIds: ["b"],
-    pinnedDeparture: undefined,
-    retainedDeparture: undefined,
+    pinnedStopEvent: undefined,
+    retainedStopEvent: undefined,
     preferredDestination: "Durlach",
-    stopRunDepartures: [OUTBOUND, INBOUND],
-    boardDepartures: [],
+    stopDatedJourneyStopEvents: [OUTBOUND, INBOUND],
+    boardStopEvents: [],
   });
   assert.equal(chosen, INBOUND);
 });
@@ -142,15 +141,15 @@ test("a held trip of another line is not what this line is drawn from", () => {
 });
 
 test("without a chain to draw, the plain board still states a direction", () => {
-  const boardRow = { ...INBOUND, tripCalls: undefined };
-  const chosen = chooseLineDiagramRun({
+  const boardRow = { ...INBOUND, calls: undefined };
+  const chosen = chooseLineDiagramDatedJourney({
     lineId: "2",
     riderStopIds: ["b"],
-    pinnedDeparture: undefined,
-    retainedDeparture: undefined,
+    pinnedStopEvent: undefined,
+    retainedStopEvent: undefined,
     preferredDestination: undefined,
-    stopRunDepartures: [],
-    boardDepartures: [boardRow],
+    stopDatedJourneyStopEvents: [],
+    boardStopEvents: [boardRow],
   });
   assert.equal(chosen, boardRow);
 });

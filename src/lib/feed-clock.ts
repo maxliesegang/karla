@@ -1,4 +1,4 @@
-import type { Departure, DepartureBoard } from "../data/transit-types";
+import type { StopEvent, StopEventBoard } from "../data/transit-types";
 
 /**
  * Times against the feed's clock, not the device's: the offset is fixed when a board arrives and
@@ -7,21 +7,21 @@ import type { Departure, DepartureBoard } from "../data/transit-types";
  */
 
 /** The feed's server time when the board was read, advanced by the time since. */
-export function getFeedNow(departureBoard: DepartureBoard | null, now: number): number {
-  if (!departureBoard || departureBoard.dataStatus !== "live") return now;
-  const serverTime = Date.parse(departureBoard.feedUpdatedAt);
+export function getFeedNow(stopEventBoard: StopEventBoard | null, now: number): number {
+  if (!stopEventBoard || stopEventBoard.dataStatus !== "live") return now;
+  const serverTime = Date.parse(stopEventBoard.feedUpdatedAt);
   if (!Number.isFinite(serverTime)) return now;
-  return serverTime + (now - departureBoard.receivedAt);
+  return serverTime + (now - stopEventBoard.receivedAt);
 }
 
 /** The feed's clock minus the device's, as fixed by the board. */
-export const getFeedOffsetMs = (departureBoard: DepartureBoard | null): number =>
-  getFeedNow(departureBoard, 0);
+export const getFeedOffsetMs = (stopEventBoard: StopEventBoard | null): number =>
+  getFeedNow(stopEventBoard, 0);
 
 /** How long ago the board was read, on the feed's clock, so a wrong device clock cancels out. */
-export function getBoardAgeMs(departureBoard: DepartureBoard | null, feedNow: number): number {
-  if (!departureBoard || departureBoard.dataStatus !== "live") return 0;
-  const feedUpdatedAt = Date.parse(departureBoard.feedUpdatedAt);
+export function getBoardAgeMs(stopEventBoard: StopEventBoard | null, feedNow: number): number {
+  if (!stopEventBoard || stopEventBoard.dataStatus !== "live") return 0;
+  const feedUpdatedAt = Date.parse(stopEventBoard.feedUpdatedAt);
   return Number.isFinite(feedUpdatedAt) ? Math.max(0, feedNow - feedUpdatedAt) : 0;
 }
 
@@ -31,14 +31,14 @@ export function getBoardAgeMs(departureBoard: DepartureBoard | null, feedNow: nu
  * prediction, schedule plus deviation; else the schedule.
  */
 export function findExpectedDepartureInstant(
-  scheduledDepartureTime: string,
-  predictedDepartureTime: string | undefined,
+  timetabledDepartureTime: string,
+  estimatedDepartureTime: string | undefined,
   delayMinutes: number | undefined,
 ): number | undefined {
-  const predicted = predictedDepartureTime ? Date.parse(predictedDepartureTime) : Number.NaN;
-  if (Number.isFinite(predicted)) return predicted;
-  const scheduled = Date.parse(scheduledDepartureTime);
-  return Number.isFinite(scheduled) ? scheduled + (delayMinutes ?? 0) * 60_000 : undefined;
+  const estimated = estimatedDepartureTime ? Date.parse(estimatedDepartureTime) : Number.NaN;
+  if (Number.isFinite(estimated)) return estimated;
+  const timetabled = Date.parse(timetabledDepartureTime);
+  return Number.isFinite(timetabled) ? timetabled + (delayMinutes ?? 0) * 60_000 : undefined;
 }
 
 /**
@@ -48,9 +48,9 @@ export function findExpectedDepartureInstant(
 const truncateToFeedMinute = (feedNow: number): number => Math.floor(feedNow / 60_000) * 60_000;
 
 /** Seconds left until a prediction stated to the second; `undefined` for any other row. */
-export function getCountdownSeconds(departure: Departure, feedNow: number): number | undefined {
-  if (!departure.isPredictedToTheSecond || !departure.predictedDepartureTime) return undefined;
-  const due = Date.parse(departure.predictedDepartureTime);
+export function getCountdownSeconds(stopEvent: StopEvent, feedNow: number): number | undefined {
+  if (!stopEvent.isEstimatedToTheSecond || !stopEvent.estimatedDepartureTime) return undefined;
+  const due = Date.parse(stopEvent.estimatedDepartureTime);
   return Number.isFinite(due) ? Math.max(0, Math.floor((due - feedNow) / 1_000)) : undefined;
 }
 
@@ -58,13 +58,13 @@ export function getCountdownSeconds(departure: Departure, feedNow: number): numb
  * Minutes left until the expected instant, counted live rather than from the feed's stale
  * countdown.
  */
-export function getCountdownMinutes(departure: Departure, feedNow: number): number {
+export function getCountdownMinutes(stopEvent: StopEvent, feedNow: number): number {
   const due = findExpectedDepartureInstant(
-    departure.scheduledDepartureTime,
-    departure.predictedDepartureTime,
-    departure.delayMinutes,
+    stopEvent.timetabledDepartureTime,
+    stopEvent.estimatedDepartureTime,
+    stopEvent.delayMinutes,
   );
   // Without a time to count from, the feed's own countdown.
-  if (due === undefined) return departure.minutesUntilDeparture;
+  if (due === undefined) return stopEvent.minutesUntilDeparture;
   return Math.max(0, Math.floor((due - truncateToFeedMinute(feedNow)) / 60_000));
 }

@@ -3,14 +3,14 @@ import test from "node:test";
 import type { ComponentProps } from "react";
 import "./support/render-hook.ts";
 import "./support/register-tsx.ts";
-import type { DepartureBoard } from "../src/data/transit-types.ts";
+import type { StopEventBoard } from "../src/data/transit-types.ts";
 import { createZentrumLineSignReader } from "../src/components/zentrum/line-sign.ts";
 import { getZentrumStopView } from "../src/lib/zentrum-stop-view.ts";
 import { getZentrumDirectRides } from "../src/lib/zentrum-schematic-overlays.ts";
 import { buildZentrumSchematicReading } from "../src/lib/zentrum-schematic.ts";
 import { zentrumStopPanelState } from "../src/lib/zentrum-panel.ts";
 import { routePaths } from "../src/routing.ts";
-import { createDeparture } from "./support/fixtures.ts";
+import { createStopEvent } from "./support/fixtures.ts";
 
 const { act, createElement, useState } = await import("react");
 const { createRoot } = await import("react-dom/client");
@@ -22,37 +22,40 @@ const { ZentrumSchematic } = await import("../src/components/zentrum/ZentrumSche
 
 const now = Date.parse("2026-10-07T12:00:00+02:00");
 const time = (minutes: number) => new Date(now + minutes * 60_000).toISOString();
-const run = (id: string, lineId: string, leaves: number, arrives: number, platform: string) =>
-  createDeparture({
+const datedJourney = (id: string, lineId: string, leaves: number, arrives: number, bay: string) =>
+  createStopEvent({
     id,
-    tripId: id,
+    journeyRef: id,
     lineId,
-    destination: `Richtung ${id}`,
+    destinationText: `Richtung ${id}`,
     boardingLocalStopId: "europaplatz",
     boardingProviderStopPointId: "origin",
-    platformCode: platform,
-    platformKind: "track",
-    scheduledDepartureTime: time(leaves),
-    tripCalls: [
+    bay,
+    bayKind: "track",
+    timetabledDepartureTime: time(leaves),
+    calls: [
       {
         localStopId: "europaplatz",
         stopName: "Europaplatz",
         providerStopPointId: "origin",
-        platformCode: platform,
-        platformLabel: `Gleis ${platform}`,
-        scheduledDepartureTime: time(leaves),
+        bay,
+        bayText: `Gleis ${bay}`,
+        timetabledDepartureTime: time(leaves),
       },
       {
         localStopId: "marktplatz",
         stopName: "Marktplatz",
-        scheduledArrivalTime: time(arrives),
+        timetabledArrivalTime: time(arrives),
       },
     ],
   });
-const departures = [run("first", "2", 4, 10, "1"), run("second", "S1", 6, 9, "3")];
-const board: DepartureBoard = {
+const stopEvents = [
+  datedJourney("first", "2", 4, 10, "1"),
+  datedJourney("second", "S1", 6, 9, "3"),
+];
+const board: StopEventBoard = {
   stopId: "europaplatz",
-  departures,
+  stopEvents,
   dataStatus: "live",
   feedUpdatedAt: time(0),
   receivedAt: now,
@@ -65,15 +68,15 @@ for (const isStacked of [false, true]) {
     zentrumStopPanelState.write(undefined);
     const container = document.createElement("div");
     const root = createRoot(container);
-    const layout = buildZentrumSchematicReading(departures);
+    const layout = buildZentrumSchematicReading(stopEvents);
     function Map() {
       const [selectedStopId, setSelectedStopId] = useState<string>();
       return createElement(ZentrumSchematic, {
         layout,
         getSign,
         selectedStopId,
-        runDepartures: departures,
-        travelRuns: departures,
+        datedJourneyStopEvents: stopEvents,
+        travelDatedJourneys: stopEvents,
         stopBoard: board,
         feedNow: now,
         isLoading: false,
@@ -136,7 +139,7 @@ const panelProps = (
     "europaplatz",
     board,
     [],
-    departures,
+    stopEvents,
     now,
     travelMeasure,
   ).reachableStops,
@@ -224,10 +227,10 @@ test("choosing a ride updates its times, platform, notice and ride link, and fol
     originStopId: "europaplatz",
     originStopLabel: "Europaplatz",
     reachableStop: panelProps("arrival").reachableStops[0],
-    rides: getZentrumDirectRides(departures, "europaplatz", "marktplatz", now),
+    rides: getZentrumDirectRides(stopEvents, "europaplatz", "marktplatz", now),
     board: {
       ...board,
-      departures: [{ ...departures[0], serviceNote: "Einstieg hinten" }, departures[1]],
+      stopEvents: [{ ...stopEvents[0], serviceNote: "Einstieg hinten" }, stopEvents[1]],
     },
     feedNow: now,
     getSign,
@@ -252,7 +255,7 @@ test("choosing a ride updates its times, platform, notice and ride link, and fol
       `#${routePaths.ride("first", "europaplatz", "marktplatz")}`,
     );
     const updatedRides = props.rides.map((ride) =>
-      ride.departure.id === "first"
+      ride.stopEvent.id === "first"
         ? { ...ride, departsAt: now + 5 * 60_000, arrivesAt: now + 11 * 60_000 }
         : ride,
     );

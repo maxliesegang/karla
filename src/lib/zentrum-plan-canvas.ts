@@ -91,7 +91,7 @@ export const toZentrumCanvasTop = (y: number): string =>
   `${((y - ZENTRUM_SCHEMATIC_VIEWBOX.y) / ZENTRUM_SCHEMATIC_VIEWBOX.height) * 100}%`;
 
 /** A plan distance as a share of the canvas width; the canvas keeps the drawing's ratio. */
-export const toZentrumCanvasRun = (delta: number): string =>
+export const toZentrumCanvasDatedJourney = (delta: number): string =>
   `${(delta / ZENTRUM_SCHEMATIC_VIEWBOX.width) * 100}cqw`;
 
 /** Keeps one mark's animation alive between renders. */
@@ -110,5 +110,5 @@ export const getZentrumVehicleTransform = (
   progress: number,
 ): string => {
   const placement = getZentrumSchematicVehiclePathPlacement(path, progress);
-  return `translate3d(${toZentrumCanvasRun(placement.x - ZENTRUM_SCHEMATIC_VIEWBOX.x)}, ${toZentrumCanvasRun(placement.y - ZENTRUM_SCHEMATIC_VIEWBOX.y)}, 0) translate(-50%, -50%)`;
+  return `translate3d(${toZentrumCanvasDatedJourney(placement.x - ZENTRUM_SCHEMATIC_VIEWBOX.x)}, ${toZentrumCanvasDatedJourney(placement.y - ZENTRUM_SCHEMATIC_VIEWBOX.y)}, 0) translate(-50%, -50%)`;
 };

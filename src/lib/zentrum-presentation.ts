@@ -1,10 +1,10 @@
 /** Confidence and boarding facts for the Zentrum's readings. */
-import type { Departure, DepartureBoard, TripCall } from "../data/transit-types";
-import { isSameRun } from "./trips";
-import { formatPlatformLabel } from "./platform-naming";
+import type { StopEvent, StopEventBoard, Call } from "../data/transit-types";
+import { isSameDatedJourney } from "./journeys";
+import { formatBayText } from "./bay-naming";
 import type { ZentrumTravelTime } from "./zentrum-schematic-overlays";
 import type { ZentrumSchematicVehicle } from "./zentrum-schematic";
-import { formatClockTime } from "./departure-presentation";
+import { formatClockTime } from "./stop-event-presentation";
 import { getMinutesUntilDeparture, getRideMinutes } from "./zentrum-schematic-overlays";
 
 export function getZentrumVehiclePlaceLabel({
@@ -27,57 +27,55 @@ export function getZentrumTravelSourceLabel(time: ZentrumTravelTime): string {
     : "nach Echtzeitprognose";
 }
 
-export function getZentrumBoardingPlatformLabel(call: TripCall): string {
-  return (
-    call.platformLabel ||
-    (call.platformCode ? formatPlatformLabel(call.platformCode, undefined) : "Ohne Steigangabe")
-  );
+export function getZentrumBoardingBayText(call: Call): string {
+  return call.bayText || (call.bay ? formatBayText(call.bay, undefined) : "Ohne Steigangabe");
 }
 
-export function findZentrumBoardingDeparture(
-  board: DepartureBoard | null,
+export function findZentrumBoardingStopEvent(
+  board: StopEventBoard | null,
   time: ZentrumTravelTime,
-): Departure | undefined {
-  return board?.departures.find(
-    (departure) =>
-      isSameRun(departure, time.departure) &&
+): StopEvent | undefined {
+  return board?.stopEvents.find(
+    (stopEvent) =>
+      isSameDatedJourney(stopEvent, time.stopEvent) &&
       (time.boardingCall.providerStopPointId !== undefined
-        ? departure.boardingProviderStopPointId === time.boardingCall.providerStopPointId
-        : departure.boardingLocalStopId === time.boardingCall.localStopId) &&
-      time.boardingCall.platformCode !== undefined &&
-      departure.platformCode === time.boardingCall.platformCode,
+        ? stopEvent.boardingProviderStopPointId === time.boardingCall.providerStopPointId
+        : stopEvent.boardingLocalStopId === time.boardingCall.localStopId) &&
+      time.boardingCall.bay !== undefined &&
+      stopEvent.bay === time.boardingCall.bay,
   );
 }
 
 /** Boarding facts come from the origin's row or call, never another stop's row. */
 export function getZentrumRidePresentation(
   ride: ZentrumTravelTime,
-  board: DepartureBoard | null,
+  board: StopEventBoard | null,
   feedNow: number,
 ) {
-  const boardingDeparture = findZentrumBoardingDeparture(board, ride);
+  const boardingStopEvent = findZentrumBoardingStopEvent(board, ride);
   const waitMinutes = getMinutesUntilDeparture(ride.departsAt, feedNow);
   return {
     waitLabel: waitMinutes === 0 ? "Abfahrt jetzt" : `Abfahrt in ${waitMinutes} min`,
     rideMinutes: getRideMinutes(ride),
     departureTime: formatClockTime(new Date(ride.departsAt)),
     arrivalTime: formatClockTime(new Date(ride.arrivesAt)),
-    platformLabel: boardingDeparture
-      ? formatPlatformLabel(
-          boardingDeparture.platformCode,
-          boardingDeparture.platformKind,
-          "unbekannt",
-        )
-      : getZentrumBoardingPlatformLabel(ride.boardingCall),
-    direction: (boardingDeparture ?? ride.departure).destination,
+    bayText: boardingStopEvent
+      ? formatBayText(boardingStopEvent.bay, boardingStopEvent.bayKind, "unbekannt")
+      : getZentrumBoardingBayText(ride.boardingCall),
+    direction: (boardingStopEvent ?? ride.stopEvent).destinationText,
     sourceLabel: getZentrumTravelSourceLabel(ride),
-    serviceNote: boardingDeparture?.serviceNote,
+    serviceNote: boardingStopEvent?.serviceNote,
   };
 }
 
-export function getZentrumPositionFreshness(runs: readonly Departure[], now: number): string {
-  if (runs.length === 0) return "";
-  const stamps = runs.map((run) => run.readAt?.coverageReadAt ?? run.readAt?.sequenceReadAt);
+export function getZentrumPositionFreshness(
+  datedJourneys: readonly StopEvent[],
+  now: number,
+): string {
+  if (datedJourneys.length === 0) return "";
+  const stamps = datedJourneys.map(
+    (datedJourney) => datedJourney.readAt?.coverageReadAt ?? datedJourney.readAt?.sequenceReadAt,
+  );
   if (stamps.some((stamp) => stamp === undefined)) return "Datenalter unbekannt";
   const ageSeconds = Math.max(
     0,

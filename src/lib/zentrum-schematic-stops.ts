@@ -1,7 +1,7 @@
 /** The stop marks, laid out from the same corridors and lanes as the lines they cross. */
 import { toLocalMeters } from "./geo";
 import {
-  PLATFORM_RUN_VECTORS,
+  BAY_RUN_VECTORS,
   type ZentrumSchematicBoardingPlace,
   type SchematicPoint,
   type ZentrumSchematicEdge,
@@ -539,7 +539,7 @@ const getPlaceOffset = (
 
 /**
  * The arms a place is drawn on: those the stop's other places do not use (every place shares the
- * busy corridor, as at Karlstor), else its own; of those, the ones along its platforms, on the
+ * busy corridor, as at Karlstor), else its own; of those, the ones along its bays, on the
  * side of the stop where it stands.
  */
 const getPlaceArms = (
@@ -549,13 +549,13 @@ const getPlaceArms = (
 ): readonly ZentrumSchematicNodeArm[] => {
   const leadsTo = (
     arm: ZentrumSchematicNodeArm,
-    { armTripCounts }: ZentrumSchematicBoardingPlace,
-  ) => [...arm.stopIds].some((stopId) => armTripCounts.has(stopId));
+    { armJourneyCounts }: ZentrumSchematicBoardingPlace,
+  ) => [...arm.stopIds].some((stopId) => armJourneyCounts.has(stopId));
   const own = arms.filter((arm) => leadsTo(arm, place));
   const shares = (arm: ZentrumSchematicNodeArm): number =>
     places.filter((other) => other !== place && leadsTo(arm, other)).length;
   const fewest = Math.min(...own.map(shares));
-  const run = place.platformRun && PLATFORM_RUN_VECTORS[place.platformRun];
+  const run = place.bayRun && BAY_RUN_VECTORS[place.bayRun];
   const offset = getPlaceOffset(place, places);
   return preferArms(
     preferArms(
