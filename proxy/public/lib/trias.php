@@ -10,7 +10,8 @@ error_reporting(E_ALL);
 const TRIAS_ENDPOINT = 'https://projekte.kvv-efa.de/liesegangtrias/trias';
 const UPSTREAM_TIMEOUT_SECONDS = 15;
 const CACHE_TTL_SECONDS = 15;
-const RATE_LIMIT_PER_MINUTE = 120;
+/** Upstream requests per minute and client; answers from the cache are not counted. */
+const RATE_LIMIT_PER_MINUTE = 300;
 const PRUNE_AFTER_SECONDS = 7200;
 /** Other origins of the same app; the proxy's own origin needs no CORS. */
 const ALLOWED_ORIGINS = ['https://maxliesegang.github.io'];
@@ -143,12 +144,12 @@ function fetch_trias(string $ref, string $payload): ?string
 
 /**
  * Answers with the TRIAS reply to this payload. One upstream request per payload and TTL however
- * many clients ask; concurrent misses wait for the first.
+ * many clients ask; concurrent misses wait for the first, and only the one that asks upstream is
+ * counted against its rate limit.
  */
 function serve(string $payload, int $ttlSeconds = CACHE_TTL_SECONDS): never
 {
     $ref = requestor_ref();
-    enforce_rate_limit($ref);
 
     $path = cache_dir() . '/reply-' . hash('sha256', $payload) . '.xml.gz';
     $fresh = static fn (): bool => is_file($path) && filemtime($path) > time() - $ttlSeconds;
@@ -157,6 +158,7 @@ function serve(string $payload, int $ttlSeconds = CACHE_TTL_SECONDS): never
         flock($lock, LOCK_EX);
         clearstatcache(true, $path);
         if (!$fresh()) {
+            enforce_rate_limit($ref);
             $body = fetch_trias($ref, $payload);
             if ($body === null) fail(502, 'upstream unavailable');
             $temporary = "$path." . getmypid();

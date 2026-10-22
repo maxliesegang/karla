@@ -22,7 +22,7 @@ allowed by CORS besides the proxy's own origin.
 
 Provider errors such as `ERROR_INVALID_JOURNEY_REF` arrive as a TRIAS `ErrorMessage` in a 200
 reply and are passed through. The proxy's own errors are JSON (`{"error": "…"}`) with 400, 405,
-429 (over 120 requests per minute and client), 502 (upstream failed) or 503 (no ref configured).
+429 (over 300 upstream requests per minute and client; cached answers are not counted), 502 (upstream failed) or 503 (no ref configured).
 No response carries upstream error details.
 
 ## Layout on the server
