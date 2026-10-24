@@ -19,6 +19,7 @@ import {
 } from "./components/PullToRefreshStrip";
 import { useZentrumNetwork } from "./hooks/stop-event-board-collection";
 import { useAppRoute } from "./hooks/route";
+import { useLatch } from "./hooks/latch";
 import { useFeedNow } from "./hooks/clock";
 import { useInitialLanding, useStopRecall } from "./hooks/stop-recall";
 import { useIsNarrowViewport } from "./hooks/viewport";
@@ -39,6 +40,7 @@ import { findLineBundleOffers } from "./lib/line-bundles";
 import {
   getDashboardClassNames,
   getViewLayout,
+  needsObservedNetwork,
   readsObservedNetwork,
   isStationBoardStopView,
 } from "./view-layout";
@@ -77,11 +79,16 @@ export default function App() {
   // cadence depends on whether anything in view reads it.
   const isStationBoardView = isStationBoardStopView(route.view, isStationBoardMode);
   const isObservedNetworkInView = readsObservedNetwork(route.view);
+  // Read from the first view that needs it, then kept for the visit on its idle cadence.
+  const isObservedNetworkWanted = useLatch(needsObservedNetwork(route));
   const {
     network: observedNetwork,
     stopEventBoards: observationBoards,
     coverage: zentrumCoverage,
-  } = useZentrumNetwork({ isEnabled: !isStationBoardView, isInView: isObservedNetworkInView });
+  } = useZentrumNetwork({
+    isEnabled: isObservedNetworkWanted && !isStationBoardView,
+    isInView: isObservedNetworkInView,
+  });
   const network = useTransitNetwork(observedNetwork);
   // Stop, line and journey resolve against live data; the shell picks a panel for the result.
   const selection = useSelectionChain(route, network, observationBoards);

@@ -21,6 +21,15 @@ export const isStationBoardStopView = (view: RouteView, isStationBoardMode: bool
 export const readsObservedNetwork = (view: ActiveView): boolean =>
   view === "experiment" || view === "network" || view === "nearby";
 
+/**
+ * Whether the address needs the observation at all, decided before the selection resolves. A line
+ * or journey borrows it for its crawl, vehicles and a stopless address's stop; a stop board alone,
+ * home and settings start without it.
+ */
+export const needsObservedNetwork = (route: AppRoute): boolean =>
+  readsObservedNetwork(route.view) ||
+  (route.view === "stop" && Boolean(route.lineId || route.addressId || route.isRide));
+
 /** The resolved chain the layout is read from, never the raw address. */
 export type ResolvedViewSelection = {
   stopId: string;

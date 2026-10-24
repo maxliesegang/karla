@@ -94,7 +94,8 @@ export function useStopEventBoardCollection(
  * The network as the live feed describes it, read by the Zentrum view, the line list and the nearby
  * ranking. Two tiers merged into one observation: Zentrum posts (what runs in the centre) and reach
  * posts (which lines run and where stops are). `isEnabled: false` skips it all (an unattended
- * board); `isInView` slows the Zentrum posts when nothing in view reads them.
+ * board, or no view has needed it yet); `isInView` slows the Zentrum posts when nothing in view
+ * reads them.
  */
 export function useZentrumNetwork({ isEnabled = true, isInView = true } = {}): {
   network: ObservedNetwork;

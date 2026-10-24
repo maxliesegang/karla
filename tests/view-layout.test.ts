@@ -5,6 +5,7 @@ import { parseRoute, routePaths } from "../src/routing.ts";
 import {
   describePanelChange,
   getViewLayout,
+  needsObservedNetwork,
   readsObservedNetwork,
   isStationBoardStopView,
 } from "../src/view-layout.ts";
@@ -164,6 +165,20 @@ test("the observation cycle is only read from where a view actually shows it", (
   assert.equal(readsObservedNetwork("nearby"), true);
   assert.equal(readsObservedNetwork("line"), false);
   assert.equal(readsObservedNetwork("stop"), false);
+});
+
+test("the observation is first read where an address needs it, not at a bare stop", () => {
+  const needs = (hash: string) => needsObservedNetwork(parseRoute(hash));
+  assert.equal(needs("#/"), false);
+  assert.equal(needs("#/settings"), false);
+  assert.equal(needs("#/stop/marktplatz"), false);
+  assert.equal(needs("#/network"), true);
+  assert.equal(needs("#/nearby"), true);
+  assert.equal(needs("#/experiment/center"), true);
+  assert.equal(needs("#/line/2"), true);
+  assert.equal(needs("#/stop/marktplatz/line/2"), true);
+  assert.equal(needs(`#/stop/marktplatz/trip/${JOURNEY}`), true);
+  assert.equal(needs(`#/trip/${JOURNEY}`), true);
 });
 
 test("the plan is lit by a followed line or by an opened stop, and the address says which", () => {
