@@ -80,13 +80,7 @@ test("a discovered Zentrum run is placed from its own reads, never its board's c
     timetabledDepartureTime: new Date(start).toISOString(),
     // The board's own observation, which must never place the mark.
     calls: calls.map((call) => ({ ...call, delayMinutes: 5 })),
-    journeyLocator: {
-      journeyCode: "531",
-      lineRef: "kvv:21012:E:R:s26",
-      stopPointId: "de:08212:1004",
-      date: "20261007",
-      time: "1520",
-    },
+    operatingDayRef: "2026-10-07",
   };
   const client = {} as Feed;
   client.fetchStopEventBoard = async () => ({
@@ -156,13 +150,7 @@ test("a run still far from the plan is left off it but kept for travel times", a
         bay: "1b",
         status: "realtime",
         timetabledDepartureTime: new Date(start + 15 * 60_000).toISOString(),
-        journeyLocator: {
-          journeyCode: "305",
-          lineRef: "kvv:22305:E:R:s26",
-          stopPointId: "de:08212:7",
-          date: "20261007",
-          time: "1535",
-        },
+        operatingDayRef: "2026-10-07",
       },
     ],
   });

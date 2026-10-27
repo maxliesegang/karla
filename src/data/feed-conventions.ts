@@ -2,28 +2,6 @@
 import { EXCEPTIONAL_OPERATION_WORDS } from "./operational-exceptions";
 import type { BayKind, VehicleAccess } from "./transit-types";
 
-const NETWORK_TIME_ZONE = "Europe/Berlin";
-const networkDateTimeFormat = new Intl.DateTimeFormat("en-CA", {
-  timeZone: NETWORK_TIME_ZONE,
-  year: "numeric",
-  month: "2-digit",
-  day: "2-digit",
-  hour: "2-digit",
-  minute: "2-digit",
-  hourCycle: "h23",
-});
-
-/** An instant's network calendar day and minute, as a journey locator states them. */
-export function formatNetworkDateAndTime(instant: number): { date: string; time: string } {
-  const parts = Object.fromEntries(
-    networkDateTimeFormat.formatToParts(instant).map(({ type, value }) => [type, value]),
-  );
-  return {
-    date: `${parts.year}${parts.month}${parts.day}`,
-    time: `${parts.hour}${parts.minute}`,
-  };
-}
-
 /**
  * Boarding as the remarks state it. The negation is matched first because it contains the positive
  * word; a journey whose remarks say nothing about boarding stays unanswered, not `notStepFree`.

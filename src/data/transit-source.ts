@@ -5,13 +5,13 @@ import { network } from "../networks/network";
 import { isWithinScopeBounds } from "./network-scope";
 import {
   fetchStopPlaceBoard,
-  getDatedJourneyId,
   type FeedStopEventBoard,
   type FeedStopEventBoardOptions,
   type FeedStopEvent,
   type Feed,
   type FeedTripInfo,
-  type JourneyLocator,
+  type DatedJourneyRef,
+  type RowCallRef,
 } from "./feed";
 import type {
   StopEventBoard,
@@ -35,7 +35,6 @@ import { createStopEventId, keepOneRowPerDatedJourney } from "./stop-event-dated
 import { SharedRequests } from "./request-sharing";
 import { DYNAMIC_STOP_ID_PATTERN, StopRegistry, hashProviderStopId } from "./stop-registry";
 import { ServingDirections } from "./serving-directions";
-import { createStopSlug } from "../lib/stop-slug";
 import { sortStopEventsByExpectedInstant } from "../lib/stop-event-order";
 import { isBetterDatedJourneyReading } from "../lib/journeys";
 import { createSortedKey } from "../lib/collections";
@@ -146,6 +145,13 @@ export function createFeed(environment = import.meta.env ?? {}): Feed {
 }
 
 /** Core-network stops are local data; every other stop is resolved from KVV on request. */
+/** The dated journey a row can request, where it names both halves. */
+const getDatedJourneyRef = ({
+  journeyRef,
+  operatingDayRef,
+}: StopEvent): DatedJourneyRef | undefined =>
+  journeyRef && operatingDayRef ? { journeyRef, operatingDayRef } : undefined;
+
 export class TriasTransitSource implements TransitSource {
   private readonly boards = new StopEventBoardReadings();
   private readonly datedJourneyRequests = new SharedRequests<DatedJourneyCalls | undefined>();
@@ -304,14 +310,10 @@ export class TriasTransitSource implements TransitSource {
     if (local) return local;
 
     // A deep link's digest pins the stop point; the name only supplies the search query.
-    const [, slug = stopId, digest] = DYNAMIC_STOP_ID_PATTERN.exec(stopId) ?? [];
+    const [, slug, digest] = DYNAMIC_STOP_ID_PATTERN.exec(stopId) ?? [];
+    if (!slug || !digest) return undefined;
     const matches = await this.client.searchStops(slug.replace(/-/g, " "));
-    const exact = matches.filter((candidate) => createStopSlug(candidate.name) === slug);
-    const match = digest
-      ? matches.find((candidate) => hashProviderStopId(candidate.providerId) === digest)
-      : exact.length === 1
-        ? exact[0]
-        : undefined;
+    const match = matches.find((candidate) => hashProviderStopId(candidate.providerId) === digest);
     return match
       ? this.stops.register({
           providerId: match.providerId,
@@ -429,17 +431,19 @@ export class TriasTransitSource implements TransitSource {
   }
 
   getLineRoute(rowId: string): Promise<readonly string[] | undefined> {
-    const locator = this.datedJourneyReadings.findRow(rowId)?.locator;
-    if (!locator) return Promise.resolve(undefined);
+    const stopEvent = this.datedJourneyReadings.findRow(rowId)?.stopEvent;
+    const journey = stopEvent && getDatedJourneyRef(stopEvent);
+    const lineRef = stopEvent?.lineRef;
+    if (!journey || !lineRef) return Promise.resolve(undefined);
     // Every dated journey of a direction has the same route.
-    const kept = this.lineRoutes.get(locator.lineRef);
+    const kept = this.lineRoutes.get(lineRef);
     if (kept) return Promise.resolve(kept);
 
     return (
-      this.lineRouteRequests.find(locator.lineRef) ??
-      this.lineRouteRequests.share(locator.lineRef, () =>
+      this.lineRouteRequests.find(lineRef) ??
+      this.lineRouteRequests.share(lineRef, () =>
         this.client
-          .fetchLineRoute(locator)
+          .fetchLineRoute(journey)
           .then((route) => {
             // Resolved through the registry, so a stop first met along a line gets its own page.
             const stopIds = [
@@ -450,7 +454,7 @@ export class TriasTransitSource implements TransitSource {
                   .filter((stopId): stopId is string => Boolean(stopId)),
               ),
             ];
-            if (stopIds.length > 0) this.lineRoutes.set(locator.lineRef, stopIds);
+            if (stopIds.length > 0) this.lineRoutes.set(lineRef, stopIds);
             return stopIds;
           })
           // Asked again next time; the reading falls back to the dated journeys in hand.
@@ -470,9 +474,10 @@ export class TriasTransitSource implements TransitSource {
     const cached = this.datedJourneyReadings.findSequence(rowId);
     const current = () => (cached ? this.findDatedJourney(rowId) : undefined);
 
-    // Without a locator the dated journey cannot be requested, and a board's calls are not its
-    // reading.
-    if (!row.locator) return Promise.resolve(undefined);
+    // Without its journey and day the dated journey cannot be requested, and a board's calls are
+    // not its reading.
+    const journey = getDatedJourneyRef(row.stopEvent);
+    if (!journey) return Promise.resolve(undefined);
 
     // Rows of a dated journey share one record and request. Staleness is the calls' own clock, not
     // the row's.
@@ -480,7 +485,10 @@ export class TriasTransitSource implements TransitSource {
     if (readAt !== undefined && Date.now() - readAt < maxAgeMs) return Promise.resolve(current());
     const read =
       this.datedJourneyRequests.find(this.datedJourneyReadings.findJourneyRecordKey(rowId)) ??
-      this.requestDatedJourney(rowId, row.locator);
+      this.requestDatedJourney(rowId, journey, {
+        stopPointId: row.stopEvent.boardingProviderStopPointId,
+        timetabledTime: row.stopEvent.timetabledDepartureTime,
+      });
     // A failed read answers nothing, so the caller backs off.
     return read.then((sequence) => (sequence ? this.findDatedJourney(rowId) : undefined));
   }
@@ -643,6 +651,7 @@ export class TriasTransitSource implements TransitSource {
     const mapped: StopEvent = {
       id,
       journeyRef: stopEvent.journeyRef,
+      operatingDayRef: stopEvent.operatingDayRef,
       datedJourneyId: stopEvent.datedJourneyId,
       publishedJourneyNumber: stopEvent.publishedJourneyNumber,
       lineId: stopEvent.lineId,
@@ -669,19 +678,20 @@ export class TriasTransitSource implements TransitSource {
         ...(calls?.length ? { sequenceReadAt: receivedAt } : {}),
       },
     };
-    this.datedJourneyReadings.rememberRow(mapped, stopEvent.journeyLocator, receivedAt);
+    this.datedJourneyReadings.rememberRow(mapped, receivedAt);
     return mapped;
   }
 
   private requestDatedJourney(
     rowId: string,
-    locator: JourneyLocator,
+    journey: DatedJourneyRef,
+    rowCall: RowCallRef,
   ): Promise<DatedJourneyCalls | undefined> {
     const requestKey = this.datedJourneyReadings.findJourneyRecordKey(rowId);
     const requestedAt = Date.now();
     return this.datedJourneyRequests.share(requestKey, () =>
       this.client
-        .fetchTripInfo(locator)
+        .fetchTripInfo(journey, rowCall)
         .then((journey) => {
           const receivedAt = Date.now();
           const sequence = this.createSequenceReading(requestKey, journey, receivedAt);
@@ -709,9 +719,8 @@ export class TriasTransitSource implements TransitSource {
   }
 
   /**
-   * A single-journey response as this dated journey's calls at this instant. The row supplies only
-   * the timetable journey for the dated id; the reading is shared by every stop of the dated
-   * journey.
+   * A single-journey response as this dated journey's calls at this instant, shared by every stop
+   * of the dated journey.
    */
   private createSequenceReading(
     datedJourneyKey: string,
@@ -721,12 +730,9 @@ export class TriasTransitSource implements TransitSource {
     const stopEvent = this.datedJourneyReadings.findDatedJourneyRow(datedJourneyKey)?.stopEvent;
     if (!stopEvent) return undefined;
     const calls = this.stops.toCalls(journey.calls);
-    const datedJourneyId =
-      getDatedJourneyId(stopEvent.journeyRef, calls) ?? stopEvent.datedJourneyId;
     return {
       calls,
-      // Derived as a board derives it, so one dated journey gets one dated id.
-      ...(datedJourneyId ? { datedJourneyId } : {}),
+      ...(stopEvent.datedJourneyId ? { datedJourneyId: stopEvent.datedJourneyId } : {}),
       status: journey.status ?? stopEvent.status,
       // The calls' own clock.
       readAt: receivedAt,

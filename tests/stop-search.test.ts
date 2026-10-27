@@ -5,6 +5,7 @@ import { isWithinScopeBounds } from "../src/data/network-scope.ts";
 import { kvvNetwork } from "../src/networks/kvv/kvv-network.ts";
 import type { Feed, FeedStopSearchResult } from "../src/data/feed.ts";
 import { TriasTransitSource } from "../src/data/transit-source.ts";
+import { hashProviderStopId } from "../src/data/stop-registry.ts";
 import type { TransitNetwork } from "../src/data/transit-types.ts";
 
 test("the KVV area box keeps the network's far corners and excludes the neighbours", () => {
@@ -68,17 +69,12 @@ test("a link with an unmatched digest cannot resolve to another stop with the sa
   assert.equal(source.getKnownStop("bahnhof--wrongdigest"), undefined);
 });
 
-test("a legacy name-only link requires one exact stop match", async () => {
-  for (const matches of [
-    [{ providerId: "1", name: "Bahnhof West" }],
-    [
-      { providerId: "1", name: "Bahnhof" },
-      { providerId: "2", name: "Bahnhof" },
-    ],
-  ]) {
-    const source = new TriasTransitSource(clientWith(matches), { stops: [], lines: [] });
-    assert.equal(await source.resolveStop("bahnhof"), undefined);
-  }
+test("a link naming a stop without its digest does not resolve", async () => {
+  const source = new TriasTransitSource(clientWith([{ providerId: "1", name: "Bahnhof" }]), {
+    stops: [],
+    lines: [],
+  });
+  assert.equal(await source.resolveStop("bahnhof"), undefined);
 });
 
 test("the search answers with local matches first and keeps only in-area provider matches", async () => {
@@ -172,9 +168,10 @@ test("a stop the session has already met is answered without another wait", asyn
 
   assert.equal(source.getKnownStop("europaplatz")?.name, "Europaplatz");
   // Not yet met is not the same claim as not existing — that stays `resolveStop`'s to answer.
-  assert.equal(source.getKnownStop("ohne-position"), undefined);
+  const stopId = `ohne-position--${hashProviderStopId("de:08212:992")}`;
+  assert.equal(source.getKnownStop(stopId), undefined);
 
-  const resolved = await source.resolveStop("ohne-position");
+  const resolved = await source.resolveStop(stopId);
   assert.ok(resolved);
   assert.equal(source.getKnownStop(resolved.id)?.id, resolved.id);
 });

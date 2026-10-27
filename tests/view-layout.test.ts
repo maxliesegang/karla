@@ -51,7 +51,7 @@ test("a stop is its board alone, and a line beside it opens the second panel", (
 });
 
 test("the ride sets the board aside as soon as its line resolves", () => {
-  const ride = layoutFor(`#/trip/${JOURNEY}/from/europaplatz`, {
+  const ride = layoutFor(`#/journey/${JOURNEY}/from/europaplatz`, {
     stopId: "europaplatz",
     lineId: "S11",
   });
@@ -60,7 +60,7 @@ test("the ride sets the board aside as soon as its line resolves", () => {
   assert.equal(ride.isSinglePanel, true);
 
   // Still waiting for the boards to answer: the board must not flash open in the meantime.
-  const pending = layoutFor(`#/trip/${JOURNEY}`, {
+  const pending = layoutFor(`#/journey/${JOURNEY}`, {
     stopId: "europaplatz",
     lineId: "S11",
     hasSelectedStopEvent: false,
@@ -70,14 +70,14 @@ test("the ride sets the board aside as soon as its line resolves", () => {
 });
 
 test("another trip of the same line is the same diagram, which glides rather than re-enters", () => {
-  const before = layoutFor(`#/stop/marktplatz/line/2/trip/${JOURNEY}`);
-  const after = layoutFor(`#/stop/marktplatz/line/2/trip/${OTHER_JOURNEY}`);
+  const before = layoutFor(`#/stop/marktplatz/line/2/journey/${JOURNEY}`);
+  const after = layoutFor(`#/stop/marktplatz/line/2/journey/${OTHER_JOURNEY}`);
   assert.equal(before.primaryKey, after.primaryKey);
   assert.equal(describePanelChange(before, after), "none");
 });
 
 test("picking another line changes only the panel beside the board", () => {
-  const before = layoutFor(`#/stop/marktplatz/line/2/trip/${JOURNEY}`);
+  const before = layoutFor(`#/stop/marktplatz/line/2/journey/${JOURNEY}`);
   const after = layoutFor("#/stop/marktplatz/line/4");
   assert.equal(before.boardKey, after.boardKey);
   assert.notEqual(before.primaryKey, after.primaryKey);
@@ -85,8 +85,8 @@ test("picking another line changes only the panel beside the board", () => {
 });
 
 test("boarding a trip is a thing of its own, and leaving it comes back to the line", () => {
-  const line = layoutFor(`#/stop/marktplatz/line/2/trip/${JOURNEY}`);
-  const ride = layoutFor(`#/trip/${JOURNEY}/from/marktplatz`, { stopId: "marktplatz" });
+  const line = layoutFor(`#/stop/marktplatz/line/2/journey/${JOURNEY}`);
+  const ride = layoutFor(`#/journey/${JOURNEY}/from/marktplatz`, { stopId: "marktplatz" });
   assert.notEqual(line.primaryKey, ride.primaryKey);
   assert.equal(describePanelChange(line, ride), "primary");
   assert.equal(describePanelChange(ride, line), "primary");
@@ -181,8 +181,8 @@ test("the observation is first read where an address needs it, not at a bare sto
   assert.equal(needs("#/experiment/center"), true);
   assert.equal(needs("#/line/2"), true);
   assert.equal(needs("#/stop/marktplatz/line/2"), true);
-  assert.equal(needs(`#/stop/marktplatz/trip/${JOURNEY}`), true);
-  assert.equal(needs(`#/trip/${JOURNEY}`), true);
+  assert.equal(needs(`#/stop/marktplatz/journey/${JOURNEY}`), true);
+  assert.equal(needs(`#/journey/${JOURNEY}`), true);
 });
 
 test("the plan is lit by a followed line or by an opened stop, and the address says which", () => {
@@ -222,14 +222,8 @@ test("experiment map paths carry their map, stop and size", () => {
   assert.equal(routePaths.map("region", "entenfang"), "/experiment/region/stop/entenfang");
 });
 
-test("the experiment page opens the Zentrum plan, and the plan's earlier addresses still resolve", () => {
+test("the experiment page opens the Zentrum plan", () => {
   assert.equal(routePaths.experiment(), "/experiment");
   assert.deepEqual(parseRoute(routePaths.experiment()), parseRoute(routePaths.zentrum()));
   assert.deepEqual(parseRoute("#/experiment"), parseRoute("#/experiment/center"));
-  assert.deepEqual(parseRoute("#/center"), parseRoute("#/experiment/center"));
-  assert.deepEqual(parseRoute("#/center/stops"), parseRoute("#/experiment/center"));
-  assert.deepEqual(
-    parseRoute("#/center/full/line/2"),
-    parseRoute("#/experiment/center/full/line/2"),
-  );
 });

@@ -8,7 +8,7 @@ import {
   parseTriasTripInfo,
   toProviderStopId,
 } from "../src/data/trias-parsers.ts";
-import type { JourneyLocator } from "../src/data/feed.ts";
+import type { DatedJourneyRef, RowCallRef } from "../src/data/feed.ts";
 import {
   triasReply,
   triasSituation,
@@ -34,12 +34,9 @@ test("malformed XML never becomes a successful empty board", () => {
 });
 
 test("each endpoint requires its own payload and a valid feed clock", () => {
-  const locator: JourneyLocator = {
-    lineRef: "kvv:22305:E:R:s26",
-    journeyCode: "1762",
-    stopPointId: "de:08212:1003",
-    date: "20261017",
-    time: "2301",
+  const journey: DatedJourneyRef = {
+    journeyRef: "kvv:22305:E:R:s26:1762",
+    operatingDayRef: "2026-10-17",
   };
   for (const time of ["", "not a time", "2026-10-17T21:01:46", "2026-02-30T21:01:46Z"]) {
     assert.throws(
@@ -51,7 +48,7 @@ test("each endpoint requires its own payload and a valid feed clock", () => {
       TriasError,
     );
     assert.throws(
-      () => parseTriasTripInfo(triasTripInfo(time, { previous: [MARKTPLATZ] }), locator),
+      () => parseTriasTripInfo(triasTripInfo(time, { previous: [MARKTPLATZ] }), journey),
       TriasError,
     );
   }
@@ -151,7 +148,7 @@ test("the countdown is the clock minutes between the feed's reading and the expe
   assert.equal(row.minutesUntilDeparture, 4);
 });
 
-test("the locator splits the journey ref into line and code, and carries the operating day", () => {
+test("a row carries its line ref and dated journey, on the operating day", () => {
   const [row] = parseTriasStopEvents(
     triasStopEvents(RESPONDED_AT, [
       triasStopEvent({
@@ -161,15 +158,10 @@ test("the locator splits the journey ref into line and code, and carries the ope
     ]),
     "de:08212:1003",
   ).stopEvents;
-  assert.deepEqual(row.journeyLocator, {
-    lineRef: "kvv:22305:E:R:s26",
-    journeyCode: "1762",
-    stopPointId: "de:08212:1003",
-    // 00:10 the next calendar day in Karlsruhe, still the 17th's operating day.
-    date: "20261018",
-    time: "0010",
-    operatingDayRef: "2026-10-17",
-  });
+  assert.equal(row.lineRef, "kvv:22305:E:R:s26");
+  // 00:10 the next calendar day in Karlsruhe, still the 17th's operating day.
+  assert.equal(row.operatingDayRef, "2026-10-17");
+  assert.equal(row.datedJourneyId, "kvv:22305:E:R:s26:1762@2026-10-17");
 });
 
 test("calls keep predictions to the second and their whole-minute delays", () => {
@@ -304,19 +296,20 @@ test("a stop with nothing due is an empty board; any other error is a failure", 
   assert.throws(() => parseTriasStopEvents("<html>502</html>", "de:08212:1003"), TriasError);
 });
 
-const LOCATOR: JourneyLocator = {
-  lineRef: "kvv:22305:E:R:s26",
-  journeyCode: "1762",
-  stopPointId: "de:08212:1002",
-  date: "20261017",
-  time: "2302",
+const JOURNEY: DatedJourneyRef = {
+  journeyRef: "kvv:22305:E:R:s26:1762",
   operatingDayRef: "2026-10-17",
+};
+const ROW_CALL: RowCallRef = {
+  stopPointId: "de:08212:1002",
+  timetabledTime: "2026-10-17T21:02:30.000Z",
 };
 
 test("a trip marks the call its row was read at", () => {
   const journey = parseTriasTripInfo(
     triasTripInfo(RESPONDED_AT, { previous: [MARKTPLATZ, KRONENPLATZ], onward: [PFORZHEIM] }),
-    LOCATOR,
+    JOURNEY,
+    ROW_CALL,
   );
   assert.deepEqual(
     journey.calls.map(({ providerId, isThisCall }) => [providerId, isThisCall]),
@@ -338,7 +331,7 @@ test("a trip answered for another journey, or with an error code, was not found"
           previous: [MARKTPLATZ],
           service: { journeyRef: "kvv:22305:E:R:s26:9" },
         }),
-        LOCATOR,
+        JOURNEY,
       ),
     /nicht gefunden/,
   );
@@ -349,7 +342,7 @@ test("a trip answered for another journey, or with an error code, was not found"
           RESPONDED_AT,
           "<trias:TripInfoResponse><trias:ErrorMessage><trias:Code>ERROR_INVALID_JOURNEY_REF</trias:Code></trias:ErrorMessage></trias:TripInfoResponse>",
         ),
-        LOCATOR,
+        JOURNEY,
       ),
     /nicht gefunden/,
   );

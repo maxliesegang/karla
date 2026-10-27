@@ -1,9 +1,5 @@
-/** Live boards contain every KVV line calling at a stop, so ids from the feed are open. */
+/** The rider-facing sign (`S1`); open, since boards carry every line calling. Not the `lineRef`. */
 export type LineId = string;
-/**
- * `LineId` is the rider-facing sign. The provider's key (`servingLine.stateless`) is a different
- * fact and keeps its spelling: a locator's `line`, dated journey keys, wire filters.
- */
 
 export type PtMode = "tram" | "lightRail" | "bus" | "other";
 
@@ -77,7 +73,9 @@ export type StopEvent = {
   id: string;
   /** TRIAS's `JourneyRef`, shared by the timetable journey across dates. */
   journeyRef?: string;
-  /** Dated identity, for matching older shared links and deduplicating operating instances. */
+  /** TRIAS's `OperatingDayRef`: with `journeyRef`, the dated journey. */
+  operatingDayRef?: string;
+  /** `journeyRef@operatingDayRef`; tells one day's dated journey from the next. */
   datedJourneyId?: string;
   /** Operator train number; equal numbers can relate separately addressed joined portions. */
   publishedJourneyNumber?: string;
@@ -142,7 +140,7 @@ export type StopEventReadingTimes = {
  */
 export type DatedJourneyCalls = {
   calls: readonly Call[];
-  /** The dated identity this sequence's first call refines, where the reading names one. */
+  /** The dated journey these calls belong to, where the reading names one. */
   datedJourneyId?: string;
   status: StopEventStatus;
   /** When these calls were read, on the device's clock. Absent only on a fixture. */

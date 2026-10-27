@@ -3,7 +3,7 @@ import test from "node:test";
 import { readFileSync } from "node:fs";
 import type {
   Feed,
-  JourneyLocator,
+  DatedJourneyRef,
   FeedStopEvent,
   FeedStopEventBoard,
   FeedTripInfo,
@@ -21,7 +21,7 @@ test("tomorrow's reused S7 code never replaces or refreshes today's active run",
   let now = Date.parse("2026-10-07T13:42:45Z");
   t.mock.method(Date, "now", () => now);
   const { today, tomorrow } = fixture;
-  const requests: JourneyLocator[] = [];
+  const requests: DatedJourneyRef[] = [];
   const client = {} as Feed;
   client.fetchStopEventBoard = async (_stop, options) => {
     if (options?.eventKind === "arrival") {
@@ -30,9 +30,9 @@ test("tomorrow's reused S7 code never replaces or refreshes today's active run",
     }
     return today;
   };
-  client.fetchTripInfo = async (locator) => {
-    requests.push(locator);
-    return locator.date === "20261008"
+  client.fetchTripInfo = async (journey) => {
+    requests.push(journey);
+    return journey.operatingDayRef === "2026-10-08"
       ? fixture.tomorrowTripInfo
       : { serverTime: new Date(now).toISOString(), calls: today.stopEvents[0].calls ?? [] };
   };
@@ -67,18 +67,11 @@ test("tomorrow's reused S7 code never replaces or refreshes today's active run",
   now += 40_000;
   const refreshed = await source.getDatedJourney(active.id, 30_000);
   assert.equal(refreshed?.datedJourneyId, active.datedJourneyId);
-  assert.equal(requests[0]?.date, "20261007");
-  assert.ok(requests.every((request) => request.date === "20261007"));
+  assert.equal(requests[0]?.operatingDayRef, "2026-10-07");
+  assert.ok(requests.every((request) => request.operatingDayRef === "2026-10-07"));
 });
 
 /** Line 6 at Arbeitsagentur, its terminus: in from ZKM at 14:02, out again at 14:03. */
-const locator = (time: string): JourneyLocator => ({
-  journeyCode: "10",
-  lineRef: "kvv:21006:E:H:s26",
-  stopPointId: "de:08212:64",
-  date: "20261005",
-  time,
-});
 
 const sixRow = (eventKind: "arrival" | "departure"): FeedStopEvent => {
   const time = eventKind === "arrival" ? "2026-10-05T12:02:00.000Z" : "2026-10-05T12:03:00.000Z";
@@ -86,7 +79,8 @@ const sixRow = (eventKind: "arrival" | "departure"): FeedStopEvent => {
     stopPointId: "de:08212:64",
     stopPointName: "Arbeitsagentur",
     journeyRef: "six-inbound",
-    datedJourneyId: "six-inbound@2026-10-05T12:00",
+    operatingDayRef: "2026-10-05",
+    datedJourneyId: "six-inbound@2026-10-05",
     lineId: "6",
     lineRef: "kvv:21006:E:H:s26",
     ptMode: "tram",
@@ -95,7 +89,6 @@ const sixRow = (eventKind: "arrival" | "departure"): FeedStopEvent => {
     bay: "2",
     status: "scheduled",
     timetabledDepartureTime: time,
-    journeyLocator: locator(eventKind === "arrival" ? "1402" : "1403"),
     calls: [
       {
         stopName: "ZKM",
@@ -181,7 +174,6 @@ test("a crowded board discovers a rail direction known only from runs read elsew
     lineId: "S4",
     lineRef: sparseDirection,
     ptMode: "lightRail",
-    journeyLocator: { ...locator("1403"), journeyCode: "11", lineRef: sparseDirection },
   };
   const requests: { stopPointId: string; lineIds?: readonly string[]; limit?: number }[] = [];
   const client = {

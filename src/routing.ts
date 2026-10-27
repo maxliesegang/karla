@@ -34,10 +34,9 @@ const DEFAULT_LINE_ID = "2";
 
 /**
  * The line segment: one line or a bundle (`line/2`, `line/S1+S11`). A bundle is a view of several
- * lines, never a line of its own. The legacy `S1-S11` form reads as that bundle.
+ * lines, never a line of its own.
  */
-const parseLineSegment = (segment: string) =>
-  parseLineSelection(segment === "S1-S11" ? "S1+S11" : segment);
+const parseLineSegment = (segment: string) => parseLineSelection(segment);
 
 function getLinePathSegment(lineId: string, bundledLineIds: readonly string[] = []): string {
   const primary = getLineFamilyId(lineId);
@@ -72,11 +71,11 @@ export type AppRoute = {
   mapStopId: string;
   /** The map at screen size (`…/center/full`), addressed so the back gesture closes it. */
   isMapFullscreen: boolean;
-  /** Address of the selected dated journey; undated and dated provider ids still resolve. */
+  /** Address of the selected dated journey: `journeyRef@operatingDayRef`, or a bare row id. */
   addressId?: string;
   /** The level a stop-scoped journey was opened from, retained for the step-up control. */
   journeyParent?: JourneyParent;
-  /** A ride: the journey read on its own (`#/trip/:tripId`), with no stop or line beside it. */
+  /** A ride: the journey read on its own (`#/journey/:ref/:day`), with no stop or line beside it. */
   isRide: boolean;
   /** The rider's marked Ausstieg on a ride; dropped once the journey no longer calls there. */
   alightingStopId?: string;
@@ -117,35 +116,57 @@ function decodePathSegment(segment: string | undefined): string {
 const encodePathSegment = (segment: string): string =>
   encodeURIComponent(segment).replaceAll("%3A", ":");
 
-/** `/stop/:stopId` and its refinements, including legacy shapes. */
+const OPERATING_DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/** `journey/:journeyRef/:operatingDayRef`; a row without a dated journey has its id alone. */
+function formatJourneyPath(addressId: string): string {
+  const separator = addressId.lastIndexOf("@");
+  const day = addressId.slice(separator + 1);
+  return separator > 0 && OPERATING_DAY_PATTERN.test(day)
+    ? `/journey/${encodePathSegment(addressId.slice(0, separator))}/${day}`
+    : `/journey/${encodePathSegment(addressId)}`;
+}
+
+/** The address after `journey`, and how many segments it took. */
+function parseJourneySegments(segments: readonly string[]): {
+  addressId: string;
+  length: number;
+} {
+  const journeyRef = decodePathSegment(segments[0]);
+  const day = segments[1];
+  return day && OPERATING_DAY_PATTERN.test(day)
+    ? { addressId: `${journeyRef}@${day}`, length: 2 }
+    : { addressId: journeyRef, length: 1 };
+}
+
+/** `/stop/:stopId` and its refinements. */
 function parseStopRoute(segments: readonly string[]): AppRoute {
   const [rawStopId, qualifier, ...rest] = segments;
   const stopId = rawStopId ?? DEFAULT_STOP_ID;
-  if (qualifier === "trip") {
+  if (qualifier === "journey") {
     return {
       ...defaultRoute,
       view: "stop",
       stopId,
-      addressId: decodePathSegment(rest[0]),
+      addressId: parseJourneySegments(rest).addressId,
       journeyParent: "stop",
     };
   }
-  // The legacy `/lines` qualifier lands on the stop.
   if (qualifier !== "line") return { ...defaultRoute, view: "stop", stopId };
 
+  const isJourney = rest[1] === "journey";
   return {
     ...defaultRoute,
     view: "stop",
     stopId,
     ...parseLineSegment(rest[0] || DEFAULT_LINE_ID),
-    addressId: rest[1] === "trip" ? decodePathSegment(rest[2]) : undefined,
-    journeyParent: rest[1] === "trip" ? "line" : undefined,
+    addressId: isJourney ? parseJourneySegments(rest.slice(2)).addressId : undefined,
+    journeyParent: isJourney ? "line" : undefined,
   };
 }
 
 /**
- * The optional `from`/`to` stops after a journey id, read as named pairs since either may be
- * absent.
+ * The optional `from`/`to` stops after a journey, read as named pairs since either may be absent.
  */
 function parseJourneyQualifiers(segments: readonly string[]): { from?: string; to?: string } {
   const qualifiers: { from?: string; to?: string } = {};
@@ -157,7 +178,7 @@ function parseJourneyQualifiers(segments: readonly string[]): { from?: string; t
   return qualifiers;
 }
 
-/** The Zentrum plan's two sizes, after its map name; the legacy `/center/stops` lands on the plan. */
+/** A map's two sizes, after its name. */
 function parseMapRoute(map: OtherExperimentMap, segments: readonly string[]): AppRoute {
   const isMapFullscreen = segments[0] === "full";
   const [kind, id] = isMapFullscreen ? segments.slice(1) : segments;
@@ -195,10 +216,10 @@ export function parseRoute(hash: string): AppRoute {
         stopId: "",
         ...parseLineSegment(rest[0] || DEFAULT_LINE_ID),
       };
-    case "trip": {
+    case "journey": {
       // A ride: the journey alone, optionally with `/from/:stopId` and `/to/:stopId`.
-      const addressId = decodePathSegment(rest[0]);
-      const { from, to } = parseJourneyQualifiers(rest.slice(1));
+      const { addressId, length } = parseJourneySegments(rest);
+      const { from, to } = parseJourneyQualifiers(rest.slice(length));
       return {
         ...defaultRoute,
         view: "stop",
@@ -209,23 +230,7 @@ export function parseRoute(hash: string): AppRoute {
         alightingStopId: to,
       };
     }
-    // Legacy ride address.
-    case "ride":
-    case "departure": {
-      // Legacy journey links: `/departure/:trip/:stop` (line recovered from the board) and
-      // `/departure/:trip/:line/:stop`.
-      const namesLine = rest.length >= 3;
-      return {
-        ...defaultRoute,
-        view: "stop",
-        addressId: decodePathSegment(rest[0]),
-        lineId: namesLine ? getLineFamilyId(rest[1] || "") : "",
-        stopId: (namesLine ? rest[2] : rest[1]) || DEFAULT_STOP_ID,
-        journeyParent: namesLine ? "line" : "stop",
-      };
-    }
     case "network":
-      // Legacy `/network/city` and `/network/region` open the line index.
       return { ...defaultRoute, view: "network" };
     case "nearby":
       return { ...defaultRoute, view: "nearby" };
@@ -236,9 +241,6 @@ export function parseRoute(hash: string): AppRoute {
       return ARE_OTHER_EXPERIMENT_MAPS_SHOWN && (rest[0] === "geo" || rest[0] === "region")
         ? parseMapRoute(rest[0], rest.slice(1))
         : parseZentrumRoute(rest.slice(1));
-    case "center":
-      // The Zentrum plan's address before the experiment page.
-      return parseZentrumRoute(rest);
     case "stop":
       return parseStopRoute(rest);
     default:
@@ -280,13 +282,13 @@ export const routePaths = {
     stopId: string,
     bundledLineIds: readonly string[] = [],
   ) =>
-    `/stop/${stopId}/line/${getLinePathSegment(lineId, bundledLineIds)}/trip/${encodePathSegment(addressId)}`,
+    `/stop/${stopId}/line/${getLinePathSegment(lineId, bundledLineIds)}${formatJourneyPath(addressId)}`,
   /** A journey from the plain stop board; its line is inferred from the departure. */
   journeyAtStop: (addressId: string, stopId: string) =>
-    `/stop/${stopId}/trip/${encodePathSegment(addressId)}`,
+    `/stop/${stopId}${formatJourneyPath(addressId)}`,
   /** A ride, with the rider's boarding and alighting stops where chosen. */
   ride: (addressId: string, originStopId?: string, alightingStopId?: string) => {
-    const journey = `/trip/${encodePathSegment(addressId)}`;
+    const journey = formatJourneyPath(addressId);
     const from = originStopId ? `/from/${encodePathSegment(originStopId)}` : "";
     const to = alightingStopId ? `/to/${encodePathSegment(alightingStopId)}` : "";
     return `${journey}${from}${to}`;
@@ -374,11 +376,9 @@ export function getParentSelectionPath({
   return routePaths.home();
 }
 
-/** Prefers the journey ref for concise URLs, falling back to the local id. */
-export function getStopEventAddressId(
-  stopEvent: Pick<StopEvent, "id" | "journeyRef" | "datedJourneyId">,
-): string {
-  return stopEvent.journeyRef ?? stopEvent.datedJourneyId ?? stopEvent.id;
+/** The dated journey, else the row's own id. */
+export function getStopEventAddressId(stopEvent: Pick<StopEvent, "id" | "datedJourneyId">): string {
+  return stopEvent.datedJourneyId ?? stopEvent.id;
 }
 
 /**
@@ -428,17 +428,14 @@ export function isAddressOutstanding({
   return !isStopBoardRead || isReadingLine;
 }
 
-/** Resolves current and legacy departure URLs against a freshly loaded board. */
+/** The row an address names on a freshly loaded board. */
 export function findStopEventByAddressId(
   stopEvents: readonly StopEvent[],
   addressId: string | undefined,
 ): StopEvent | undefined {
   if (!addressId) return undefined;
   return stopEvents.find(
-    (stopEvent) =>
-      stopEvent.datedJourneyId === addressId ||
-      stopEvent.journeyRef === addressId ||
-      stopEvent.id === addressId,
+    (stopEvent) => stopEvent.datedJourneyId === addressId || stopEvent.id === addressId,
   );
 }
 

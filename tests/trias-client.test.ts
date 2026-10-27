@@ -102,20 +102,14 @@ const journeyReply = () =>
     }),
   );
 
-const LOCATOR = {
-  lineRef: "kvv:22305:E:R:s26",
-  journeyCode: "1762",
-  stopPointId: "de:08212:39",
-  date: "20261018",
-  time: "0005",
-};
+const JOURNEY = { journeyRef: "kvv:22305:E:R:s26:1762", operatingDayRef: "2026-10-17" };
 
-test("a trip is asked for by journey and operating day, or the calendar day without one", async () => {
+test("a trip is asked for by journey and operating day", async () => {
   const proxy = createProxy(journeyReply);
   const client = createClient(proxy.fetchFn);
 
-  await client.fetchTripInfo({ ...LOCATOR, operatingDayRef: "2026-10-17" });
-  await client.fetchTripInfo(LOCATOR);
+  await client.fetchTripInfo(JOURNEY);
+  await client.fetchTripInfo({ ...JOURNEY, operatingDayRef: "2026-10-18" });
 
   assert.deepEqual(
     proxy.requests.map((url) => [
@@ -132,7 +126,7 @@ test("a trip is asked for by journey and operating day, or the calendar day with
 
 test("a line route is the calls of the run it is addressed through", async () => {
   const client = createClient(createProxy(journeyReply).fetchFn);
-  const route = await client.fetchLineRoute(LOCATOR);
+  const route = await client.fetchLineRoute(JOURNEY);
   assert.deepEqual(
     route.map(({ providerId }) => providerId),
     ["de:08212:39", "de:08212:37"],
@@ -144,10 +138,13 @@ test("a run's reading and its route asked at once share one trip request", async
   const client = createClient(proxy.fetchFn);
 
   const [journey, route] = await Promise.all([
-    client.fetchTripInfo(LOCATOR),
-    client.fetchLineRoute({ ...LOCATOR, stopPointId: "de:08212:39" }),
+    client.fetchTripInfo(JOURNEY, {
+      stopPointId: "de:08212:37",
+      timetabledTime: "2026-10-17T22:07:00Z",
+    }),
+    client.fetchLineRoute(JOURNEY),
   ]);
-  await client.fetchTripInfo(LOCATOR);
+  await client.fetchTripInfo(JOURNEY);
 
   // Once settled, the next reading asks again.
   assert.equal(proxy.requests.length, 2);

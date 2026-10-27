@@ -45,11 +45,11 @@ function parseBoundedNumber(
   return Number.isFinite(parsed) ? Math.min(maximum, Math.max(minimum, parsed)) : fallback;
 }
 
-/** Parses the query-string config; `display=1` is the legacy whole-stop spelling. */
+/** Parses the query-string config. */
 export function parseStationBoardConfig(search: string): StationBoardConfig | null {
   const parameters = new URLSearchParams(search);
   const displayMode = parameters.get("display");
-  if (displayMode !== "1" && displayMode !== "stop" && displayMode !== "platform") return null;
+  if (displayMode !== "stop" && displayMode !== "platform") return null;
 
   const bays = (parameters.get("platform") ?? "")
     .split(",")

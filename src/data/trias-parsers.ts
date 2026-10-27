@@ -1,6 +1,5 @@
 /** Pure decoding of TRIAS replies (docs/trias-api.md); the transport is `trias-client.ts`. */
 import {
-  formatNetworkDateAndTime,
   joinServiceNotes,
   normalizeNoticeLineNumber,
   parseNoticeDetails,
@@ -16,7 +15,8 @@ import {
   type FeedStopSearchResult,
   type FeedTripInfo,
   type FeedCall,
-  type JourneyLocator,
+  type DatedJourneyRef,
+  type RowCallRef,
 } from "./feed";
 import { network } from "../networks/network";
 import { isWithinScopePools, type NetworkScope } from "./network-scope";
@@ -116,11 +116,11 @@ function parseStatus(service: XmlElement | undefined, hasPrediction: boolean): S
   return hasPrediction ? "realtime" : "scheduled";
 }
 
-/** `kvv:22305:E:R:s26:1762`: the line-direction, then the journey code. */
-function splitJourneyRef(journeyRef: string): { lineRef: string; journeyCode: string } | undefined {
+/** `kvv:22305:E:R:s26:1762`: the line ref, then the journey's own code. */
+function readLineRef(journeyRef: string): string | undefined {
   const separator = journeyRef.lastIndexOf(":");
   if (separator <= 0 || separator === journeyRef.length - 1) return undefined;
-  return { lineRef: journeyRef.slice(0, separator), journeyCode: journeyRef.slice(separator + 1) };
+  return journeyRef.slice(0, separator);
 }
 
 type Delivery = { serverTime: string; response: XmlElement };
@@ -174,11 +174,11 @@ function parseStopEvent(
   const service = child(event, "Service");
   const section = child(service, "ServiceSection");
   const journeyRef = textAt(service, "JourneyRef");
-  const journey = journeyRef && splitJourneyRef(journeyRef);
+  const lineRef = journeyRef && readLineRef(journeyRef);
   const lineId = textAt(section, "PublishedLineName", "Text");
   const destinationText = textAt(service, "DestinationText", "Text");
   const ptMode = parsePtMode(child(section, "Mode"));
-  if (!journeyRef || !journey || !lineId || !destinationText || !ptMode) return null;
+  if (!journeyRef || !lineRef || !lineId || !destinationText || !ptMode) return null;
   if (!isWithinScopePools(scope, journeyRef)) return null;
 
   const thisCall = parseCall(child(event, "ThisCall"), true);
@@ -202,7 +202,7 @@ function parseStopEvent(
   if (!timetabledDepartureTime) return null;
   const timetabled = Date.parse(timetabledDepartureTime);
   const expected = estimatedDepartureTime ? Date.parse(estimatedDepartureTime) : timetabled;
-  const operatingDay = textAt(service, "OperatingDayRef");
+  const operatingDayRef = textAt(service, "OperatingDayRef");
   const remarks = childrenNamed(service, "Attribute").flatMap(
     (attribute) => textAt(attribute, "Text", "Text") ?? [],
   );
@@ -213,10 +213,12 @@ function parseStopEvent(
     stopPointId: thisCall.providerId,
     stopPointName: thisCall.stopName,
     journeyRef,
-    datedJourneyId: getDatedJourneyId(journeyRef, calls),
+    ...(operatingDayRef
+      ? { operatingDayRef, datedJourneyId: getDatedJourneyId({ journeyRef, operatingDayRef }) }
+      : {}),
     publishedJourneyNumber: textAt(event, "Extension", "PublishedJourneyNumber", "Text"),
     lineId,
-    lineRef: journey.lineRef,
+    lineRef,
     ptMode,
     destinationText: destination,
     minutesUntilDeparture: countClockMinutes(serverNow, expected),
@@ -229,12 +231,6 @@ function parseStopEvent(
     ...(estimatedDepartureTime ? { isEstimatedToTheSecond: true } : {}),
     serviceNote: joinServiceNotes(destinationNote, readOperatingNote(remarks)),
     vehicleAccess: readVehicleAccess(remarks),
-    journeyLocator: {
-      ...journey,
-      stopPointId: thisCall.providerId,
-      ...formatNetworkDateAndTime(timetabled),
-      ...(operatingDay ? { operatingDayRef: operatingDay } : {}),
-    },
     calls,
   };
 }
@@ -343,25 +339,31 @@ const readInstant = (value: string | undefined): string[] => {
   return Number.isFinite(instant) ? [new Date(instant).toISOString()] : [];
 };
 
-/** The call the locator's row was read at: its stop at its minute, else its stop. */
-function findRowCallIndex(calls: readonly FeedCall[], locator: JourneyLocator): number {
-  const atStop = (call: FeedCall) => call.providerId === locator.stopPointId;
-  const rowCallIndex = calls.findIndex((call) => {
-    const time = call.timetabledDepartureTime ?? call.timetabledArrivalTime;
-    if (!atStop(call) || !time) return false;
-    const { date, time: minute } = formatNetworkDateAndTime(Date.parse(time));
-    return date === locator.date && minute === locator.time;
-  });
+/** The row's call: its stop at its timetabled instant, else its stop. */
+function findRowCallIndex(calls: readonly FeedCall[], rowCall: RowCallRef): number {
+  const atStop = (call: FeedCall) => call.providerId === rowCall.stopPointId;
+  const instant = Date.parse(rowCall.timetabledTime);
+  const rowCallIndex = calls.findIndex(
+    (call) =>
+      atStop(call) &&
+      [call.timetabledDepartureTime, call.timetabledArrivalTime].some(
+        (time) => time !== undefined && Date.parse(time) === instant,
+      ),
+  );
   return rowCallIndex >= 0 ? rowCallIndex : calls.findIndex(atStop);
 }
 
 /** Validates the echoed journey: a failed lookup is an HTTP 200 carrying an error code. */
-export function parseTriasTripInfo(xml: string, locator: JourneyLocator): FeedTripInfo {
-  const description = `Fahrt ${locator.journeyCode}`;
+export function parseTriasTripInfo(
+  xml: string,
+  journey: DatedJourneyRef,
+  rowCall?: RowCallRef,
+): FeedTripInfo {
+  const description = `Fahrt ${journey.journeyRef}`;
   const { serverTime, response } = readDelivery(xml, description, "TripInfoResponse");
   const result = child(response, "TripInfoResult");
   const service = child(result, "Service");
-  if (!result || textAt(service, "JourneyRef") !== `${locator.lineRef}:${locator.journeyCode}`) {
+  if (!result || textAt(service, "JourneyRef") !== journey.journeyRef) {
     throw new TriasError(`${description}: nicht gefunden`);
   }
 
@@ -370,7 +372,7 @@ export function parseTriasTripInfo(xml: string, locator: JourneyLocator): FeedTr
     ...childrenNamed(result, "OnwardCall"),
   ].flatMap((element) => parseCall(element, false) ?? []);
   if (calls.length === 0) throw new TriasError(`${description}: keine Halte`);
-  const rowCallIndex = findRowCallIndex(calls, locator);
+  const rowCallIndex = rowCall ? findRowCallIndex(calls, rowCall) : -1;
   if (rowCallIndex >= 0) calls[rowCallIndex].isThisCall = true;
 
   const status = parseStatus(service, false);

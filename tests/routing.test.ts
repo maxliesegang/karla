@@ -11,7 +11,8 @@ import {
   routePaths,
 } from "../src/routing.ts";
 
-const JOURNEY = "kvv:22311:E:H:s26:161";
+const JOURNEY = "kvv:22311:E:H:s26:161@2026-10-27";
+const JOURNEY_PATH = "kvv:22311:E:H:s26:161/2026-10-27";
 
 test("the retired notices page opens home", () => {
   assert.equal(parseRoute("#/notices").view, "home");
@@ -43,10 +44,6 @@ test("keeps S1 and S11 as separate line addresses", () => {
   assert.equal(parseRoute("#/stop/europaplatz/line/S1").lineId, "S1");
   assert.equal(parseRoute("#/stop/europaplatz/line/S11").lineId, "S11");
   assert.deepEqual(parseRoute("#/stop/europaplatz/line/S1").bundledLineIds, []);
-  // The legacy combined link reads as the bundle.
-  const legacy = parseRoute("#/stop/europaplatz/line/S1-S11");
-  assert.equal(legacy.lineId, "S1");
-  assert.deepEqual(legacy.bundledLineIds, ["S11"]);
 });
 
 test("two lines read over the stretch they share are one address, and stay two lines", () => {
@@ -66,7 +63,7 @@ test("two lines read over the stretch they share are one address, and stay two l
       bundledLineIds: ["S11"],
       addressId: JOURNEY,
     }),
-    `/stop/hochstetten/line/S1+S11/trip/${JOURNEY}`,
+    `/stop/hochstetten/line/S1+S11/journey/${JOURNEY_PATH}`,
   );
   assert.equal(
     getParentSelectionPath({
@@ -82,13 +79,13 @@ test("two lines read over the stretch they share are one address, and stay two l
 
 test("a row tapped inside a bundle stays inside it, and any other row leaves it", () => {
   const row = (lineId: string) =>
-    ({ id: "row", journeyRef: JOURNEY, lineId }) as Parameters<typeof getStopEventOpenPath>[0];
+    ({ id: "row", datedJourneyId: JOURNEY, lineId }) as Parameters<typeof getStopEventOpenPath>[0];
   const selection = { lineId: "S1", bundledLineIds: ["S11"] };
 
   // The sibling's row keeps the lines; only the trip changes.
   assert.equal(
     getStopEventOpenPath(row("S11"), "hochstetten", false, selection),
-    `/stop/hochstetten/line/S1+S11/trip/${JOURNEY}`,
+    `/stop/hochstetten/line/S1+S11/journey/${JOURNEY_PATH}`,
   );
   // Unpinning returns to the bundle.
   assert.equal(
@@ -102,17 +99,17 @@ test("a row tapped inside a bundle stays inside it, and any other row leaves it"
   );
   assert.equal(
     getStopEventOpenPath(row("S2"), "hochstetten", false, selection),
-    `/stop/hochstetten/line/S2/trip/${JOURNEY}`,
+    `/stop/hochstetten/line/S2/journey/${JOURNEY_PATH}`,
   );
 });
 
 test("a trip opened from a plain stop board steps back to that board", () => {
-  const row = { id: "row", journeyRef: JOURNEY, lineId: "S11" } as Parameters<
+  const row = { id: "row", datedJourneyId: JOURNEY, lineId: "S11" } as Parameters<
     typeof getStopEventOpenPath
   >[0];
   const journeyPath = getStopEventOpenPath(row, "hochstetten", false);
 
-  assert.equal(journeyPath, `/stop/hochstetten/trip/${JOURNEY}`);
+  assert.equal(journeyPath, `/stop/hochstetten/journey/${JOURNEY_PATH}`);
   const journeyRoute = parseRoute(`#${journeyPath}`);
   assert.equal(journeyRoute.lineId, "");
   assert.equal(journeyRoute.journeyParent, "stop");
@@ -134,18 +131,20 @@ test("a trip opened from a plain stop board steps back to that board", () => {
     journeyPath,
   );
 
-  const lineJourneyRoute = parseRoute(`/stop/hochstetten/line/S11/trip/${JOURNEY}`);
+  const lineJourneyRoute = parseRoute(`/stop/hochstetten/line/S11/journey/${JOURNEY_PATH}`);
   assert.equal(lineJourneyRoute.journeyParent, "line");
   assert.equal(getParentSelectionPath(lineJourneyRoute), "/stop/hochstetten/line/S11");
 });
 
 test("the stop's own address is the only one its lines need", () => {
-  // The legacy `/lines` qualifier lands on the stop.
-  const linesRoute = parseRoute("#/stop/europaplatz/lines");
-  assert.equal(linesRoute.view, "stop");
-  assert.equal(linesRoute.stopId, "europaplatz");
-  assert.equal("section" in linesRoute, false);
   assert.equal(getSelectionPath({ stopId: "europaplatz" }), "/stop/europaplatz");
+});
+
+test("a journey's address is its JourneyRef and operating day, and a bare row id still works", () => {
+  assert.equal(parseRoute(`#/journey/${JOURNEY_PATH}`).addressId, JOURNEY);
+  assert.equal(routePaths.ride("row-7"), "/journey/row-7");
+  assert.equal(parseRoute("#/journey/row-7/to/durlach-bahnhof").addressId, "row-7");
+  assert.equal(parseRoute("#/journey/row-7/to/durlach-bahnhof").alightingStopId, "durlach-bahnhof");
 });
 
 test("the lines ride along with the stop they belong to, not an address of their own", () => {
@@ -160,7 +159,7 @@ test("the lines ride along with the stop they belong to, not an address of their
 });
 
 test("a line diagram places itself, so no address it is read at starts at the top", () => {
-  const journeyRoute = parseRoute("#/stop/augartenstrasse/line/S11/trip/kvv:22311:E:H:s26:161");
+  const journeyRoute = parseRoute("#/stop/augartenstrasse/line/S11/journey/kvv:22311:E:H:s26:161");
   // Selecting a trip is not a move; the diagram aims at its vehicle.
   assert.equal(getViewStartKey(journeyRoute), null);
   // Nor is stepping along the line.
@@ -169,7 +168,7 @@ test("a line diagram places itself, so no address it is read at starts at the to
 });
 
 test("a ride is a view again, and a plain stop always was", () => {
-  const rideKey = getViewStartKey(parseRoute("#/trip/kvv:22311:E:H:s26:161"));
+  const rideKey = getViewStartKey(parseRoute("#/journey/kvv:22311:E:H:s26:161"));
   assert.ok(rideKey);
   assert.notEqual(rideKey, getViewStartKey(parseRoute("#/stop/augartenstrasse")));
   assert.equal(
@@ -191,17 +190,20 @@ test("a board refresh rewriting the address is not a move", () => {
 });
 
 test("a ride carries the stop it was begun at, beside the one it is heading for", () => {
-  assert.equal(routePaths.ride(JOURNEY), `/trip/${JOURNEY}`);
-  assert.equal(routePaths.ride(JOURNEY, "europaplatz"), `/trip/${JOURNEY}/from/europaplatz`);
+  assert.equal(routePaths.ride(JOURNEY), `/journey/${JOURNEY_PATH}`);
+  assert.equal(
+    routePaths.ride(JOURNEY, "europaplatz"),
+    `/journey/${JOURNEY_PATH}/from/europaplatz`,
+  );
   assert.equal(
     routePaths.ride(JOURNEY, "europaplatz", "durlach-bahnhof"),
-    `/trip/${JOURNEY}/from/europaplatz/to/durlach-bahnhof`,
+    `/journey/${JOURNEY_PATH}/from/europaplatz/to/durlach-bahnhof`,
   );
   // Either stop may be absent; an Ausstieg alone is not an origin.
-  const marked = parseRoute(`#/trip/${JOURNEY}/to/durlach-bahnhof`);
+  const marked = parseRoute(`#/journey/${JOURNEY_PATH}/to/durlach-bahnhof`);
   assert.equal(marked.originStopId, undefined);
   assert.equal(marked.alightingStopId, "durlach-bahnhof");
-  const both = parseRoute(`#/trip/${JOURNEY}/from/europaplatz/to/durlach-bahnhof`);
+  const both = parseRoute(`#/journey/${JOURNEY_PATH}/from/europaplatz/to/durlach-bahnhof`);
   assert.equal(both.originStopId, "europaplatz");
   assert.equal(both.alightingStopId, "durlach-bahnhof");
   assert.equal(both.isRide, true);
@@ -217,7 +219,7 @@ test("a ride carries the stop it was begun at, beside the one it is heading for"
       alightingStopId: "durlach-bahnhof",
       originStopId: "europaplatz",
     }),
-    `/trip/${JOURNEY}/from/europaplatz/to/durlach-bahnhof`,
+    `/journey/${JOURNEY_PATH}/from/europaplatz/to/durlach-bahnhof`,
   );
 });
 
@@ -254,7 +256,7 @@ test("a ride steps back to where it was begun, not to a stop the vehicle is runn
       isRide: true,
       originStopId: "europaplatz",
     }),
-    `/stop/europaplatz/line/S11/trip/${JOURNEY}`,
+    `/stop/europaplatz/line/S11/journey/${JOURNEY_PATH}`,
   );
   // Pressed twice, it reaches the trip's stop.
   assert.equal(
@@ -279,11 +281,8 @@ test("a ride steps back to where it was begun, not to a stop the vehicle is runn
   );
 });
 
-test("the network page is one page, and a former scope address still opens it", () => {
+test("the network page is one page", () => {
   assert.equal(routePaths.network(), "/network");
   assert.equal(parseRoute("#/network").view, "network");
   assert.equal(parseRoute("#/network/").view, "network");
-  // Legacy scoped links land on the network page.
-  assert.equal(parseRoute("#/network/city").view, "network");
-  assert.equal(parseRoute("#/network/region").view, "network");
 });

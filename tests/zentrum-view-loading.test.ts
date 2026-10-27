@@ -337,7 +337,7 @@ test("overlapping trains at a station open their own details directly", async (t
         detail
           .querySelector("a")
           ?.getAttribute("href")
-          ?.endsWith(`/${index === 0 ? "first" : "second"}`),
+          ?.endsWith(`-${index === 0 ? "first" : "second"}`),
       );
       assert.equal(view.container.querySelector("#zentrum-vehicle-chooser"), null);
       const close = detail.querySelector<HTMLButtonElement>(".zentrum-panel-close");

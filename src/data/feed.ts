@@ -19,34 +19,26 @@ export interface Feed {
     stopPointId: string,
     options?: FeedStopEventBoardOptions,
   ): Promise<FeedStopEventBoard>;
-  fetchTripInfo(locator: JourneyLocator): Promise<FeedTripInfo>;
+  /** The dated journey's calls; `rowCall` names the one the asking row was read at. */
+  fetchTripInfo(journey: DatedJourneyRef, rowCall?: RowCallRef): Promise<FeedTripInfo>;
   searchStops(query: string): Promise<FeedStopSearchResult[]>;
   /** A line-direction's stops, addressed through one of its dated journeys. */
-  fetchLineRoute(locator: JourneyLocator): Promise<FeedCall[]>;
+  fetchLineRoute(journey: DatedJourneyRef): Promise<FeedCall[]>;
 }
 
 /** A calling point as the feed states it, still carrying the provider stop id it was read from. */
 export type FeedCall = Call & { providerId?: string };
 
-/**
- * The provider tuple that identifies one dated journey; every field is copied from its board row.
- */
-export type JourneyLocator = {
-  journeyCode: string;
-  /** The provider's own key for the service designation (`servingLine.stateless`), not the sign. */
-  lineRef: string;
-  stopPointId: string;
-  /** The row's timetabled calendar day and minute, `YYYYMMDD` and `HHMM`, in network time. */
-  date: string;
-  time: string;
-  /** TRIAS's `OperatingDayRef` (`YYYY-MM-DD`), which differs from `date` after midnight. */
-  operatingDayRef?: string;
-};
+/** One dated journey, as TRIAS addresses it: its `JourneyRef` on its `OperatingDayRef`. */
+export type DatedJourneyRef = { journeyRef: string; operatingDayRef: string };
+
+/** A row's own call: its stop point and timetabled instant, which tell a double call apart. */
+export type RowCallRef = { stopPointId: string; timetabledTime: string };
 
 export type FeedTripInfo = {
   serverTime: string;
   calls: FeedCall[];
-  /** Only exceptional whole-journey states override the fresher stop-specific DM row. */
+  /** Only exceptional whole-journey states override the fresher stop-specific row. */
   status?: Extract<StopEventStatus, "cancelled" | "diverted">;
 };
 
@@ -56,7 +48,9 @@ export type FeedStopEvent = {
   stopPointName: string;
   /** The timetable-journey identity, TRIAS's `JourneyRef`. */
   journeyRef?: string;
-  /** Dated identity, for matching older shared links and deduplicating operating instances. */
+  /** TRIAS's `OperatingDayRef` (`YYYY-MM-DD`), which differs from the calendar day after midnight. */
+  operatingDayRef?: string;
+  /** `journeyRef@operatingDayRef` (`getDatedJourneyId`). */
   datedJourneyId?: string;
   /** The train number (`PublishedJourneyNumber`), shared where two separately addressed portions run as one. */
   publishedJourneyNumber?: string;
@@ -77,8 +71,6 @@ export type FeedStopEvent = {
   serviceNote?: string;
   /** What the feed states about boarding this vehicle, where it states anything at all. */
   vehicleAccess?: VehicleAccess;
-  /** Opaque provider state used below `TransitSource` to load only this journey. */
-  journeyLocator?: JourneyLocator;
   calls?: FeedCall[];
 };
 
@@ -100,22 +92,9 @@ export type FeedStopSearchResult = {
   longitude?: number;
 };
 
-/**
- * A dated journey id: the journey id is reused on later dates, so it is paired with the first
- * timetabled call. Exported so a single-journey reading yields the same id as a board's.
- */
-export function getDatedJourneyId(
-  journeyRef: string | undefined,
-  calls:
-    | readonly { timetabledArrivalTime?: string; timetabledDepartureTime?: string }[]
-    | undefined,
-): string | undefined {
-  if (!journeyRef) return undefined;
-  const firstCall = calls?.[0];
-  const journeyStartTime = firstCall?.timetabledDepartureTime ?? firstCall?.timetabledArrivalTime;
-  // To the minute: rows publish the first call to the minute, sequences to the second.
-  return journeyStartTime ? `${journeyRef}@${journeyStartTime.slice(0, 16)}` : journeyRef;
-}
+/** A dated journey's id: its journey, which repeats daily, on its operating day. */
+export const getDatedJourneyId = ({ journeyRef, operatingDayRef }: DatedJourneyRef): string =>
+  `${journeyRef}@${operatingDayRef}`;
 
 const getExpectedInstant = (stopEvent: FeedStopEvent): number =>
   findExpectedDepartureInstant(

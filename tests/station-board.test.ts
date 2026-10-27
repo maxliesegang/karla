@@ -13,7 +13,7 @@ test("a page without a display parameter is no station board", () => {
   assert.equal(isStationBoardMode, false);
 });
 
-test("a whole-stop board takes its defaults, and the former display=1 still opens one", () => {
+test("a whole-stop board takes its defaults", () => {
   const expected = {
     mode: "stop",
     bays: [],
@@ -24,7 +24,7 @@ test("a whole-stop board takes its defaults, and the former display=1 still open
     reloadMinutes: 1440,
   };
   assert.deepEqual(parseStationBoardConfig("?display=stop"), expected);
-  assert.deepEqual(parseStationBoardConfig("?display=1"), expected);
+  assert.equal(parseStationBoardConfig("?display=1"), null);
 });
 
 test("numbers are held to their range rather than breaking the screen", () => {

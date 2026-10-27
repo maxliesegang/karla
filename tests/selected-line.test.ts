@@ -23,7 +23,7 @@ const liveBoard = (stopEvents: readonly StopEvent[]) =>
 test("a trip opened from a stop board keeps its line once it has left that stop", () => {
   // The rider's board no longer lists the trip: it departed. It is still running along the line,
   // and the line is what keeps the readings that find it there going.
-  const route = parseRoute(`#/stop/marktplatz/trip/${JOURNEY}`);
+  const route = parseRoute(`#/stop/marktplatz/journey/${JOURNEY}`);
   const stopEvents = [row("S2", "lightRail"), row("2", "tram")];
 
   const line = findSelectedLine(
@@ -40,7 +40,7 @@ test("a trip opened from a stop board keeps its line once it has left that stop"
 });
 
 test("the line a departed trip names holds even when no other run of it calls here", () => {
-  const route = parseRoute(`#/stop/marktplatz/trip/${JOURNEY}`);
+  const route = parseRoute(`#/stop/marktplatz/journey/${JOURNEY}`);
 
   const line = findSelectedLine(route, networkWithS2, [], liveBoard([]), undefined, undefined);
 
@@ -48,7 +48,7 @@ test("the line a departed trip names holds even when no other run of it calls he
 });
 
 test("a trip of another pool's line of the same name is not that line", () => {
-  const route = parseRoute("#/stop/marktplatz/trip/ddb:920S2:C:R:j26:12");
+  const route = parseRoute("#/stop/marktplatz/journey/ddb:920S2:C:R:j26:12");
 
   const line = findSelectedLine(route, networkWithS2, [], liveBoard([]), undefined, undefined);
 

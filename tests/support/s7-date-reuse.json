@@ -8,7 +8,8 @@
         "stopPointId": "de:08212:6",
         "stopPointName": "Gottesauer Platz/BGV",
         "journeyRef": "de:kvv:00S07_:.kvv-22-307-E.10.T0.335.s26",
-        "datedJourneyId": "de:kvv:00S07_:.kvv-22-307-E.10.T0.335.s26@2026-10-07T12:33",
+        "operatingDayRef": "2026-10-07",
+        "datedJourneyId": "de:kvv:00S07_:.kvv-22-307-E.10.T0.335.s26@2026-10-07",
         "publishedJourneyNumber": "85576",
         "lineId": "S7",
         "lineRef": "kvv:22307:E:R:s26",
@@ -22,13 +23,6 @@
         "timetabledDepartureTime": "2026-10-07T13:38:00.000Z",
         "estimatedDepartureTime": "2026-10-07T13:42:00.000Z",
         "vehicleAccess": "stepFree",
-        "journeyLocator": {
-          "journeyCode": "72",
-          "lineRef": "kvv:22307:E:R:s26",
-          "stopPointId": "de:08212:6",
-          "date": "20261007",
-          "time": "1538"
-        },
         "calls": [
           {
             "stopName": "Bahnhof",
@@ -329,7 +323,8 @@
         "stopPointId": "de:08212:1011",
         "stopPointName": "Marktplatz (Pyramide U)",
         "journeyRef": "de:kvv:00S07_:.kvv-22-307-E.10.T0.335.s26",
-        "datedJourneyId": "de:kvv:00S07_:.kvv-22-307-E.10.T0.335.s26",
+        "operatingDayRef": "2026-10-08",
+        "datedJourneyId": "de:kvv:00S07_:.kvv-22-307-E.10.T0.335.s26@2026-10-08",
         "publishedJourneyNumber": "85576",
         "lineId": "S7",
         "lineRef": "kvv:22307:E:R:s26",
@@ -340,14 +335,7 @@
         "bayKind": "track",
         "status": "scheduled",
         "timetabledDepartureTime": "2026-10-08T13:33:00.000Z",
-        "vehicleAccess": "stepFree",
-        "journeyLocator": {
-          "journeyCode": "72",
-          "lineRef": "kvv:22307:E:R:s26",
-          "stopPointId": "de:08212:1011",
-          "date": "20261008",
-          "time": "1533"
-        }
+        "vehicleAccess": "stepFree"
       }
     ]
   },

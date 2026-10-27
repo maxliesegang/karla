@@ -17,10 +17,13 @@ export function getDatedJourneyScheduleInstant(
   return Number.isFinite(instant) ? instant : undefined;
 }
 
+/** The same operating day where both name one; otherwise close enough in the timetable. */
 export function isSameDatedJourneyInstance(
   left: StopEvent | DatedJourneyCalls,
   right: StopEvent | DatedJourneyCalls,
 ): boolean {
+  if (left.datedJourneyId && right.datedJourneyId)
+    return left.datedJourneyId === right.datedJourneyId;
   const a = getDatedJourneyScheduleInstant(left);
   const b = getDatedJourneyScheduleInstant(right);
   return a === undefined || b === undefined || Math.abs(a - b) < INSTANCE_WINDOW_MS;

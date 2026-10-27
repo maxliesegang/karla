@@ -5,7 +5,7 @@ import {
   type FeedStopEvent,
   type FeedStopEventBoard,
   type FeedCall,
-  type JourneyLocator,
+  type DatedJourneyRef,
 } from "../src/data/feed.ts";
 import { TriasTransitSource } from "../src/data/transit-source.ts";
 import type { StopEvent } from "../src/data/transit-types.ts";
@@ -20,13 +20,7 @@ import {
 } from "../src/lib/line-observation.ts";
 import { createStopEvent } from "./support/fixtures.ts";
 
-const locator: JourneyLocator = {
-  journeyCode: "35",
-  lineRef: "kvv:21003:E:R:s26",
-  stopPointId: "de:08212:1001",
-  date: "20260904",
-  time: "0900",
-};
+const operatingDayRef = "2026-09-04";
 
 /** A line route as the feed answers it: the run's calls, none marked as the board's own. */
 const route: FeedCall[] = [
@@ -55,17 +49,14 @@ function lineRow(overrides: Partial<FeedStopEvent> = {}): FeedStopEvent {
     bay: "1(U)",
     status: "realtime",
     timetabledDepartureTime: "2026-09-04T07:00:00.000Z",
-    journeyLocator: locator,
+    operatingDayRef,
     ...overrides,
   };
 }
 
 test("TransitSource reads one route per line-direction and keeps it for the session", async () => {
-  const rows = [
-    lineRow(),
-    lineRow({ journeyRef: "de:kvv:00003_:.later", journeyLocator: locator }),
-  ];
-  const requests: JourneyLocator[] = [];
+  const rows = [lineRow(), lineRow({ journeyRef: "de:kvv:00003_:.later" })];
+  const requests: DatedJourneyRef[] = [];
   const client = {
     fetchStopEventBoard: async (providerStopId: string): Promise<FeedStopEventBoard> => ({
       stopPointId: providerStopId,
@@ -73,7 +64,7 @@ test("TransitSource reads one route per line-direction and keeps it for the sess
       serverTime: "2026-09-04T06:59:45.000Z",
       stopEvents: rows,
     }),
-    fetchLineRoute: async (requested: JourneyLocator): Promise<FeedCall[]> => {
+    fetchLineRoute: async (requested: DatedJourneyRef): Promise<FeedCall[]> => {
       requests.push(requested);
       return route;
     },
@@ -85,7 +76,7 @@ test("TransitSource reads one route per line-direction and keeps it for the sess
   // The second row of the same direction is a second way of asking the same question.
   const again = await source.getLineRoute(board.stopEvents[1].id);
 
-  assert.deepEqual(requests, [locator]);
+  assert.deepEqual(requests, [{ journeyRef: "de:kvv:00003_:.trip", operatingDayRef }]);
   // Provider ids, resolved to the local stops the app requests boards with.
   assert.deepEqual(stopIds, ["durlacher-tor", "kronenplatz"]);
   assert.deepEqual(again, stopIds);

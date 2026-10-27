@@ -6,7 +6,8 @@ import {
   type FeedStopEventBoard,
   type FeedTripInfo,
   type FeedCall,
-  type JourneyLocator,
+  type DatedJourneyRef,
+  type RowCallRef,
 } from "../src/data/feed.ts";
 import { TriasTransitSource } from "../src/data/transit-source.ts";
 import {
@@ -23,13 +24,8 @@ import {
 } from "../src/lib/vehicle-positioning.ts";
 import { createStopEvent } from "./support/fixtures.ts";
 
-const locator: JourneyLocator = {
-  journeyCode: "888",
-  lineRef: "kvv:22304:E:H:s26",
-  stopPointId: "de:08212:1001",
-  date: "20260826",
-  time: "0730",
-};
+const operatingDayRef = "2026-08-26";
+const S4_LINE_REF = "kvv:22304:E:H:s26";
 
 /** The S4's run 888 as its trip request answers it: cancelled, Durlacher Tor then Kronenplatz. */
 const journey: FeedTripInfo = {
@@ -58,12 +54,12 @@ const journey: FeedTripInfo = {
   ],
 };
 
-/** The run as read for `requested`: its call there is the row's own. */
-const readJourney = (requested: JourneyLocator = locator): FeedTripInfo => ({
+/** The run as read for a row: its call there is the row's own. */
+const readJourney = (rowStopPointId = "de:08212:1001"): FeedTripInfo => ({
   ...journey,
   calls: journey.calls.map((call) => ({
     ...call,
-    isThisCall: call.providerId === requested.stopPointId || undefined,
+    isThisCall: call.providerId === rowStopPointId || undefined,
   })),
 });
 
@@ -126,10 +122,10 @@ test("TransitSource merges one trip into the latest stop row and caches its sequ
     bay: "1(U)",
     status: "realtime",
     timetabledDepartureTime: "2026-08-26T05:30:00.000Z",
-    journeyLocator: locator,
+    operatingDayRef,
   };
   const rawJourney = readJourney();
-  const requests: JourneyLocator[] = [];
+  const requests: DatedJourneyRef[] = [];
   const client = {
     fetchStopEventBoard: async (providerStopId: string): Promise<FeedStopEventBoard> => ({
       stopPointId: providerStopId,
@@ -137,7 +133,7 @@ test("TransitSource merges one trip into the latest stop row and caches its sequ
       serverTime: "2026-08-26T05:29:45.000Z",
       stopEvents: [rawStopEvent],
     }),
-    fetchTripInfo: async (requested: JourneyLocator): Promise<FeedTripInfo> => {
+    fetchTripInfo: async (requested: DatedJourneyRef): Promise<FeedTripInfo> => {
       requests.push(requested);
       return rawJourney;
     },
@@ -151,7 +147,7 @@ test("TransitSource merges one trip into the latest stop row and caches its sequ
   const first = await source.getDatedJourney(rowId);
   const second = await source.getDatedJourney(rowId);
 
-  assert.deepEqual(requests, [locator]);
+  assert.deepEqual(requests, [{ journeyRef: "de:kvv:00S04_:.trip", operatingDayRef }]);
   assert.equal(first?.bay, "1(U)");
   assert.equal(first?.destinationText, "Karlsruhe Albtalbahnhof");
   assert.equal(first?.status, "cancelled");
@@ -210,7 +206,7 @@ test("a trip nobody selected is re-read on its own terms, not on the board's", a
           bay: "1(U)",
           status: "realtime",
           timetabledDepartureTime: "2026-08-26T05:30:00.000Z",
-          journeyLocator: locator,
+          operatingDayRef,
         },
       ],
     }),
@@ -252,7 +248,7 @@ test("a requested run teaches the network its route as soon as it lands", async 
           bay: "1(U)",
           status: "realtime",
           timetabledDepartureTime: "2026-08-26T05:30:00.000Z",
-          journeyLocator: locator,
+          operatingDayRef,
         },
       ],
     }),
@@ -276,7 +272,7 @@ test("a requested run teaches the network its route as soon as it lands", async 
   );
 });
 
-/** A row with its board's calls and no locator: a probe (`findDatedJourney`) for whether it is remembered. */
+/** A row with its board's calls and no operating day: a probe (`findDatedJourney`) for whether it is remembered. */
 function createRememberedStopEvent(
   index: number,
   finalCallTime: string,
@@ -338,7 +334,7 @@ test("a reading answered from memory is dated when it was taken, not when it was
           bay: "",
           status: "realtime",
           timetabledDepartureTime: "2026-08-26T05:30:00.000Z",
-          journeyLocator: locator,
+          operatingDayRef,
         },
       ],
     }),
@@ -416,13 +412,6 @@ test("the cap is a bound, not a preference: all-running churn still evicts the o
  * calls at the tunnel point, which must resolve to `europaplatz` too.
  */
 test("a trip calling at a place's other level resolves to that place", async () => {
-  const tunnelLocator: JourneyLocator = {
-    journeyCode: "412",
-    lineRef: "kvv:22001:E:H:s26",
-    stopPointId: "de:08212:1004",
-    date: "20260826",
-    time: "0730",
-  };
   const rawJourney: FeedTripInfo = {
     serverTime: "2026-08-26T05:30:45.000Z",
     calls: [
@@ -464,7 +453,7 @@ test("a trip calling at a place's other level resolves to that place", async () 
           bay: "2(U)",
           status: "realtime",
           timetabledDepartureTime: "2026-08-26T05:30:00.000Z",
-          journeyLocator: tunnelLocator,
+          operatingDayRef,
         },
       ],
     }),
@@ -482,70 +471,10 @@ test("a trip calling at a place's other level resolves to that place", async () 
   );
 });
 
-test("a single-trip reading dates the run exactly as the boards do, so it is one vehicle", async () => {
-  // One run read twice: the board times the first call to the half minute, the trip request to
-  // the second.
-  const parsedBoard: FeedStopEventBoard = {
-    stopPointId: "de:08212:1002",
-    stopName: "Kronenplatz (U)",
-    serverTime: "2026-08-26T05:29:45.000Z",
-    stopEvents: [
-      {
-        stopPointId: "de:08212:1002",
-        stopPointName: "Kronenplatz (U)",
-        journeyRef: "de:kvv:00S04_:.trip",
-        datedJourneyId: "de:kvv:00S04_:.trip@2026-08-26T05:30",
-        lineId: "S4",
-        lineRef: "kvv:22304:E:H:s26",
-        ptMode: "lightRail",
-        destinationText: "Karlsruhe Albtalbahnhof",
-        minutesUntilDeparture: 2,
-        bay: "1(U)",
-        status: "scheduled",
-        timetabledDepartureTime: "2026-08-26T05:32:00.000Z",
-        journeyLocator: { ...locator, stopPointId: "de:08212:1002", time: "0732" },
-        calls: [
-          {
-            stopName: "Durlacher Tor/KIT-Campus Süd (U)",
-            providerId: "de:08212:1001",
-            timetabledDepartureTime: "2026-08-26T05:30:30.000Z",
-          },
-          {
-            stopName: "Kronenplatz (U)",
-            bay: "1(U)",
-            providerId: "de:08212:1002",
-            isThisCall: true,
-            timetabledDepartureTime: "2026-08-26T05:32:00.000Z",
-          },
-          {
-            stopName: "Marktplatz (Kaiserstraße U)",
-            providerId: "de:08212:1003",
-            timetabledArrivalTime: "2026-08-26T05:34:00.000Z",
-          },
-        ],
-      },
-    ],
-  };
-  const rawJourney = readJourney();
-  const client = {
-    fetchStopEventBoard: async (): Promise<FeedStopEventBoard> => parsedBoard,
-    fetchTripInfo: async (): Promise<FeedTripInfo> => rawJourney,
-  } as unknown as Feed;
-  const source = new TriasTransitSource(client);
-  const board = await source.getStopEventBoard("kronenplatz");
-  const row = board.stopEvents[0];
-
-  const merged = await source.getDatedJourney(row.id);
-
-  // One dated id, or the diagram draws two vehicles.
-  assert.equal(merged?.datedJourneyId, row.datedJourneyId);
-  assert.equal(row.datedJourneyId, "de:kvv:00S04_:.trip@2026-08-26T05:30");
-});
-
 test("a line's stops are read as rows, and each trip's calls are fetched once for all of them", async () => {
   // A run listed at every stop it will call at is read once, and every board's row completed from
   // it.
-  const datedJourneyRequests: JourneyLocator[] = [];
+  const datedJourneyRequests: DatedJourneyRef[] = [];
   const boardRequests: { stopId: string; lineIds?: readonly string[] }[] = [];
   const runningJourney = (stopPointId: string, minute: number): FeedStopEvent => ({
     stopPointId,
@@ -559,8 +488,7 @@ test("a line's stops are read as rows, and each trip's calls are fetched once fo
     bay: "",
     status: "realtime",
     timetabledDepartureTime: "2026-08-26T07:30:00.000Z",
-    // Any row's locator reads the trip.
-    journeyLocator: locator,
+    operatingDayRef,
   });
   const client = {
     fetchStopEventBoard: async (
@@ -576,9 +504,12 @@ test("a line's stops are read as rows, and each trip's calls are fetched once fo
         stopEvents: [runningJourney(stopPointId, 2)],
       };
     },
-    fetchTripInfo: async (requested: JourneyLocator): Promise<FeedTripInfo> => {
+    fetchTripInfo: async (
+      requested: DatedJourneyRef,
+      rowCall?: RowCallRef,
+    ): Promise<FeedTripInfo> => {
       datedJourneyRequests.push(requested);
-      return readJourney(requested);
+      return readJourney(rowCall?.stopPointId);
     },
   } as unknown as Feed;
   const source = new TriasTransitSource(client);
@@ -637,7 +568,7 @@ test("a line's runs are re-read at their own tolerance, apart from the boards th
             bay: "",
             status: "realtime",
             timetabledDepartureTime: "2026-08-26T07:30:00.000Z",
-            journeyLocator: locator,
+            operatingDayRef,
           },
         ],
       };
@@ -694,7 +625,7 @@ test("a trip whose sequence cannot be read still keeps the row it was found on",
           minutesUntilDeparture: 2,
           status: "realtime",
           timetabledDepartureTime: "2026-08-26T07:30:00.000Z",
-          journeyLocator: locator,
+          operatingDayRef,
         } as FeedStopEvent,
       ],
     }),
@@ -732,7 +663,7 @@ test("a failed run refresh retains its prediction and a scheduled recovery clear
         bay: "1",
         timetabledDepartureTime: "2026-08-26T05:30:00Z",
         status: "realtime",
-        journeyLocator: locator,
+        operatingDayRef,
       },
     ],
   });
@@ -766,7 +697,7 @@ test("a failed run refresh retains its prediction and a scheduled recovery clear
 
 test("a line's reading asks for the calls of the runs out on it, not of tomorrow's departures", async () => {
   // A run whose nearest call is hours away has not set out; its sequence is not read.
-  const datedJourneyRequests: JourneyLocator[] = [];
+  const datedJourneyRequests: DatedJourneyRef[] = [];
   const datedJourney = (journeyRef: string, minutesUntilDeparture: number): FeedStopEvent =>
     ({
       stopPointId: "de:08212:1001",
@@ -779,9 +710,7 @@ test("a line's reading asks for the calls of the runs out on it, not of tomorrow
       minutesUntilDeparture,
       status: "realtime",
       timetabledDepartureTime: "2026-08-26T07:30:00.000Z",
-      journeyLocator: journeyRef.endsWith(".tomorrow")
-        ? { ...locator, journeyCode: "tomorrow" }
-        : locator,
+      operatingDayRef,
     }) as FeedStopEvent;
   const client = {
     fetchStopEventBoard: async (stopPointId: string): Promise<FeedStopEventBoard> => ({
@@ -793,9 +722,12 @@ test("a line's reading asks for the calls of the runs out on it, not of tomorrow
         datedJourney("de:kvv:00S04_:.tomorrow", 220),
       ],
     }),
-    fetchTripInfo: async (requested: JourneyLocator): Promise<FeedTripInfo> => {
+    fetchTripInfo: async (
+      requested: DatedJourneyRef,
+      rowCall?: RowCallRef,
+    ): Promise<FeedTripInfo> => {
       datedJourneyRequests.push(requested);
-      return readJourney(requested);
+      return readJourney(rowCall?.stopPointId);
     },
   } as unknown as Feed;
   const source = new TriasTransitSource(client);
@@ -814,7 +746,7 @@ test("a line's reading asks for the calls of the runs out on it, not of tomorrow
 
 test("a run is read once for all its stops, however far along it the rows are", async () => {
   // The nearest row decides: one vehicle, minutes from one stop, an hour from another.
-  const datedJourneyRequests: JourneyLocator[] = [];
+  const datedJourneyRequests: DatedJourneyRef[] = [];
   const row = (stopPointId: string, minutesUntilDeparture: number): FeedStopEvent =>
     ({
       stopPointId,
@@ -827,7 +759,7 @@ test("a run is read once for all its stops, however far along it the rows are", 
       minutesUntilDeparture,
       status: "realtime",
       timetabledDepartureTime: "2026-08-26T07:30:00.000Z",
-      journeyLocator: locator,
+      operatingDayRef,
     }) as FeedStopEvent;
   let read = 0;
   const client = {
@@ -838,9 +770,12 @@ test("a run is read once for all its stops, however far along it the rows are", 
       // Near at the next stop, an hour off at the far end.
       stopEvents: [row(stopPointId, read++ === 0 ? 3 : 62)],
     }),
-    fetchTripInfo: async (requested: JourneyLocator): Promise<FeedTripInfo> => {
+    fetchTripInfo: async (
+      requested: DatedJourneyRef,
+      rowCall?: RowCallRef,
+    ): Promise<FeedTripInfo> => {
       datedJourneyRequests.push(requested);
-      return readJourney(requested);
+      return readJourney(rowCall?.stopPointId);
     },
   } as unknown as Feed;
   const source = new TriasTransitSource(client);
@@ -856,25 +791,21 @@ test("a run is read once for all its stops, however far along it the rows are", 
   );
 });
 
-test("line boards keep reused timetable ids separated by their run records", async () => {
+test("line boards keep each journey's own record", async () => {
   const requestedCodes: string[] = [];
   const datedJourney = (journeyCode: string, timetabledDepartureTime: string): FeedStopEvent => ({
     stopPointId: "de:08212:1001",
     stopPointName: "Durlacher Tor/KIT-Campus Süd (U)",
-    journeyRef: "reused-timetable-trip",
+    journeyRef: `${S4_LINE_REF}:${journeyCode}`,
+    operatingDayRef,
     lineId: "S4",
-    lineRef: locator.lineRef,
+    lineRef: S4_LINE_REF,
     ptMode: "tram",
     destinationText: `Ziel ${journeyCode}`,
     minutesUntilDeparture: 2,
     bay: "1",
     status: "realtime",
     timetabledDepartureTime,
-    journeyLocator: {
-      ...locator,
-      journeyCode,
-      time: timetabledDepartureTime.slice(11, 16).replace(":", ""),
-    },
   });
   const client = {
     // The tunnel's stop point; the street's has nothing due.
@@ -890,9 +821,10 @@ test("line boards keep reused timetable ids separated by their run records", asy
             ]
           : [],
     }),
-    fetchTripInfo: async (requested: JourneyLocator): Promise<FeedTripInfo> => {
-      requestedCodes.push(requested.journeyCode);
-      const minute = requested.journeyCode === "first" ? "30" : "40";
+    fetchTripInfo: async (requested: DatedJourneyRef): Promise<FeedTripInfo> => {
+      const journeyCode = requested.journeyRef.split(":").at(-1)!;
+      requestedCodes.push(journeyCode);
+      const minute = journeyCode === "first" ? "30" : "40";
       return {
         serverTime: "2026-08-26T07:29:45",
         calls: [
@@ -900,7 +832,7 @@ test("line boards keep reused timetable ids separated by their run records", asy
             stopName: "Durlacher Tor/KIT-Campus Süd (U)",
             providerId: "de:08212:1001",
             timetabledDepartureTime: `2026-08-26T07:${minute}:00.000Z`,
-            delayMinutes: requested.journeyCode === "first" ? 1 : 2,
+            delayMinutes: journeyCode === "first" ? 1 : 2,
           },
         ],
       };
@@ -909,7 +841,7 @@ test("line boards keep reused timetable ids separated by their run records", asy
   const source = new TriasTransitSource(client);
 
   const [board] = await source.getLineStopEventBoards(["durlacher-tor"], {
-    lineRefs: [locator.lineRef],
+    lineRefs: [S4_LINE_REF],
   });
 
   assert.deepEqual(requestedCodes.sort(), ["first", "second"]);

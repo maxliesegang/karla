@@ -12,7 +12,6 @@ import {
   getDatedJourneyScheduleInstant,
   isSameDatedJourneyInstance,
 } from "../lib/dated-journey-instance";
-import type { JourneyLocator } from "./feed";
 import type { StopEvent, DatedJourneyCalls } from "./transit-types";
 
 /** Runs whose evidence is retained this session. */
@@ -39,10 +38,10 @@ const DATED_JOURNEY_RECORD_ROW_CAPACITY = 64;
 const ENDED_DATED_JOURNEY_SCAN_DEPTH = 32;
 
 /**
- * One stop's row of a dated journey and its locator, without calls: a board's embedded calls are
- * its own observation, never the dated journey's reading (`rememberSequence` is the only source).
+ * One stop's row of a dated journey, without calls: a board's embedded calls are its own
+ * observation, never the dated journey's reading (`rememberSequence` is the only source).
  */
-export type DatedJourneyRowReading = { stopEvent: StopEvent; locator?: JourneyLocator };
+export type DatedJourneyRowReading = { stopEvent: StopEvent };
 
 type DatedJourneyReadingRecord = {
   key: string;
@@ -61,12 +60,9 @@ type DatedJourneyReadingRecord = {
   writtenAt: number;
 };
 
-/**
- * A dated journey's record key: the provider's `lineRef|journeyCode`, undated. A row without
- * locator uses its own id.
- */
-const getJourneyRecordKey = (stopEvent: StopEvent, locator: JourneyLocator | undefined): string =>
-  locator ? `run:${locator.lineRef}|${locator.journeyCode}` : getRowRecordKey(stopEvent.id);
+/** A dated journey's record key: its `JourneyRef`, undated. A row without one uses its own id. */
+const getJourneyRecordKey = (stopEvent: StopEvent): string =>
+  stopEvent.journeyRef ? `journey:${stopEvent.journeyRef}` : getRowRecordKey(stopEvent.id);
 
 const getRowRecordKey = (rowId: string): string => `row:${rowId}`;
 
@@ -98,13 +94,13 @@ export class DatedJourneyReadingStore {
   /**
    * `now` only decides which dated journeys are over; the row dates itself (`StopEvent.readAt`).
    */
-  rememberRow(stopEvent: StopEvent, locator: JourneyLocator | undefined, now = Date.now()): void {
+  rememberRow(stopEvent: StopEvent, now = Date.now()): void {
     // Sweep first, or tomorrow's row with the same key would reopen yesterday's record.
     this.sweep(now);
-    const recordKey = getJourneyRecordKey(stopEvent, locator);
+    const recordKey = getJourneyRecordKey(stopEvent);
     const record = this.openRecord(recordKey, stopEvent, now);
 
-    // A row that learned its locator moves to that dated journey's record.
+    // A row that learned its journey moves to that dated journey's record.
     const previousKey = this.rowRecordKeys.get(stopEvent.id);
     if (previousKey !== undefined && previousKey !== recordKey) this.detachRow(stopEvent.id);
 
@@ -130,10 +126,7 @@ export class DatedJourneyReadingStore {
 
     // Re-inserted so the row cap drops the least recently read first.
     record.rowsById.delete(stopEvent.id);
-    record.rowsById.set(stopEvent.id, {
-      stopEvent: withoutDatedJourneyCalls(stopEvent),
-      ...(locator ? { locator } : {}),
-    });
+    record.rowsById.set(stopEvent.id, { stopEvent: withoutDatedJourneyCalls(stopEvent) });
     this.rowRecordKeys.set(stopEvent.id, recordKey);
     this.enforceRowCapacity(record);
 

@@ -3,11 +3,13 @@
  * ref and caches each reply briefly.
  */
 import {
+  getDatedJourneyId,
   joinStopEventBoards,
+  type DatedJourneyRef,
   type FeedStopEventBoard,
   type FeedStopEventBoardOptions,
   type Feed,
-  type JourneyLocator,
+  type RowCallRef,
 } from "./feed";
 import {
   TriasError,
@@ -59,28 +61,25 @@ export class TriasClient implements Feed {
     return joinStopEventBoards(boards, limit);
   }
 
-  async fetchTripInfo(locator: JourneyLocator) {
-    const parameters = {
-      journey: `${locator.lineRef}:${locator.journeyCode}`,
-      day: locator.operatingDayRef ?? formatOperatingDay(locator.date),
-    };
-    // A run's reading and its direction's route ask for the same trip at once; one request answers
-    // both. The reply is shared, not the parse: each locator marks its own row's call.
-    const key = `${parameters.journey}|${parameters.day}`;
+  async fetchTripInfo(journey: DatedJourneyRef, rowCall?: RowCallRef) {
+    const parameters = { journey: journey.journeyRef, day: journey.operatingDayRef };
+    // A dated journey's reading and its direction's route ask at once; one request answers both.
+    // The reply is shared, not the parse: each row marks its own call.
+    const key = getDatedJourneyId(journey);
     const { body, ageMs } = await (this.tripInfoRequests.find(key) ??
       this.tripInfoRequests.share(key, () =>
-        this.request(`Fahrt ${locator.journeyCode}`, "trip-info.php", parameters),
+        this.request(`Fahrt ${journey.journeyRef}`, "trip-info.php", parameters),
       ));
-    const journey = parseTriasTripInfo(body, locator);
-    return { ...journey, serverTime: advance(journey.serverTime, ageMs) };
+    const tripInfo = parseTriasTripInfo(body, journey, rowCall);
+    return { ...tripInfo, serverTime: advance(tripInfo.serverTime, ageMs) };
   }
 
   /**
    * The dated journey's calls: a direction's route is what its dated journeys call at
    * (`docs/trias-api.md`).
    */
-  async fetchLineRoute(locator: JourneyLocator) {
-    return (await this.fetchTripInfo(locator)).calls;
+  async fetchLineRoute(journey: DatedJourneyRef) {
+    return (await this.fetchTripInfo(journey)).calls;
   }
 
   async searchStops(query: string) {
@@ -152,9 +151,6 @@ const advance = (serverTime: string, ageMs: number): string =>
   ageMs > 0 ? new Date(Date.parse(serverTime) + ageMs).toISOString() : serverTime;
 
 /** `YYYYMMDD` as TRIAS's `YYYY-MM-DD`. */
-const formatOperatingDay = (date: string): string =>
-  `${date.slice(0, 4)}-${date.slice(4, 6)}-${date.slice(6, 8)}`;
-
 function chunk<T>(values: readonly T[], size: number): T[][] {
   const chunks: T[][] = [];
   for (let index = 0; index < values.length; index += size) {
