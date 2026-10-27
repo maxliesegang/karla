@@ -9,6 +9,7 @@ import {
   withStopVisit,
   type RecentStop,
 } from "../lib/recent-stops";
+import { forgetChosenStopPlaceParts } from "../lib/stop-place-parts";
 import { getLandingPath, hasRouteAddress, replaceCurrentRoute } from "../routing";
 
 /**
@@ -44,8 +45,10 @@ export function useStopRecall(visitedStop: StopPlace | undefined): {
 
   // The effect only writes storage.
   useEffect(() => {
-    if (!settings.isRememberingStops) forgetRecentStops();
-    else if (visitedStopId) rememberStopVisit(visitedStopId, visitedStopName);
+    if (!settings.isRememberingStops) {
+      forgetRecentStops();
+      forgetChosenStopPlaceParts();
+    } else if (visitedStopId) rememberStopVisit(visitedStopId, visitedStopName);
   }, [visitedStopId, visitedStopName, settings.isRememberingStops]);
 
   return {

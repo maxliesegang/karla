@@ -6,7 +6,7 @@
     "useIgnoreFile": true
   },
   "files": {
-    "includes": ["**", "!**/*.tsbuildinfo", "!package-lock.json", "!src/data/generated/**"]
+    "includes": ["**", "!**/*.tsbuildinfo", "!package-lock.json", "!src/networks/*/generated/**"]
   },
   "formatter": {
     "enabled": true,

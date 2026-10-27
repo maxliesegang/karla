@@ -297,7 +297,7 @@ test("names a Karlsruhe district the way it names a municipality", () => {
     id: "live",
     lineId: "1",
     destinationText: "Durlach Turmberg",
-    journeyRef: "turmberg",
+    journeyRef: "durlach-turmberg",
   });
   const observed = stopEvent({
     ...live,
@@ -309,7 +309,7 @@ test("names a Karlsruhe district the way it names a municipality", () => {
         placeName: "Karlsruhe",
       },
       { stopName: "Kronenplatz", localStopId: "kronenplatz", placeName: "Karlsruhe" },
-      { stopName: "Turmberg", localStopId: "turmberg", placeName: "Durlach" },
+      { stopName: "Turmberg", localStopId: "durlach-turmberg", placeName: "Durlach" },
     ],
   });
   const inbound = stopEvent({

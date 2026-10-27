@@ -214,7 +214,8 @@ test("a call named for one platform of a place resolves to that place", () => {
   const marktplatz = findStopByName(transitNetwork, "Marktplatz (Kaiserstraße U)");
   assert.equal(marktplatz?.id, "marktplatz");
   assert.equal(findStopByName(transitNetwork, "Marktplatz")?.id, "marktplatz");
-  // An authored second name resolves; an unmapped stop does not.
+  // A former name resolves, and so does every catalog stop; one beyond the catalog does not.
   assert.equal(findStopByName(transitNetwork, "Mendelssohnplatz")?.id, "rueppurrer-tor");
-  assert.equal(findStopByName(transitNetwork, "Lameyplatz"), undefined);
+  assert.equal(findStopByName(transitNetwork, "Lameyplatz")?.id, "lameyplatz");
+  assert.equal(findStopByName(transitNetwork, "Pforzheim Hauptbahnhof"), undefined);
 });

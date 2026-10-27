@@ -286,3 +286,27 @@ test("the network page is one page", () => {
   assert.equal(parseRoute("#/network").view, "network");
   assert.equal(parseRoute("#/network/").view, "network");
 });
+
+test("a part of a place is addressed after the stop, and lines and journeys keep it", () => {
+  const route = parseRoute(`#/stop/hauptbahnhof/vorplatz/line/2/journey/${JOURNEY_PATH}`);
+  assert.equal(route.stopId, "hauptbahnhof");
+  assert.equal(route.partId, "vorplatz");
+  assert.equal(route.lineId, "2");
+  assert.equal(route.addressId, JOURNEY);
+  assert.equal(parseRoute("#/stop/hauptbahnhof/vorplatz").partId, "vorplatz");
+  assert.equal(parseRoute("#/stop/hauptbahnhof/line/2").partId, "");
+  assert.equal(routePaths.stop("hauptbahnhof", "vorplatz"), "/stop/hauptbahnhof/vorplatz");
+  assert.equal(
+    getSelectionPath({ stopId: "hauptbahnhof", partId: "vorplatz", lineId: "2" }),
+    "/stop/hauptbahnhof/vorplatz/line/2",
+  );
+  assert.equal(
+    getParentSelectionPath({
+      view: "stop",
+      stopId: "hauptbahnhof",
+      partId: "vorplatz",
+      lineId: "2",
+    }),
+    "/stop/hauptbahnhof/vorplatz",
+  );
+});

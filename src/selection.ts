@@ -31,6 +31,11 @@ import {
   type AppRoute,
 } from "./routing";
 import { findBundledLines, findSelectedLine } from "./selected-line";
+import {
+  chosenStopPlaceParts,
+  findStopPlacePart,
+  type StopPlacePart,
+} from "./lib/stop-place-parts";
 import { stationBoardConfig } from "./station-board";
 
 const EMPTY_STOP_EVENTS: readonly StopEvent[] = [];
@@ -47,6 +52,8 @@ const NEEDS_BOARD_CALLS = stationBoardConfig?.detail === "via";
 export type ResolvedSelectionChain = {
   /** The stop shown, which a line-only address resolves itself. */
   stopId: string;
+  /** The part of the place the board is read at; the whole place without one. */
+  stopPlacePart: StopPlacePart | undefined;
   selectedStop: StopPlace | undefined;
   isStopLoading: boolean;
   /** The stop's read failed, as opposed to not found. */
@@ -116,10 +123,18 @@ export function useSelectionChain(
   // Only the line order pays for per-direction completion, where a missing direction would be a
   // missing line.
   const boardOrder = useStoredPreference(stopEventBoardOrder);
+  // A remembered part answers only a bare stop; an addressed line or journey reads the whole place.
+  const chosenParts = useStoredPreference(chosenStopPlaceParts);
+  const isBareStop = !route.lineId && !route.addressId;
+  const stopPlacePart = findStopPlacePart(
+    stopId,
+    route.partId || (isBareStop ? chosenParts[stopId] : undefined),
+  );
   const stopEventBoardReading = useStopEventBoard(
     selectedStop ? stopId : undefined,
     NEEDS_BOARD_CALLS ? "calls" : boardOrder === "line" ? "covered" : "plain",
     boardReloadNonce,
+    stopPlacePart?.stopPointId,
   );
   const stopEventBoard = stopEventBoardReading.board;
   const stopEvents = stopEventBoard?.stopEvents ?? EMPTY_STOP_EVENTS;
@@ -231,6 +246,7 @@ export function useSelectionChain(
   // answered (`isAddressOutstanding`).
   const selectionPath = getSelectionPath({
     stopId,
+    partId: stopPlacePart?.id,
     lineId: selectedLine?.id,
     bundledLineIds: lineSelection.bundledLineIds,
     addressId: selectedStopEvent && getStopEventAddressId(selectedStopEvent),
@@ -246,6 +262,7 @@ export function useSelectionChain(
 
   return {
     stopId,
+    stopPlacePart,
     selectedStop,
     isStopLoading,
     isStopFailed,

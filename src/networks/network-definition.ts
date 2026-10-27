@@ -6,10 +6,32 @@ import type { Bounds, NetworkScope } from "../data/network-scope";
 import type { PtMode } from "../data/transit-types";
 import type { BayRun } from "../lib/bay-runs";
 
-/** A stop the app addresses by a fixed slug, and the stop points (DHIDs) its page joins. */
-export type AuthoredStopPlace = {
-  /** The first names and places the page. */
+/** A stop place: one page, addressed by its slug, joining one or more stop points (DHIDs). */
+export type StopPlaceDefinition = {
+  /** The operator's name without its bracketed aside (`Marktplatz`). */
+  name: string;
+  /** The district, outside the home municipality (`Durlach`). */
+  placeName?: string;
+  /** A name riders still use (`Mendelssohnplatz`). */
+  formerName?: string;
+  /** The busiest first; it places the page. */
   stopPoints: readonly [string, ...string[]];
+  /** Each stop point's name on the page (`Tunnel`, `Vorplatz`), where there are several. */
+  parts?: readonly string[];
+};
+
+/** What the stop places' name rule (`lib/stop-places.ts`) misses, by DHID. */
+export type StopPlaceOverrides = {
+  /** Stop points that are one place though named apart. */
+  joins?: readonly (readonly string[])[];
+  /** Stop points that stay their own place though named alike. */
+  splits?: readonly string[];
+  /** A slug pinned by any of the place's stop points. */
+  slugs?: Readonly<Record<string, string>>;
+  /** Former names, by slug. */
+  formerNames?: Readonly<Record<string, string>>;
+  /** A part's name, by its stop point. */
+  partNames?: Readonly<Record<string, string>>;
 };
 
 /** What the timetable states about one stop (`npm run refresh:stops`). */
@@ -45,7 +67,9 @@ export type NetworkDefinition = {
   scope: NetworkScope;
   /** The municipality the network centres on, which the feed prefixes its stop names with. */
   home: { placeName: string; stopNamePrefix: RegExp };
-  stopPlaces: Readonly<Record<string, AuthoredStopPlace>>;
+  /** Every catalog stop's place, by slug (`npm run refresh:stops`). */
+  stopPlaces: Readonly<Record<string, StopPlaceDefinition>>;
+  stopPlaceOverrides: StopPlaceOverrides;
   stopCatalog: readonly CatalogStop[];
   findCatalogStop(globalId: string): CatalogStop | undefined;
   /** Rail bays by `DHID|bay`: where each stands, and which way it runs. */

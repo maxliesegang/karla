@@ -2534,6 +2534,24 @@ button.brand:active .brand-mark,
   color: var(--ink);
 }
 
+/* Which part of a joined place the board reads (`Tunnel`, `Vorplatz`), or all of it. Unlike the place
+   bar it changes what the board says, so it sits directly under the stop's name. */
+.departure-board-part-control {
+  --segment-pad: 2px;
+  --segment-gap: 1px;
+  --segment-radius: 7px;
+  margin: 8px var(--row-inset) 0;
+  border-radius: 8px;
+  font-size: 12px;
+}
+.departure-board-part-control button {
+  min-height: 28px;
+  padding: 0 12px;
+  border-radius: 7px;
+  font: inherit;
+  font-weight: 650;
+}
+
 /* The place a rider walks to, standing over the platforms they find when they get there. Set above
    the platform signposts and away from them, because it is the choice made first: at Europaplatz
    `Gleis 3` and `Gleis 5` are a hundred metres apart, and the codes alone say nothing about that. */

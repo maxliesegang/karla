@@ -6,8 +6,8 @@
  * - The network's GTFS feed (`catalogSource.gtfs`): lines and calls per stop, kept to the
  *   network's pools by route id (`kvv-21-002E-1`).
  * Joined on the stop's DHID. Also writes `line-days.ts`: the rail and tram lines that do not run
- * every day; `bay-runs.ts`: which way each rail bay runs; and `bay-positions.ts`: where each one
- * stands.
+ * every day; `bay-runs.ts`: which way each rail bay runs; `bay-positions.ts`: where each one
+ * stands; and `stop-places.ts` (`write-stop-places.ts`).
  *
  *     npm run refresh:stops
  *
@@ -26,6 +26,7 @@ import type { CatalogStop } from "../src/networks/network-definition.ts";
 import { network } from "../src/networks/network.ts";
 import { downloadGtfsArchive, readTable } from "./gtfs-archive.ts";
 import { envelope, readRequestorRef, TRIAS_ENDPOINT } from "./trias-direct.ts";
+import { writeStopPlaces } from "./write-stop-places.ts";
 
 const { stopIdPrefix, bounds, gtfs } = network.catalogSource;
 const outputPath = (name: string) =>
@@ -81,6 +82,7 @@ async function main(): Promise<void> {
     await writeFile(outputPath("stop-catalog.ts"), renderCatalogModule(catalog, source), "utf8");
     const served = catalog.filter(({ lineCount }) => lineCount > 0).length;
     console.log(`Wrote ${catalog.length} stops (${served} with scheduled service)`);
+    await writeStopPlaces(catalog);
   } finally {
     await rm(workingDirectory, { recursive: true, force: true });
   }

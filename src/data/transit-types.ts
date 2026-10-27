@@ -234,6 +234,8 @@ export type StopEventBoardRequest = {
    * minutes ahead instead of every line for twenty.
    */
   lineRefs?: readonly string[];
+  /** Read only this stop point of the place: one part's own board, reaching as far as it alone. */
+  stopPointId?: string;
 };
 
 /**

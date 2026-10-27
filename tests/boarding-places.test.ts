@@ -180,7 +180,7 @@ test("a vehicle turning round is not two places, from whichever end it is read",
   const bay = (code: string, overrides: Partial<Call> = {}): Call => ({
     stopName: "Turmberg",
     placeName: "Karlsruhe",
-    localStopId: "turmberg",
+    localStopId: "durlach-turmberg",
     providerStopPointId: "de:08212:18",
     bay: code,
     bayText: `Bstg. ${code}`,
@@ -193,7 +193,7 @@ test("a vehicle turning round is not two places, from whichever end it is read",
       ...stopEvent("A"),
       bay: code,
       bayKind: "stand",
-      boardingLocalStopId: "turmberg",
+      boardingLocalStopId: "durlach-turmberg",
       boardingProviderStopPointId: "de:08212:18",
       boardingProviderStopPointName: "Turmberg",
       calls,
@@ -213,7 +213,7 @@ test("a vehicle turning round is not two places, from whichever end it is read",
   ]) {
     let observations = null;
     for (const calls of readings) {
-      observations = updateStopBoardingObservations(observations, "turmberg", [
+      observations = updateStopBoardingObservations(observations, "durlach-turmberg", [
         stand(calls[0].bay!, calls),
         stand(calls[1].bay!, calls),
       ]);

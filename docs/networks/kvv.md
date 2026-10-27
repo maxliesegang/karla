@@ -16,18 +16,24 @@ the Zentrum plan and the region plan exist only for it.
 
 ## Stop places
 
-The authored stop places are in [`stop-places.ts`](../../src/networks/kvv/stop-places.ts): the
-Zentrum's stops and the observation posts, each with fixed slugs. Where one place is two stops in
-the feed, the place lists both:
+Every catalog stop has a stop place, derived by name and distance
+([`generated/stop-places.ts`](../../src/networks/kvv/generated/stop-places.ts)). Eight join two
+stop points:
 
-| Place | Stop points |
+| Place | Parts |
 | --- | --- |
-| Europaplatz | street and bus bays `de:08212:37`, tunnel `de:08212:1004` |
-| Marktplatz | Kaiserstraße tunnel `de:08212:1003`, Pyramide tunnel `de:08212:1011` |
-| Hauptbahnhof | station `de:08212:90`, Vorplatz tram stop `de:08212:89` |
-| Durlach Bahnhof | station `de:08212:802`, tram stop `de:08212:801` |
+| Europaplatz | Straße `de:08212:37` (tram and bus bays), Tunnel `de:08212:1004` |
+| Marktplatz | Kaiserstraße `de:08212:1003`, Pyramide `de:08212:1011` |
+| Hauptbahnhof | Vorplatz `de:08212:89`, Bahnhof `de:08212:90` |
+| Durlach Bahnhof | Bahnhof `de:08212:802`, Straßenbahn `de:08212:801` |
 
-Kronenplatz, Durlacher Tor, Ettlinger Tor and Kongresszentrum each join a tunnel and a street stop.
+Kronenplatz, Durlacher Tor, Ettlinger Tor and Kongresszentrum each join a Tunnel and a Straße.
+[`stop-place-overrides.ts`](../../src/networks/kvv/stop-place-overrides.ts) joins Durlach's two
+(named `Bahnhof` and `Karlsruhe-Durlach`), names the stations' parts, and keeps Rüppurrer Tor's
+former name, Mendelssohnplatz.
+
+The Hauptbahnhof station part shows only `kvv:` rows; DB's regional trains are `ddb:` and out of
+scope.
 
 Height is in no source. Europaplatz's `Gleis 3` and `Gleis 5` are 107 m apart, while `Gleis 5` is
 3 m from the tunnel's `Gleis 1(U)`, so distance cannot decide boarding places; they are read from

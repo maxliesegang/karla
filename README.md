@@ -36,17 +36,30 @@ refines the one above it:
 - `#/settings` — where the app opens, whether it remembers stops, whether diagrams show other
   vehicles, and the data terms (not official, no KVV liability; NVBW timetable data)
 - `#/stop/europaplatz` — a stop with its departure board
+- `#/stop/hauptbahnhof/vorplatz` — the board of one part of a stop (below)
 - `#/stop/europaplatz/line/2` — a line calling there, beside the board
 - `#/stop/hochstetten/line/S1+S11` — two lines read together over the stretch they share
-- `#/stop/europaplatz/line/2/trip/:tripId` — one trip of that line, highlighted
-- `#/stop/europaplatz/trip/:tripId` — one trip opened from the stop board
-- `#/trip/:tripId` — that trip read on its own: the ride
-- `#/trip/:tripId/from/:stopId/to/:stopId` — the ride with where the rider got on and gets off;
-  either part may be left out
+- `#/stop/europaplatz/line/2/journey/:journeyRef/:day` — one journey of that line, highlighted
+- `#/stop/europaplatz/journey/:journeyRef/:day` — one journey opened from the stop board
+- `#/journey/:journeyRef/:day` — that journey read on its own: the ride
+- `#/journey/:journeyRef/:day/from/:stopId/to/:stopId` — the ride with where the rider got on and
+  gets off; either part may be left out
 
-`#/line/2` names no stop; it opens the first stop the line is seen calling at. Legacy links
-(`#/stop/…/lines`, `#/departure/…`, `#/ride/…`, `#/network/city`) still resolve and are rewritten;
-`line/S1-S11` is read as the bundle `S1+S11`. The plan's earlier `#/center/…` addresses open it.
+A journey is addressed by TRIAS's `JourneyRef` and `OperatingDayRef`
+(`#/journey/kvv:22311:E:H:s26:161/2026-10-27`). `#/line/2` names no stop; it opens the first stop
+the line is seen calling at. Earlier address forms are not read.
+
+A stop's id is its stop place's slug: the name before any `/` (`ettlinger-tor`), led by the
+district outside Karlsruhe (`durlach-turmberg`). A stop beyond the catalog is `name--digest`.
+
+### Parts of a stop
+
+A stop place may join several stop points: Europaplatz's street and tunnel, Hauptbahnhof's
+Vorplatz and station. Its board offers `Alle` and each part (`Straße`, `Tunnel`, `Vorplatz`,
+`Bahnhof`); a part reads its own stop point's board, so it reaches as far ahead as that part
+alone. On the whole place, each row names its part beside the bay. The part chosen last at a
+place opens a bare stop address while stops are remembered; a line or journey link reads the whole
+place.
 
 With no address the app opens the stop last read, or the home for a reader with no history (the
 *Beim Öffnen* setting can always open the home). It never opens on a location prompt. The *Nähe*
@@ -56,8 +69,9 @@ wrong. Recently read stops are listed under the search on the home.
 ## Station board mode
 
 Unattended displays use the normal stop URL with a configuration before the hash:
-`?display=stop#/stop/europaplatz` for the whole board, `?display=platform&platform=2#/…` for one
-platform, `platform=2,3` for an island pair. Platform names are normalised (`2`, `Gleis 2`,
+`?display=stop#/stop/europaplatz` for the whole board, `?display=stop#/stop/hauptbahnhof/vorplatz`
+for one part, `?display=platform&platform=2#/…` for one platform, `platform=2,3` for an island
+pair. Platform names are normalised (`2`, `Gleis 2`,
 `Bstg. 2` are the same platform), and the board prints the feed's own word (`Gleis` or `Bstg.`).
 
 | Parameter | Effect |
@@ -83,8 +97,11 @@ Failed reads retain the last complete reading and its age. Verified behaviour is
 
 A build reads one network, chosen by `VITE_NETWORK` (default and only: `kvv`). What the app knows
 about it beyond the feed lives in `src/networks/<id>/` ([`docs/networks/kvv.md`](docs/networks/kvv.md)):
-the pools whose lines boards keep, the area stop search keeps, the authored stop places, line
-colours, and the stop catalog `npm run refresh:stops` writes from TRIAS and NVBW's GTFS. The Zentrum
+the pools whose lines boards keep, the area stop search keeps, line colours, and the stop catalog
+`npm run refresh:stops` writes from TRIAS and NVBW's GTFS. Stop places are derived from the
+catalog (`src/lib/stop-places.ts`): stop points of one name before its bracket, in one district,
+within 250 m, are one place. What that rule misses is in the network's `stop-place-overrides.ts`;
+`npm run refresh:stop-places` writes the result. The Zentrum
 (`src/data/zentrum-stops.ts`, `src/lib/zentrum-schematic-plan.ts`, solved by `npm run
 solve:zentrum`) and the region plan exist only for KVV.
 
@@ -116,7 +133,8 @@ and refresh every five minutes to discover changed routes. Learned posts refresh
 filtered by rail direction; crowded boards receive separate direction reads to extend their horizon.
 Dated journeys are retained within ten minutes of an area visit and two minutes after leaving it.
 
-Boarding places share one stop name and board address. Bay coordinates and observed neighbouring
+Boarding places share one stop name and board address; a stop point may hold several (Europaplatz's
+street stop serves tram bays and bus bays 107 m apart). Bay coordinates and observed neighbouring
 calls determine their grouping, including neighbours outside the map. Places with overlapping drawn
 routes receive separate marks positioned from their geographic offsets; Gleise remain visible.
 Corridors follow horizontal, vertical or 45° segments.

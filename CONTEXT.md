@@ -6,20 +6,29 @@ they differ.
 
 ## Stops
 
-**Stop place** (`StopPlace`): the app's own stop identity, with one page and one URL (a slug such as
-`europaplatz`). It may join several stop points (Europaplatz's street and tunnel); those are
-authored in the network's `stop-places.ts`, and its board reads each one.
-_Avoid_: complex, local stop, transit stop
+**Stop place** (`StopPlace`, `stopPlaceId`; a route's `stopId`): the app's own stop identity, with
+one page and one URL (a slug such as `europaplatz`). It may join several stop points (Europaplatz's
+street and tunnel): stop points of one name before its bracket, in one district, within 250 m, plus
+the network's overrides (`stop-place-overrides.ts`), written to `generated/stop-places.ts`. Its
+board reads each one. A stop beyond the catalog is a stop place of one stop point.
+_Avoid_: complex, local stop, transit stop, alias
 
-**Stop point**: the operator's identity for a stop, a stop-level DHID (`de:08212:1003`, TRIAS
-`StopPointRef`). Stop event facts such as the bay live at this level.
+**Part** (`StopPlacePart`): one stop point of a joined stop place as the page names it (`Tunnel`,
+`Straße`, `Vorplatz`, `Pyramide`), from the operator's bracketed aside. A board can be read at one
+part (`#/stop/hauptbahnhof/vorplatz`).
+_Avoid_: level (not every part is one)
+
+**Stop point** (`stopPointId`): the operator's identity for a stop, a stop-level DHID
+(`de:08212:1003`, TRIAS `StopPointRef`). Stop event facts such as the bay live at this level.
+_Avoid_: provider id
 
 **Bay** (`bay`, `bayText`, `bayKind`): the signed place at a stop point a vehicle stops at, TRIAS's
 `PlannedBay`: its code (`3`), its text (`Gleis 3`) and whether it is a track or a stand.
 _Avoid_: platform (in code; German copy says Gleis and Bstg.)
 
-**Authored / dynamic stop**: an authored stop ships with the app; a dynamic stop is first met live
-(through a search hit or a call) and is registered for the rest of the session.
+**Network / dynamic stop**: a network stop place ships with the app, from the catalog; a dynamic
+stop is first met live (through a search hit or a call) and is registered for the rest of the
+session.
 
 **Boarding place**: what a rider walks to at a stop, usually one stop point. It is derived from
 journeys calling at several bays in turn. The Zentrum plan reads its places from the corridors each
@@ -53,9 +62,10 @@ _Avoid_: transport mode
 **Journey** (`journeyRef`): the timetable entry, which repeats every day; TRIAS's `JourneyRef`.
 _Avoid_: trip (TRIAS's Trip is a passenger's planned itinerary)
 
-**Dated journey** (`datedJourneyId`): one dated instance of a journey on the road today, a
-`JourneyRef` on an `OperatingDayRef`. This is what gets tracked and drawn.
-_Avoid_: run
+**Dated journey** (`datedJourneyId`, `journeyRef@operatingDayRef`; `DatedJourneyRef`): one dated
+instance of a journey on the road today, a `JourneyRef` on an `OperatingDayRef`. This is what gets
+requested, tracked, drawn and addressed (`#/journey/:journeyRef/:operatingDayRef`).
+_Avoid_: run, trip, locator
 
 **Vehicle**: the mark drawn for a dated journey.
 
@@ -72,13 +82,11 @@ _Avoid_: run sequence
 each dated journey. Every view reads dated journeys from it.
 
 **Journey keys**:
-- `getJourneyRecordKey` (`lineRef|journeyCode`, undated; `data/dated-journey-reading-store.ts`)
+- `getJourneyRecordKey` (the `JourneyRef`, undated; `data/dated-journey-reading-store.ts`)
   shares a dated journey's data and requests.
 - `getDatedJourneyMarkKey` (dated; `lib/journeys.ts`) identifies a drawn vehicle.
 - `getBoardRowKey` (`data/stop-event-dated-journeys.ts`) merges a board's duplicate rows for one
   dated journey.
-
-**JourneyLocator**: the provider's address for fetching one dated journey's trip info.
 
 **Published journey number** (`publishedJourneyNumber`): the train number a stop event states.
 _Avoid_: train number

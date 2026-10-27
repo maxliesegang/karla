@@ -5,8 +5,9 @@ import { bayPositionByKey } from "./generated/bay-positions";
 import { bayRunByKey } from "./generated/bay-runs";
 import { nonDailyLineIds } from "./generated/line-days";
 import { findCatalogStop, stopCatalog } from "./generated/stop-catalog";
+import { stopPlaces } from "./generated/stop-places";
 import { getKvvLineColor } from "./line-colors";
-import { kvvStopPlaces } from "./stop-places";
+import { kvvStopPlaceOverrides } from "./stop-place-overrides";
 
 /**
  * KVV's own lines in its tariff area (Karlsruhe, Rastatt, Baden-Baden, Pforzheim, Enzkreis,
@@ -39,7 +40,8 @@ export const kvvNetwork: NetworkDefinition = {
   scope,
   /** The feed names Karlsruhe's stops `KA Marktplatz` or `Karlsruhe Marktplatz`. */
   home: { placeName: "Karlsruhe", stopNamePrefix: /^(?:KA|Karlsruhe) (?=\S)/ },
-  stopPlaces: kvvStopPlaces,
+  stopPlaces,
+  stopPlaceOverrides: kvvStopPlaceOverrides,
   stopCatalog,
   findCatalogStop,
   bayPositionByKey,

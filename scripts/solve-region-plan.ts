@@ -15,7 +15,7 @@ import { findCatalogStop } from "../src/networks/kvv/generated/stop-catalog.ts";
 import { DEFAULT_TRIAS_PROXY_URL } from "../src/data/trias-proxy.ts";
 import { TriasClient } from "../src/data/trias-client.ts";
 import { fetchStopPlaceBoard } from "../src/data/feed.ts";
-import { kvvStopPlaces } from "../src/networks/kvv/stop-places.ts";
+import { stopPlaces } from "../src/networks/kvv/generated/stop-places.ts";
 import { StopRegistry } from "../src/data/stop-registry.ts";
 import type { StopEvent } from "../src/data/transit-types.ts";
 import { runsEveryDay } from "../src/lib/daily-lines.ts";
@@ -93,7 +93,7 @@ async function observe(): Promise<GeoNetwork> {
   const client = new TriasClient({ proxyUrl: DEFAULT_TRIAS_PROXY_URL });
   const stopEvents: StopEvent[] = [];
   for (const stopId of [...ZENTRUM_OBSERVATION_POST_STOP_IDS, ...REACH_OBSERVATION_POST_STOP_IDS]) {
-    const stopPlace = kvvStopPlaces[stopId];
+    const stopPlace = stopPlaces[stopId];
     if (!stopPlace) continue;
     try {
       const board = await fetchStopPlaceBoard(client, stopPlace.stopPoints, {

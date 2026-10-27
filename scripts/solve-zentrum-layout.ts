@@ -22,7 +22,7 @@ import { findCatalogStop } from "../src/networks/kvv/generated/stop-catalog.ts";
 import { DEFAULT_TRIAS_PROXY_URL } from "../src/data/trias-proxy.ts";
 import { TriasClient } from "../src/data/trias-client.ts";
 import { fetchStopPlaceBoard } from "../src/data/feed.ts";
-import { kvvStopPlaces } from "../src/networks/kvv/stop-places.ts";
+import { stopPlaces } from "../src/networks/kvv/generated/stop-places.ts";
 import { StopRegistry } from "../src/data/stop-registry.ts";
 import type { StopEventBoard, Call } from "../src/data/transit-types.ts";
 import { zentrumStopIds } from "../src/data/zentrum-stops.ts";
@@ -83,7 +83,7 @@ async function observe(rowLimit: number): Promise<Observations> {
   const coordinates = new Map<string, { latitudes: number[]; longitudes: number[] }>();
 
   for (const stopId of zentrumStopIds) {
-    const stopPlace = kvvStopPlaces[stopId];
+    const stopPlace = stopPlaces[stopId];
     if (!stopPlace) {
       console.error(`! ${stopId} has no stop points and cannot be read`);
       continue;
@@ -394,7 +394,7 @@ async function main(): Promise<void> {
   // return.
   for (const stopId of zentrumStopIds) {
     if (observations.nodes.some((node) => node.id === stopId)) continue;
-    const stopPoint = kvvStopPlaces[stopId]?.stopPoints[0];
+    const stopPoint = stopPlaces[stopId]?.stopPoints[0];
     const catalogued = stopPoint && findCatalogStop(stopPoint);
     if (!catalogued) {
       console.error(`! ${stopId} was neither observed nor catalogued, and cannot be placed`);

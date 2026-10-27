@@ -87,9 +87,9 @@ test("the observed line carries no extent where the farthest run turns on itself
         journeyRef: "loop",
         destinationText: "Stupferich",
         calls: [
-          call("Turmberg", "turmberg", "Karlsruhe"),
+          call("Turmberg", "durlach-turmberg", "Karlsruhe"),
           call("Rathaus", "stupferich-rathaus", "Stupferich"),
-          call("Turmberg", "turmberg", "Karlsruhe"),
+          call("Turmberg", "durlach-turmberg", "Karlsruhe"),
         ],
       }),
     ]),

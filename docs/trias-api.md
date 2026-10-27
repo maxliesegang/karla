@@ -109,12 +109,13 @@ points (`Tullastraße (44)`) are not listed.
 `TriasClient` (`src/data/trias-client.ts`) reads boards, dated journeys and stop search through the
 proxy, and `src/data/trias-parsers.ts` decodes them into the feed model (`src/data/feed.ts`):
 
-- A stop is its stop-level DHID (`toProviderStopId`). A stop place's board reads each of its stop
+- A stop is its stop-level DHID (`toStopPointId`). A stop place's board reads each of its stop
   points and joins them (`fetchStopPlaceBoard`); the joined board ends where a full board's rows ran
-  out.
+  out. A part's board reads its stop point alone.
 - Only the network's pools are read (`NetworkScope`); demand-responsive buses are not.
-- `JourneyRef` is the journey; split at its last colon, it gives the locator's line ref and journey
-  code. The locator also carries `OperatingDayRef`.
+- `JourneyRef` is the journey; split at its last colon, it gives the line ref. A dated journey is
+  its `JourneyRef` on its `OperatingDayRef`, which is all a `TripInfoRequest` needs; the asking
+  row's own call is found by stop point and timetabled time.
 - `EstimatedTime` is the prediction; its absence means "nach Fahrplan". Delays are the predictions'
   rounded minutes; times stay to the second.
 - The network's municipality prefix (`KA `) is removed and the place set to it; other names are

@@ -8,6 +8,7 @@
     "dev": "vite",
     "build": "tsc -b && vite build",
     "refresh:stops": "node --experimental-strip-types --import ./tests/register-resolver.js scripts/refresh-stop-catalog.ts",
+    "refresh:stop-places": "node --experimental-strip-types --import ./tests/register-resolver.js scripts/write-stop-places.ts",
     "probe:turnarounds": "node --experimental-strip-types --import ./tests/register-resolver.js scripts/probe-turnarounds.ts",
     "test": "node --experimental-strip-types --import ./tests/register-resolver.js --test tests/*.test.ts",
     "preview": "vite preview",

@@ -87,6 +87,7 @@ function CorridorStopEventChip({
   stopEvent,
   note,
   stopId,
+  partId,
   lineSelection,
   isLead,
   isSelected,
@@ -98,6 +99,8 @@ function CorridorStopEventChip({
   /** What the heading cannot say for this journey. */
   note: CorridorStopEventNote;
   stopId: string;
+  /** The part the board is read at, kept by a tap. */
+  partId: string | undefined;
   /** The lines read together, so a chip tapped in a bundle stays in it. */
   lineSelection: LineSelection | undefined;
   /** The next journey this way. */
@@ -118,7 +121,9 @@ function CorridorStopEventChip({
         stopEvent.status === "cancelled" && "cancelled",
       )}
       aria-current={isSelected ? "true" : undefined}
-      onClick={() => navigateTo(getStopEventOpenPath(stopEvent, stopId, isPinned, lineSelection))}
+      onClick={() =>
+        navigateTo(getStopEventOpenPath(stopEvent, stopId, isPinned, lineSelection, partId))
+      }
       aria-label={`${getStopEventAccessibilityLabel(stopEvent, feedNow, countdownOptions)}, ${
         isPinned ? "Auswahl aufheben" : "Fahrtverlauf öffnen"
       }`}
@@ -364,12 +369,14 @@ function CorridorGroup({
 function LineGroup({
   group,
   stopId,
+  partId,
   boardingPlaces,
   columns,
   renderChip,
 }: {
   group: StopServiceCorridorLineGroup;
   stopId: string;
+  partId: string | undefined;
   boardingPlaces: StopBoardingPlaces;
   columns: number;
   renderChip: (stopEvent: StopEvent, note: CorridorStopEventNote, isLead: boolean) => ReactNode;
@@ -380,7 +387,7 @@ function LineGroup({
         <button
           type="button"
           className="stop-line-group-heading"
-          onClick={() => navigateTo(routePaths.line(group.line.id, stopId))}
+          onClick={() => navigateTo(routePaths.line(group.line.id, stopId, [], partId))}
           aria-label={`Linie ${group.line.id}, Linienverlauf öffnen`}
           // The band's line colour, mixed toward the ink in CSS.
           style={{ "--line-color": group.line.color } as CSSProperties}
@@ -411,6 +418,7 @@ function LineGroup({
 export function StopEventBoardLineOrder({
   groups,
   stopId,
+  partId,
   boardingPlaces,
   lineSelection,
   selectedStopEvent,
@@ -418,6 +426,8 @@ export function StopEventBoardLineOrder({
 }: {
   groups: readonly StopServiceCorridorLineGroup[];
   stopId: string;
+  /** The part the board is read at, kept by a tap. */
+  partId?: string;
   /** The stop's places, so each direction can say which it leaves from. */
   boardingPlaces: StopBoardingPlaces;
   /** The lines in view; their journeys read as selected. */
@@ -434,6 +444,7 @@ export function StopEventBoardLineOrder({
       stopEvent={stopEvent}
       note={note}
       stopId={stopId}
+      partId={partId}
       lineSelection={lineSelection}
       isLead={isLead}
       isSelected={isStopEventSelected(stopEvent, selectedStopEvent, lineSelection)}
@@ -459,6 +470,7 @@ export function StopEventBoardLineOrder({
           key={group.id}
           group={group}
           stopId={stopId}
+          partId={partId}
           boardingPlaces={boardingPlaces}
           columns={corridorColumns}
           renderChip={renderChip}

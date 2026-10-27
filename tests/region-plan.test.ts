@@ -111,12 +111,12 @@ test("a junction inside another place stands for that place", () => {
       stop("marktplatz"),
       stop("untermuehl", "Durlach", "Untermühlstraße"),
       stop("durlach-bf", "Durlach", "Durlach Bahnhof"),
-      stop("turmberg", "Durlach", "Turmberg"),
+      stop("durlach-turmberg", "Durlach", "Turmberg"),
       stop("groetzingen", "Grötzingen"),
     ],
     {
       S5: ["marktplatz", "untermuehl", "durlach-bf", "groetzingen"],
-      "1": ["marktplatz", "untermuehl", "durlach-bf", "turmberg"],
+      "1": ["marktplatz", "untermuehl", "durlach-bf", "durlach-turmberg"],
     },
   );
 

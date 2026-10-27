@@ -56,6 +56,7 @@ import { getStopServiceCorridorLineGroups } from "../lib/stop-corridors";
 import { StopEventBoardLineOrder } from "./StopEventBoardLineOrder";
 import { isSameDatedJourney } from "../lib/journeys";
 import { FEED_UNREADABLE_TEXT } from "./feed-copy";
+import { findStopPointPart, type StopPlacePart } from "../lib/stop-place-parts";
 
 type StopEventBoardPanelProps = {
   panelRef?: Ref<HTMLElement>;
@@ -79,6 +80,12 @@ type StopEventBoardPanelProps = {
   corridorPatterns: StopCorridorPatterns;
   /** The stop's places, learned over the visit so they do not flicker with the rows. */
   boardingPlaces: StopBoardingPlaces;
+  /** The place's parts, one per stop point; empty for a place of one. */
+  parts: readonly StopPlacePart[];
+  /** The part the board is read at; the whole place without one. */
+  part: StopPlacePart | undefined;
+  /** Reads the board at a part, or at the whole place. */
+  onChoosePart: (partId: string | undefined) => void;
   /** A stacked layout caps the list; a panel of its own shows and scrolls the whole board. */
   isStacked?: boolean;
   /** How many readings have answered, failures included; the pull to refresh settles on this. */
@@ -94,6 +101,8 @@ function StopEventRow({
   nextCompatibleStopEvent,
   line,
   stopId,
+  partId,
+  partName,
   lineSelection,
   index,
   isSelected,
@@ -104,6 +113,10 @@ function StopEventRow({
   countdownOptions,
 }: {
   stopEvent: StopEvent;
+  /** The part the board is read at, kept by a tap. */
+  partId: string | undefined;
+  /** The part the row leaves from, where the board joins several. */
+  partName: string | undefined;
   /** The next journey on the same route, shown only when this one is cancelled. */
   nextCompatibleStopEvent?: StopEvent;
   line: TransitLine;
@@ -156,10 +169,12 @@ function StopEventRow({
       )}
       style={{ "--departure-index": index } as CSSProperties}
       aria-current={isSelected ? "true" : undefined}
-      onClick={() => navigateTo(getStopEventOpenPath(stopEvent, stopId, isPinned, lineSelection))}
+      onClick={() =>
+        navigateTo(getStopEventOpenPath(stopEvent, stopId, isPinned, lineSelection, partId))
+      }
       aria-label={`${getStopEventAccessibilityLabel(stopEvent, feedNow, countdownOptions)}${
-        joinedLabel ? `, ${joinedLabel}` : ""
-      }${
+        partName ? `, ${partName}` : ""
+      }${joinedLabel ? `, ${joinedLabel}` : ""}${
         stopEvent.status === "cancelled" && nextCompatibleLabel
           ? `, nächste passende Fahrt ${nextCompatibleLabel}`
           : ""
@@ -187,7 +202,12 @@ function StopEventRow({
         {stopEvent.status !== "cancelled" && vehicleAccessLabel && (
           <span className="departure-access">{vehicleAccessLabel}</span>
         )}
-        {showsBay && <b>{formatBayText(stopEvent.bay, stopEvent.bayKind)}</b>}
+        {showsBay && (
+          <b>
+            {partName && `${partName} · `}
+            {formatBayText(stopEvent.bay, stopEvent.bayKind)}
+          </b>
+        )}
       </span>
     </button>
   );
@@ -217,6 +237,31 @@ function StopEventOrderControl({
       items={stopEventOrderItems}
       ariaLabel="Abfahrten ordnen"
       onValueChange={onOrderChange}
+    />
+  );
+}
+
+/** Which part of the place the board reads: all of it, or one stop point's own board. */
+function StopPlacePartControl({
+  parts,
+  part,
+  onChoosePart,
+}: {
+  parts: readonly StopPlacePart[];
+  part: StopPlacePart | undefined;
+  onChoosePart: (partId: string | undefined) => void;
+}) {
+  const items: readonly SegmentedControlItem<string>[] = [
+    { value: "", label: "Alle", ariaLabel: "Abfahrten aller Bereiche" },
+    ...parts.map(({ id, name }) => ({ value: id, label: name, ariaLabel: `Abfahrten ${name}` })),
+  ];
+  return (
+    <SegmentedControl
+      className="departure-board-part-control"
+      value={part?.id ?? ""}
+      items={items}
+      ariaLabel="Bereich der Haltestelle"
+      onValueChange={(partId) => onChoosePart(partId || undefined)}
     />
   );
 }
@@ -321,6 +366,9 @@ export function StopEventBoardPanel({
   selectedStopEvent,
   corridorPatterns,
   boardingPlaces,
+  parts,
+  part,
+  onChoosePart,
   isStacked = false,
   boardReadingCount = 0,
   onRefresh,
@@ -391,6 +439,10 @@ export function StopEventBoardPanel({
       }
       line={getLineSign(network.lines, stopEvent.lineId, stopEvent.ptMode, stopEvent.lineRef)}
       stopId={stop.id}
+      partId={part?.id}
+      partName={
+        part ? undefined : findStopPointPart(stop.id, stopEvent.boardingProviderStopPointId)?.name
+      }
       lineSelection={lineSelection}
       isSelected={isStopEventSelected(stopEvent, selectedStopEvent, lineSelection)}
       isPinned={isStopEventPinned(stopEvent, selectedStopEvent)}
@@ -422,6 +474,10 @@ export function StopEventBoardPanel({
           />
         </div>
       </div>
+
+      {parts.length > 1 && (
+        <StopPlacePartControl parts={parts} part={part} onChoosePart={onChoosePart} />
+      )}
 
       {/* A stale board says how old it is, in words. */}
       {staleLabel && (
@@ -463,6 +519,7 @@ export function StopEventBoardPanel({
             groups={lineGroups}
             boardingPlaces={boardingPlaces}
             stopId={stop.id}
+            partId={part?.id}
             lineSelection={lineSelection}
             selectedStopEvent={selectedStopEvent}
             feedNow={feedNow}

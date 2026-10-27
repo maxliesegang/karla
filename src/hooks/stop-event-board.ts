@@ -37,17 +37,19 @@ const SINGLE_BOARD_LOAD_OPTIONS: KeyedLoadOptions<StopEventBoard> = {
 };
 
 /**
- * This stop's last live board, shown while a new key (another order, a learned filter) has not
- * answered. Dropped on a stop change. Failed refreshes are already covered by `refreshFailedAt`.
+ * This board's last live reading, shown while a new key (another order, a learned filter) has not
+ * answered. Dropped when `boardKey` (the stop, or the stop and part) changes. Failed refreshes are
+ * already covered by `refreshFailedAt`.
  */
 function useLastLiveBoard(
-  stopId: string | undefined,
+  boardKey: string | undefined,
   loaded: StopEventBoard | null,
 ): StopEventBoard | null {
-  const [lastLive, setLastLive] = useState<StopEventBoard | null>(null);
-  if (loaded?.dataStatus === "live" && lastLive !== loaded) setLastLive(loaded);
-  else if (lastLive && lastLive.stopId !== stopId) setLastLive(null);
-  return lastLive?.stopId === stopId ? lastLive : null;
+  const [lastLive, setLastLive] = useState<{ key: string | undefined; board: StopEventBoard }>();
+  if (loaded?.dataStatus === "live" && lastLive?.board !== loaded)
+    setLastLive({ key: boardKey, board: loaded });
+  else if (lastLive && lastLive.key !== boardKey) setLastLive(undefined);
+  return lastLive && lastLive.key === boardKey ? lastLive.board : null;
 }
 
 /** The board a view shows, and how many readings of it have answered. */
@@ -68,19 +70,23 @@ export function useStopEventBoard(
   variant: StopEventBoardVariant = "plain",
   /** Bumped by a pull to refresh: re-reads now and forgives the backoff. */
   reloadNonce?: number,
+  /** One part's stop point, read alone. */
+  stopPointId?: string,
 ): StopEventBoardReading {
   // Keyed per variant, so a new order asks now and answers never cross. Counted before resolving to
   // `null`, so an empty answer still counts.
   const loaded = useKeyedLoad(
-    stopId ? `${stopId}|${variant}` : null,
+    stopId ? `${stopId}|${stopPointId ?? ""}|${variant}` : null,
     (_key, _isEntryRead, isReload) =>
       transitSource.getStopEventBoard(stopId!, {
         ...stopEventBoardRequestByVariant[variant],
+        ...(stopPointId ? { stopPointId } : {}),
         ...(isReload ? { maxAgeMs: 0 } : {}),
       }),
     { ...SINGLE_BOARD_LOAD_OPTIONS, reloadNonce },
   );
-  const lastLive = useLastLiveBoard(stopId, loaded ?? null);
+  // Another part's board is not this one's to hold.
+  const lastLive = useLastLiveBoard(stopId && `${stopId}|${stopPointId ?? ""}`, loaded ?? null);
   const board = useLiveBoard(loaded ?? lastLive);
   const [counted, setCounted] = useState<{
     loaded: StopEventBoard | undefined | null;

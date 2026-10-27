@@ -370,8 +370,11 @@ export class TriasTransitSource implements TransitSource {
     const coverage = readDirectionCoverage(request);
     // Sorted so callers naming the same lines in any order share one request.
     const lineFilterKey = request.lineRefs?.length ? createSortedKey(request.lineRefs) : undefined;
+    const { stopPointId } = request;
+    // One part's board is cached apart from the place's.
+    const cacheStopId = stopPointId ? `${stopId}@${stopPointId}` : stopId;
     const cacheKey = this.getStopEventBoardCacheKey(
-      stopId,
+      cacheStopId,
       includeCalls,
       coverage?.key,
       lineFilterKey,
@@ -381,13 +384,19 @@ export class TriasTransitSource implements TransitSource {
     const reusableKeys =
       includeCalls || lineFilterKey || coverage
         ? [cacheKey]
-        : [this.getStopEventBoardCacheKey(stopId, true), cacheKey];
+        : [this.getStopEventBoardCacheKey(cacheStopId, true), cacheKey];
 
     return this.boards
       .get(cacheKey, { maxAgeMs, reusableKeys }, () =>
         coverage
-          ? this.fetchDirectionCoveredBoard(stopId, request.maxAgeMs, coverage)
-          : this.fetchStopEventBoard(stopId, includeCalls, request.lineRefs),
+          ? this.fetchDirectionCoveredBoard(stopId, request.maxAgeMs, coverage, stopPointId)
+          : this.fetchStopEventBoard(
+              stopId,
+              includeCalls,
+              request.lineRefs,
+              "departure",
+              stopPointId,
+            ),
       )
       .then((board) => this.publishBoard(board));
   }
@@ -518,6 +527,7 @@ export class TriasTransitSource implements TransitSource {
     includeCalls: boolean,
     lineIds?: readonly string[],
     eventKind: "departure" | "arrival" = "departure",
+    stopPointId?: string,
   ): Promise<StopEventBoard> {
     if (this.stops.findStopPoints(stopId).length === 0)
       return unavailableStopEventBoard(
@@ -526,18 +536,23 @@ export class TriasTransitSource implements TransitSource {
       );
 
     try {
-      const board = await this.readStopPlace(stopId, {
-        includeCalls,
-        ...(lineIds?.length ? { lineIds } : {}),
-        ...(eventKind === "arrival" ? { eventKind } : {}),
-      });
+      const board = await this.readStopPlace(
+        stopId,
+        {
+          includeCalls,
+          ...(lineIds?.length ? { lineIds } : {}),
+          ...(eventKind === "arrival" ? { eventKind } : {}),
+        },
+        stopPointId,
+      );
       const receivedAt = Date.now();
       const stopEvents = board.stopEvents.map((stopEvent) =>
         this.toStopEvent(stopEvent, stopId, receivedAt, eventKind),
       );
       this.servingDirections.remember(stopEvents, receivedAt);
-      // A filtered board saw only its lines, so it never states the stop's serving directions.
-      const isWholeStop = !lineIds?.length;
+      // A filtered or one-part board saw only some lines, so it never states the stop's serving
+      // directions.
+      const isWholeStop = !lineIds?.length && !stopPointId;
       const servingLines = isWholeStop ? this.servingDirections.find(stopId) : [];
       if (isWholeStop && eventKind === "departure" && servingLines.length > 0) {
         this.coverage.rememberServingDirections(
@@ -575,14 +590,15 @@ export class TriasTransitSource implements TransitSource {
     stopId: string,
     maxAgeMs: number | undefined,
     coverage: DirectionCoverage,
+    stopPointId?: string,
   ): Promise<StopEventBoard> {
-    const base = await this.getStopEventBoard(stopId, { maxAgeMs });
+    const base = await this.getStopEventBoard(stopId, { maxAgeMs, stopPointId });
     if (base.dataStatus !== "live") return base;
 
     if (this.stops.findStopPoints(stopId).length === 0) return base;
 
     return this.coverage.complete(base, coverage, async (lineIds, limit) => {
-      const supplement = await this.readStopPlace(stopId, { lineIds, limit });
+      const supplement = await this.readStopPlace(stopId, { lineIds, limit }, stopPointId);
       const receivedAt = Date.now();
       return {
         stopEvents: supplement.stopEvents.map((stopEvent) =>
@@ -593,11 +609,15 @@ export class TriasTransitSource implements TransitSource {
     });
   }
 
+  /** The place's board, or one of its stop points' alone. */
   private readStopPlace(
     stopId: string,
     { limit = DEFAULT_STOP_EVENT_LIMIT, ...options }: FeedStopEventBoardOptions,
+    stopPointId?: string,
   ): Promise<FeedStopEventBoard> {
-    return fetchStopPlaceBoard(this.client, this.stops.findStopPoints(stopId), {
+    const stopPoints = this.stops.findStopPoints(stopId);
+    const read = stopPointId && stopPoints.includes(stopPointId) ? [stopPointId] : stopPoints;
+    return fetchStopPlaceBoard(this.client, read, {
       ...options,
       limit,
     });

@@ -1,6 +1,7 @@
 import { lazy, Suspense, useMemo, useRef, useState } from "react";
 import { DataProvenanceFooter } from "./components/DataProvenanceFooter";
 import { StopEventBoardPanel } from "./components/StopEventBoardPanel";
+import { chooseStopPlacePart, getStopPlaceParts } from "./lib/stop-place-parts";
 import { StationBoardView } from "./components/StationBoardView";
 import { AppHeader } from "./components/AppHeader";
 import { AppLoadingScreen } from "./components/AppLoadingScreen";
@@ -395,6 +396,7 @@ export default function App() {
                         navigateTo(
                           getSelectionPath({
                             stopId: selection.stopId,
+                            partId: selection.stopPlacePart?.id,
                             lineId: selection.selectedLine?.id,
                             bundledLineIds,
                             addressId: route.addressId,
@@ -428,6 +430,21 @@ export default function App() {
                 selectedStopEvent={selection.selectedStopEvent}
                 corridorPatterns={stopCorridorPatterns}
                 boardingPlaces={stopBoardingPlaces}
+                parts={getStopPlaceParts(selection.stopId)}
+                part={selection.stopPlacePart}
+                onChoosePart={(partId) => {
+                  chooseStopPlacePart(selection.stopId, partId);
+                  navigateTo(
+                    getSelectionPath({
+                      stopId: selection.stopId,
+                      partId,
+                      lineId: selection.selectedLine?.id,
+                      bundledLineIds: selection.lineSelection.bundledLineIds,
+                      addressId: route.addressId,
+                      journeyParent: route.journeyParent,
+                    }),
+                  );
+                }}
                 isStacked={isNarrowViewport}
                 boardReadingCount={selection.boardReadingCount}
                 onRefresh={selection.refreshBoard}

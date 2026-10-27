@@ -48,10 +48,10 @@ export const ZENTRUM_OBSERVATION_POST_STOP_IDS = [
  */
 export const REACH_OBSERVATION_POST_STOP_IDS = [
   "durlach-bahnhof",
-  "rheinbergstrasse",
+  "knielingen-rheinbergstrasse",
   "entenfang",
-  "zuendhuetle",
-  "turmberg",
+  "durlach-zuendhuetle",
+  "durlach-turmberg",
 ] as const;
 
 export type ObservedStop = {

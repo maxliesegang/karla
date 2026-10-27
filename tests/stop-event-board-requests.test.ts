@@ -3,7 +3,7 @@ import test from "node:test";
 import { STOP_EVENT_BOARD_CACHE_CAPACITY, TriasTransitSource } from "../src/data/transit-source.ts";
 import type { Feed } from "../src/data/feed.ts";
 import type { FeedStopEvent, FeedStopEventBoard } from "../src/data/feed.ts";
-import { kvvStopPlaces } from "../src/networks/kvv/stop-places.ts";
+import { stopPlaces } from "../src/networks/kvv/generated/stop-places.ts";
 
 /** One stop point, so each board is one request. */
 const STOP_ID = "muehlburger-tor";
@@ -113,8 +113,8 @@ function stopEvent(
  * no serving lines, so reading Karlstor is how the source learns what serves Mühlburger Tor.
  */
 function servedBy(feed: Feed, lineRefs: readonly string[]): Feed {
-  const [karlstor] = kvvStopPlaces.karlstor.stopPoints;
-  const [stopPoint] = kvvStopPlaces[STOP_ID].stopPoints;
+  const [karlstor] = stopPlaces.karlstor.stopPoints;
+  const [stopPoint] = stopPlaces[STOP_ID].stopPoints;
   return {
     ...feed,
     fetchStopEventBoard: async (stopPointId, options) =>
@@ -577,4 +577,22 @@ test("a completion may not state a run the live board already carries", async ()
 
   assert.equal(board.stopEvents.length, 1);
   assert.equal(board.stopEvents[0].delayMinutes, 6);
+});
+
+test("a part's board reads only its own stop point, apart from the place's board", async () => {
+  const { source, requests } = createRecordingSource();
+  const [vorplatz, station] = stopPlaces.hauptbahnhof.stopPoints;
+
+  await source.getStopEventBoard("hauptbahnhof", { stopPointId: station });
+  assert.deepEqual(
+    requests.map(({ providerStopId }) => providerStopId),
+    [station],
+  );
+
+  // The whole place is another reading.
+  await source.getStopEventBoard("hauptbahnhof");
+  assert.deepEqual(
+    requests.slice(1).map(({ providerStopId }) => providerStopId),
+    [vorplatz, station],
+  );
 });

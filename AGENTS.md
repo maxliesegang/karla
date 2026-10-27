@@ -16,6 +16,7 @@ npm run lint
 npm run format         # biome format --write . — the formatter is the style authority
 npm test               # tests and build must pass before handing off a change
 npm run refresh:stops  # regenerates src/networks/<id>/generated from TRIAS and GTFS
+npm run refresh:stop-places  # rewrites the stop places after their overrides change
 npm run solve:zentrum  # measures the Zentrum plan against the feed, and solves for a truer one
 npm run solve:region   # derives the region plan's nodes from the feed and solves its layout
 npm run probe:*        # live feed measurements behind the timing constants
@@ -53,18 +54,21 @@ These describe outcomes, not implementations. If a simpler design meets them, pr
   repo.
 - **Views never touch the provider.** Fetching, id resolution and merging live behind
   `TransitSource`.
-- **Generic code names no network.** What is true of one network (its pools, area, stop places,
-  colours, numbering) lives in its `NetworkDefinition`; code reads it through `network`. The
-  Zentrum and region plan are KVV's and import it directly.
-- **Stops are DHIDs.** A stop place's stop points are stop-level DHIDs (`de:08212:1003`); slugs are
-  only the app's addresses.
+- **Generic code names no network.** What is true of one network (its pools, area, stop place
+  overrides, colours, numbering) lives in its `NetworkDefinition`; code reads it through `network`.
+  The Zentrum and region plan are KVV's and import it directly.
+- **Stops are DHIDs; stop places are derived.** A stop place's stop points are stop-level DHIDs
+  (`de:08212:1003`), grouped from the catalog by name and distance; only what that rule misses is
+  authored. Slugs (`stopId`) are only the app's addresses.
 - **The network is observed.** The stops and lines shown come from live journeys, so a line that stops
   running disappears on its own.
 - **Bandwidth matters.** Hidden pages neither poll nor tick. To see further along a line, filter the
   board by that line rather than asking for more rows. Fetch a dated journey's calls once, not once per stop.
 - **One dated journey, one reading.** Every view shows the same data for the same dated journey.
-- **Journey keys carry no date.** A dated journey is keyed `lineRef|journeyCode`, and codes are reused
-  the next day, so its record must retire well before then (see `dated-journey-reading-store.ts`).
+- **A dated journey is a `JourneyRef` on an `OperatingDayRef`.** Requests, addresses and
+  `datedJourneyId` use both. The reading store's record is keyed by the `JourneyRef` alone, which
+  recurs the next day, so a record must retire well before then (see
+  `dated-journey-reading-store.ts`).
 - **Addresses degrade gracefully.** A journey that is gone falls back to its line, and a line to its
   stop. A bundle (`line/S1+S11`) exists only when the rider chooses it.
 - **Routing goes through `routePaths` / `navigateTo`.** Components take time from props or clock
@@ -84,8 +88,8 @@ These describe outcomes, not implementations. If a simpler design meets them, pr
 
 ## Code style
 
-- Identifiers use US spelling. Names the provider gives keep its spelling (`PlannedBay`,
-  `OperatingDayRef`). The Zentrum is `zentrum` in code; its map on the experiment page is `center`.
+- Identifiers use US spelling and TRIAS's terms (see CONTEXT.md): `stopPointId`, `stopPlaceId`,
+  journey, call. Names the provider gives keep its spelling (`PlannedBay`, `OperatingDayRef`). The Zentrum is `zentrum` in code; its map on the experiment page is `center`.
 - Comments are rare and short. Most functions need none; a good name is the documentation. Add one
   only for what the code cannot say: a feed quirk, a measured constant, a non-obvious constraint.
   One line is the norm, three the most for a function, and a module header says its role in a

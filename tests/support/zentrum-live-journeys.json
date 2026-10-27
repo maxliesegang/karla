@@ -27,7 +27,7 @@
       ["europaplatz", "de:08212:1004", "1(U)", 49.01008, 8.39358],
       ["muehlburger-tor", "de:08212:39", "1b", null, null],
       ["entenfang", "de:08212:51", "1", 49.01054, 8.35917],
-      ["rheinbergstrasse", "de:08212:107", "1", 49.03534, 8.33616]
+      ["knielingen-rheinbergstrasse", "de:08212:107", "1", 49.03534, 8.33616]
     ]
   },
   {
@@ -110,7 +110,7 @@
     "mode": "lightRail",
     "count": 5,
     "calls": [
-      ["rheinbergstrasse", "de:08212:107", "2", 49.03492, 8.33672],
+      ["knielingen-rheinbergstrasse", "de:08212:107", "2", 49.03492, 8.33672],
       ["entenfang", "de:08212:51", "2", 49.01096, 8.35989],
       ["muehlburger-tor", "de:08212:39", "2b", null, null],
       ["europaplatz", "de:08212:1004", "2(U)", 49.00999, 8.39476],
@@ -134,7 +134,7 @@
       ["europaplatz", "de:08212:1004", "1(U)", 49.01008, 8.39358],
       ["muehlburger-tor", "de:08212:39", "1b", null, null],
       ["entenfang", "de:08212:51", "1", 49.01054, 8.35917],
-      ["rheinbergstrasse", "de:08212:107", "1", 49.03534, 8.33616]
+      ["knielingen-rheinbergstrasse", "de:08212:107", "1", 49.03534, 8.33616]
     ]
   },
   {
@@ -252,7 +252,7 @@
     "mode": "lightRail",
     "count": 1,
     "calls": [
-      ["rheinbergstrasse", "de:08212:107", "2", 49.03492, 8.33672],
+      ["knielingen-rheinbergstrasse", "de:08212:107", "2", 49.03492, 8.33672],
       ["entenfang", "de:08212:51", "2", 49.01096, 8.35989],
       ["muehlburger-tor", "de:08212:39", "2b", null, null],
       ["europaplatz", "de:08212:1004", "2(U)", 49.00999, 8.39476],

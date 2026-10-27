@@ -1,18 +1,18 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { findCatalogStop, stopCatalog } from "../src/networks/kvv/generated/stop-catalog.ts";
-import { kvvStopPlaces } from "../src/networks/kvv/stop-places.ts";
+import { stopPlaces } from "../src/networks/kvv/generated/stop-places.ts";
 import { transitNetwork } from "../src/data/transit-network.ts";
 import type { StopPlace } from "../src/data/transit-types.ts";
 import { getDistanceMeters } from "../src/lib/geo.ts";
 
 /**
- * The join between authored stops and the operator's catalog, refreshed by hand per timetable
+ * The stop places against the catalog they are derived from, refreshed by hand per timetable
  * period: a renumbered or retired stop fails here, not on a rider's screen.
  */
 
 test("every stop the app addresses can be located from the catalog", () => {
-  assert.equal(transitNetwork.stops.length, Object.keys(kvvStopPlaces).length);
+  assert.equal(transitNetwork.stops.length, Object.keys(stopPlaces).length);
   for (const stop of transitNetwork.stops) {
     assert.ok(
       stop.latitude !== undefined && stop.longitude !== undefined,
@@ -21,8 +21,8 @@ test("every stop the app addresses can be located from the catalog", () => {
   }
 });
 
-test("every authored stop point is still one the operator publishes", () => {
-  for (const [localStopId, { stopPoints }] of Object.entries(kvvStopPlaces)) {
+test("every stop place's stop point is still one the operator publishes", () => {
+  for (const [localStopId, { stopPoints }] of Object.entries(stopPlaces)) {
     for (const stopPointId of stopPoints) {
       assert.ok(
         findCatalogStop(stopPointId),
@@ -35,7 +35,7 @@ test("every authored stop point is still one the operator publishes", () => {
 /** No stop point is claimed by two local stops, or resolution would depend on their order. */
 test("no stop point is claimed by two local stops", () => {
   const claimedBy = new Map<string, string>();
-  for (const [localStopId, { stopPoints }] of Object.entries(kvvStopPlaces)) {
+  for (const [localStopId, { stopPoints }] of Object.entries(stopPlaces)) {
     for (const stopPointId of stopPoints) {
       const claimant = claimedBy.get(stopPointId);
       assert.equal(
@@ -50,7 +50,7 @@ test("no stop point is claimed by two local stops", () => {
 
 /** A place's stop points stand together, or one page would cover two places. */
 test("a place's stop points stand near the one that names it", () => {
-  for (const [localStopId, { stopPoints }] of Object.entries(kvvStopPlaces)) {
+  for (const [localStopId, { stopPoints }] of Object.entries(stopPlaces)) {
     const [first, ...others] = stopPoints.map((stopPointId) => findCatalogStop(stopPointId));
     for (const [index, other] of others.entries()) {
       assert.ok(first && other);
