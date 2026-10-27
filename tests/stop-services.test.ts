@@ -18,7 +18,7 @@ function stopEvent(
   return createStopEvent({
     journeyRef: overrides.id,
     minutesUntilDeparture: 4,
-    boardingLocalStopId: "europaplatz",
+    boardingStopPlaceId: "europaplatz",
     timetabledDepartureTime: "2026-08-24T12:04:00+02:00",
     ...overrides,
   });
@@ -27,7 +27,7 @@ function stopEvent(
 const calls = (...stopNames: string[]): Call[] =>
   stopNames.map((stopName, index) => ({
     stopName,
-    localStopId: stopName.toLowerCase(),
+    stopPlaceId: stopName.toLowerCase(),
     isThisCall: index === 0,
   }));
 
@@ -123,9 +123,9 @@ test("qualifies a bare terminus name with the district it belongs to", () => {
     id: "line-two",
     destinationText: "Knielingen Nord",
     calls: [
-      { stopName: "Rheinhafen", localStopId: "rheinhafen", placeName: "Karlsruhe" },
-      { stopName: "Feierabendweg", localStopId: "feierabendweg", placeName: "Karlsruhe" },
-      { stopName: "Nord", localStopId: "knielingen-nord", placeName: "Knielingen" },
+      { stopName: "Rheinhafen", stopPlaceId: "rheinhafen", placeName: "Karlsruhe" },
+      { stopName: "Feierabendweg", stopPlaceId: "feierabendweg", placeName: "Karlsruhe" },
+      { stopName: "Nord", stopPlaceId: "knielingen-nord", placeName: "Knielingen" },
     ],
   });
   const line = createLine({
@@ -164,9 +164,9 @@ test("reads a line's extent off the farthest run observed for it", () => {
     id: "full",
     destinationText: "Rheinhafen",
     calls: [
-      { stopName: "Nord", localStopId: "knielingen-nord", placeName: "Knielingen" },
-      { stopName: "Feierabendweg", localStopId: "feierabendweg", placeName: "Karlsruhe" },
-      { stopName: "Rheinhafen", localStopId: "rheinhafen", placeName: "Karlsruhe" },
+      { stopName: "Nord", stopPlaceId: "knielingen-nord", placeName: "Knielingen" },
+      { stopName: "Feierabendweg", stopPlaceId: "feierabendweg", placeName: "Karlsruhe" },
+      { stopName: "Rheinhafen", stopPlaceId: "rheinhafen", placeName: "Karlsruhe" },
     ],
   });
 

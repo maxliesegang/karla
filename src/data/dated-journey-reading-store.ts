@@ -8,13 +8,10 @@ import {
   isBetterSequence,
   withoutDatedJourneyCalls,
 } from "../lib/journeys";
-import {
-  getDatedJourneyScheduleInstant,
-  isSameDatedJourneyInstance,
-} from "../lib/dated-journey-instance";
+import { getDatedJourneyId } from "./feed";
 import type { StopEvent, DatedJourneyCalls } from "./transit-types";
 
-/** Runs whose evidence is retained this session. */
+/** Dated journeys whose evidence is retained this session. */
 export const DATED_JOURNEY_READING_STORE_CAPACITY = 1_024;
 
 /**
@@ -23,9 +20,7 @@ export const DATED_JOURNEY_READING_STORE_CAPACITY = 1_024;
  */
 export const DATED_JOURNEY_ENDED_GRACE_MS = 10 * 60_000;
 
-/**
- * How long a record with no known end lasts: longer than any KVV dated journey, well under a day.
- */
+/** How long a record with no known end is kept: longer than any dated journey. */
 export const DATED_JOURNEY_READING_MAX_AGE_MS = 4 * 60 * 60_000;
 
 /** How often the store sweeps for evidence to retire. */
@@ -45,7 +40,6 @@ export type DatedJourneyRowReading = { stopEvent: StopEvent };
 
 type DatedJourneyReadingRecord = {
   key: string;
-  instance: StopEvent;
   rowsById: Map<string, DatedJourneyRowReading>;
   /**
    * Rows merged with the sequence, cached so `findDatedJourney` keeps returning the same object until a
@@ -60,15 +54,15 @@ type DatedJourneyReadingRecord = {
   writtenAt: number;
 };
 
-/** A dated journey's record key: its `JourneyRef`, undated. A row without one uses its own id. */
-const getJourneyRecordKey = (stopEvent: StopEvent): string =>
-  stopEvent.journeyRef ? `journey:${stopEvent.journeyRef}` : getRowRecordKey(stopEvent.id);
+/** A dated journey's record key: its `JourneyRef` on its `OperatingDayRef`, else the row's own. */
+const getJourneyRecordKey = ({ id, journeyRef, operatingDayRef }: StopEvent): string =>
+  journeyRef && operatingDayRef
+    ? `journey:${getDatedJourneyId({ journeyRef, operatingDayRef })}`
+    : getRowRecordKey(id);
 
 const getRowRecordKey = (rowId: string): string => `row:${rowId}`;
 
-/**
- * One bounded record per undated record key; foreign operating instances never share calls.
- */
+/** One bounded record per dated journey; the same `JourneyRef` on another day is another. */
 export class DatedJourneyReadingStore {
   /** Insertion order is write recency, which the cap falls back on. */
   private readonly records = new Map<string, DatedJourneyReadingRecord>();
@@ -95,34 +89,17 @@ export class DatedJourneyReadingStore {
    * `now` only decides which dated journeys are over; the row dates itself (`StopEvent.readAt`).
    */
   rememberRow(stopEvent: StopEvent, now = Date.now()): void {
-    // Sweep first, or tomorrow's row with the same key would reopen yesterday's record.
     this.sweep(now);
     const recordKey = getJourneyRecordKey(stopEvent);
-    const record = this.openRecord(recordKey, stopEvent, now);
+    const record = this.openRecord(recordKey, now);
 
     // A row that learned its journey moves to that dated journey's record.
     const previousKey = this.rowRecordKeys.get(stopEvent.id);
     if (previousKey !== undefined && previousKey !== recordKey) this.detachRow(stopEvent.id);
 
-    const incomingAt = getDatedJourneyScheduleInstant(stopEvent);
-    const instanceAt = getDatedJourneyScheduleInstant(record.instance);
-    if (
-      !isSameDatedJourneyInstance(record.instance, stopEvent) &&
-      incomingAt !== undefined &&
-      instanceAt !== undefined &&
-      Math.abs(incomingAt - now) < Math.abs(instanceAt - now)
-    ) {
-      record.instance = withoutDatedJourneyCalls(stopEvent);
-      record.latestSequence = undefined;
-      record.sequenceRefreshFailedAt = undefined;
-      record.datedJourneyEndsAt = undefined;
-    }
-    if (isSameDatedJourneyInstance(record.instance, stopEvent)) {
-      this.touchRecord(record, now);
-      // A board's calls are only its observation, but they still say how long the dated journey
-      // lasts.
-      this.learnDatedJourneyEnd(record, stopEvent.calls);
-    }
+    this.touchRecord(record, now);
+    // A board's calls are only its observation, but they still say how long the dated journey lasts.
+    this.learnDatedJourneyEnd(record, stopEvent.calls);
 
     // Re-inserted so the row cap drops the least recently read first.
     record.rowsById.delete(stopEvent.id);
@@ -144,12 +121,7 @@ export class DatedJourneyReadingStore {
     now = Date.now(),
   ): boolean {
     const record = this.records.get(datedJourneyKey);
-    if (
-      !record ||
-      sequence.calls.length === 0 ||
-      !isSameDatedJourneyInstance(record.instance, sequence)
-    )
-      return false;
+    if (!record || sequence.calls.length === 0) return false;
     this.touchRecord(record, now);
     this.rememberSequenceReading(record, sequence);
     this.publish(record);
@@ -172,8 +144,7 @@ export class DatedJourneyReadingStore {
    * The fullest, freshest calling sequence requested for the dated journey this row is a stop of.
    */
   findSequence(rowId: string): DatedJourneyCalls | undefined {
-    const record = this.findRecord(rowId);
-    return this.canReadDatedJourney(rowId) ? record?.latestSequence : undefined;
+    return this.findRecord(rowId)?.latestSequence;
   }
 
   /**
@@ -196,12 +167,6 @@ export class DatedJourneyReadingStore {
         : reading;
     record.mergedByRowId.set(rowId, merged);
     return merged;
-  }
-
-  canReadDatedJourney(rowId: string): boolean {
-    const record = this.findRecord(rowId);
-    const row = record?.rowsById.get(rowId);
-    return !!record && !!row && isSameDatedJourneyInstance(record.instance, row.stopEvent);
   }
 
   subscribe(rowIds: readonly string[], listener: () => void): () => void {
@@ -230,7 +195,6 @@ export class DatedJourneyReadingStore {
   findDatedJourneyRow(datedJourneyKey: string): DatedJourneyRowReading | undefined {
     let freshest: DatedJourneyRowReading | undefined;
     for (const row of this.records.get(datedJourneyKey)?.rowsById.values() ?? []) {
-      if (!this.canReadDatedJourney(row.stopEvent.id)) continue;
       const readAt = getStopEventReadInstant(row.stopEvent) ?? 0;
       if (!freshest || readAt > (getStopEventReadInstant(freshest.stopEvent) ?? 0)) freshest = row;
     }
@@ -248,16 +212,11 @@ export class DatedJourneyReadingStore {
   }
 
   /** Opens or creates the record and moves it to the most recent end. */
-  private openRecord(
-    recordKey: string,
-    stopEvent: StopEvent,
-    now: number,
-  ): DatedJourneyReadingRecord {
+  private openRecord(recordKey: string, now: number): DatedJourneyReadingRecord {
     const existing = this.records.get(recordKey);
     if (existing) return existing;
     const record: DatedJourneyReadingRecord = {
       key: recordKey,
-      instance: withoutDatedJourneyCalls(stopEvent),
       rowsById: new Map(),
       mergedByRowId: new Map(),
       writtenAt: now,
@@ -308,10 +267,7 @@ export class DatedJourneyReadingStore {
     this.scheduleNotification();
   }
 
-  /**
-   * Retires dated journeys that are over, so a code is gone before its next use. On its own
-   * cadence.
-   */
+  /** Retires dated journeys that are over, on its own cadence. */
   private sweep(now: number): void {
     if (now - this.lastSweptAt < EVICTION_SWEEP_INTERVAL_MS) return;
     this.lastSweptAt = now;

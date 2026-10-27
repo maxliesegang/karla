@@ -36,7 +36,7 @@ const journey: FeedTripInfo = {
       stopName: "Durlacher Tor/KIT-Campus Süd (U)",
       placeName: "Karlsruhe",
       bayText: "Gleis 1(U)",
-      providerId: "de:08212:1001",
+      stopPointId: "de:08212:1001",
       latitude: 49.00902,
       longitude: 8.416531,
       timetabledDepartureTime: "2026-08-26T05:30:00.000Z",
@@ -45,7 +45,7 @@ const journey: FeedTripInfo = {
       stopName: "Kronenplatz (U)",
       placeName: "Karlsruhe",
       bayText: "Gleis 1(U)",
-      providerId: "de:08212:1002",
+      stopPointId: "de:08212:1002",
       latitude: 49.009362,
       longitude: 8.409794,
       timetabledArrivalTime: "2026-08-26T05:31:00.000Z",
@@ -59,7 +59,7 @@ const readJourney = (rowStopPointId = "de:08212:1001"): FeedTripInfo => ({
   ...journey,
   calls: journey.calls.map((call) => ({
     ...call,
-    isThisCall: call.providerId === rowStopPointId || undefined,
+    isThisCall: call.stopPointId === rowStopPointId || undefined,
   })),
 });
 
@@ -91,14 +91,14 @@ test("both levels of one place answer as that place, whichever platform the row 
   // The row leaves from the street point (`de:08212:71`) on a board asked for the tunnel id; both are
   // the addressed stop.
   assert.equal(board.stopId, "ettlinger-tor");
-  assert.equal(board.stopEvents[0].boardingLocalStopId, "ettlinger-tor");
+  assert.equal(board.stopEvents[0].boardingStopPlaceId, "ettlinger-tor");
 });
 
 test("a scheduled-only S4 can be placed from its call times without claiming predictions", () => {
   const stopEvent = createStopEvent({
     lineId: "S4",
     status: "scheduled",
-    calls: readJourney().calls.map((call) => ({ ...call, localStopId: call.providerId })),
+    calls: readJourney().calls.map((call) => ({ ...call, stopPlaceId: call.stopPointId })),
   });
   const placement = getDatedJourneyPlacement(
     createDatedJourneyMotions(),
@@ -127,8 +127,8 @@ test("TransitSource merges one trip into the latest stop row and caches its sequ
   const rawJourney = readJourney();
   const requests: DatedJourneyRef[] = [];
   const client = {
-    fetchStopEventBoard: async (providerStopId: string): Promise<FeedStopEventBoard> => ({
-      stopPointId: providerStopId,
+    fetchStopEventBoard: async (stopPointId: string): Promise<FeedStopEventBoard> => ({
+      stopPointId: stopPointId,
       stopName: "Durlacher Tor/KIT-Campus Süd (U)",
       serverTime: "2026-08-26T05:29:45.000Z",
       stopEvents: [rawStopEvent],
@@ -152,7 +152,7 @@ test("TransitSource merges one trip into the latest stop row and caches its sequ
   assert.equal(first?.destinationText, "Karlsruhe Albtalbahnhof");
   assert.equal(first?.status, "cancelled");
   assert.equal(first?.calls?.length, 2);
-  assert.equal(first?.calls?.[1].localStopId, "kronenplatz");
+  assert.equal(first?.calls?.[1].stopPlaceId, "kronenplatz");
   assert.deepEqual(first?.readAt, { rowReadAt, sequenceReadAt: Date.now() });
   // The kept reading answers the second call, dated when it was taken.
   assert.deepEqual(second, first);
@@ -190,8 +190,8 @@ test("a trip nobody selected is re-read on its own terms, not on the board's", a
   const rawJourney = readJourney();
   let datedJourneyRequests = 0;
   const client = {
-    fetchStopEventBoard: async (providerStopId: string): Promise<FeedStopEventBoard> => ({
-      stopPointId: providerStopId,
+    fetchStopEventBoard: async (stopPointId: string): Promise<FeedStopEventBoard> => ({
+      stopPointId: stopPointId,
       stopName: "Durlacher Tor/KIT-Campus Süd (U)",
       serverTime: "2026-08-26T05:29:45.000Z",
       stopEvents: [
@@ -232,8 +232,8 @@ test("a trip nobody selected is re-read on its own terms, not on the board's", a
 test("a requested run teaches the network its route as soon as it lands", async (t) => {
   t.mock.timers.enable({ apis: ["Date"] });
   const client = {
-    fetchStopEventBoard: async (providerStopId: string): Promise<FeedStopEventBoard> => ({
-      stopPointId: providerStopId,
+    fetchStopEventBoard: async (stopPointId: string): Promise<FeedStopEventBoard> => ({
+      stopPointId: stopPointId,
       stopName: "Durlacher Tor/KIT-Campus Süd (U)",
       serverTime: "2026-08-26T05:29:45.000Z",
       stopEvents: [
@@ -295,13 +295,13 @@ function createRememberedStopEvent(
   };
 }
 
-function createBoardSource(boardsByProviderStopId: Record<string, FeedStopEvent[]>) {
+function createBoardSource(boardsByStopPointId: Record<string, FeedStopEvent[]>) {
   const client = {
-    fetchStopEventBoard: async (providerStopId: string): Promise<FeedStopEventBoard> => ({
-      stopPointId: providerStopId,
+    fetchStopEventBoard: async (stopPointId: string): Promise<FeedStopEventBoard> => ({
+      stopPointId: stopPointId,
       stopName: "Durlacher Tor/KIT-Campus Süd (U)",
       serverTime: "2026-08-26T05:29:45.000Z",
-      stopEvents: boardsByProviderStopId[providerStopId] ?? [],
+      stopEvents: boardsByStopPointId[stopPointId] ?? [],
     }),
     fetchTripInfo: async (): Promise<FeedTripInfo> => {
       throw new Error("no trip should be requested");
@@ -318,8 +318,8 @@ test("a reading answered from memory is dated when it was taken, not when it was
   t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-08-26T05:29:45.000Z") });
   const rawJourney = readJourney();
   const client = {
-    fetchStopEventBoard: async (providerStopId: string): Promise<FeedStopEventBoard> => ({
-      stopPointId: providerStopId,
+    fetchStopEventBoard: async (stopPointId: string): Promise<FeedStopEventBoard> => ({
+      stopPointId: stopPointId,
       stopName: "Durlacher Tor/KIT-Campus Süd (U)",
       serverTime: "2026-08-26T05:29:45.000Z",
       stopEvents: [
@@ -419,7 +419,7 @@ test("a trip calling at a place's other level resolves to that place", async () 
         stopName: "Europaplatz (U)",
         placeName: "Karlsruhe",
         bayText: "Gleis 2(U)",
-        providerId: "de:08212:1004",
+        stopPointId: "de:08212:1004",
         isThisCall: true,
         latitude: 49.010045,
         longitude: 8.394235,
@@ -428,7 +428,7 @@ test("a trip calling at a place's other level resolves to that place", async () 
       {
         stopName: "Mühlburger Tor",
         placeName: "Karlsruhe",
-        providerId: "de:08212:39",
+        stopPointId: "de:08212:39",
         latitude: 49.0116,
         longitude: 8.3868,
         timetabledArrivalTime: "2026-08-26T05:32:00.000Z",
@@ -437,8 +437,8 @@ test("a trip calling at a place's other level resolves to that place", async () 
     ],
   };
   const client = {
-    fetchStopEventBoard: async (providerStopId: string): Promise<FeedStopEventBoard> => ({
-      stopPointId: providerStopId,
+    fetchStopEventBoard: async (stopPointId: string): Promise<FeedStopEventBoard> => ({
+      stopPointId: stopPointId,
       stopName: "Europaplatz",
       serverTime: "2026-08-26T05:29:45.000Z",
       stopEvents: [
@@ -464,9 +464,9 @@ test("a trip calling at a place's other level resolves to that place", async () 
   const board = await source.getStopEventBoard("europaplatz");
   const journey = await source.getDatedJourney(board.stopEvents[0].id);
 
-  assert.equal(journey?.calls?.[0].localStopId, "europaplatz");
+  assert.equal(journey?.calls?.[0].stopPlaceId, "europaplatz");
   assert.deepEqual(
-    getCallsAfterStop(journey!, "europaplatz").map((call) => call.localStopId),
+    getCallsAfterStop(journey!, "europaplatz").map((call) => call.stopPlaceId),
     ["muehlburger-tor"],
   );
 });
@@ -830,7 +830,7 @@ test("line boards keep each journey's own record", async () => {
         calls: [
           {
             stopName: "Durlacher Tor/KIT-Campus Süd (U)",
-            providerId: "de:08212:1001",
+            stopPointId: "de:08212:1001",
             timetabledDepartureTime: `2026-08-26T07:${minute}:00.000Z`,
             delayMinutes: journeyCode === "first" ? 1 : 2,
           },
@@ -869,12 +869,12 @@ test("a board can never be served from cache after its rows have been forgotten"
   t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-08-26T05:29:45.000Z") });
   let boardFetches = 0;
   const client = {
-    fetchStopEventBoard: async (providerStopId: string): Promise<FeedStopEventBoard> => {
+    fetchStopEventBoard: async (stopPointId: string): Promise<FeedStopEventBoard> => {
       // Counted at the tunnel's stop point, where the row is due.
-      const isTunnel = providerStopId === "de:08212:1001";
+      const isTunnel = stopPointId === "de:08212:1001";
       if (isTunnel) boardFetches += 1;
       return {
-        stopPointId: providerStopId,
+        stopPointId: stopPointId,
         stopName: "Durlacher Tor/KIT-Campus Süd (U)",
         serverTime: "2026-08-26T05:29:45.000Z",
         stopEvents: isTunnel ? [createRememberedStopEvent(0, "2026-08-26T05:35:00.000Z")] : [],
@@ -906,10 +906,10 @@ test("a failed refresh answers with the last live board until it is too old to a
   t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-08-26T05:29:45.000Z") });
   let isFeedDown = false;
   const client = {
-    fetchStopEventBoard: async (providerStopId: string): Promise<FeedStopEventBoard> => {
+    fetchStopEventBoard: async (stopPointId: string): Promise<FeedStopEventBoard> => {
       if (isFeedDown) throw new Error("offline");
       return {
-        stopPointId: providerStopId,
+        stopPointId: stopPointId,
         stopName: "Durlacher Tor/KIT-Campus Süd (U)",
         serverTime: "2026-08-26T05:29:45.000Z",
         stopEvents: [createRememberedStopEvent(0, "2026-08-26T05:35:00.000Z")],

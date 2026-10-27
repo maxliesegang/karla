@@ -5,7 +5,7 @@ import { DATED_JOURNEY_ENDED_GRACE_MS } from "../src/data/dated-journey-reading-
 import type { StopEvent, StopEventBoard, Call } from "../src/data/transit-types.ts";
 import { createStopEvent } from "./support/fixtures.ts";
 
-const call = (stopName: string, localStopId: string): Call => ({ stopName, localStopId });
+const call = (stopName: string, stopPlaceId: string): Call => ({ stopName, stopPlaceId });
 
 const stopEvent = (
   id: string,
@@ -22,9 +22,9 @@ const stopEvent = (
     destinationText: destination,
     minutesUntilDeparture: 2,
     bay: "1",
-    boardingLocalStopId: calls[0]?.localStopId ?? "europaplatz",
-    boardingProviderStopPointId: "provider-stop",
-    boardingProviderStopPointName: "Provider stop",
+    boardingStopPlaceId: calls[0]?.stopPlaceId ?? "europaplatz",
+    boardingStopPointId: "provider-stop",
+    boardingStopPointName: "Provider stop",
     status,
     timetabledDepartureTime: "2026-09-07T12:00:00+02:00",
     calls,

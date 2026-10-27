@@ -3,21 +3,21 @@ import test from "node:test";
 import type { Call } from "../src/data/transit-types.ts";
 import { collapseTurnaroundCalls } from "../src/lib/calls.ts";
 
-const call = (localStopId: string, overrides: Partial<Call> = {}): Call => ({
-  stopName: localStopId.toUpperCase(),
-  localStopId,
+const call = (stopPlaceId: string, overrides: Partial<Call> = {}): Call => ({
+  stopName: stopPlaceId.toUpperCase(),
+  stopPlaceId,
   timetabledArrivalTime: "2026-09-04T08:00:00+02:00",
   timetabledDepartureTime: "2026-09-04T08:00:30+02:00",
   ...overrides,
 });
 
 /** The feed's mark for a run origin: timed out of, never into. */
-const datedJourneyStart = (localStopId: string, bayText: string) =>
-  call(localStopId, { bayText, timetabledArrivalTime: undefined });
+const datedJourneyStart = (stopPlaceId: string, bayText: string) =>
+  call(stopPlaceId, { bayText, timetabledArrivalTime: undefined });
 
 /** The run end: timed into, never out of. */
-const datedJourneyEnd = (localStopId: string, bayText: string) =>
-  call(localStopId, { bayText, timetabledDepartureTime: undefined });
+const datedJourneyEnd = (stopPlaceId: string, bayText: string) =>
+  call(stopPlaceId, { bayText, timetabledDepartureTime: undefined });
 
 test("a run's origin and the platform it pulls forward to are one call", () => {
   // Hirtenweg as line 4 reports it: out of `Gleis 3` at 08:46 (no arrival, no boarding), then the

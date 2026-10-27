@@ -41,7 +41,7 @@ export class TriasError extends Error {
 const NO_STOP_EVENTS_ERRORS = new Set(["STOPEVENT_LOCATIONUNSERVED", "STOPEVENT_NOEVENTFOUND"]);
 
 /** The stop's DHID for a TRIAS ref (`de:08212:37:6:6`: stop, area, quay). */
-export const toProviderStopId = (ref: string): string => ref.split(":").slice(0, 3).join(":");
+export const toStopPointId = (ref: string): string => ref.split(":").slice(0, 3).join(":");
 
 /** The feed prefixes the home municipality's stop names with it. */
 function readStopName(name: string): { stopName: string; placeName?: string } {
@@ -86,7 +86,7 @@ function parseCall(element: XmlElement | undefined, isThisCall: boolean): FeedCa
     ...readStopName(name),
     bayText,
     bay: readBay(bayText).code,
-    providerId: ref && toProviderStopId(ref),
+    stopPointId: ref && toStopPointId(ref),
     isThisCall: isThisCall || undefined,
     timetabledArrivalTime: arrival?.timetabled,
     timetabledDepartureTime: departure?.timetabled,
@@ -182,7 +182,7 @@ function parseStopEvent(
   if (!isWithinScopePools(scope, journeyRef)) return null;
 
   const thisCall = parseCall(child(event, "ThisCall"), true);
-  if (!thisCall?.providerId) return null;
+  if (!thisCall?.stopPointId) return null;
   const before = childrenNamed(event, "PreviousCall").map((call) => parseCall(call, false));
   const after = childrenNamed(event, "OnwardCall").map((call) => parseCall(call, false));
   const calls =
@@ -210,7 +210,7 @@ function parseStopEvent(
   const bay = readBay(thisCall.bayText);
 
   return {
-    stopPointId: thisCall.providerId,
+    stopPointId: thisCall.stopPointId,
     stopPointName: thisCall.stopName,
     journeyRef,
     ...(operatingDayRef
@@ -279,7 +279,7 @@ export type TriasSituation = {
   listedLineNumbers: string[];
   /** The affected journeys' line refs, as stated (`kvv:21001:E:H:`). */
   lineRefs: string[];
-  affectedStops: { providerId?: string; name: string }[];
+  affectedStops: { stopPointId?: string; name: string }[];
   /** The operator's wording as paragraphs, else its description. */
   details: string[];
   validFrom?: string;
@@ -325,7 +325,7 @@ function parseSituation(situation: XmlElement): TriasSituation | null {
     affectedStops: descendantsNamed(situation, "AffectedStopPoint").flatMap((stop) => {
       const ref = textAt(stop, "StopPointRef");
       const name = textAt(stop, "StopPointName", "Text") ?? textAt(stop, "StopPointName");
-      return name ? [{ providerId: ref && toProviderStopId(ref), name }] : [];
+      return name ? [{ stopPointId: ref && toStopPointId(ref), name }] : [];
     }),
     details: details.length > 0 ? details : description ? [description] : [],
     validFrom: starts[0],
@@ -341,7 +341,7 @@ const readInstant = (value: string | undefined): string[] => {
 
 /** The row's call: its stop at its timetabled instant, else its stop. */
 function findRowCallIndex(calls: readonly FeedCall[], rowCall: RowCallRef): number {
-  const atStop = (call: FeedCall) => call.providerId === rowCall.stopPointId;
+  const atStop = (call: FeedCall) => call.stopPointId === rowCall.stopPointId;
   const instant = Date.parse(rowCall.timetabledTime);
   const rowCallIndex = calls.findIndex(
     (call) =>
@@ -397,7 +397,7 @@ export function parseTriasLocations(xml: string): FeedStopSearchResult[] {
     const longitude = Number(textAt(location, "GeoPosition", "Longitude"));
     return [
       {
-        providerId: toProviderStopId(ref),
+        stopPointId: toStopPointId(ref),
         name,
         placeName: textAt(location, "LocationName", "Text"),
         ...(Number.isFinite(latitude) && Number.isFinite(longitude) ? { latitude, longitude } : {}),

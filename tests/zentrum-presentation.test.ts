@@ -17,9 +17,9 @@ import { createStopEvent } from "./support/fixtures.ts";
 const at = (minute: number) => `2026-09-04T12:${String(minute).padStart(2, "0")}:00+02:00`;
 const instant = (minute: number) => Date.parse(at(minute));
 const call = (id: string, minute: number, bay = "1"): Call => ({
-  localStopId: id,
+  stopPlaceId: id,
   stopName: id,
-  providerStopPointId: id,
+  stopPointId: id,
   bay,
   bayText: `Gleis ${bay}`,
   timetabledArrivalTime: at(minute),
@@ -86,8 +86,8 @@ test("a direct ride retains its last boarding call in a stop place, never anothe
     journeyRef: "run-2",
     lineId: "2",
     bay: "9",
-    boardingLocalStopId: "kronenplatz",
-    boardingProviderStopPointId: "kronenplatz",
+    boardingStopPlaceId: "kronenplatz",
+    boardingStopPointId: "kronenplatz",
     calls: [call("europaplatz", 1), call("europaplatz", 2, "4"), call("marktplatz", 5)],
   });
   const time = getZentrumTravelTimes(
@@ -101,8 +101,8 @@ test("a direct ride retains its last boarding call in a stop place, never anothe
   const wrongPlace = createStopEvent({
     ...stopEvent,
     id: "other-platform",
-    boardingLocalStopId: "europaplatz",
-    boardingProviderStopPointId: "europaplatz",
+    boardingStopPlaceId: "europaplatz",
+    boardingStopPointId: "europaplatz",
     bay: "1",
   });
   const boardingRow = createStopEvent({

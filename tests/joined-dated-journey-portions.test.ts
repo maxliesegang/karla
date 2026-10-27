@@ -10,7 +10,7 @@ function call(stopId: string, minute: number, hasStopEvent = true): Call {
   const time = new Date(start + minute * 60_000).toISOString();
   return {
     stopName: stopId.toUpperCase(),
-    localStopId: stopId,
+    stopPlaceId: stopId,
     timetabledArrivalTime: time,
     timetabledDepartureTime: hasStopEvent ? time : undefined,
   };
@@ -27,7 +27,7 @@ function stopEvent(id: string, destination: string, calls: readonly Call[]): Sto
     destinationText: destination,
     minutesUntilDeparture: 10,
     bay: "24",
-    boardingLocalStopId: "hauptbahnhof",
+    boardingStopPlaceId: "hauptbahnhof",
     status: "realtime",
     timetabledDepartureTime: new Date(start).toISOString(),
     calls,
@@ -48,7 +48,7 @@ test("recognises a separately addressed portion that terminates along a shared t
 
   assert.equal(joined?.terminating, terminating);
   assert.equal(joined?.continuing, continuing);
-  assert.equal(joined?.sharedUntil.localStopId, "freudenstadt");
+  assert.equal(joined?.sharedUntil.stopPlaceId, "freudenstadt");
 });
 
 test("treats a missing time on one portion as unknown when later shared calls confirm it", () => {

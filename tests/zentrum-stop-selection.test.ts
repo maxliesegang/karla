@@ -19,9 +19,9 @@ test("stop selection follows the opened stop without offering style choices", as
   zentrumPlanOptions.write({ ...getZentrumPlanOptionsFromStored(null), travelMeasure: "ride" });
   const datedJourney = createStopEvent({
     lineId: "2",
-    calls: ["europaplatz", "marktplatz", "ettlinger-tor"].map((localStopId) => ({
-      localStopId,
-      stopName: localStopId,
+    calls: ["europaplatz", "marktplatz", "ettlinger-tor"].map((stopPlaceId) => ({
+      stopPlaceId,
+      stopName: stopPlaceId,
     })),
   });
   const container = document.createElement("div");

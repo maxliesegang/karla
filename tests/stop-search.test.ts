@@ -5,7 +5,7 @@ import { isWithinScopeBounds } from "../src/data/network-scope.ts";
 import { kvvNetwork } from "../src/networks/kvv/kvv-network.ts";
 import type { Feed, FeedStopSearchResult } from "../src/data/feed.ts";
 import { TriasTransitSource } from "../src/data/transit-source.ts";
-import { hashProviderStopId } from "../src/data/stop-registry.ts";
+import { hashStopPointId } from "../src/data/stop-registry.ts";
 import type { TransitNetwork } from "../src/data/transit-types.ts";
 
 test("the KVV area box keeps the network's far corners and excludes the neighbours", () => {
@@ -48,7 +48,7 @@ const network: TransitNetwork = {
     {
       id: "muhlburg",
       name: "Mühlburg",
-      alias: "Karlsruhe-Mühlburg",
+      placeName: "Karlsruhe-Mühlburg",
       latitude: 49.0146,
       longitude: 8.3511,
     },
@@ -62,7 +62,7 @@ const clientWith = (matches: FeedStopSearchResult[]): Feed =>
 
 test("a link with an unmatched digest cannot resolve to another stop with the same name", async () => {
   const source = new TriasTransitSource(
-    clientWith([{ providerId: "de:08235:9711", name: "Bahnhof", placeName: "Anderer Ort" }]),
+    clientWith([{ stopPointId: "de:08235:9711", name: "Bahnhof", placeName: "Anderer Ort" }]),
     { stops: [], lines: [] },
   );
   assert.equal(await source.resolveStop("bahnhof--wrongdigest"), undefined);
@@ -70,7 +70,7 @@ test("a link with an unmatched digest cannot resolve to another stop with the sa
 });
 
 test("a link naming a stop without its digest does not resolve", async () => {
-  const source = new TriasTransitSource(clientWith([{ providerId: "1", name: "Bahnhof" }]), {
+  const source = new TriasTransitSource(clientWith([{ stopPointId: "1", name: "Bahnhof" }]), {
     stops: [],
     lines: [],
   });
@@ -81,20 +81,20 @@ test("the search answers with local matches first and keeps only in-area provide
   const source = new TriasTransitSource(
     clientWith([
       {
-        providerId: "2000991",
+        stopPointId: "2000991",
         name: "Zum Mühlberg",
         placeName: "Rotenburg a. d. Fulda",
         latitude: 50.9954,
         longitude: 9.7398,
       },
       {
-        providerId: "de:08212:91",
+        stopPointId: "de:08212:91",
         name: "Mühlburg West",
         placeName: "Karlsruhe",
         latitude: 49.020297,
         longitude: 8.35073,
       },
-      { providerId: "de:08212:992", name: "Ohne Position", placeName: "Karlsruhe" },
+      { stopPointId: "de:08212:992", name: "Ohne Position", placeName: "Karlsruhe" },
     ]),
     network,
   );
@@ -105,14 +105,14 @@ test("the search answers with local matches first and keeps only in-area provide
     {
       id: "muhlburg",
       name: "Mühlburg",
-      alias: "Karlsruhe-Mühlburg",
+      placeName: "Karlsruhe-Mühlburg",
       latitude: 49.0146,
       longitude: 8.3511,
     },
     {
       id: results[1].id,
       name: "Mühlburg West",
-      alias: "Karlsruhe",
+      placeName: "Karlsruhe",
       latitude: 49.020297,
       longitude: 8.35073,
     },
@@ -123,7 +123,7 @@ test("a search for what only the provider knows outside the area answers nothing
   const source = new TriasTransitSource(
     clientWith([
       {
-        providerId: "2000991",
+        stopPointId: "2000991",
         name: "Schloss",
         placeName: "Ravensburg",
         latitude: 47.7826,
@@ -162,13 +162,13 @@ test("a stop the session has already met is answered without another wait", asyn
   // A view that has to await an answer it already holds renders the not-knowing first, and for a
   // rider walking along a line diagram that was the whole shell blanking between two of its stops.
   const source = new TriasTransitSource(
-    clientWith([{ providerId: "de:08212:992", name: "Ohne Position", placeName: "Karlsruhe" }]),
+    clientWith([{ stopPointId: "de:08212:992", name: "Ohne Position", placeName: "Karlsruhe" }]),
     network,
   );
 
   assert.equal(source.getKnownStop("europaplatz")?.name, "Europaplatz");
   // Not yet met is not the same claim as not existing — that stays `resolveStop`'s to answer.
-  const stopId = `ohne-position--${hashProviderStopId("de:08212:992")}`;
+  const stopId = `ohne-position--${hashStopPointId("de:08212:992")}`;
   assert.equal(source.getKnownStop(stopId), undefined);
 
   const resolved = await source.resolveStop(stopId);
@@ -186,7 +186,7 @@ test("a provider stop with a stable local id never gains a dynamic duplicate", a
   const source = new TriasTransitSource(
     clientWith([
       {
-        providerId: "de:08212:1013",
+        stopPointId: "de:08212:1013",
         name: "Kongresszentrum (U)",
         placeName: "Karlsruhe",
         latitude: 49.002532,
@@ -211,8 +211,8 @@ test("a stop the session has never met is resolved from the id in a shared link"
   // The digest in the id says which stop point the link was made from, so only that one will do.
   const client = {
     searchStops: async (): Promise<FeedStopSearchResult[]> => [
-      { providerId: "5419603", name: "Öhringen West", placeName: "Öhringen" },
-      { providerId: "5410220", name: "Öhringen Hbf", placeName: "Öhringen" },
+      { stopPointId: "5419603", name: "Öhringen West", placeName: "Öhringen" },
+      { stopPointId: "5410220", name: "Öhringen Hbf", placeName: "Öhringen" },
     ],
   } as unknown as Feed;
   const source = new TriasTransitSource(client, { stops: [], lines: [] } as TransitNetwork);

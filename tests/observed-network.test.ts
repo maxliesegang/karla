@@ -5,9 +5,9 @@ import { ObservedNetworkStore } from "../src/data/observed-network-store.ts";
 import { getObservedTransitLines } from "../src/lib/observed-network.ts";
 import { createStopEvent } from "./support/fixtures.ts";
 
-const call = (stopName: string, localStopId: string, placeName?: string): Call => ({
+const call = (stopName: string, stopPlaceId: string, placeName?: string): Call => ({
   stopName,
-  localStopId,
+  stopPlaceId,
   ...(placeName ? { placeName } : {}),
 });
 
@@ -22,7 +22,7 @@ const journey = (
     ptMode: "tram",
     minutesUntilDeparture: 4,
     bay: "1",
-    boardingLocalStopId: "europaplatz",
+    boardingStopPlaceId: "europaplatz",
     status: "realtime",
     timetabledDepartureTime: "2026-09-05T12:04:00+02:00",
     ...overrides,

@@ -101,16 +101,16 @@ async function observe(rowLimit: number): Promise<Observations> {
         stopEvents: board.stopEvents.map((stopEvent, index) => ({
           ...stopEvent,
           id: stopEvent.datedJourneyId ?? stopEvent.journeyRef ?? `${stopEvent.lineId}-${index}`,
-          boardingLocalStopId: stopId,
-          boardingProviderStopPointId: stopEvent.stopPointId,
-          boardingProviderStopPointName: stopEvent.stopPointName,
+          boardingStopPlaceId: stopId,
+          boardingStopPointId: stopEvent.stopPointId,
+          boardingStopPointName: stopEvent.stopPointName,
           bay: stopEvent.bay ?? "",
           calls: (stopEvent.calls ?? []).map((call): Call => {
             const callAtStop: Call = {
               stopName: call.stopName,
               bay: call.bay,
-              providerStopPointId: call.providerId,
-              localStopId: call.providerId ? stops.findLocalStopId(call.providerId) : undefined,
+              stopPointId: call.stopPointId,
+              stopPlaceId: call.stopPointId ? stops.findStopPlaceId(call.stopPointId) : undefined,
             };
             const nodeId = findZentrumSchematicNodeId(callAtStop);
             if (nodeId && call.latitude !== undefined && call.longitude !== undefined) {

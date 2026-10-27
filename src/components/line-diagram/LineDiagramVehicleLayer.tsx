@@ -180,13 +180,13 @@ function LineDiagramVehicleLayerView({
             className={classNames(
               "line-diagram-vehicle",
               `direction-${directionArrow === "↓" ? "down" : "up"}`,
-              isOtherDatedJourney && "other-run",
+              isOtherDatedJourney && "other-journey",
               phase !== "running" && "standing",
               openMarkerKey === markerKey && "open",
               isSelected && "selected",
               branchTransferKeys?.has(markerKey) && "branch-transfer",
             )}
-            data-selected-run-marker={isSelected || undefined}
+            data-selected-journey-marker={isSelected || undefined}
             title={`Position geschätzt · ${sourceLabel}`}
             onClick={() =>
               setOpenMarkerKey((current) => (current === markerKey ? null : markerKey))

@@ -28,10 +28,10 @@ const stopPointIds: Record<string, string> = {
   kronenplatz: "de:08212:1002",
 };
 
-const timedCall = (localStopId: string, minute: number): Call => ({
-  stopName: localStopId,
-  localStopId,
-  providerStopPointId: stopPointIds[localStopId],
+const timedCall = (stopPlaceId: string, minute: number): Call => ({
+  stopName: stopPlaceId,
+  stopPlaceId,
+  stopPointId: stopPointIds[stopPlaceId],
   bay: "1",
   timetabledArrivalTime: at(minute),
   timetabledDepartureTime: at(minute),
@@ -53,9 +53,9 @@ const datedJourney = (
     destinationText: destination,
     minutesUntilDeparture: 0,
     bay: "1",
-    boardingLocalStopId: stops[0][0],
-    boardingProviderStopPointId: stopPointIds[stops[0][0]],
-    boardingProviderStopPointName: stops[0][0],
+    boardingStopPlaceId: stops[0][0],
+    boardingStopPointId: stopPointIds[stops[0][0]],
+    boardingStopPointName: stops[0][0],
     status: "realtime",
     delayMinutes: 0,
     timetabledDepartureTime: at(stops[0][1]),
@@ -137,9 +137,9 @@ test("offers only the next tram of a line toward one destination", () => {
 });
 
 /** The row a stop's own board states for a run, as the board at that stop publishes it. */
-const boardRow = (stopEvent: StopEvent, localStopId: string, minute: number): StopEvent => ({
+const boardRow = (stopEvent: StopEvent, stopPlaceId: string, minute: number): StopEvent => ({
   ...stopEvent,
-  boardingLocalStopId: localStopId,
+  boardingStopPlaceId: stopPlaceId,
   timetabledDepartureTime: at(minute),
 });
 
@@ -289,8 +289,8 @@ test("a shared stop board includes inferred boarding places and lights their phy
   const atTulla = (stopEvent: StopEvent, code: string, latitude: number, longitude: number) => ({
     ...stopEvent,
     calls: stopEvent.calls?.map((call) =>
-      call.localStopId === "tullastrasse"
-        ? { ...call, providerStopPointId: "de:08212:7", bay: code, latitude, longitude }
+      call.stopPlaceId === "tullastrasse"
+        ? { ...call, stopPointId: "de:08212:7", bay: code, latitude, longitude }
         : call,
     ),
   });

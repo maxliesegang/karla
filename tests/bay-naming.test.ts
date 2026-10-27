@@ -31,7 +31,7 @@ const createStopEvent = (overrides: Partial<StopEvent> = {}): StopEvent =>
     destinationText: "Bad Herrenalb",
     minutesUntilDeparture: 4,
     bay: "1",
-    boardingLocalStopId: "europaplatz",
+    boardingStopPlaceId: "europaplatz",
     status: "realtime",
     timetabledDepartureTime: "2026-08-24T14:34:00+02:00",
     ...overrides,

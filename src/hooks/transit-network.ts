@@ -28,7 +28,7 @@ const resolveRemoteTransitStop = (stopId: string): Promise<RemoteStopResolution>
     () => ({ status: "failed" as const }),
   );
 
-/** Known stops at once; provider stops on demand. */
+/** Known stop places at once; others on demand. */
 export function useTransitStop(
   stopId: string | undefined,
   { reloadNonce }: { reloadNonce?: number } = {},
@@ -70,7 +70,7 @@ export function useLocatableStops(
       byId.set(position.id, {
         id: position.id,
         name: position.name,
-        alias: position.placeName,
+        placeName: position.placeName,
         latitude: position.latitude,
         longitude: position.longitude,
       });

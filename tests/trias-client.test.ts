@@ -128,7 +128,7 @@ test("a line route is the calls of the run it is addressed through", async () =>
   const client = createClient(createProxy(journeyReply).fetchFn);
   const route = await client.fetchLineRoute(JOURNEY);
   assert.deepEqual(
-    route.map(({ providerId }) => providerId),
+    route.map(({ stopPointId }) => stopPointId),
     ["de:08212:39", "de:08212:37"],
   );
 });

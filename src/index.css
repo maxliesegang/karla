@@ -2630,8 +2630,8 @@ button.brand:active .brand-mark,
   letter-spacing: -0.02em;
 }
 /* The board read by line: each line's departures gathered under the directions they take out of
-   this stop. Same trips, same order within a group — what this reading adds is the direction, which
-   is the one thing a row cannot say, because a row addresses one trip and this names the line.
+   this stop. Same journeys, same order within a group — what this reading adds is the direction, which
+   is the one thing a row cannot say, because a row addresses one journey and this names the line.
 
    It is laid out as the comparison it is: the direction on the left with the room to be read, its
    next departures on the right in columns that are the same width under every line of the board. So
@@ -2797,7 +2797,7 @@ button.brand:active .brand-mark,
   font-size: 12px;
   font-weight: 700;
 }
-/* Where some trips carry on past the near end, the further place is the same sentence, one step
+/* Where some journeys carry on past the near end, the further place is the same sentence, one step
    quieter — the arrow carries the meaning, so it is the lightest mark in the line. */
 .departure-board-corridor-onward {
   color: var(--ink-soft);
@@ -2806,7 +2806,7 @@ button.brand:active .brand-mark,
   padding: 0 4px;
   font-weight: 600;
 }
-/* What holds for every trip of the direction, under its name rather than beside it: on one line
+/* What holds for every journey of the direction, under its name rather than beside it: on one line
    these captions took the width the place name needed. */
 .departure-board-corridor-captions {
   display: flex;
@@ -2821,7 +2821,7 @@ button.brand:active .brand-mark,
   font-weight: 650;
   white-space: nowrap;
 }
-/* Where every trip of a direction leaves from one platform, the heading carries it once. Spoken in
+/* Where every journey of a direction leaves from one platform, the heading carries it once. Spoken in
    the section's own label instead, so it is heard once rather than on every countdown.
 
    Set as a filled tag, which is the one caption here a rider does something with: the others say
@@ -2848,7 +2848,7 @@ button.brand:active .brand-mark,
   display: grid;
   grid-template-columns: var(--corridor-strip);
 }
-/* A trip, printed as the one thing the heading above cannot say: the minute it leaves in. Every
+/* A journey, printed as the one thing the heading above cannot say: the minute it leaves in. Every
    chip of the board is the same box — one column width above, and the height of the tallest chip of
    its row, so the pattern a board of lines makes is itself the comparison: any countdown stands
    where any other did, on any line. The content is top-aligned, so the big minute of one line
@@ -2884,7 +2884,7 @@ button.brand:active .brand-mark,
     box-shadow 0.2s ease;
   animation: corridor-chip-enter 0.26s cubic-bezier(0.22, 0.75, 0.2, 1) both;
 }
-/* A strip is read left to right — the trip being caught, then the ones after it — so it settles in
+/* A strip is read left to right — the journey being caught, then the ones after it — so it settles in
    that order. Three columns at most, so the whole cascade is over in a fifth of a second. */
 .corridor-departure:nth-child(2) {
   animation-delay: 45ms;
@@ -2922,9 +2922,9 @@ button.brand:active .brand-mark,
   margin-bottom: 2px;
 }
 /* A strut taller than any minute set here, so the baseline of the countdown stands at one height in
-   every chip whether the minute is set at 27px, at 19px, or as the word a cancelled trip prints
+   every chip whether the minute is set at 27px, at 19px, or as the word a cancelled journey prints
    instead. Without it the columns aligned by the tops of their boxes, which put the small minutes
-   of the two trips behind floating above the big one they are being compared with.
+   of the two journeys behind floating above the big one they are being compared with.
    It takes back the gap it is given: a strut is not a column of the countdown, and left to stand as
    one it pushed the centred minute half a gap off the centre the notes under it are set to. */
 .corridor-departure-countdown::before {
@@ -2947,8 +2947,8 @@ button.brand:active .brand-mark,
 }
 /* The one published time, under the countdown that is running to it — the same reading the other
    two orders print, in the same ink, so a rider switching orders never meets two versions of one
-   trip. It is what turns the strip into a table: the countdown above it changes size from chip to
-   chip, this line does not, and a late trip states it here in the ink the whole app states lateness
+   journey. It is what turns the strip into a table: the countdown above it changes size from chip to
+   chip, this line does not, and a late journey states it here in the ink the whole app states lateness
    in. Hidden from assistive technology because the chip's own label already speaks the pair. */
 .corridor-departure-time {
   /* A clear step below the pair it belongs to, and above the exceptions it does not. */
@@ -2968,13 +2968,13 @@ button.brand:active .brand-mark,
 .corridor-departure.cancelled .corridor-departure-time {
   color: var(--ink-soft);
 }
-/* A column the board lays out and this direction has no trip for. It draws its rule and says
+/* A column the board lays out and this direction has no journey for. It draws its rule and says
    nothing: the table keeps its columns to the panel's edge, and the hairline the row closes on runs
    under a table rather than out into open paper. */
 .corridor-departure-blank {
   border-left: 1px solid var(--line);
 }
-/* The next trip this way is the one the rider is catching; the ones after it are the answer to
+/* The next journey this way is the one the rider is catching; the ones after it are the answer to
    "and if I miss it". It is the same cell as every other chip, so the columns stay one size and the
    first column of every line still lines up with the first of the next; what marks it is the size
    of the minute — the way the rest of the board marks a countdown — over a column quietly lit down
@@ -3025,9 +3025,9 @@ button.brand:active .brand-mark,
 .corridor-departure.lead .corridor-departure-countdown strong.due {
   font-size: 20px;
 }
-/* Only what the heading cannot state for this trip: where it ends short of the others, and which
+/* Only what the heading cannot state for this journey: where it ends short of the others, and which
    platform it leaves from where its siblings disagree — and, each on a line of its own under that,
-   the exceptions the trip is carrying. */
+   the exceptions the journey is carrying. */
 .corridor-departure-note {
   display: -webkit-box;
   max-width: 100%;
@@ -3061,7 +3061,7 @@ button.brand:active .brand-mark,
 .corridor-departure.lead.cancelled .corridor-departure-countdown strong {
   font-size: 15px;
 }
-/* Selection reads the same here as on a row: the line tints all of its trips, the pinned trip
+/* Selection reads the same here as on a row: the line tints all of its journeys, the pinned journey
    carries the mark. */
 .corridor-departure.selected {
   background: color-mix(in srgb, var(--shell-accent) 9%, var(--surface));
@@ -3159,7 +3159,7 @@ button.brand:active .brand-mark,
     background-color 0.2s ease,
     box-shadow 0.2s ease;
   /* A row the feed has just added arrives rather than appears. React keeps the DOM node of a row
-     it already had, so this plays for genuinely new trips, for the rows an expansion reveals, and
+     it already had, so this plays for genuinely new journeys, for the rows an expansion reveals, and
      for the whole board when the order is changed — and never on the minute tick. */
   animation: departure-row-enter 0.26s cubic-bezier(0.22, 0.75, 0.2, 1) both;
   animation-delay: calc(min(var(--departure-index, 0), 7) * 26ms);
@@ -3191,12 +3191,12 @@ button.brand:active .brand-mark,
   transition-duration: 0s;
 }
 /* Selection is two-tiered because the address is: the line is the durable choice and tints every
-   one of its trips, while the one trip the address pins carries the bar. A departed trip therefore
+   one of its journeys, while the one journey the address pins carries the bar. A departed journey therefore
    dims back into its line instead of leaving the board unlit. */
 .departure.selected {
   background: color-mix(in srgb, var(--shell-accent) 9%, var(--surface));
 }
-/* On a split screen the pinned departure reads as the tab that opened the trip panel. The list's
+/* On a split screen the pinned departure reads as the tab that opened the journey panel. The list's
    left padding is inside its scrollport, so this bridge reaches the panel divider without escaping
    or covering another row. */
 .departure.pinned {
@@ -3297,7 +3297,7 @@ button.brand:active .brand-mark,
 }
 /* Two separately addressed portions remain two buttons because their destinations and routes are
    different. The shared-service line is the visual bridge between them, and appears only after the
-   selected line's complete trip reads prove the relationship. */
+   selected line's complete journey reads prove the relationship. */
 .departure-joined-service {
   flex: 0 0 100%;
   color: var(--ink);
@@ -3488,7 +3488,7 @@ button.line-diagram-signs {
   font-size: clamp(12px, 1.15vw, 15px);
   letter-spacing: -0.03em;
 }
-/* The sign doubles as the way back to the whole line while a trip is pinned; it only lifts when
+/* The sign doubles as the way back to the whole line while a journey is pinned; it only lifts when
    there is something above this view to step up to. */
 .line-diagram-signs.interactive {
   cursor: pointer;
@@ -3564,12 +3564,12 @@ button.line-diagram-signs {
   left: auto;
 }
 
-/* A trip selection relocates this scrollport directly: trips can use different stop sequences, so
+/* A journey selection relocates this scrollport directly: journeys can use different stop sequences, so
    animating between their coordinate systems suggests continuity that is not there. The vehicle
    marks themselves still move along the line. */
-/* Why the pinned trip has no mark on the line below. A quiet line under the heading: it qualifies
+/* Why the pinned journey has no mark on the line below. A quiet line under the heading: it qualifies
    the diagram rather than competing with it, and it is gone the moment the mark can be placed. */
-.line-diagram-trip-hint {
+.line-diagram-journey-hint {
   flex: 0 0 auto;
   margin: 8px 10px 0;
   padding: 6px 10px;
@@ -3579,7 +3579,7 @@ button.line-diagram-signs {
   font-size: 12px;
   line-height: 1.35;
 }
-.line-diagram.ride .line-diagram-trip-hint {
+.line-diagram.ride .line-diagram-journey-hint {
   margin-inline: 2px;
 }
 .line-diagram-stops {
@@ -3655,7 +3655,7 @@ button.line-diagram-signs {
 }
 
 /* The way into the ride: the one control in this header that starts something rather than saying
-   something about what is already drawn. The meta beside it — the vehicle count, how the trip is
+   something about what is already drawn. The meta beside it — the vehicle count, how the journey is
    running — is quiet by design, so a second quiet outline pill here left the rider's next step
    looking like one more remark. Filled in ink instead: the darkest thing in a header whose colour
    already belongs to the sign, so it takes the eye without taking the line's colour from it. The
@@ -4285,7 +4285,7 @@ button.line-diagram-bundle-option:focus-visible {
   font-weight: 900;
   line-height: 1;
   /* The whole position rides on one transform, so a link-long Web Animation can stay on the
-     compositor. Its duration is the trip's remaining time to the next stop; CSS only owns the
+     compositor. Its duration is the journey's remaining time to the next stop; CSS only owns the
      marker's non-positional feedback. */
   will-change: transform;
   transition: box-shadow 0.2s ease;
@@ -4379,13 +4379,13 @@ button.line-diagram-bundle-option:focus-visible {
 .line-diagram-vehicle-layer .line-diagram-vehicle.direction-up {
   justify-content: center;
 }
-/* While a trip is followed, every other vehicle on the line steps back into a tint — same
+/* While a journey is followed, every other vehicle on the line steps back into a tint — same
    direction or not — so the ride the rider is on is the one mark that reads at full strength. */
-.line-diagram-vehicle-layer .line-diagram-vehicle.other-run {
+.line-diagram-vehicle-layer .line-diagram-vehicle.other-journey {
   background: color-mix(in srgb, var(--line-color) 42%, var(--surface));
   color: var(--ink);
 }
-/* A mark that is not travelling: a monitored trip standing at the stop it is due out of, and one
+/* A mark that is not travelling: a monitored journey standing at the stop it is due out of, and one
    that has just reached the end of its own calls. Neither is a measured position — no vehicle was
    placed between two calls to draw it — so it is drawn as the quieter, squarer thing it is, and the
    diagram never says which arrival became which departure, because nothing published says so. */
@@ -4396,7 +4396,7 @@ button.line-diagram-bundle-option:focus-visible {
   border-radius: 4px;
   color: var(--ink);
 }
-/* Where the trip is going, opened out of the mark itself.
+/* Where the journey is going, opened out of the mark itself.
  *
  * The mark's own column is barely wider than the mark, and the width for a stop name is in the
  * names beside it — so the chip does not put a second thing next to the mark, it becomes one: the
@@ -4590,12 +4590,12 @@ button.line-diagram-bundle-option:focus-visible {
     grid-row: 2;
     min-height: 34px;
   }
-  /* Without a pinned trip the controls stand beside the signs and the termini take the full second
+  /* Without a pinned journey the controls stand beside the signs and the termini take the full second
      row, so both ends of a bundle keep their names. Still two rows. */
-  .line-diagram:not(.ride):not(.has-selected-run) .line-diagram-header-actions {
+  .line-diagram:not(.ride):not(.has-selected-journey) .line-diagram-header-actions {
     grid-row: 1;
   }
-  .line-diagram:not(.ride):not(.has-selected-run) .line-diagram-header h1 {
+  .line-diagram:not(.ride):not(.has-selected-journey) .line-diagram-header h1 {
     grid-column: 1 / -1;
     grid-row: 2;
   }
@@ -4689,8 +4689,8 @@ button.line-diagram-bundle-option:focus-visible {
   white-space: nowrap;
 }
 
-/* A selected trip's own times: the calls still ahead read first, the ones it has already made
-   stay legible but step back. Nothing is hidden — a passed stop is still part of the trip. */
+/* A selected journey's own times: the calls still ahead read first, the ones it has already made
+   stay legible but step back. Nothing is hidden — a passed stop is still part of the journey. */
 .line-diagram-call-time {
   display: flex;
   flex-direction: column;
@@ -5314,7 +5314,7 @@ button.line-diagram-bundle-option:focus-visible {
   letter-spacing: 0.01em;
 }
 /* The card's foot: what the mode has to disclose about itself, set off from the reading above it.
-   The mode outlives the boards that found the trip and says so there; a location that could not be
+   The mode outlives the boards that found the journey and says so there; a location that could not be
    read is said once in the same place, rather than asked for again. */
 .ride-status-note,
 .ride-status-retained {
@@ -5767,7 +5767,7 @@ button.line-diagram-bundle-option:focus-visible {
     border-radius: 0;
   }
   /* The line header names the reading and carries the way to bundle it, so it stays available while
-     that line scrolls. A selected trip uses the same surface for its destination and the way to
+     that line scrolls. A selected journey uses the same surface for its destination and the way to
      start following it; once following starts, ride-status is the sticky surface instead. */
   .app-shell:not(.ride-mode) .line-diagram:not(.ride) .line-diagram-header {
     position: sticky;

@@ -35,8 +35,8 @@ test("the last minute counts down in ten-second steps, rounded down, only when c
 
 test("before the last minute, and for minute-grained predictions, minutes are kept", () => {
   assert.equal(getCountdownReading(estimatedToTheSecond, at("10:00:11"), SECONDS).label, "1 min");
-  const efaRow = { ...estimatedToTheSecond, isEstimatedToTheSecond: undefined };
-  assert.equal(getCountdownReading(efaRow, at("10:00:25"), SECONDS).label, "1 min");
+  const minuteRow = { ...estimatedToTheSecond, isEstimatedToTheSecond: undefined };
+  assert.equal(getCountdownReading(minuteRow, at("10:00:25"), SECONDS).label, "1 min");
   const timetabledRow = { ...estimatedToTheSecond, estimatedDepartureTime: undefined };
   assert.equal(getCountdownReading(timetabledRow, at("10:00:25"), SECONDS).kind, "minutes");
 });

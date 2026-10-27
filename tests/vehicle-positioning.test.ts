@@ -26,7 +26,7 @@ function stopEvent(id: string, calls: readonly Call[]): StopEvent {
     destinationText: "D",
     minutesUntilDeparture: 0,
     bay: "1",
-    boardingLocalStopId: "a",
+    boardingStopPlaceId: "a",
     status: "realtime",
     timetabledDepartureTime: new Date(start).toISOString(),
     calls,
@@ -380,7 +380,7 @@ function dwellCall(
 ): Call {
   return {
     stopName: stopId.toUpperCase(),
-    localStopId: stopId,
+    stopPlaceId: stopId,
     timetabledArrivalTime: new Date(start + arrivalMinute * 60_000).toISOString(),
     timetabledDepartureTime: new Date(start + departureMinute * 60_000).toISOString(),
     arrivalDelayMinutes,
@@ -929,14 +929,14 @@ test("a board row never re-times its run: every view places one run in one place
   const rows: StopEvent[] = [
     {
       ...bare,
-      boardingLocalStopId: "b",
+      boardingStopPlaceId: "b",
       estimatedDepartureTime: new Date(start + 6 * 60_000).toISOString(),
       delayMinutes: 4,
       readAt: { rowReadAt: start + 2 * 60_000, sequenceReadAt: start },
     },
     {
       ...bare,
-      boardingLocalStopId: "c",
+      boardingStopPlaceId: "c",
       status: "scheduled",
       estimatedDepartureTime: undefined,
       delayMinutes: undefined,

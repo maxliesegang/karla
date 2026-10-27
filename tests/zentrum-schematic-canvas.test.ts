@@ -26,9 +26,9 @@ for (const [place, lineId, stops] of [
       id: "north-south",
       lineId,
       ptMode: "tram",
-      calls: stops.map((localStopId, index) => ({
-        localStopId,
-        stopName: localStopId,
+      calls: stops.map((stopPlaceId, index) => ({
+        stopPlaceId,
+        stopName: stopPlaceId,
         timetabledArrivalTime: new Date(start + index * 60_000).toISOString(),
         timetabledDepartureTime: new Date(start + index * 60_000).toISOString(),
       })),
@@ -37,9 +37,9 @@ for (const [place, lineId, stops] of [
       id: "east-west",
       lineId: "1",
       ptMode: "tram",
-      calls: ["kronenplatz", "durlacher-tor", "gottesauer-platz"].map((localStopId) => ({
-        localStopId,
-        stopName: localStopId,
+      calls: ["kronenplatz", "durlacher-tor", "gottesauer-platz"].map((stopPlaceId) => ({
+        stopPlaceId,
+        stopName: stopPlaceId,
       })),
     });
     const schematic = buildZentrumSchematicReading([datedJourney, crossing]);
@@ -136,9 +136,9 @@ for (const atStation of [true, false]) {
       datedJourneyId: "first",
       lineId: "S1",
       ptMode: "tram",
-      calls: ["kronenplatz", "durlacher-tor"].map((localStopId, index) => ({
-        localStopId,
-        stopName: localStopId,
+      calls: ["kronenplatz", "durlacher-tor"].map((stopPlaceId, index) => ({
+        stopPlaceId,
+        stopName: stopPlaceId,
         timetabledArrivalTime: new Date(start + index * 60_000).toISOString(),
         timetabledDepartureTime: new Date(start + index * 60_000).toISOString(),
       })),

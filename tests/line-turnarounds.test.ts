@@ -26,7 +26,7 @@ function stopEvent(id: string, lineId: string, calls: readonly Call[]): StopEven
     datedJourneyId: `${id}@today`,
     lineId,
     destinationText: calls[calls.length - 1].stopName,
-    boardingLocalStopId: calls[0].localStopId ?? "a",
+    boardingStopPlaceId: calls[0].stopPlaceId ?? "a",
     timetabledDepartureTime: calls[0].timetabledDepartureTime ?? new Date(start).toISOString(),
     calls: datedJourneyCalls,
   });

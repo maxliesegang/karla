@@ -311,8 +311,8 @@ export function getZentrumSchematicLineIdsByStopId(
 }
 
 /** A call's shared stop address, before boarding places are laid out. */
-export const findZentrumSchematicNodeId = (call: { localStopId?: string }): string | undefined =>
-  isZentrumStop(call.localStopId) ? call.localStopId : undefined;
+export const findZentrumSchematicNodeId = (call: { stopPlaceId?: string }): string | undefined =>
+  isZentrumStop(call.stopPlaceId) ? call.stopPlaceId : undefined;
 
 export type ZentrumSchematicObservedEdge = {
   id: string;

@@ -38,9 +38,9 @@ export function findZentrumBoardingStopEvent(
   return board?.stopEvents.find(
     (stopEvent) =>
       isSameDatedJourney(stopEvent, time.stopEvent) &&
-      (time.boardingCall.providerStopPointId !== undefined
-        ? stopEvent.boardingProviderStopPointId === time.boardingCall.providerStopPointId
-        : stopEvent.boardingLocalStopId === time.boardingCall.localStopId) &&
+      (time.boardingCall.stopPointId !== undefined
+        ? stopEvent.boardingStopPointId === time.boardingCall.stopPointId
+        : stopEvent.boardingStopPlaceId === time.boardingCall.stopPlaceId) &&
       time.boardingCall.bay !== undefined &&
       stopEvent.bay === time.boardingCall.bay,
   );

@@ -23,7 +23,7 @@ const createStopEvent = (
     destinationText: "Durlach Turmberg",
     minutesUntilDeparture: minutes,
     bay: "1",
-    boardingLocalStopId: "marktplatz",
+    boardingStopPlaceId: "marktplatz",
     status: "realtime",
     timetabledDepartureTime: new Date(BASE + minutes * 60_000).toISOString(),
     ...overrides,

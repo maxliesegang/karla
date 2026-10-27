@@ -25,7 +25,7 @@ function stopEvent(
     ptMode: "lightRail",
     minutesUntilDeparture: 4,
     bay: "1",
-    boardingLocalStopId: "hochstetten",
+    boardingStopPlaceId: "hochstetten",
     status: "realtime",
     timetabledDepartureTime: "2026-08-24T12:04:00+02:00",
     ...overrides,
@@ -35,7 +35,7 @@ function stopEvent(
 const calls = (...stopNames: string[]): Call[] =>
   stopNames.map((stopName, index) => ({
     stopName,
-    localStopId: stopName.toLowerCase(),
+    stopPlaceId: stopName.toLowerCase(),
     isThisCall: index === 0,
   }));
 
@@ -82,7 +82,7 @@ test("keeps the stretch out of each end of a stop, not the longer of the two", (
     stopEvent({
       id,
       lineId,
-      boardingLocalStopId: "neureut",
+      boardingStopPlaceId: "neureut",
       destinationText: stopNames[stopNames.length - 1],
       calls: calls("neureut", ...stopNames),
     });
@@ -278,14 +278,14 @@ test("measures the shared stretch outwards from the rider's own stop", () => {
     id: "north",
     lineId: "S1",
     destinationText: "Bad Herrenalb",
-    boardingLocalStopId: "neureut",
+    boardingStopPlaceId: "neureut",
     calls: calls("hochstetten", "eggenstein", "neureut", "busenbach", "bad herrenalb"),
   });
   const southern = stopEvent({
     id: "south",
     lineId: "S11",
     destinationText: "Ittersbach",
-    boardingLocalStopId: "neureut",
+    boardingStopPlaceId: "neureut",
     calls: calls("spöck", "blankenloch", "neureut", "busenbach", "ittersbach"),
   });
 
@@ -323,9 +323,9 @@ test("measures the shared stretch outwards from the rider's own stop", () => {
 });
 
 test("does not fork where one line states two consecutive platforms of the same stop", () => {
-  const bayCall = (stopName: string, localStopId: string): Call => ({
+  const bayCall = (stopName: string, stopPlaceId: string): Call => ({
     stopName,
-    localStopId,
+    stopPlaceId,
   });
   const sharedNorth = calls("hochstetten", "europaplatz");
   const sharedSouth = calls("ostendorfplatz", "busenbach");
@@ -357,7 +357,7 @@ test("does not fork where one line states two consecutive platforms of the same 
   );
 
   assert.deepEqual(
-    trunk?.calls.map(({ localStopId }) => localStopId),
+    trunk?.calls.map(({ stopPlaceId }) => stopPlaceId),
     ["hochstetten", "europaplatz", "marktplatz", "marktplatz", "ostendorfplatz", "busenbach"],
   );
   assert.equal(

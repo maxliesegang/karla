@@ -26,8 +26,8 @@ export interface Feed {
   fetchLineRoute(journey: DatedJourneyRef): Promise<FeedCall[]>;
 }
 
-/** A calling point as the feed states it, still carrying the provider stop id it was read from. */
-export type FeedCall = Call & { providerId?: string };
+/** A call as the feed states it: its stop point, not yet resolved to a stop place. */
+export type FeedCall = Call;
 
 /** One dated journey, as TRIAS addresses it: its `JourneyRef` on its `OperatingDayRef`. */
 export type DatedJourneyRef = { journeyRef: string; operatingDayRef: string };
@@ -43,7 +43,7 @@ export type FeedTripInfo = {
 };
 
 export type FeedStopEvent = {
-  /** Provider stop point the vehicle departs from; a stop place reports several of these. */
+  /** The stop point the vehicle departs from; a stop place reports several of these. */
   stopPointId: string;
   stopPointName: string;
   /** The timetable-journey identity, TRIAS's `JourneyRef`. */
@@ -83,7 +83,7 @@ export type FeedStopEventBoard = {
 };
 
 export type FeedStopSearchResult = {
-  providerId: string;
+  stopPointId: string;
   name: string;
   /** The municipality the stop is in, as the feed states it. */
   placeName?: string;

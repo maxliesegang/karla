@@ -35,7 +35,7 @@ function stopEvent(
     destinationText: "C",
     minutesUntilDeparture: 0,
     bay: "1",
-    boardingLocalStopId: "a",
+    boardingStopPlaceId: "a",
     status,
     timetabledDepartureTime: new Date(start).toISOString(),
     calls,
@@ -135,7 +135,7 @@ test("a listed row the store no longer holds never brings its board's calls", ()
 
 test("one run followed under two row ids is still drawn once", () => {
   const datedJourney = stopEvent("row-a", [call("a", 0), call("b", 10)]);
-  known.set("row-b", { ...datedJourney, id: "row-b", boardingLocalStopId: "b" });
+  known.set("row-b", { ...datedJourney, id: "row-b", boardingStopPlaceId: "b" });
 
   const followed = updateFollowedDatedJourneys(
     [],
@@ -165,7 +165,7 @@ test("shows a current placeable observation even when its final call cannot defi
   const incomplete = stopEvent("incomplete", [
     call("a", 0),
     call("b", 5),
-    { stopName: "C", localStopId: "c" },
+    { stopName: "C", stopPlaceId: "c" },
   ]);
 
   assert.equal(

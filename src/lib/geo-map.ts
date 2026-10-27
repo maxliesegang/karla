@@ -50,9 +50,9 @@ export const toGeoDrawing = (network: GeoNetwork): MapDrawing => ({
   links: network.links,
 });
 
-/** A stop's id on the map: the local stop, else the operator's stop. */
+/** A stop's id on the map: its stop place, else its stop point. */
 export const getGeoStopId = (call: Call): string =>
-  call.localStopId ?? call.providerStopPointId ?? getCallKey(call);
+  call.stopPlaceId ?? call.stopPointId ?? getCallKey(call);
 
 export const getGeoLinkId = (left: string, right: string): string =>
   left < right ? `${left}\u0000${right}` : `${right}\u0000${left}`;

@@ -18,7 +18,7 @@ const stopEvent: StopEvent = createStopEvent({
   destinationText: "Durlach",
   minutesUntilDeparture: 1,
   bay: "2",
-  boardingLocalStopId: "europaplatz",
+  boardingStopPlaceId: "europaplatz",
   status: "realtime",
   timetabledDepartureTime: "2026-08-23T16:01:00Z",
   calls: [

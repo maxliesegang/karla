@@ -9,9 +9,9 @@ import type { Call } from "../src/data/transit-types.ts";
 import { createStopEvent } from "./support/fixtures.ts";
 
 const start = Date.parse("2026-10-05T12:00:00Z");
-const call = (localStopId: string, minute: number, terminus = false): Call => ({
-  localStopId,
-  stopName: localStopId,
+const call = (stopPlaceId: string, minute: number, terminus = false): Call => ({
+  stopPlaceId,
+  stopName: stopPlaceId,
   timetabledArrivalTime: new Date(start + minute * 60_000).toISOString(),
   timetabledDepartureTime: terminus ? undefined : new Date(start + minute * 60_000).toISOString(),
 });

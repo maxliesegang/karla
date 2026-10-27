@@ -139,9 +139,9 @@ test("rides past the stops the plan leaves out, to the next node", () => {
   const datedJourney = createStopEvent({
     lineId: "2",
     calls: ["marktplatz", "kongresszentrum", "werderstrasse", "wolfartsweier"].map(
-      (localStopId, minute) => ({
-        stopName: localStopId,
-        localStopId,
+      (stopPlaceId, minute) => ({
+        stopName: stopPlaceId,
+        stopPlaceId,
         timetabledArrivalTime: at(minute + 1),
         timetabledDepartureTime: at(minute + 1),
         delayMinutes: 0,
@@ -154,7 +154,7 @@ test("rides past the stops the plan leaves out, to the next node", () => {
     "marktplatz",
     Date.parse(at(0)),
     "arrival",
-    (call) => (call.localStopId ? findRegionNodeId(plan, call.localStopId) : undefined),
+    (call) => (call.stopPlaceId ? findRegionNodeId(plan, call.stopPlaceId) : undefined),
     true,
   );
 

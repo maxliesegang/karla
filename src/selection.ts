@@ -235,7 +235,7 @@ export function useSelectionChain(
   const alightingStopId =
     isRide &&
     route.alightingStopId &&
-    selectedStopEvent?.calls?.some((call) => call.localStopId === route.alightingStopId)
+    selectedStopEvent?.calls?.some((call) => call.stopPlaceId === route.alightingStopId)
       ? route.alightingStopId
       : undefined;
 

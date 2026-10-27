@@ -110,11 +110,11 @@ export function getObservedStopPositions(
     if (board.dataStatus !== "live") continue;
     for (const stopEvent of board.stopEvents) {
       for (const call of stopEvent.calls ?? []) {
-        const { localStopId, latitude, longitude } = call;
-        if (!localStopId || latitude === undefined || longitude === undefined) continue;
-        if (positionById.has(localStopId)) continue;
-        positionById.set(localStopId, {
-          id: localStopId,
+        const { stopPlaceId, latitude, longitude } = call;
+        if (!stopPlaceId || latitude === undefined || longitude === undefined) continue;
+        if (positionById.has(stopPlaceId)) continue;
+        positionById.set(stopPlaceId, {
+          id: stopPlaceId,
           name: call.stopName,
           placeName: call.placeName,
           latitude,
@@ -127,10 +127,10 @@ export function getObservedStopPositions(
   return [...positionById.values()];
 }
 
-type IdentifiedCall = Call & { localStopId: string };
+type IdentifiedCall = Call & { stopPlaceId: string };
 
 function isIdentifiedCall(call: Call): call is IdentifiedCall {
-  return Boolean(call.localStopId);
+  return Boolean(call.stopPlaceId);
 }
 
 export function buildObservedNetworkFromJourneys(
@@ -159,16 +159,16 @@ export function buildObservedNetworkFromJourneys(
     lines.set(journey.lineId, line);
 
     for (const call of (journey.calls ?? []).filter(isIdentifiedCall)) {
-      if (!isZentrumStop(call.localStopId)) continue;
-      const stop = stops.get(call.localStopId) ?? {
-        id: call.localStopId,
+      if (!isZentrumStop(call.stopPlaceId)) continue;
+      const stop = stops.get(call.stopPlaceId) ?? {
+        id: call.stopPlaceId,
         name: call.stopName,
         lineIds: [],
         callCount: 0,
       };
       addOnce(stop.lineIds, journey.lineId);
       stop.callCount += 1;
-      stops.set(call.localStopId, stop);
+      stops.set(call.stopPlaceId, stop);
     }
   }
 

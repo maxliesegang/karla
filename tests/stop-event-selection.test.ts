@@ -23,9 +23,9 @@ const createStopEvent = (overrides: Partial<StopEvent> = {}): StopEvent =>
     bay: "6",
     status: "realtime",
     timetabledDepartureTime: "2026-09-04T11:43:00.000Z",
-    boardingLocalStopId: "europaplatz",
-    boardingProviderStopPointId: "de:08212:37",
-    boardingProviderStopPointName: "Europaplatz",
+    boardingStopPlaceId: "europaplatz",
+    boardingStopPointId: "de:08212:37",
+    boardingStopPointName: "Europaplatz",
     ...overrides,
   }) as StopEvent;
 

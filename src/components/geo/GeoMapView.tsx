@@ -27,9 +27,7 @@ const geoEmptyLabels = {
 
 /** A board's own call comes unlocated; the operator's catalog knows the city's stops. */
 const locateCatalogStop = (call: Call) => {
-  const stop = call.providerStopPointId
-    ? network.findCatalogStop(call.providerStopPointId)
-    : undefined;
+  const stop = call.stopPointId ? network.findCatalogStop(call.stopPointId) : undefined;
   return stop && { latitude: stop.latitude, longitude: stop.longitude };
 };
 

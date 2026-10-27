@@ -20,8 +20,8 @@ export class ServingDirections {
       if (!lineRef || status === "cancelled") continue;
       const line: ServingLine = { lineId, lineRef, ptMode };
       const stopIds = new Set([
-        stopEvent.boardingLocalStopId,
-        ...(stopEvent.calls ?? []).map(({ localStopId }) => localStopId),
+        stopEvent.boardingStopPlaceId,
+        ...(stopEvent.calls ?? []).map(({ stopPlaceId }) => stopPlaceId),
       ]);
       for (const stopId of stopIds) {
         if (!stopId) continue;

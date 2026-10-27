@@ -11,15 +11,14 @@ export const transitNetwork: TransitNetwork = {
   stops: Object.entries(network.stopPlaces).flatMap(([id, place]): StopPlace[] => {
     const catalogStop = network.findCatalogStop(place.stopPoints[0]);
     if (!catalogStop) return [];
-    // A stop outside the home municipality is qualified by its district; a former name otherwise.
-    const alias = place.placeName ?? place.formerName;
     return [
       {
         id,
         name: place.name,
+        ...(place.placeName ? { placeName: place.placeName } : {}),
+        ...(place.formerName ? { formerName: place.formerName } : {}),
         latitude: catalogStop.latitude,
         longitude: catalogStop.longitude,
-        ...(alias ? { alias } : {}),
       },
     ];
   }),

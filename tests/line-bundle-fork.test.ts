@@ -35,7 +35,7 @@ const journey = (id: string, lineId: string, calls: readonly Call[]): StopEvent 
     destinationText: calls[calls.length - 1].stopName,
     minutesUntilDeparture: 0,
     bay: "1",
-    boardingLocalStopId: "hochstetten",
+    boardingStopPlaceId: "hochstetten",
     status: "realtime",
     timetabledDepartureTime: new Date(start).toISOString(),
     calls,
@@ -102,7 +102,7 @@ test("each leg is drawn from the junction, so its first link has both its ends",
     ["etzenrot", "busenbach"],
   );
   // The junction is the trunk's last call, drawn only there.
-  assert.equal(aheadS1.calls[0].localStopId, trunk.calls[trunk.calls.length - 1].localStopId);
+  assert.equal(aheadS1.calls[0].stopPlaceId, trunk.calls[trunk.calls.length - 1].stopPlaceId);
 });
 
 /**

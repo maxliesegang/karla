@@ -12,13 +12,13 @@ import { createStopEvent } from "./support/fixtures.ts";
 
 test("keeps every published call after the current stop", () => {
   const calls: Call[] = [
-    { stopName: "Ostendorfplatz", localStopId: "ostendorfplatz", isThisCall: true },
-    { stopName: "Marktplatz (Kaiserstraße U)", localStopId: "marktplatz" },
-    { stopName: "Marktplatz (Pyramide U)", localStopId: "marktplatz" },
-    { stopName: "Europaplatz", localStopId: "europaplatz" },
+    { stopName: "Ostendorfplatz", stopPlaceId: "ostendorfplatz", isThisCall: true },
+    { stopName: "Marktplatz (Kaiserstraße U)", stopPlaceId: "marktplatz" },
+    { stopName: "Marktplatz (Pyramide U)", stopPlaceId: "marktplatz" },
+    { stopName: "Europaplatz", stopPlaceId: "europaplatz" },
   ];
   const stopEvent = createStopEvent({
-    boardingLocalStopId: "ostendorfplatz",
+    boardingStopPlaceId: "ostendorfplatz",
     calls,
   });
 
@@ -30,12 +30,12 @@ test("keeps every published call after the current stop", () => {
 
 test("keeps a second published call at the current physical stop", () => {
   const calls: Call[] = [
-    { stopName: "Hauptfriedhof", localStopId: "hauptfriedhof", isThisCall: true },
-    { stopName: "Hauptfriedhof", localStopId: "hauptfriedhof", bay: "2" },
-    { stopName: "Karl-Wilhelm-Platz", localStopId: "karl-wilhelm-platz" },
+    { stopName: "Hauptfriedhof", stopPlaceId: "hauptfriedhof", isThisCall: true },
+    { stopName: "Hauptfriedhof", stopPlaceId: "hauptfriedhof", bay: "2" },
+    { stopName: "Karl-Wilhelm-Platz", stopPlaceId: "karl-wilhelm-platz" },
   ];
   const stopEvent = createStopEvent({
-    boardingLocalStopId: "hauptfriedhof",
+    boardingStopPlaceId: "hauptfriedhof",
     calls,
   });
 
@@ -46,28 +46,28 @@ test("reads past the row's own stop where the run was read at another stop", () 
   // A run is merged into every stop's row, so a Tivoli row can carry Poststraße's current-stop
   // marker.
   const calls: Call[] = [
-    { stopName: "Werderstraße", localStopId: "werderstrasse" },
-    { stopName: "Tivoli", localStopId: "tivoli" },
-    { stopName: "Poststraße", localStopId: "poststrasse", isThisCall: true },
-    { stopName: "Hauptbahnhof (Vorplatz)", localStopId: "hauptbahnhof" },
+    { stopName: "Werderstraße", stopPlaceId: "werderstrasse" },
+    { stopName: "Tivoli", stopPlaceId: "tivoli" },
+    { stopName: "Poststraße", stopPlaceId: "poststrasse", isThisCall: true },
+    { stopName: "Hauptbahnhof (Vorplatz)", stopPlaceId: "hauptbahnhof" },
   ];
-  const stopEvent = createStopEvent({ boardingLocalStopId: "tivoli", calls });
+  const stopEvent = createStopEvent({ boardingStopPlaceId: "tivoli", calls });
 
   assert.deepEqual(
-    getCallsAfterStop(stopEvent, "tivoli").map(({ localStopId }) => localStopId),
+    getCallsAfterStop(stopEvent, "tivoli").map(({ stopPlaceId }) => stopPlaceId),
     ["poststrasse", "hauptbahnhof"],
   );
 });
 
 test("states the via stops past the row's own stop, not past another stop's marker", () => {
   const stopEvent = createStopEvent({
-    boardingLocalStopId: "tivoli",
+    boardingStopPlaceId: "tivoli",
     destinationText: "Daxlanden",
     calls: [
-      { stopName: "Tivoli", localStopId: "tivoli" },
-      { stopName: "Poststraße", localStopId: "poststrasse", isThisCall: true },
-      { stopName: "Hauptbahnhof (Vorplatz)", localStopId: "hauptbahnhof" },
-      { stopName: "Waidweg", localStopId: "waidweg" },
+      { stopName: "Tivoli", stopPlaceId: "tivoli" },
+      { stopName: "Poststraße", stopPlaceId: "poststrasse", isThisCall: true },
+      { stopName: "Hauptbahnhof (Vorplatz)", stopPlaceId: "hauptbahnhof" },
+      { stopName: "Waidweg", stopPlaceId: "waidweg" },
     ],
   });
 
@@ -79,13 +79,13 @@ test("reads the diagram's home place at the rider's stop, not at another stop's 
   const calls: Call[] = [
     {
       stopName: "Forststraße",
-      localStopId: "forststrasse",
+      stopPlaceId: "forststrasse",
       placeName: "Rintheim",
       isThisCall: true,
     },
-    { stopName: "Hauptfriedhof", localStopId: "hauptfriedhof", placeName: "Karlsruhe" },
-    { stopName: "Tivoli", localStopId: "tivoli", placeName: "Karlsruhe" },
-    { stopName: "Poststraße", localStopId: "poststrasse", placeName: "Karlsruhe" },
+    { stopName: "Hauptfriedhof", stopPlaceId: "hauptfriedhof", placeName: "Karlsruhe" },
+    { stopName: "Tivoli", stopPlaceId: "tivoli", placeName: "Karlsruhe" },
+    { stopName: "Poststraße", stopPlaceId: "poststrasse", placeName: "Karlsruhe" },
   ];
 
   assert.equal(findHomePlaceName(calls, "tivoli"), "Karlsruhe");
@@ -160,13 +160,13 @@ test("calls kept from the row are dated by the row that read them", () => {
     ptMode: "tram",
     destinationText: "Durlach",
     minutesUntilDeparture: 2,
-    boardingLocalStopId: "durlacher-tor",
+    boardingStopPlaceId: "durlacher-tor",
     status: "realtime",
     timetabledDepartureTime: "2026-08-29T21:30:00Z",
     calls: [
       {
         stopName: "Durlacher Tor/KIT-Campus Süd (U)",
-        localStopId: "durlacher-tor",
+        stopPlaceId: "durlacher-tor",
         timetabledDepartureTime: "2026-08-29T21:30:00Z",
       },
     ],
@@ -194,7 +194,7 @@ test("a row carrying no sequence is dated on one clock, not on two", () => {
     ptMode: "tram",
     destinationText: "Durlach",
     minutesUntilDeparture: 2,
-    boardingLocalStopId: "durlacher-tor",
+    boardingStopPlaceId: "durlacher-tor",
     status: "realtime",
     timetabledDepartureTime: "2026-08-29T21:30:00Z",
     readAt: { rowReadAt: 1_000_000 },
@@ -205,7 +205,7 @@ test("a row carrying no sequence is dated on one clock, not on two", () => {
     calls: [
       {
         stopName: "Kronenplatz (U)",
-        localStopId: "kronenplatz",
+        stopPlaceId: "kronenplatz",
         timetabledDepartureTime: "2026-08-29T21:32:00Z",
       },
     ],

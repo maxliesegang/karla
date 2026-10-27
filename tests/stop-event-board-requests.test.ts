@@ -12,24 +12,24 @@ const STOP_ROW_LIMIT = 20;
 /** Records what the provider was asked for. */
 function createRecordingSource() {
   const requests: {
-    providerStopId: string;
+    stopPointId: string;
     includeCalls: boolean;
     limit?: number;
     lineIds?: readonly string[];
   }[] = [];
   const client = {
     fetchStopEventBoard: async (
-      providerStopId: string,
+      stopPointId: string,
       options: { includeCalls?: boolean; limit?: number; lineIds?: readonly string[] } = {},
     ): Promise<FeedStopEventBoard> => {
       requests.push({
-        providerStopId,
+        stopPointId,
         includeCalls: Boolean(options.includeCalls),
         limit: options.limit,
         ...(options.lineIds ? { lineIds: options.lineIds } : {}),
       });
       return {
-        stopPointId: providerStopId,
+        stopPointId: stopPointId,
         stopName: "Mühlburger Tor",
         serverTime: "",
         stopEvents: [],
@@ -126,7 +126,7 @@ function servedBy(feed: Feed, lineRefs: readonly string[]): Feed {
             stopEvents: lineRefs.map((lineRef) => ({
               ...stopEvent(`serving-${lineRef}`, lineRef, serverTime),
               stopPointId,
-              calls: [{ stopName: "Mühlburger Tor", providerId: stopPoint }],
+              calls: [{ stopName: "Mühlburger Tor", stopPointId: stopPoint }],
             })),
           }
         : feed.fetchStopEventBoard(stopPointId, options),
@@ -387,7 +387,7 @@ test("only a view that draws the trips pays for the calling sequences", async ()
   // A plain board is read without calls.
   await source.getStopEventBoard(STOP_ID);
   assert.deepEqual(requests, [
-    { providerStopId: requests[0].providerStopId, includeCalls: false, limit: STOP_ROW_LIMIT },
+    { stopPointId: requests[0].stopPointId, includeCalls: false, limit: STOP_ROW_LIMIT },
   ]);
 
   // Opening a line wants the whole trip.
@@ -585,14 +585,14 @@ test("a part's board reads only its own stop point, apart from the place's board
 
   await source.getStopEventBoard("hauptbahnhof", { stopPointId: station });
   assert.deepEqual(
-    requests.map(({ providerStopId }) => providerStopId),
+    requests.map(({ stopPointId }) => stopPointId),
     [station],
   );
 
   // The whole place is another reading.
   await source.getStopEventBoard("hauptbahnhof");
   assert.deepEqual(
-    requests.slice(1).map(({ providerStopId }) => providerStopId),
+    requests.slice(1).map(({ stopPointId }) => stopPointId),
     [vorplatz, station],
   );
 });

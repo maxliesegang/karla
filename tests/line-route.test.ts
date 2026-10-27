@@ -26,12 +26,12 @@ const operatingDayRef = "2026-09-04";
 const route: FeedCall[] = [
   {
     stopName: "Durlacher Tor/KIT-Campus Süd (U)",
-    providerId: "de:08212:1001",
+    stopPointId: "de:08212:1001",
     timetabledDepartureTime: "2026-09-04T07:00:00.000Z",
   },
   {
     stopName: "Kronenplatz (U)",
-    providerId: "de:08212:1002",
+    stopPointId: "de:08212:1002",
     timetabledDepartureTime: "2026-09-04T07:02:00.000Z",
   },
 ];
@@ -58,8 +58,8 @@ test("TransitSource reads one route per line-direction and keeps it for the sess
   const rows = [lineRow(), lineRow({ journeyRef: "de:kvv:00003_:.later" })];
   const requests: DatedJourneyRef[] = [];
   const client = {
-    fetchStopEventBoard: async (providerStopId: string): Promise<FeedStopEventBoard> => ({
-      stopPointId: providerStopId,
+    fetchStopEventBoard: async (stopPointId: string): Promise<FeedStopEventBoard> => ({
+      stopPointId: stopPointId,
       stopName: "Durlacher Tor/KIT-Campus Süd (U)",
       serverTime: "2026-09-04T06:59:45.000Z",
       stopEvents: rows,
@@ -84,8 +84,8 @@ test("TransitSource reads one route per line-direction and keeps it for the sess
 
 test("a route that cannot be read leaves the reading where it stood", async () => {
   const client = {
-    fetchStopEventBoard: async (providerStopId: string): Promise<FeedStopEventBoard> => ({
-      stopPointId: providerStopId,
+    fetchStopEventBoard: async (stopPointId: string): Promise<FeedStopEventBoard> => ({
+      stopPointId: stopPointId,
       stopName: "Durlacher Tor/KIT-Campus Süd (U)",
       serverTime: "2026-09-04T06:59:45.000Z",
       stopEvents: [lineRow()],

@@ -14,7 +14,7 @@ function stopEvent(
     ptMode: "tram",
     minutesUntilDeparture: 4,
     bay: "1",
-    boardingLocalStopId: "europaplatz",
+    boardingStopPlaceId: "europaplatz",
     status: "realtime",
     timetabledDepartureTime: "2026-08-24T12:04:00+02:00",
     ...overrides,
@@ -24,7 +24,7 @@ function stopEvent(
 const calls = (...stopNames: string[]): Call[] =>
   stopNames.map((stopName, index) => ({
     stopName,
-    localStopId: stopName.toLowerCase(),
+    stopPlaceId: stopName.toLowerCase(),
     isThisCall: index === 0,
   }));
 
@@ -119,13 +119,13 @@ test("groups short workings with through trips over their shared outgoing corrid
       calls: [
         {
           stopName: "Ostendorfplatz",
-          localStopId: "europaplatz",
+          stopPlaceId: "europaplatz",
           isThisCall: true,
           placeName: "Karlsruhe",
         },
-        { stopName: "Tulpenstraße", localStopId: "tulpenstrasse", placeName: "Karlsruhe" },
-        { stopName: "Battstraße", localStopId: "battstrasse", placeName: "Karlsruhe" },
-        { stopName: "Stadt", localStopId: "ettlingen-stadt", placeName: "Ettlingen" },
+        { stopName: "Tulpenstraße", stopPlaceId: "tulpenstrasse", placeName: "Karlsruhe" },
+        { stopName: "Battstraße", stopPlaceId: "battstrasse", placeName: "Karlsruhe" },
+        { stopName: "Stadt", stopPlaceId: "ettlingen-stadt", placeName: "Ettlingen" },
       ],
     }),
     stopEvent({
@@ -133,14 +133,14 @@ test("groups short workings with through trips over their shared outgoing corrid
       calls: [
         {
           stopName: "Ostendorfplatz",
-          localStopId: "europaplatz",
+          stopPlaceId: "europaplatz",
           isThisCall: true,
           placeName: "Karlsruhe",
         },
-        { stopName: "Tulpenstraße", localStopId: "tulpenstrasse", placeName: "Karlsruhe" },
-        { stopName: "Battstraße", localStopId: "battstrasse", placeName: "Karlsruhe" },
-        { stopName: "Stadt", localStopId: "ettlingen-stadt", placeName: "Ettlingen" },
-        { stopName: "Albgaubad", localStopId: "albgaubad", placeName: "Ettlingen" },
+        { stopName: "Tulpenstraße", stopPlaceId: "tulpenstrasse", placeName: "Karlsruhe" },
+        { stopName: "Battstraße", stopPlaceId: "battstrasse", placeName: "Karlsruhe" },
+        { stopName: "Stadt", stopPlaceId: "ettlingen-stadt", placeName: "Ettlingen" },
+        { stopName: "Albgaubad", stopPlaceId: "albgaubad", placeName: "Ettlingen" },
       ],
     }),
     stopEvent({
@@ -148,14 +148,14 @@ test("groups short workings with through trips over their shared outgoing corrid
       calls: [
         {
           stopName: "Ostendorfplatz",
-          localStopId: "europaplatz",
+          stopPlaceId: "europaplatz",
           isThisCall: true,
           placeName: "Karlsruhe",
         },
-        { stopName: "Schloss Rüppurr", localStopId: "schloss-rueppurr", placeName: "Karlsruhe" },
+        { stopName: "Schloss Rüppurr", stopPlaceId: "schloss-rueppurr", placeName: "Karlsruhe" },
         {
           stopName: "Hochstetten",
-          localStopId: "hochstetten",
+          stopPlaceId: "hochstetten",
           placeName: "Linkenheim-Hochstetten",
         },
       ],
@@ -274,14 +274,14 @@ test("collapses calls outside the board's municipality to the place they are in"
     calls: [
       {
         stopName: "Europaplatz",
-        localStopId: "europaplatz",
+        stopPlaceId: "europaplatz",
         isThisCall: true,
         placeName: "Karlsruhe",
       },
-      { stopName: "Bahnhof", localStopId: "kar-bahnhof", placeName: "Karlsruhe" },
-      { stopName: "Silberstreifen", localStopId: "silberstreifen", placeName: "Rheinstetten" },
-      { stopName: "Mörscher Straße", localStopId: "moerscher-strasse", placeName: "Rheinstetten" },
-      { stopName: "Bahnhof", localStopId: "rheinstetten-bahnhof", placeName: "Rheinstetten" },
+      { stopName: "Bahnhof", stopPlaceId: "kar-bahnhof", placeName: "Karlsruhe" },
+      { stopName: "Silberstreifen", stopPlaceId: "silberstreifen", placeName: "Rheinstetten" },
+      { stopName: "Mörscher Straße", stopPlaceId: "moerscher-strasse", placeName: "Rheinstetten" },
+      { stopName: "Bahnhof", stopPlaceId: "rheinstetten-bahnhof", placeName: "Rheinstetten" },
     ],
   });
 
@@ -304,12 +304,12 @@ test("names a Karlsruhe district the way it names a municipality", () => {
     calls: [
       {
         stopName: "Europaplatz",
-        localStopId: "europaplatz",
+        stopPlaceId: "europaplatz",
         isThisCall: true,
         placeName: "Karlsruhe",
       },
-      { stopName: "Kronenplatz", localStopId: "kronenplatz", placeName: "Karlsruhe" },
-      { stopName: "Turmberg", localStopId: "durlach-turmberg", placeName: "Durlach" },
+      { stopName: "Kronenplatz", stopPlaceId: "kronenplatz", placeName: "Karlsruhe" },
+      { stopName: "Turmberg", stopPlaceId: "durlach-turmberg", placeName: "Durlach" },
     ],
   });
   const inbound = stopEvent({
@@ -323,11 +323,11 @@ test("names a Karlsruhe district the way it names a municipality", () => {
     calls: [
       {
         stopName: "Europaplatz",
-        localStopId: "europaplatz",
+        stopPlaceId: "europaplatz",
         isThisCall: true,
         placeName: "Karlsruhe",
       },
-      { stopName: "Hauptbahnhof", localStopId: "hauptbahnhof", placeName: "Karlsruhe" },
+      { stopName: "Hauptbahnhof", stopPlaceId: "hauptbahnhof", placeName: "Karlsruhe" },
     ],
   });
 
@@ -357,12 +357,12 @@ test("names both ends where the short working turns back along the through route
   const shared: Call[] = [
     {
       stopName: "Europaplatz",
-      localStopId: "europaplatz",
+      stopPlaceId: "europaplatz",
       isThisCall: true,
       placeName: "Karlsruhe",
     },
-    { stopName: "Rüppurr Ostendorfplatz", localStopId: "ostendorfplatz", placeName: "Rüppurr" },
-    { stopName: "Stadt", localStopId: "ettlingen-stadt", placeName: "Ettlingen" },
+    { stopName: "Rüppurr Ostendorfplatz", stopPlaceId: "ostendorfplatz", placeName: "Rüppurr" },
+    { stopName: "Stadt", stopPlaceId: "ettlingen-stadt", placeName: "Ettlingen" },
   ];
   const topologyStopEvents = [
     stopEvent({ ...live[0], calls: shared }),
@@ -370,8 +370,8 @@ test("names both ends where the short working turns back along the through route
       ...live[1],
       calls: [
         ...shared,
-        { stopName: "Busenbach", localStopId: "busenbach", placeName: "Busenbach (Waldbr.)" },
-        { stopName: "Bad Herrenalb", localStopId: "bad-herrenalb", placeName: "Bad Herrenalb" },
+        { stopName: "Busenbach", stopPlaceId: "busenbach", placeName: "Busenbach (Waldbr.)" },
+        { stopName: "Bad Herrenalb", stopPlaceId: "bad-herrenalb", placeName: "Bad Herrenalb" },
       ],
     }),
   ];
@@ -414,24 +414,24 @@ test("states an end again where the way returns to a place it named before", () 
   const head: Call[] = [
     {
       stopName: "Europaplatz",
-      localStopId: "europaplatz",
+      stopPlaceId: "europaplatz",
       isThisCall: true,
       placeName: "Karlsruhe",
     },
-    { stopName: "Ettlingen", localStopId: "ettlingen", placeName: "Ettlingen" },
+    { stopName: "Ettlingen", stopPlaceId: "ettlingen", placeName: "Ettlingen" },
   ];
   const topologyStopEvents = [
     stopEvent({ ...live[0], calls: head }),
     stopEvent({
       ...live[1],
-      calls: [...head, { stopName: "Malsch", localStopId: "malsch", placeName: "Malsch" }],
+      calls: [...head, { stopName: "Malsch", stopPlaceId: "malsch", placeName: "Malsch" }],
     }),
     stopEvent({
       ...live[2],
       calls: [
         ...head,
-        { stopName: "Malsch", localStopId: "malsch", placeName: "Malsch" },
-        { stopName: "Ettlingen Erbprinz", localStopId: "erbprinz", placeName: "Ettlingen" },
+        { stopName: "Malsch", stopPlaceId: "malsch", placeName: "Malsch" },
+        { stopName: "Ettlingen Erbprinz", stopPlaceId: "erbprinz", placeName: "Ettlingen" },
       ],
     }),
   ];
@@ -466,28 +466,28 @@ test("weaves the places the route serves with several stops between the ends", (
   const head: Call[] = [
     {
       stopName: "Europaplatz",
-      localStopId: "europaplatz",
+      stopPlaceId: "europaplatz",
       isThisCall: true,
       placeName: "Karlsruhe",
     },
-    { stopName: "Ostendorfplatz", localStopId: "ostendorfplatz", placeName: "Rüppurr" },
-    { stopName: "Rüppurrer Straße", localStopId: "rueppurrer-strasse", placeName: "Rüppurr" },
+    { stopName: "Ostendorfplatz", stopPlaceId: "ostendorfplatz", placeName: "Rüppurr" },
+    { stopName: "Rüppurrer Straße", stopPlaceId: "rueppurrer-strasse", placeName: "Rüppurr" },
   ];
   const topologyStopEvents = [
     stopEvent({
       ...live[0],
       calls: [
         ...head,
-        { stopName: "Stadt", localStopId: "ettlingen-stadt", placeName: "Ettlingen" },
+        { stopName: "Stadt", stopPlaceId: "ettlingen-stadt", placeName: "Ettlingen" },
       ],
     }),
     stopEvent({
       ...live[1],
       calls: [
         ...head,
-        { stopName: "Stadt", localStopId: "ettlingen-stadt", placeName: "Ettlingen" },
-        { stopName: "Busenbach", localStopId: "busenbach", placeName: "Busenbach (Waldbr.)" },
-        { stopName: "Bad Herrenalb", localStopId: "bad-herrenalb", placeName: "Bad Herrenalb" },
+        { stopName: "Stadt", stopPlaceId: "ettlingen-stadt", placeName: "Ettlingen" },
+        { stopName: "Busenbach", stopPlaceId: "busenbach", placeName: "Busenbach (Waldbr.)" },
+        { stopName: "Bad Herrenalb", stopPlaceId: "bad-herrenalb", placeName: "Bad Herrenalb" },
       ],
     }),
   ];
@@ -523,14 +523,14 @@ test("a place another line serves is prominent though the route calls there once
       calls: [
         {
           stopName: "Europaplatz",
-          localStopId: "europaplatz",
+          stopPlaceId: "europaplatz",
           isThisCall: true,
           placeName: "Karlsruhe",
         },
-        { stopName: "Ostendorfplatz", localStopId: "ostendorfplatz", placeName: "Rüppurr" },
-        { stopName: "Rüppurrer Straße", localStopId: "rueppurrer-strasse", placeName: "Rüppurr" },
-        { stopName: "Malsch", localStopId: "malsch", placeName: "Malsch" },
-        { stopName: "Stadt", localStopId: "ettlingen-stadt", placeName: "Ettlingen" },
+        { stopName: "Ostendorfplatz", stopPlaceId: "ostendorfplatz", placeName: "Rüppurr" },
+        { stopName: "Rüppurrer Straße", stopPlaceId: "rueppurrer-strasse", placeName: "Rüppurr" },
+        { stopName: "Malsch", stopPlaceId: "malsch", placeName: "Malsch" },
+        { stopName: "Stadt", stopPlaceId: "ettlingen-stadt", placeName: "Ettlingen" },
       ],
     }),
     // A bus through Malsch, read at a post the trip never passes: connections count from anywhere.
@@ -538,15 +538,15 @@ test("a place another line serves is prominent though the route calls there once
       id: "bus",
       lineId: "216",
       destinationText: "Malsch",
-      boardingLocalStopId: "muggensturm",
+      boardingStopPlaceId: "muggensturm",
       calls: [
         {
           stopName: "Muggensturm",
-          localStopId: "muggensturm",
+          stopPlaceId: "muggensturm",
           isThisCall: true,
           placeName: "Muggensturm",
         },
-        { stopName: "Malsch", localStopId: "malsch", placeName: "Malsch" },
+        { stopName: "Malsch", stopPlaceId: "malsch", placeName: "Malsch" },
       ],
     }),
   ];
@@ -578,17 +578,17 @@ test("states three places, the most relevant of the way's own beside the end", (
       calls: [
         {
           stopName: "Europaplatz",
-          localStopId: "europaplatz",
+          stopPlaceId: "europaplatz",
           isThisCall: true,
           placeName: "Karlsruhe",
         },
-        { stopName: "Bulach", localStopId: "bulach", placeName: "Bulach" },
-        { stopName: "Battstraße", localStopId: "battstrasse", placeName: "Bulach" },
-        { stopName: "Ostendorfplatz", localStopId: "ostendorfplatz", placeName: "Rüppurr" },
-        { stopName: "Rüppurrer Straße", localStopId: "rueppurrer-strasse", placeName: "Rüppurr" },
-        { stopName: "Schloss Rüppurr", localStopId: "schloss-rueppurr", placeName: "Rüppurr" },
-        { stopName: "Malsch", localStopId: "malsch", placeName: "Malsch" },
-        { stopName: "Stadt", localStopId: "ettlingen-stadt", placeName: "Ettlingen" },
+        { stopName: "Bulach", stopPlaceId: "bulach", placeName: "Bulach" },
+        { stopName: "Battstraße", stopPlaceId: "battstrasse", placeName: "Bulach" },
+        { stopName: "Ostendorfplatz", stopPlaceId: "ostendorfplatz", placeName: "Rüppurr" },
+        { stopName: "Rüppurrer Straße", stopPlaceId: "rueppurrer-strasse", placeName: "Rüppurr" },
+        { stopName: "Schloss Rüppurr", stopPlaceId: "schloss-rueppurr", placeName: "Rüppurr" },
+        { stopName: "Malsch", stopPlaceId: "malsch", placeName: "Malsch" },
+        { stopName: "Stadt", stopPlaceId: "ettlingen-stadt", placeName: "Ettlingen" },
       ],
     }),
     // The one connection along this way.
@@ -596,15 +596,15 @@ test("states three places, the most relevant of the way's own beside the end", (
       id: "bus",
       lineId: "216",
       destinationText: "Malsch",
-      boardingLocalStopId: "muggensturm",
+      boardingStopPlaceId: "muggensturm",
       calls: [
         {
           stopName: "Muggensturm",
-          localStopId: "muggensturm",
+          stopPlaceId: "muggensturm",
           isThisCall: true,
           placeName: "Muggensturm",
         },
-        { stopName: "Malsch", localStopId: "malsch", placeName: "Malsch" },
+        { stopName: "Malsch", stopPlaceId: "malsch", placeName: "Malsch" },
       ],
     }),
   ];
@@ -654,21 +654,21 @@ test("states every end, and no way places, where the ends alone fill the row", (
   const head: Call[] = [
     {
       stopName: "Europaplatz",
-      localStopId: "europaplatz",
+      stopPlaceId: "europaplatz",
       isThisCall: true,
       placeName: "Karlsruhe",
     },
-    { stopName: "Ostendorfplatz", localStopId: "ostendorfplatz", placeName: "Rüppurr" },
-    { stopName: "Rüppurrer Straße", localStopId: "rueppurrer-strasse", placeName: "Rüppurr" },
+    { stopName: "Ostendorfplatz", stopPlaceId: "ostendorfplatz", placeName: "Rüppurr" },
+    { stopName: "Rüppurrer Straße", stopPlaceId: "rueppurrer-strasse", placeName: "Rüppurr" },
   ];
   const toEttlingen: Call[] = [
     ...head,
-    { stopName: "Stadt", localStopId: "ettlingen-stadt", placeName: "Ettlingen" },
+    { stopName: "Stadt", stopPlaceId: "ettlingen-stadt", placeName: "Ettlingen" },
   ];
   const toHerrenalb: Call[] = [
     ...toEttlingen,
-    { stopName: "Busenbach", localStopId: "busenbach", placeName: "Busenbach (Waldbr.)" },
-    { stopName: "Bad Herrenalb", localStopId: "bad-herrenalb", placeName: "Bad Herrenalb" },
+    { stopName: "Busenbach", stopPlaceId: "busenbach", placeName: "Busenbach (Waldbr.)" },
+    { stopName: "Bad Herrenalb", stopPlaceId: "bad-herrenalb", placeName: "Bad Herrenalb" },
   ];
   const topologyStopEvents = [
     stopEvent({ ...live[0], calls: head }),
@@ -678,7 +678,7 @@ test("states every end, and no way places, where the ends alone fill the row", (
       ...live[3],
       calls: [
         ...toHerrenalb,
-        { stopName: "Ittersbach", localStopId: "ittersbach", placeName: "Karlsbad" },
+        { stopName: "Ittersbach", stopPlaceId: "ittersbach", placeName: "Karlsbad" },
       ],
     }),
   ];
@@ -1021,7 +1021,7 @@ test("reuses route indexes when a reading only learns the board's place", () => 
       calls: [
         {
           stopName: "Europaplatz",
-          localStopId: "europaplatz",
+          stopPlaceId: "europaplatz",
           isThisCall: true,
           placeName: "Karlsruhe",
         },
@@ -1070,19 +1070,19 @@ test("a trip that turns back is not parted from the service that runs on through
   const shared: Call[] = [
     {
       stopName: "Europaplatz",
-      localStopId: "europaplatz",
+      stopPlaceId: "europaplatz",
       isThisCall: true,
       placeName: "Karlsruhe",
     },
-    { stopName: "Reitschulschlag", localStopId: "reitschulschlag", placeName: "Hagsfeld" },
+    { stopName: "Reitschulschlag", stopPlaceId: "reitschulschlag", placeName: "Hagsfeld" },
   ];
   const topologyStopEvents = [
     stopEvent({
       ...live[0],
       calls: [
         ...shared,
-        { stopName: "Büchig", localStopId: "buechig", placeName: "Büchig" },
-        { stopName: "Hochhaus", localStopId: "spoeck-hochhaus", placeName: "Spöck" },
+        { stopName: "Büchig", stopPlaceId: "buechig", placeName: "Büchig" },
+        { stopName: "Hochhaus", stopPlaceId: "spoeck-hochhaus", placeName: "Spöck" },
       ],
     }),
     stopEvent({
@@ -1110,7 +1110,7 @@ test("two places sharing a name do not lend each other connections", () => {
   const murgtal = { latitude: 48.482, longitude: 8.377 };
   const here: Call = {
     stopName: "Europaplatz",
-    localStopId: "europaplatz",
+    stopPlaceId: "europaplatz",
     isThisCall: true,
     placeName: "Karlsruhe",
   };
@@ -1123,11 +1123,11 @@ test("two places sharing a name do not lend each other connections", () => {
       here,
       {
         stopName: "Bahnhof",
-        localStopId: "murgtal-friedrichstal",
+        stopPlaceId: "murgtal-friedrichstal",
         placeName: "Friedrichstal",
         ...murgtal,
       },
-      { stopName: "Hauptbahnhof", localStopId: "freudenstadt-hbf", placeName: "Freudenstadt" },
+      { stopName: "Hauptbahnhof", stopPlaceId: "freudenstadt-hbf", placeName: "Freudenstadt" },
     ],
   });
   const namesake = (position: typeof stutensee) =>
@@ -1140,11 +1140,11 @@ test("two places sharing a name do not lend each other connections", () => {
         here,
         {
           stopName: "Mitte",
-          localStopId: "friedrichstal-mitte",
+          stopPlaceId: "friedrichstal-mitte",
           placeName: "Friedrichstal",
           ...position,
         },
-        { stopName: "Hochhaus", localStopId: "spoeck-hochhaus", placeName: "Spöck" },
+        { stopName: "Hochhaus", stopPlaceId: "spoeck-hochhaus", placeName: "Spöck" },
       ],
     });
   const wayOfS8 = (other: StopEvent) =>
@@ -1166,11 +1166,11 @@ test("reads the board's place at its own stop, not at another stop's marker on a
       calls: [
         {
           stopName: "Rheinstrandhalle",
-          localStopId: "rheinstrandhalle",
+          stopPlaceId: "rheinstrandhalle",
           placeName: "Daxlanden",
           isThisCall: true,
         },
-        { stopName: "Europaplatz", localStopId: "europaplatz", placeName: "Karlsruhe" },
+        { stopName: "Europaplatz", stopPlaceId: "europaplatz", placeName: "Karlsruhe" },
       ],
     }),
   ]);

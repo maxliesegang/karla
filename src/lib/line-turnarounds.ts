@@ -51,8 +51,8 @@ export type TurnaroundIndex = {
 
 /** Same place: by id where both resolved, else by published name. */
 function isSameCallStop(left: Call, right: Call): boolean {
-  return left.localStopId && right.localStopId
-    ? left.localStopId === right.localStopId
+  return left.stopPlaceId && right.stopPlaceId
+    ? left.stopPlaceId === right.stopPlaceId
     : left.stopName === right.stopName;
 }
 

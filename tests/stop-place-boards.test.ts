@@ -63,7 +63,7 @@ test("a stop place's board reads each of its stop points and names the first", a
 
   assert.deepEqual(asked, ["de:08212:1003", "de:08212:1011"]);
   assert.deepEqual(
-    marktplatz.stopEvents.map(({ boardingProviderStopPointId }) => boardingProviderStopPointId),
+    marktplatz.stopEvents.map(({ boardingStopPointId }) => boardingStopPointId),
     ["de:08212:1003", "de:08212:1011"],
   );
 });

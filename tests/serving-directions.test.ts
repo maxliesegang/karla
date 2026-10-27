@@ -16,17 +16,17 @@ test("a run's direction serves every stop it calls at, until the TTL passes unse
       id: "s5",
       lineId: "S5",
       lineRef: S5,
-      boardingLocalStopId: "europaplatz",
+      boardingStopPlaceId: "europaplatz",
       calls: [
-        { stopName: "Mühlburger Tor", localStopId: "muehlburger-tor" },
-        { stopName: "Europaplatz", localStopId: "europaplatz" },
-        { stopName: "Karlstor", localStopId: "karlstor" },
+        { stopName: "Mühlburger Tor", stopPlaceId: "muehlburger-tor" },
+        { stopName: "Europaplatz", stopPlaceId: "europaplatz" },
+        { stopName: "Karlstor", stopPlaceId: "karlstor" },
       ],
     }),
     createStopEvent({
       id: "cancelled",
       lineRef: LINE_2,
-      boardingLocalStopId: "europaplatz",
+      boardingStopPlaceId: "europaplatz",
       status: "cancelled",
     }),
   ]);
@@ -72,8 +72,8 @@ test("a stop's board names the directions observed runs serve it by", async () =
             status: "realtime",
             timetabledDepartureTime: "2026-10-20T08:03:00.000Z",
             calls: [
-              { stopName: "Europaplatz", providerId: "de:08212:37" },
-              { stopName: "Karlstor", providerId: "de:08212:61" },
+              { stopName: "Europaplatz", stopPointId: "de:08212:37" },
+              { stopName: "Karlstor", stopPointId: "de:08212:61" },
             ],
           },
         ],

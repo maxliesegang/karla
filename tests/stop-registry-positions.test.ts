@@ -10,8 +10,8 @@ test("an unlocated call stands where the catalog puts its stop; a stated positio
   assert.ok(catalogStop);
 
   const [unlocated, located] = registry.toCalls([
-    { stopName: "Europaplatz", providerId: "de:08212:37" },
-    { stopName: "Europaplatz", providerId: "de:08212:37", latitude: 49.0101, longitude: 8.3949 },
+    { stopName: "Europaplatz", stopPointId: "de:08212:37" },
+    { stopName: "Europaplatz", stopPointId: "de:08212:37", latitude: 49.0101, longitude: 8.3949 },
   ]);
 
   assert.deepEqual(
@@ -24,22 +24,22 @@ test("an unlocated call stands where the catalog puts its stop; a stated positio
 test("outside the city, an unlocated call takes the position its stop was registered with", () => {
   const registry = new StopRegistry([]);
   registry.register({
-    providerId: "de:08237:1050",
+    stopPointId: "de:08237:1050",
     name: "Hauptbahnhof",
     placeName: "Freudenstadt",
     latitude: 48.4637,
     longitude: 8.4105,
   });
   const [call] = registry.toCalls([
-    { stopName: "Freudenstadt Hauptbahnhof", providerId: "de:08237:1050" },
+    { stopName: "Freudenstadt Hauptbahnhof", stopPointId: "de:08237:1050" },
   ]);
   assert.deepEqual([call.latitude, call.longitude], [48.4637, 8.4105]);
 });
 
 test("an unlocated call at a known rail platform stands at that platform", () => {
   const [street, tunnel] = new StopRegistry([]).toCalls([
-    { stopName: "Europaplatz", providerId: "de:08212:37", bay: "3" },
-    { stopName: "Europaplatz (U)", providerId: "de:08212:1004", bay: "1(U)" },
+    { stopName: "Europaplatz", stopPointId: "de:08212:37", bay: "3" },
+    { stopName: "Europaplatz (U)", stopPointId: "de:08212:1004", bay: "1(U)" },
   ]);
   for (const [call, key] of [
     [street, "de:08212:37|3"],

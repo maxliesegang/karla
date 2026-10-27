@@ -129,8 +129,8 @@ function isOnSharedLink(
   );
   const linkIndex = calls.findIndex(
     (call, index) =>
-      call.localStopId === placement.fromStopId &&
-      calls[index + 1]?.localStopId === placement.toStopId,
+      call.stopPlaceId === placement.fromStopId &&
+      calls[index + 1]?.stopPlaceId === placement.toStopId,
   );
   return sharedEndIndex >= 0 && linkIndex >= 0 && linkIndex < sharedEndIndex;
 }
@@ -163,7 +163,7 @@ export function buildLineDiagramStops(
     placeName: getStopPlaceQualifier(call, homePlaceName),
     bayTexts: isRepeatedStop(index) ? bayTextsByIndex[index] : undefined,
     stopId:
-      call.localStopId ??
+      call.stopPlaceId ??
       findStopByName(network, call.stopName)?.id ??
       createStopSlug(call.stopName),
     call,
@@ -287,7 +287,7 @@ function isDatedJourneyStillDueIn(
     if (isSameDatedJourney(stopEvent, waiting.stopEvent)) return false;
     const calls = stopEvent.calls ?? [];
     const finalCall = calls[calls.length - 1];
-    if (!statesDatedJourneyEnd(finalCall) || finalCall.localStopId !== waiting.fromStopId)
+    if (!statesDatedJourneyEnd(finalCall) || finalCall.stopPlaceId !== waiting.fromStopId)
       return false;
     const arrivesAt = getCallInstant(finalCall, "arrival");
     return arrivesAt !== undefined && arrivesAt <= leavesAt && feedNow < arrivesAt;
@@ -597,7 +597,7 @@ const callsAtStop = (
   stopIds: readonly string[],
 ): boolean =>
   isRowOfLine(stopEvent, lineId, identity) &&
-  Boolean(stopEvent.calls?.some((call) => call.localStopId && stopIds.includes(call.localStopId)));
+  Boolean(stopEvent.calls?.some((call) => call.stopPlaceId && stopIds.includes(call.stopPlaceId)));
 
 /**
  * Which row is the rider's stop. The address comes first because it is stable while boards re-key
@@ -607,11 +607,11 @@ export function getCurrentStopIndex(
   diagramStops: readonly Pick<LineDiagramStop, "stopId">[],
   stopId: string,
   /** Local, because the rows are. */
-  boardingLocalStopId: string | undefined,
+  boardingStopPlaceId: string | undefined,
 ): number {
   const addressed = diagramStops.findIndex((diagramStop) => diagramStop.stopId === stopId);
-  if (addressed >= 0 || !boardingLocalStopId) return addressed;
-  return diagramStops.findIndex((diagramStop) => diagramStop.stopId === boardingLocalStopId);
+  if (addressed >= 0 || !boardingStopPlaceId) return addressed;
+  return diagramStops.findIndex((diagramStop) => diagramStop.stopId === boardingStopPlaceId);
 }
 
 /** Whether a row is an occurrence of the open stop; a route reaching it twice has two. */

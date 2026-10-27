@@ -10,13 +10,13 @@ const readAt = Date.parse("2026-08-29T21:40:00Z");
 const callsWithDelay = (delayMinutes: number): Call[] => [
   {
     stopName: "Durlacher Tor/KIT-Campus Süd (U)",
-    localStopId: "durlacher-tor",
+    stopPlaceId: "durlacher-tor",
     timetabledDepartureTime: "2026-08-29T21:30:00Z",
     delayMinutes,
   },
   {
     stopName: "Kronenplatz (U)",
-    localStopId: "kronenplatz",
+    stopPlaceId: "kronenplatz",
     timetabledDepartureTime: "2026-08-29T21:32:00Z",
     delayMinutes,
   },
@@ -32,7 +32,7 @@ const stopEvent = (calls?: Call[]): StopEvent =>
     destinationText: "Durlach",
     minutesUntilDeparture: 2,
     bay: "1",
-    boardingLocalStopId: "durlacher-tor",
+    boardingStopPlaceId: "durlacher-tor",
     status: "realtime",
     timetabledDepartureTime: "2026-08-29T21:30:00Z",
     calls,

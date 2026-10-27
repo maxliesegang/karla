@@ -3,23 +3,23 @@
     "lineId": "S5",
     "calls": [
       {
-        "providerStopPointId": "de:08212:9",
+        "stopPointId": "de:08212:9",
         "stopName": "Weinweg",
         "bay": "1",
         "latitude": 49.004547,
         "longitude": 8.440858
       },
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "1b",
         "latitude": 49.006121,
         "longitude": 8.432539
       },
       {
-        "localStopId": "gottesauer-platz",
-        "providerStopPointId": "de:08212:6",
+        "stopPlaceId": "gottesauer-platz",
+        "stopPointId": "de:08212:6",
         "stopName": "Gottesauer Platz/BGV",
         "bay": "1",
         "latitude": 49.007606,
@@ -31,23 +31,23 @@
     "lineId": "S2",
     "calls": [
       {
-        "localStopId": "gottesauer-platz",
-        "providerStopPointId": "de:08212:6",
+        "stopPlaceId": "gottesauer-platz",
+        "stopPointId": "de:08212:6",
         "stopName": "Gottesauer Platz/BGV",
         "bay": "2",
         "latitude": 49.007405,
         "longitude": 8.425281
       },
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "4",
         "latitude": 49.007335,
         "longitude": 8.431542
       },
       {
-        "providerStopPointId": "de:08212:626",
+        "stopPointId": "de:08212:626",
         "stopName": "Essenweinstraße",
         "bay": "2",
         "latitude": 49.010128,
@@ -59,23 +59,23 @@
     "lineId": "1",
     "calls": [
       {
-        "providerStopPointId": "de:08212:9",
+        "stopPointId": "de:08212:9",
         "stopName": "Weinweg",
         "bay": "1",
         "latitude": 49.0045,
         "longitude": 8.441118
       },
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "1a",
         "latitude": 49.006292,
         "longitude": 8.43165
       },
       {
-        "localStopId": "gottesauer-platz",
-        "providerStopPointId": "de:08212:6",
+        "stopPlaceId": "gottesauer-platz",
+        "stopPointId": "de:08212:6",
         "stopName": "Gottesauer Platz/BGV",
         "bay": "1",
         "latitude": 49.007576,
@@ -87,23 +87,23 @@
     "lineId": "S5",
     "calls": [
       {
-        "localStopId": "gottesauer-platz",
-        "providerStopPointId": "de:08212:6",
+        "stopPlaceId": "gottesauer-platz",
+        "stopPointId": "de:08212:6",
         "stopName": "Gottesauer Platz/BGV",
         "bay": "2",
         "latitude": 49.007352,
         "longitude": 8.425551
       },
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "2b",
         "latitude": 49.005908,
         "longitude": 8.433528
       },
       {
-        "providerStopPointId": "de:08212:9",
+        "stopPointId": "de:08212:9",
         "stopName": "Weinweg",
         "bay": "2",
         "latitude": 49.004288,
@@ -115,23 +115,23 @@
     "lineId": "S4",
     "calls": [
       {
-        "localStopId": "gottesauer-platz",
-        "providerStopPointId": "de:08212:6",
+        "stopPlaceId": "gottesauer-platz",
+        "stopPointId": "de:08212:6",
         "stopName": "Gottesauer Platz/BGV",
         "bay": "2",
         "latitude": 49.007352,
         "longitude": 8.425551
       },
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "2b",
         "latitude": 49.005908,
         "longitude": 8.433528
       },
       {
-        "providerStopPointId": "de:08212:9",
+        "stopPointId": "de:08212:9",
         "stopName": "Weinweg",
         "bay": "2",
         "latitude": 49.004288,
@@ -143,23 +143,23 @@
     "lineId": "1",
     "calls": [
       {
-        "localStopId": "gottesauer-platz",
-        "providerStopPointId": "de:08212:6",
+        "stopPlaceId": "gottesauer-platz",
+        "stopPointId": "de:08212:6",
         "stopName": "Gottesauer Platz/BGV",
         "bay": "2",
         "latitude": 49.007405,
         "longitude": 8.425281
       },
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "2a",
         "latitude": 49.006097,
         "longitude": 8.432522
       },
       {
-        "providerStopPointId": "de:08212:9",
+        "stopPointId": "de:08212:9",
         "stopName": "Weinweg",
         "bay": "2",
         "latitude": 49.004312,
@@ -171,23 +171,23 @@
     "lineId": "S2",
     "calls": [
       {
-        "providerStopPointId": "de:08212:626",
+        "stopPointId": "de:08212:626",
         "stopName": "Essenweinstraße",
         "bay": "1",
         "latitude": 49.009314,
         "longitude": 8.431866
       },
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "3",
         "latitude": 49.006722,
         "longitude": 8.431291
       },
       {
-        "localStopId": "gottesauer-platz",
-        "providerStopPointId": "de:08212:6",
+        "stopPlaceId": "gottesauer-platz",
+        "stopPointId": "de:08212:6",
         "stopName": "Gottesauer Platz/BGV",
         "bay": "1",
         "latitude": 49.007576,
@@ -199,16 +199,16 @@
     "lineId": "S8",
     "calls": [
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "1b",
         "latitude": 49.006121,
         "longitude": 8.432539
       },
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "1b",
         "latitude": 49.006121,
@@ -220,23 +220,23 @@
     "lineId": "S51",
     "calls": [
       {
-        "localStopId": "gottesauer-platz",
-        "providerStopPointId": "de:08212:6",
+        "stopPlaceId": "gottesauer-platz",
+        "stopPointId": "de:08212:6",
         "stopName": "Gottesauer Platz/BGV",
         "bay": "2",
         "latitude": 49.007352,
         "longitude": 8.425551
       },
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "2b",
         "latitude": 49.005908,
         "longitude": 8.433528
       },
       {
-        "providerStopPointId": "de:08212:9",
+        "stopPointId": "de:08212:9",
         "stopName": "Weinweg",
         "bay": "2",
         "latitude": 49.004288,
@@ -248,23 +248,23 @@
     "lineId": "5",
     "calls": [
       {
-        "providerStopPointId": "de:08212:9022",
+        "stopPointId": "de:08212:9022",
         "stopName": "Tullastraße (22)",
         "bay": "2",
         "latitude": 49.007812,
         "longitude": 8.433123
       },
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "3",
         "latitude": 49.006722,
         "longitude": 8.431291
       },
       {
-        "localStopId": "schloss-gottesaue",
-        "providerStopPointId": "de:08212:624",
+        "stopPlaceId": "schloss-gottesaue",
+        "stopPointId": "de:08212:624",
         "stopName": "Schloss Gottesaue",
         "bay": "1",
         "latitude": 49.003652,
@@ -276,23 +276,23 @@
     "lineId": "S51",
     "calls": [
       {
-        "providerStopPointId": "de:08212:9",
+        "stopPointId": "de:08212:9",
         "stopName": "Weinweg",
         "bay": "1",
         "latitude": 49.004547,
         "longitude": 8.440858
       },
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "1b",
         "latitude": 49.006121,
         "longitude": 8.432539
       },
       {
-        "localStopId": "gottesauer-platz",
-        "providerStopPointId": "de:08212:6",
+        "stopPlaceId": "gottesauer-platz",
+        "stopPointId": "de:08212:6",
         "stopName": "Gottesauer Platz/BGV",
         "bay": "1",
         "latitude": 49.007606,
@@ -304,23 +304,23 @@
     "lineId": "S4",
     "calls": [
       {
-        "providerStopPointId": "de:08212:9",
+        "stopPointId": "de:08212:9",
         "stopName": "Weinweg",
         "bay": "1",
         "latitude": 49.004547,
         "longitude": 8.440858
       },
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "1b",
         "latitude": 49.006121,
         "longitude": 8.432539
       },
       {
-        "localStopId": "gottesauer-platz",
-        "providerStopPointId": "de:08212:6",
+        "stopPlaceId": "gottesauer-platz",
+        "stopPointId": "de:08212:6",
         "stopName": "Gottesauer Platz/BGV",
         "bay": "1",
         "latitude": 49.007606,
@@ -332,16 +332,16 @@
     "lineId": "S7",
     "calls": [
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "1b",
         "latitude": 49.006121,
         "longitude": 8.432539
       },
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "1b",
         "latitude": 49.006121,
@@ -353,24 +353,24 @@
     "lineId": "5",
     "calls": [
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "3",
         "latitude": 49.006722,
         "longitude": 8.431291
       },
       {
-        "localStopId": "schloss-gottesaue",
-        "providerStopPointId": "de:08212:624",
+        "stopPlaceId": "schloss-gottesaue",
+        "stopPointId": "de:08212:624",
         "stopName": "Schloss Gottesaue",
         "bay": "1",
         "latitude": 49.003652,
         "longitude": 8.426925
       },
       {
-        "localStopId": "wolfartsweierer-strasse",
-        "providerStopPointId": "de:08212:623",
+        "stopPlaceId": "wolfartsweierer-strasse",
+        "stopPointId": "de:08212:623",
         "stopName": "Wolfartsweierer Straße",
         "bay": "1",
         "latitude": 49.003563,
@@ -382,24 +382,24 @@
     "lineId": "5",
     "calls": [
       {
-        "localStopId": "wolfartsweierer-strasse",
-        "providerStopPointId": "de:08212:623",
+        "stopPlaceId": "wolfartsweierer-strasse",
+        "stopPointId": "de:08212:623",
         "stopName": "Wolfartsweierer Straße",
         "bay": "2",
         "latitude": 49.003398,
         "longitude": 8.423637
       },
       {
-        "localStopId": "schloss-gottesaue",
-        "providerStopPointId": "de:08212:624",
+        "stopPlaceId": "schloss-gottesaue",
+        "stopPointId": "de:08212:624",
         "stopName": "Schloss Gottesaue",
         "bay": "2",
         "latitude": 49.003634,
         "longitude": 8.427949
       },
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "2a",
         "latitude": 49.006097,
@@ -411,24 +411,24 @@
     "lineId": "E",
     "calls": [
       {
-        "localStopId": "wolfartsweierer-strasse",
-        "providerStopPointId": "de:08212:623",
+        "stopPlaceId": "wolfartsweierer-strasse",
+        "stopPointId": "de:08212:623",
         "stopName": "Wolfartsweierer Straße",
         "bay": "2",
         "latitude": 49.003398,
         "longitude": 8.423637
       },
       {
-        "localStopId": "schloss-gottesaue",
-        "providerStopPointId": "de:08212:624",
+        "stopPlaceId": "schloss-gottesaue",
+        "stopPointId": "de:08212:624",
         "stopName": "Schloss Gottesaue",
         "bay": "2",
         "latitude": 49.003634,
         "longitude": 8.427949
       },
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "4",
         "latitude": 49.007335,
@@ -440,24 +440,24 @@
     "lineId": "E",
     "calls": [
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "3",
         "latitude": 49.006722,
         "longitude": 8.431291
       },
       {
-        "localStopId": "schloss-gottesaue",
-        "providerStopPointId": "de:08212:624",
+        "stopPlaceId": "schloss-gottesaue",
+        "stopPointId": "de:08212:624",
         "stopName": "Schloss Gottesaue",
         "bay": "1",
         "latitude": 49.003652,
         "longitude": 8.426925
       },
       {
-        "localStopId": "wolfartsweierer-strasse",
-        "providerStopPointId": "de:08212:623",
+        "stopPlaceId": "wolfartsweierer-strasse",
+        "stopPointId": "de:08212:623",
         "stopName": "Wolfartsweierer Straße",
         "bay": "1",
         "latitude": 49.003563,
@@ -469,24 +469,24 @@
     "lineId": "S1",
     "calls": [
       {
-        "localStopId": "muehlburger-tor",
-        "providerStopPointId": "de:08212:39",
+        "stopPlaceId": "muehlburger-tor",
+        "stopPointId": "de:08212:39",
         "stopName": "Mühlburger Tor",
         "bay": "2a",
         "latitude": 49.010552,
         "longitude": 8.383653
       },
       {
-        "localStopId": "europaplatz",
-        "providerStopPointId": "de:08212:1004",
+        "stopPlaceId": "europaplatz",
+        "stopPointId": "de:08212:1004",
         "stopName": "Europaplatz (U)",
         "bay": "2(U)",
         "latitude": 49.009998,
         "longitude": 8.39464
       },
       {
-        "localStopId": "marktplatz",
-        "providerStopPointId": "de:08212:1003",
+        "stopPlaceId": "marktplatz",
+        "stopPointId": "de:08212:1003",
         "stopName": "Marktplatz (Kaiserstraße U)",
         "bay": "2(U)",
         "latitude": 49.009615,
@@ -498,24 +498,24 @@
     "lineId": "S2",
     "calls": [
       {
-        "localStopId": "marktplatz",
-        "providerStopPointId": "de:08212:1003",
+        "stopPlaceId": "marktplatz",
+        "stopPointId": "de:08212:1003",
         "stopName": "Marktplatz (Kaiserstraße U)",
         "bay": "1(U)",
         "latitude": 49.009709,
         "longitude": 8.401673
       },
       {
-        "localStopId": "europaplatz",
-        "providerStopPointId": "de:08212:1004",
+        "stopPlaceId": "europaplatz",
+        "stopPointId": "de:08212:1004",
         "stopName": "Europaplatz (U)",
         "bay": "1(U)",
         "latitude": 49.010069,
         "longitude": 8.393714
       },
       {
-        "localStopId": "muehlburger-tor",
-        "providerStopPointId": "de:08212:39",
+        "stopPlaceId": "muehlburger-tor",
+        "stopPointId": "de:08212:39",
         "stopName": "Mühlburger Tor",
         "bay": "1a",
         "latitude": 49.010617,
@@ -527,24 +527,24 @@
     "lineId": "1",
     "calls": [
       {
-        "localStopId": "muehlburger-tor",
-        "providerStopPointId": "de:08212:39",
+        "stopPlaceId": "muehlburger-tor",
+        "stopPointId": "de:08212:39",
         "stopName": "Mühlburger Tor",
         "bay": "4",
         "latitude": 49.010911,
         "longitude": 8.384534
       },
       {
-        "localStopId": "europaplatz",
-        "providerStopPointId": "de:08212:1004",
+        "stopPlaceId": "europaplatz",
+        "stopPointId": "de:08212:1004",
         "stopName": "Europaplatz (U)",
         "bay": "2(U)",
         "latitude": 49.009998,
         "longitude": 8.39464
       },
       {
-        "localStopId": "marktplatz",
-        "providerStopPointId": "de:08212:1003",
+        "stopPlaceId": "marktplatz",
+        "stopPointId": "de:08212:1003",
         "stopName": "Marktplatz (Kaiserstraße U)",
         "bay": "2(U)",
         "latitude": 49.009615,
@@ -556,24 +556,24 @@
     "lineId": "3",
     "calls": [
       {
-        "localStopId": "karlstor",
-        "providerStopPointId": "de:08212:61",
+        "stopPlaceId": "karlstor",
+        "stopPointId": "de:08212:61",
         "stopName": "Karlstor/Bundesgerichtshof",
         "bay": "3",
         "latitude": 49.005184,
         "longitude": 8.394622
       },
       {
-        "localStopId": "europaplatz",
-        "providerStopPointId": "de:08212:37",
+        "stopPlaceId": "europaplatz",
+        "stopPointId": "de:08212:37",
         "stopName": "Europaplatz",
         "bay": "3",
         "latitude": 49.009674,
         "longitude": 8.394999
       },
       {
-        "localStopId": "europaplatz",
-        "providerStopPointId": "de:08212:37",
+        "stopPlaceId": "europaplatz",
+        "stopPointId": "de:08212:37",
         "stopName": "Europaplatz",
         "bay": "5",
         "latitude": 49.01008,
@@ -585,24 +585,24 @@
     "lineId": "3",
     "calls": [
       {
-        "localStopId": "europaplatz",
-        "providerStopPointId": "de:08212:37",
+        "stopPlaceId": "europaplatz",
+        "stopPointId": "de:08212:37",
         "stopName": "Europaplatz",
         "bay": "3",
         "latitude": 49.009674,
         "longitude": 8.394999
       },
       {
-        "localStopId": "europaplatz",
-        "providerStopPointId": "de:08212:37",
+        "stopPlaceId": "europaplatz",
+        "stopPointId": "de:08212:37",
         "stopName": "Europaplatz",
         "bay": "5",
         "latitude": 49.01008,
         "longitude": 8.393669
       },
       {
-        "localStopId": "muehlburger-tor",
-        "providerStopPointId": "de:08212:39",
+        "stopPlaceId": "muehlburger-tor",
+        "stopPointId": "de:08212:39",
         "stopName": "Mühlburger Tor",
         "bay": "1a",
         "latitude": 49.010617,
@@ -614,24 +614,24 @@
     "lineId": "S11",
     "calls": [
       {
-        "localStopId": "marktplatz",
-        "providerStopPointId": "de:08212:1003",
+        "stopPlaceId": "marktplatz",
+        "stopPointId": "de:08212:1003",
         "stopName": "Marktplatz (Kaiserstraße U)",
         "bay": "1(U)",
         "latitude": 49.009709,
         "longitude": 8.401673
       },
       {
-        "localStopId": "europaplatz",
-        "providerStopPointId": "de:08212:1004",
+        "stopPlaceId": "europaplatz",
+        "stopPointId": "de:08212:1004",
         "stopName": "Europaplatz (U)",
         "bay": "1(U)",
         "latitude": 49.010069,
         "longitude": 8.393714
       },
       {
-        "localStopId": "muehlburger-tor",
-        "providerStopPointId": "de:08212:39",
+        "stopPlaceId": "muehlburger-tor",
+        "stopPointId": "de:08212:39",
         "stopName": "Mühlburger Tor",
         "bay": "1a",
         "latitude": 49.010617,
@@ -643,24 +643,24 @@
     "lineId": "S5",
     "calls": [
       {
-        "localStopId": "marktplatz",
-        "providerStopPointId": "de:08212:1003",
+        "stopPlaceId": "marktplatz",
+        "stopPointId": "de:08212:1003",
         "stopName": "Marktplatz (Kaiserstraße U)",
         "bay": "1(U)",
         "latitude": 49.009721,
         "longitude": 8.401539
       },
       {
-        "localStopId": "europaplatz",
-        "providerStopPointId": "de:08212:1004",
+        "stopPlaceId": "europaplatz",
+        "stopPointId": "de:08212:1004",
         "stopName": "Europaplatz (U)",
         "bay": "1(U)",
         "latitude": 49.010075,
         "longitude": 8.39358
       },
       {
-        "localStopId": "muehlburger-tor",
-        "providerStopPointId": "de:08212:39",
+        "stopPlaceId": "muehlburger-tor",
+        "stopPointId": "de:08212:39",
         "stopName": "Mühlburger Tor",
         "bay": "1b",
         "latitude": 49.01067,
@@ -672,24 +672,24 @@
     "lineId": "S51",
     "calls": [
       {
-        "localStopId": "muehlburger-tor",
-        "providerStopPointId": "de:08212:39",
+        "stopPlaceId": "muehlburger-tor",
+        "stopPointId": "de:08212:39",
         "stopName": "Mühlburger Tor",
         "bay": "2b",
         "latitude": 49.010593,
         "longitude": 8.382638
       },
       {
-        "localStopId": "europaplatz",
-        "providerStopPointId": "de:08212:1004",
+        "stopPlaceId": "europaplatz",
+        "stopPointId": "de:08212:1004",
         "stopName": "Europaplatz (U)",
         "bay": "2(U)",
         "latitude": 49.009992,
         "longitude": 8.394756
       },
       {
-        "localStopId": "marktplatz",
-        "providerStopPointId": "de:08212:1003",
+        "stopPlaceId": "marktplatz",
+        "stopPointId": "de:08212:1003",
         "stopName": "Marktplatz (Kaiserstraße U)",
         "bay": "2(U)",
         "latitude": 49.009609,
@@ -701,23 +701,23 @@
     "lineId": "5",
     "calls": [
       {
-        "providerStopPointId": "de:08212:38",
+        "stopPointId": "de:08212:38",
         "stopName": "Europaplatz/Mühlburger Tor (Wende)",
         "bay": "3",
         "latitude": 49.010181,
         "longitude": 8.388351
       },
       {
-        "localStopId": "europaplatz",
-        "providerStopPointId": "de:08212:37",
+        "stopPlaceId": "europaplatz",
+        "stopPointId": "de:08212:37",
         "stopName": "Europaplatz",
         "bay": "4",
         "latitude": 49.009409,
         "longitude": 8.394927
       },
       {
-        "localStopId": "karlstor",
-        "providerStopPointId": "de:08212:61",
+        "stopPlaceId": "karlstor",
+        "stopPointId": "de:08212:61",
         "stopName": "Karlstor/Bundesgerichtshof",
         "bay": "2",
         "latitude": 49.005467,
@@ -729,24 +729,24 @@
     "lineId": "S11",
     "calls": [
       {
-        "localStopId": "muehlburger-tor",
-        "providerStopPointId": "de:08212:39",
+        "stopPlaceId": "muehlburger-tor",
+        "stopPointId": "de:08212:39",
         "stopName": "Mühlburger Tor",
         "bay": "2a",
         "latitude": 49.010552,
         "longitude": 8.383653
       },
       {
-        "localStopId": "europaplatz",
-        "providerStopPointId": "de:08212:1004",
+        "stopPlaceId": "europaplatz",
+        "stopPointId": "de:08212:1004",
         "stopName": "Europaplatz (U)",
         "bay": "2(U)",
         "latitude": 49.009998,
         "longitude": 8.39464
       },
       {
-        "localStopId": "marktplatz",
-        "providerStopPointId": "de:08212:1003",
+        "stopPlaceId": "marktplatz",
+        "stopPointId": "de:08212:1003",
         "stopName": "Marktplatz (Kaiserstraße U)",
         "bay": "2(U)",
         "latitude": 49.009615,
@@ -758,24 +758,24 @@
     "lineId": "3",
     "calls": [
       {
-        "localStopId": "muehlburger-tor",
-        "providerStopPointId": "de:08212:39",
+        "stopPlaceId": "muehlburger-tor",
+        "stopPointId": "de:08212:39",
         "stopName": "Mühlburger Tor",
         "bay": "2a",
         "latitude": 49.010552,
         "longitude": 8.383653
       },
       {
-        "localStopId": "europaplatz",
-        "providerStopPointId": "de:08212:37",
+        "stopPlaceId": "europaplatz",
+        "stopPointId": "de:08212:37",
         "stopName": "Europaplatz",
         "bay": "4",
         "latitude": 49.009409,
         "longitude": 8.394927
       },
       {
-        "localStopId": "karlstor",
-        "providerStopPointId": "de:08212:61",
+        "stopPlaceId": "karlstor",
+        "stopPointId": "de:08212:61",
         "stopName": "Karlstor/Bundesgerichtshof",
         "bay": "4",
         "latitude": 49.004423,
@@ -787,24 +787,24 @@
     "lineId": "1",
     "calls": [
       {
-        "localStopId": "marktplatz",
-        "providerStopPointId": "de:08212:1003",
+        "stopPlaceId": "marktplatz",
+        "stopPointId": "de:08212:1003",
         "stopName": "Marktplatz (Kaiserstraße U)",
         "bay": "1(U)",
         "latitude": 49.009709,
         "longitude": 8.401673
       },
       {
-        "localStopId": "europaplatz",
-        "providerStopPointId": "de:08212:1004",
+        "stopPlaceId": "europaplatz",
+        "stopPointId": "de:08212:1004",
         "stopName": "Europaplatz (U)",
         "bay": "1(U)",
         "latitude": 49.010069,
         "longitude": 8.393714
       },
       {
-        "localStopId": "muehlburger-tor",
-        "providerStopPointId": "de:08212:39",
+        "stopPlaceId": "muehlburger-tor",
+        "stopPointId": "de:08212:39",
         "stopName": "Mühlburger Tor",
         "bay": "3",
         "latitude": 49.011353,
@@ -816,24 +816,24 @@
     "lineId": "S2",
     "calls": [
       {
-        "localStopId": "muehlburger-tor",
-        "providerStopPointId": "de:08212:39",
+        "stopPlaceId": "muehlburger-tor",
+        "stopPointId": "de:08212:39",
         "stopName": "Mühlburger Tor",
         "bay": "2a",
         "latitude": 49.010552,
         "longitude": 8.383653
       },
       {
-        "localStopId": "europaplatz",
-        "providerStopPointId": "de:08212:1004",
+        "stopPlaceId": "europaplatz",
+        "stopPointId": "de:08212:1004",
         "stopName": "Europaplatz (U)",
         "bay": "2(U)",
         "latitude": 49.009998,
         "longitude": 8.39464
       },
       {
-        "localStopId": "marktplatz",
-        "providerStopPointId": "de:08212:1003",
+        "stopPlaceId": "marktplatz",
+        "stopPointId": "de:08212:1003",
         "stopName": "Marktplatz (Kaiserstraße U)",
         "bay": "2(U)",
         "latitude": 49.009615,
@@ -845,24 +845,24 @@
     "lineId": "S1",
     "calls": [
       {
-        "localStopId": "marktplatz",
-        "providerStopPointId": "de:08212:1003",
+        "stopPlaceId": "marktplatz",
+        "stopPointId": "de:08212:1003",
         "stopName": "Marktplatz (Kaiserstraße U)",
         "bay": "1(U)",
         "latitude": 49.009709,
         "longitude": 8.401673
       },
       {
-        "localStopId": "europaplatz",
-        "providerStopPointId": "de:08212:1004",
+        "stopPlaceId": "europaplatz",
+        "stopPointId": "de:08212:1004",
         "stopName": "Europaplatz (U)",
         "bay": "1(U)",
         "latitude": 49.010069,
         "longitude": 8.393714
       },
       {
-        "localStopId": "muehlburger-tor",
-        "providerStopPointId": "de:08212:39",
+        "stopPlaceId": "muehlburger-tor",
+        "stopPointId": "de:08212:39",
         "stopName": "Mühlburger Tor",
         "bay": "1a",
         "latitude": 49.010617,
@@ -874,24 +874,24 @@
     "lineId": "4",
     "calls": [
       {
-        "localStopId": "karlstor",
-        "providerStopPointId": "de:08212:61",
+        "stopPlaceId": "karlstor",
+        "stopPointId": "de:08212:61",
         "stopName": "Karlstor/Bundesgerichtshof",
         "bay": "1",
         "latitude": 49.005502,
         "longitude": 8.395421
       },
       {
-        "localStopId": "europaplatz",
-        "providerStopPointId": "de:08212:37",
+        "stopPlaceId": "europaplatz",
+        "stopPointId": "de:08212:37",
         "stopName": "Europaplatz",
         "bay": "3",
         "latitude": 49.009674,
         "longitude": 8.394999
       },
       {
-        "localStopId": "europaplatz",
-        "providerStopPointId": "de:08212:37",
+        "stopPlaceId": "europaplatz",
+        "stopPointId": "de:08212:37",
         "stopName": "Europaplatz",
         "bay": "5",
         "latitude": 49.01008,
@@ -903,24 +903,24 @@
     "lineId": "4",
     "calls": [
       {
-        "localStopId": "europaplatz",
-        "providerStopPointId": "de:08212:37",
+        "stopPlaceId": "europaplatz",
+        "stopPointId": "de:08212:37",
         "stopName": "Europaplatz",
         "bay": "3",
         "latitude": 49.009674,
         "longitude": 8.394999
       },
       {
-        "localStopId": "europaplatz",
-        "providerStopPointId": "de:08212:37",
+        "stopPlaceId": "europaplatz",
+        "stopPointId": "de:08212:37",
         "stopName": "Europaplatz",
         "bay": "5",
         "latitude": 49.01008,
         "longitude": 8.393669
       },
       {
-        "localStopId": "muehlburger-tor",
-        "providerStopPointId": "de:08212:39",
+        "stopPlaceId": "muehlburger-tor",
+        "stopPointId": "de:08212:39",
         "stopName": "Mühlburger Tor",
         "bay": "1a",
         "latitude": 49.010617,
@@ -932,24 +932,24 @@
     "lineId": "S5",
     "calls": [
       {
-        "localStopId": "muehlburger-tor",
-        "providerStopPointId": "de:08212:39",
+        "stopPlaceId": "muehlburger-tor",
+        "stopPointId": "de:08212:39",
         "stopName": "Mühlburger Tor",
         "bay": "2b",
         "latitude": 49.010593,
         "longitude": 8.382638
       },
       {
-        "localStopId": "europaplatz",
-        "providerStopPointId": "de:08212:1004",
+        "stopPlaceId": "europaplatz",
+        "stopPointId": "de:08212:1004",
         "stopName": "Europaplatz (U)",
         "bay": "2(U)",
         "latitude": 49.009992,
         "longitude": 8.394756
       },
       {
-        "localStopId": "marktplatz",
-        "providerStopPointId": "de:08212:1003",
+        "stopPlaceId": "marktplatz",
+        "stopPointId": "de:08212:1003",
         "stopName": "Marktplatz (Kaiserstraße U)",
         "bay": "2(U)",
         "latitude": 49.009609,
@@ -961,24 +961,24 @@
     "lineId": "4",
     "calls": [
       {
-        "localStopId": "muehlburger-tor",
-        "providerStopPointId": "de:08212:39",
+        "stopPlaceId": "muehlburger-tor",
+        "stopPointId": "de:08212:39",
         "stopName": "Mühlburger Tor",
         "bay": "2a",
         "latitude": 49.010552,
         "longitude": 8.383653
       },
       {
-        "localStopId": "europaplatz",
-        "providerStopPointId": "de:08212:37",
+        "stopPlaceId": "europaplatz",
+        "stopPointId": "de:08212:37",
         "stopName": "Europaplatz",
         "bay": "4",
         "latitude": 49.009409,
         "longitude": 8.394927
       },
       {
-        "localStopId": "karlstor",
-        "providerStopPointId": "de:08212:61",
+        "stopPlaceId": "karlstor",
+        "stopPointId": "de:08212:61",
         "stopName": "Karlstor/Bundesgerichtshof",
         "bay": "2",
         "latitude": 49.005467,
@@ -990,24 +990,24 @@
     "lineId": "S51",
     "calls": [
       {
-        "localStopId": "marktplatz",
-        "providerStopPointId": "de:08212:1003",
+        "stopPlaceId": "marktplatz",
+        "stopPointId": "de:08212:1003",
         "stopName": "Marktplatz (Kaiserstraße U)",
         "bay": "1(U)",
         "latitude": 49.009721,
         "longitude": 8.401539
       },
       {
-        "localStopId": "europaplatz",
-        "providerStopPointId": "de:08212:1004",
+        "stopPlaceId": "europaplatz",
+        "stopPointId": "de:08212:1004",
         "stopName": "Europaplatz (U)",
         "bay": "1(U)",
         "latitude": 49.010075,
         "longitude": 8.39358
       },
       {
-        "localStopId": "muehlburger-tor",
-        "providerStopPointId": "de:08212:39",
+        "stopPlaceId": "muehlburger-tor",
+        "stopPointId": "de:08212:39",
         "stopName": "Mühlburger Tor",
         "bay": "1b",
         "latitude": 49.01067,
@@ -1019,24 +1019,24 @@
     "lineId": "S2",
     "calls": [
       {
-        "localStopId": "durlacher-tor",
-        "providerStopPointId": "de:08212:1001",
+        "stopPlaceId": "durlacher-tor",
+        "stopPointId": "de:08212:1001",
         "stopName": "Durlacher Tor/KIT-Campus Süd (U)",
         "bay": "2(U)",
         "latitude": 49.008843,
         "longitude": 8.4176
       },
       {
-        "localStopId": "gottesauer-platz",
-        "providerStopPointId": "de:08212:6",
+        "stopPlaceId": "gottesauer-platz",
+        "stopPointId": "de:08212:6",
         "stopName": "Gottesauer Platz/BGV",
         "bay": "2",
         "latitude": 49.007405,
         "longitude": 8.425281
       },
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "4",
         "latitude": 49.007335,
@@ -1048,24 +1048,24 @@
     "lineId": "S5",
     "calls": [
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "1b",
         "latitude": 49.006121,
         "longitude": 8.432539
       },
       {
-        "localStopId": "gottesauer-platz",
-        "providerStopPointId": "de:08212:6",
+        "stopPlaceId": "gottesauer-platz",
+        "stopPointId": "de:08212:6",
         "stopName": "Gottesauer Platz/BGV",
         "bay": "1",
         "latitude": 49.007606,
         "longitude": 8.424383
       },
       {
-        "localStopId": "durlacher-tor",
-        "providerStopPointId": "de:08212:1001",
+        "stopPlaceId": "durlacher-tor",
+        "stopPointId": "de:08212:1001",
         "stopName": "Durlacher Tor/KIT-Campus Süd (U)",
         "bay": "1(U)",
         "latitude": 49.00902,
@@ -1077,24 +1077,24 @@
     "lineId": "S5",
     "calls": [
       {
-        "localStopId": "durlacher-tor",
-        "providerStopPointId": "de:08212:1001",
+        "stopPlaceId": "durlacher-tor",
+        "stopPointId": "de:08212:1001",
         "stopName": "Durlacher Tor/KIT-Campus Süd (U)",
         "bay": "2(U)",
         "latitude": 49.008825,
         "longitude": 8.417735
       },
       {
-        "localStopId": "gottesauer-platz",
-        "providerStopPointId": "de:08212:6",
+        "stopPlaceId": "gottesauer-platz",
+        "stopPointId": "de:08212:6",
         "stopName": "Gottesauer Platz/BGV",
         "bay": "2",
         "latitude": 49.007352,
         "longitude": 8.425551
       },
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "2b",
         "latitude": 49.005908,
@@ -1106,24 +1106,24 @@
     "lineId": "1",
     "calls": [
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "1a",
         "latitude": 49.006292,
         "longitude": 8.43165
       },
       {
-        "localStopId": "gottesauer-platz",
-        "providerStopPointId": "de:08212:6",
+        "stopPlaceId": "gottesauer-platz",
+        "stopPointId": "de:08212:6",
         "stopName": "Gottesauer Platz/BGV",
         "bay": "1",
         "latitude": 49.007576,
         "longitude": 8.424553
       },
       {
-        "localStopId": "durlacher-tor",
-        "providerStopPointId": "de:08212:1001",
+        "stopPlaceId": "durlacher-tor",
+        "stopPointId": "de:08212:1001",
         "stopName": "Durlacher Tor/KIT-Campus Süd (U)",
         "bay": "1(U)",
         "latitude": 49.009002,
@@ -1135,24 +1135,24 @@
     "lineId": "S4",
     "calls": [
       {
-        "localStopId": "durlacher-tor",
-        "providerStopPointId": "de:08212:1001",
+        "stopPlaceId": "durlacher-tor",
+        "stopPointId": "de:08212:1001",
         "stopName": "Durlacher Tor/KIT-Campus Süd (U)",
         "bay": "2(U)",
         "latitude": 49.008825,
         "longitude": 8.417735
       },
       {
-        "localStopId": "gottesauer-platz",
-        "providerStopPointId": "de:08212:6",
+        "stopPlaceId": "gottesauer-platz",
+        "stopPointId": "de:08212:6",
         "stopName": "Gottesauer Platz/BGV",
         "bay": "2",
         "latitude": 49.007352,
         "longitude": 8.425551
       },
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "2b",
         "latitude": 49.005908,
@@ -1164,24 +1164,24 @@
     "lineId": "1",
     "calls": [
       {
-        "localStopId": "durlacher-tor",
-        "providerStopPointId": "de:08212:1001",
+        "stopPlaceId": "durlacher-tor",
+        "stopPointId": "de:08212:1001",
         "stopName": "Durlacher Tor/KIT-Campus Süd (U)",
         "bay": "2(U)",
         "latitude": 49.008843,
         "longitude": 8.4176
       },
       {
-        "localStopId": "gottesauer-platz",
-        "providerStopPointId": "de:08212:6",
+        "stopPlaceId": "gottesauer-platz",
+        "stopPointId": "de:08212:6",
         "stopName": "Gottesauer Platz/BGV",
         "bay": "2",
         "latitude": 49.007405,
         "longitude": 8.425281
       },
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "2a",
         "latitude": 49.006097,
@@ -1193,24 +1193,24 @@
     "lineId": "S51",
     "calls": [
       {
-        "localStopId": "durlacher-tor",
-        "providerStopPointId": "de:08212:1001",
+        "stopPlaceId": "durlacher-tor",
+        "stopPointId": "de:08212:1001",
         "stopName": "Durlacher Tor/KIT-Campus Süd (U)",
         "bay": "2(U)",
         "latitude": 49.008825,
         "longitude": 8.417735
       },
       {
-        "localStopId": "gottesauer-platz",
-        "providerStopPointId": "de:08212:6",
+        "stopPlaceId": "gottesauer-platz",
+        "stopPointId": "de:08212:6",
         "stopName": "Gottesauer Platz/BGV",
         "bay": "2",
         "latitude": 49.007352,
         "longitude": 8.425551
       },
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "2b",
         "latitude": 49.005908,
@@ -1222,24 +1222,24 @@
     "lineId": "S2",
     "calls": [
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "3",
         "latitude": 49.006722,
         "longitude": 8.431291
       },
       {
-        "localStopId": "gottesauer-platz",
-        "providerStopPointId": "de:08212:6",
+        "stopPlaceId": "gottesauer-platz",
+        "stopPointId": "de:08212:6",
         "stopName": "Gottesauer Platz/BGV",
         "bay": "1",
         "latitude": 49.007576,
         "longitude": 8.424553
       },
       {
-        "localStopId": "durlacher-tor",
-        "providerStopPointId": "de:08212:1001",
+        "stopPlaceId": "durlacher-tor",
+        "stopPointId": "de:08212:1001",
         "stopName": "Durlacher Tor/KIT-Campus Süd (U)",
         "bay": "1(U)",
         "latitude": 49.009002,
@@ -1251,24 +1251,24 @@
     "lineId": "S8",
     "calls": [
       {
-        "localStopId": "durlacher-tor",
-        "providerStopPointId": "de:08212:1001",
+        "stopPlaceId": "durlacher-tor",
+        "stopPointId": "de:08212:1001",
         "stopName": "Durlacher Tor/KIT-Campus Süd (U)",
         "bay": "2(U)",
         "latitude": 49.008825,
         "longitude": 8.417735
       },
       {
-        "localStopId": "gottesauer-platz",
-        "providerStopPointId": "de:08212:6",
+        "stopPlaceId": "gottesauer-platz",
+        "stopPointId": "de:08212:6",
         "stopName": "Gottesauer Platz/BGV",
         "bay": "2",
         "latitude": 49.007352,
         "longitude": 8.425551
       },
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "4",
         "latitude": 49.007335,
@@ -1280,24 +1280,24 @@
     "lineId": "S8",
     "calls": [
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "1b",
         "latitude": 49.006121,
         "longitude": 8.432539
       },
       {
-        "localStopId": "gottesauer-platz",
-        "providerStopPointId": "de:08212:6",
+        "stopPlaceId": "gottesauer-platz",
+        "stopPointId": "de:08212:6",
         "stopName": "Gottesauer Platz/BGV",
         "bay": "1",
         "latitude": 49.007606,
         "longitude": 8.424383
       },
       {
-        "localStopId": "durlacher-tor",
-        "providerStopPointId": "de:08212:1001",
+        "stopPlaceId": "durlacher-tor",
+        "stopPointId": "de:08212:1001",
         "stopName": "Durlacher Tor/KIT-Campus Süd (U)",
         "bay": "1(U)",
         "latitude": 49.00902,
@@ -1309,24 +1309,24 @@
     "lineId": "S51",
     "calls": [
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "1b",
         "latitude": 49.006121,
         "longitude": 8.432539
       },
       {
-        "localStopId": "gottesauer-platz",
-        "providerStopPointId": "de:08212:6",
+        "stopPlaceId": "gottesauer-platz",
+        "stopPointId": "de:08212:6",
         "stopName": "Gottesauer Platz/BGV",
         "bay": "1",
         "latitude": 49.007606,
         "longitude": 8.424383
       },
       {
-        "localStopId": "durlacher-tor",
-        "providerStopPointId": "de:08212:1001",
+        "stopPlaceId": "durlacher-tor",
+        "stopPointId": "de:08212:1001",
         "stopName": "Durlacher Tor/KIT-Campus Süd (U)",
         "bay": "1(U)",
         "latitude": 49.00902,
@@ -1338,24 +1338,24 @@
     "lineId": "S4",
     "calls": [
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "1b",
         "latitude": 49.006121,
         "longitude": 8.432539
       },
       {
-        "localStopId": "gottesauer-platz",
-        "providerStopPointId": "de:08212:6",
+        "stopPlaceId": "gottesauer-platz",
+        "stopPointId": "de:08212:6",
         "stopName": "Gottesauer Platz/BGV",
         "bay": "1",
         "latitude": 49.007606,
         "longitude": 8.424383
       },
       {
-        "localStopId": "durlacher-tor",
-        "providerStopPointId": "de:08212:1001",
+        "stopPlaceId": "durlacher-tor",
+        "stopPointId": "de:08212:1001",
         "stopName": "Durlacher Tor/KIT-Campus Süd (U)",
         "bay": "1(U)",
         "latitude": 49.00902,
@@ -1367,24 +1367,24 @@
     "lineId": "S7",
     "calls": [
       {
-        "localStopId": "tullastrasse",
-        "providerStopPointId": "de:08212:7",
+        "stopPlaceId": "tullastrasse",
+        "stopPointId": "de:08212:7",
         "stopName": "Tullastraße/Alter Schlachthof",
         "bay": "1b",
         "latitude": 49.006121,
         "longitude": 8.432539
       },
       {
-        "localStopId": "gottesauer-platz",
-        "providerStopPointId": "de:08212:6",
+        "stopPlaceId": "gottesauer-platz",
+        "stopPointId": "de:08212:6",
         "stopName": "Gottesauer Platz/BGV",
         "bay": "1",
         "latitude": 49.007606,
         "longitude": 8.424383
       },
       {
-        "localStopId": "durlacher-tor",
-        "providerStopPointId": "de:08212:1001",
+        "stopPlaceId": "durlacher-tor",
+        "stopPointId": "de:08212:1001",
         "stopName": "Durlacher Tor/KIT-Campus Süd (U)",
         "bay": "1(U)",
         "latitude": 49.00902,
@@ -1396,24 +1396,24 @@
     "lineId": "5",
     "calls": [
       {
-        "localStopId": "schloss-gottesaue",
-        "providerStopPointId": "de:08212:624",
+        "stopPlaceId": "schloss-gottesaue",
+        "stopPointId": "de:08212:624",
         "stopName": "Schloss Gottesaue",
         "bay": "1",
         "latitude": 49.003652,
         "longitude": 8.426925
       },
       {
-        "localStopId": "wolfartsweierer-strasse",
-        "providerStopPointId": "de:08212:623",
+        "stopPlaceId": "wolfartsweierer-strasse",
+        "stopPointId": "de:08212:623",
         "stopName": "Wolfartsweierer Straße",
         "bay": "1",
         "latitude": 49.003563,
         "longitude": 8.423062
       },
       {
-        "localStopId": "ostendstrasse",
-        "providerStopPointId": "de:08212:622",
+        "stopPlaceId": "ostendstrasse",
+        "stopPointId": "de:08212:622",
         "stopName": "Ostendstraße",
         "bay": "1",
         "latitude": 49.005137,
@@ -1425,24 +1425,24 @@
     "lineId": "5",
     "calls": [
       {
-        "localStopId": "ostendstrasse",
-        "providerStopPointId": "de:08212:622",
+        "stopPlaceId": "ostendstrasse",
+        "stopPointId": "de:08212:622",
         "stopName": "Ostendstraße",
         "bay": "2",
         "latitude": 49.004972,
         "longitude": 8.416549
       },
       {
-        "localStopId": "wolfartsweierer-strasse",
-        "providerStopPointId": "de:08212:623",
+        "stopPlaceId": "wolfartsweierer-strasse",
+        "stopPointId": "de:08212:623",
         "stopName": "Wolfartsweierer Straße",
         "bay": "2",
         "latitude": 49.003398,
         "longitude": 8.423637
       },
       {
-        "localStopId": "schloss-gottesaue",
-        "providerStopPointId": "de:08212:624",
+        "stopPlaceId": "schloss-gottesaue",
+        "stopPointId": "de:08212:624",
         "stopName": "Schloss Gottesaue",
         "bay": "2",
         "latitude": 49.003634,
@@ -1454,24 +1454,24 @@
     "lineId": "E",
     "calls": [
       {
-        "localStopId": "ostendstrasse",
-        "providerStopPointId": "de:08212:622",
+        "stopPlaceId": "ostendstrasse",
+        "stopPointId": "de:08212:622",
         "stopName": "Ostendstraße",
         "bay": "2",
         "latitude": 49.004972,
         "longitude": 8.416549
       },
       {
-        "localStopId": "wolfartsweierer-strasse",
-        "providerStopPointId": "de:08212:623",
+        "stopPlaceId": "wolfartsweierer-strasse",
+        "stopPointId": "de:08212:623",
         "stopName": "Wolfartsweierer Straße",
         "bay": "2",
         "latitude": 49.003398,
         "longitude": 8.423637
       },
       {
-        "localStopId": "schloss-gottesaue",
-        "providerStopPointId": "de:08212:624",
+        "stopPlaceId": "schloss-gottesaue",
+        "stopPointId": "de:08212:624",
         "stopName": "Schloss Gottesaue",
         "bay": "2",
         "latitude": 49.003634,
@@ -1483,24 +1483,24 @@
     "lineId": "E",
     "calls": [
       {
-        "localStopId": "schloss-gottesaue",
-        "providerStopPointId": "de:08212:624",
+        "stopPlaceId": "schloss-gottesaue",
+        "stopPointId": "de:08212:624",
         "stopName": "Schloss Gottesaue",
         "bay": "1",
         "latitude": 49.003652,
         "longitude": 8.426925
       },
       {
-        "localStopId": "wolfartsweierer-strasse",
-        "providerStopPointId": "de:08212:623",
+        "stopPlaceId": "wolfartsweierer-strasse",
+        "stopPointId": "de:08212:623",
         "stopName": "Wolfartsweierer Straße",
         "bay": "1",
         "latitude": 49.003563,
         "longitude": 8.423062
       },
       {
-        "localStopId": "ostendstrasse",
-        "providerStopPointId": "de:08212:622",
+        "stopPlaceId": "ostendstrasse",
+        "stopPointId": "de:08212:622",
         "stopName": "Ostendstraße",
         "bay": "1",
         "latitude": 49.005137,

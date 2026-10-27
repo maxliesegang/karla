@@ -104,9 +104,9 @@ async function observe(): Promise<GeoNetwork> {
         const row: StopEvent = {
           ...stopEvent,
           id: stopEvent.datedJourneyId ?? stopEvent.journeyRef ?? stopEvent.lineId,
-          boardingLocalStopId: stopId,
-          boardingProviderStopPointId: stopEvent.stopPointId,
-          boardingProviderStopPointName: stopEvent.stopPointName,
+          boardingStopPlaceId: stopId,
+          boardingStopPointId: stopEvent.stopPointId,
+          boardingStopPointName: stopEvent.stopPointName,
           bay: stopEvent.bay ?? "",
           calls: registry.toCalls(stopEvent.calls ?? []),
         };
@@ -117,7 +117,7 @@ async function observe(): Promise<GeoNetwork> {
     }
   }
   const read = createGeoNetworkReader((call) => {
-    const stop = call.providerStopPointId ? findCatalogStop(call.providerStopPointId) : undefined;
+    const stop = call.stopPointId ? findCatalogStop(call.stopPointId) : undefined;
     return stop && { latitude: stop.latitude, longitude: stop.longitude };
   });
   return read(stopEvents);

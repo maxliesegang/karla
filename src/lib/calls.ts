@@ -9,13 +9,13 @@ import type {
 } from "../data/transit-types";
 
 /**
- * Calling sequences, read outwards from one stop. Calls compare by resolved local stop id, or by
+ * Calling sequences, read outwards from one stop. Calls compare by resolved stop place id, or by
  * the feed's place and name where none resolved.
  */
 
-/** How a calling point is identified, including where the feed resolved no local stop of ours. */
+/** How a calling point is identified, including where the feed resolved no stop place of ours. */
 export const getCallKey = (call: Call): string =>
-  call.localStopId ?? `${call.placeName ?? ""}:${call.stopName}`;
+  call.stopPlaceId ?? `${call.placeName ?? ""}:${call.stopName}`;
 
 const getCallBay = (call: Call): string | undefined => call.bay ?? call.bayText;
 
@@ -135,11 +135,11 @@ export const getCallsAfterStop = (stopEvent: StopEvent, stopId: string): readonl
 export function findStopCallIndex(stopEvent: StopEvent, stopId: string): number {
   const calls = stopEvent.calls ?? [];
   const markedCurrentIndex =
-    stopEvent.boardingLocalStopId === stopId ? calls.findIndex((call) => call.isThisCall) : -1;
-  const markedStopId = calls[markedCurrentIndex]?.localStopId;
+    stopEvent.boardingStopPlaceId === stopId ? calls.findIndex((call) => call.isThisCall) : -1;
+  const markedStopId = calls[markedCurrentIndex]?.stopPlaceId;
   const isMarkedHere =
     markedCurrentIndex >= 0 && (markedStopId === undefined || markedStopId === stopId);
-  return isMarkedHere ? markedCurrentIndex : calls.findIndex((call) => call.localStopId === stopId);
+  return isMarkedHere ? markedCurrentIndex : calls.findIndex((call) => call.stopPlaceId === stopId);
 }
 
 /**
@@ -151,7 +151,7 @@ export function getCallsPastIndex(calls: readonly Call[], currentIndex: number):
 }
 
 export const findFirstCallBeyondStop = (calls: readonly Call[], stopId: string): Call | undefined =>
-  calls.find((call) => call.localStopId !== stopId);
+  calls.find((call) => call.stopPlaceId !== stopId);
 
 /** The stops a route visits in order, consecutive calls of one stop counted once. */
 export function getVisitedStopKeys(calls: readonly Call[]): string[] {
@@ -267,7 +267,7 @@ export function getCallInstant(
 
 /** The calls ahead of the board this departure was read from. */
 export const getCallsAfterCurrentStop = (stopEvent: StopEvent): readonly Call[] =>
-  getCallsAfterStop(stopEvent, stopEvent.boardingLocalStopId);
+  getCallsAfterStop(stopEvent, stopEvent.boardingStopPlaceId);
 
 /** The stretch all these routes share; a route that stops short ends it. */
 export type CommonCallPrefixAlignment = {

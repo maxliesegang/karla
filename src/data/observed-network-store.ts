@@ -18,8 +18,8 @@ const toTopologyCall = (call: Call): Call => ({
   ...(call.placeName ? { placeName: call.placeName } : {}),
   ...(call.bayText ? { bayText: call.bayText } : {}),
   ...(call.bay ? { bay: call.bay } : {}),
-  ...(call.providerStopPointId ? { providerStopPointId: call.providerStopPointId } : {}),
-  ...(call.localStopId ? { localStopId: call.localStopId } : {}),
+  ...(call.stopPointId ? { stopPointId: call.stopPointId } : {}),
+  ...(call.stopPlaceId ? { stopPlaceId: call.stopPlaceId } : {}),
   ...(call.latitude !== undefined ? { latitude: call.latitude } : {}),
   ...(call.longitude !== undefined ? { longitude: call.longitude } : {}),
 });

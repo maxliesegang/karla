@@ -3,7 +3,7 @@ import type { StopEvent, StopEventBoard } from "../data/transit-types";
 /**
  * Times against the feed's clock, not the device's: the offset is fixed when a board arrives and
  * advances with the device. *Feed time* is the source's clock now, *board age* how long ago the
- * board was read, and the *countdown* is derived from the schedule and deviation.
+ * board was read, and the *countdown* is derived from the expected departure instant.
  */
 
 /** The feed's server time when the board was read, advanced by the time since. */
@@ -26,9 +26,8 @@ export function getBoardAgeMs(stopEventBoard: StopEventBoard | null, feedNow: nu
 }
 
 /**
- * The instant a departure is expected at, so countdown and printed time agree. The prediction
- * (`realDateTime`) wins; the truncated deviation disagrees on about one row in twenty. Without a
- * prediction, schedule plus deviation; else the schedule.
+ * The instant a departure is expected at, so countdown and printed time agree: the prediction
+ * (`EstimatedTime`), else the timetable shifted by a stated delay, else the timetable.
  */
 export function findExpectedDepartureInstant(
   timetabledDepartureTime: string,

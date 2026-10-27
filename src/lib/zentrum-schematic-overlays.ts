@@ -251,7 +251,7 @@ export function getZentrumTravelTimes(
     nodeId,
     feedNow,
     measure === "ride" ? "ride" : "arrival",
-    (call) => (call.localStopId === nodeId ? nodeId : resolveNodeId(call)),
+    (call) => (call.stopPlaceId === nodeId ? nodeId : resolveNodeId(call)),
   );
   const chosen = new Map<string, DirectRideTime>();
   for (const [id, time] of times) {
@@ -298,7 +298,7 @@ export function getZentrumDirectRides(
   const railDatedJourneys = stopEvents.filter(isRailStopEvent);
   const { resolveNodeId } = createSchematicBoardingReading(railDatedJourneys);
   const getNodeId = (call: Call) =>
-    call.localStopId === originNodeId ? originNodeId : resolveNodeId(call);
+    call.stopPlaceId === originNodeId ? originNodeId : resolveNodeId(call);
   return railDatedJourneys
     .flatMap((datedJourney) => {
       const rides = [

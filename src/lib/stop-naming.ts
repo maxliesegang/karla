@@ -1,4 +1,4 @@
-import type { Call } from "../data/transit-types";
+import type { Call, StopPlace } from "../data/transit-types";
 
 /**
  * Stop names and their municipality. Inside the rider's municipality the qualifier is noise;
@@ -20,7 +20,7 @@ export function findHomePlaceName(
   riderStopId?: string,
 ): string | undefined {
   const riderCall = riderStopId
-    ? calls.find(({ localStopId, placeName }) => localStopId === riderStopId && placeName)
+    ? calls.find(({ stopPlaceId, placeName }) => stopPlaceId === riderStopId && placeName)
     : undefined;
   if (riderCall?.placeName) return getBaseName(riderCall.placeName);
 
@@ -59,3 +59,7 @@ export function getQualifiedStopName(
   const qualifier = getStopPlaceQualifier(call, homePlaceName);
   return qualifier ? `${qualifier} ${call.stopName}` : call.stopName;
 }
+
+/** What is printed under a stop's name: its district, its former name. */
+export const getStopPlaceSubtitle = ({ placeName, formerName }: StopPlace): string | undefined =>
+  [placeName, formerName].filter(Boolean).join(" · ") || undefined;

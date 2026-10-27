@@ -18,7 +18,7 @@ export function getVehiclePositionSourceLabel(
     (call) => call.delayMinutes !== undefined || call.arrivalDelayMinutes !== undefined,
   );
   const index = calls.findIndex(
-    (call, index) => call.localStopId === fromStopId && calls[index + 1]?.localStopId === toStopId,
+    (call, index) => call.stopPlaceId === fromStopId && calls[index + 1]?.stopPlaceId === toStopId,
   );
   const from = calls[index];
   const to = calls[index + 1];

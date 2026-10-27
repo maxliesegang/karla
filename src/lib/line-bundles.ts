@@ -154,7 +154,7 @@ export function getDrawableLineBundleOffers({
 }): readonly DrawableLineBundleOffer[] {
   if (offers.length === 0) return EMPTY_DRAWABLE_OFFERS;
   const riderStopIndex = drawnCalls.findIndex(
-    (call) => call.localStopId && riderStopIds.includes(call.localStopId),
+    (call) => call.stopPlaceId && riderStopIds.includes(call.stopPlaceId),
   );
   const drawnAhead = getCallsPastIndex(drawnCalls, riderStopIndex);
   // The calls behind the stop, reversed into travel order out of it.
@@ -339,7 +339,7 @@ export function getLineBundleTrunk(
   if (chains.length < 2) return undefined;
 
   const riderIndexes = chains.map(({ calls }) =>
-    calls.findIndex((call) => call.localStopId && riderStopIds.includes(call.localStopId)),
+    calls.findIndex((call) => call.stopPlaceId && riderStopIds.includes(call.stopPlaceId)),
   );
   if (riderIndexes.some((index) => index < 0)) return undefined;
 

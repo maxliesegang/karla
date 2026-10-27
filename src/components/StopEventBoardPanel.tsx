@@ -57,6 +57,7 @@ import { StopEventBoardLineOrder } from "./StopEventBoardLineOrder";
 import { isSameDatedJourney } from "../lib/journeys";
 import { FEED_UNREADABLE_TEXT } from "./feed-copy";
 import { findStopPointPart, type StopPlacePart } from "../lib/stop-place-parts";
+import { getStopPlaceSubtitle } from "../lib/stop-naming";
 
 type StopEventBoardPanelProps = {
   panelRef?: Ref<HTMLElement>;
@@ -165,7 +166,7 @@ function StopEventRow({
         isPinned && "pinned",
         stopEvent.status === "cancelled" && "cancelled",
         stopEvent.status === "diverted" && "diverted",
-        joinedPortionPair && "joined-run-portion",
+        joinedPortionPair && "joined-journey-portion",
       )}
       style={{ "--departure-index": index } as CSSProperties}
       aria-current={isSelected ? "true" : undefined}
@@ -440,9 +441,7 @@ export function StopEventBoardPanel({
       line={getLineSign(network.lines, stopEvent.lineId, stopEvent.ptMode, stopEvent.lineRef)}
       stopId={stop.id}
       partId={part?.id}
-      partName={
-        part ? undefined : findStopPointPart(stop.id, stopEvent.boardingProviderStopPointId)?.name
-      }
+      partName={part ? undefined : findStopPointPart(stop.id, stopEvent.boardingStopPointId)?.name}
       lineSelection={lineSelection}
       isSelected={isStopEventSelected(stopEvent, selectedStopEvent, lineSelection)}
       isPinned={isStopEventPinned(stopEvent, selectedStopEvent)}
@@ -463,7 +462,9 @@ export function StopEventBoardPanel({
       <div className="departure-board-heading">
         <div>
           <h1 id="departure-board-title">{stop.name}</h1>
-          {stop.alias && <p className="departure-board-stop-meta">{stop.alias}</p>}
+          {getStopPlaceSubtitle(stop) && (
+            <p className="departure-board-stop-meta">{getStopPlaceSubtitle(stop)}</p>
+          )}
         </div>
         <div className="departure-board-heading-actions">
           <StopEventOrderControl order={stopEventOrder} onOrderChange={stopEventBoardOrder.write} />

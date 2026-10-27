@@ -30,10 +30,10 @@ import { createStopEvent } from "./support/fixtures.ts";
 /** One drawing's motion record, shared across this file. */
 const motions = createDatedJourneyMotions();
 
-const call = (localStopId: string, providerStopPointId: string, bay = "1"): Call => ({
-  stopName: localStopId,
-  localStopId,
-  providerStopPointId,
+const call = (stopPlaceId: string, stopPointId: string, bay = "1"): Call => ({
+  stopName: stopPlaceId,
+  stopPlaceId,
+  stopPointId,
   bay,
 });
 
@@ -49,9 +49,9 @@ const stopEvent = (
     destinationText: "Testziel",
     minutesUntilDeparture: 3,
     bay: "1",
-    boardingLocalStopId: calls[0]?.localStopId ?? "",
-    boardingProviderStopPointId: calls[0]?.providerStopPointId ?? "",
-    boardingProviderStopPointName: calls[0]?.stopName ?? "",
+    boardingStopPlaceId: calls[0]?.stopPlaceId ?? "",
+    boardingStopPointId: calls[0]?.stopPointId ?? "",
+    boardingStopPointName: calls[0]?.stopName ?? "",
     status: "realtime",
     timetabledDepartureTime: "2026-09-04T12:00:00+02:00",
     calls,
@@ -960,16 +960,16 @@ test("places a vehicle on the link its timings put it on, and keeps its directio
 });
 
 test("places a vehicle on the nearest occurrence when a route visits a stop twice", () => {
-  const timedCall = (localStopId: string, minute: number): Call => ({
+  const timedCall = (stopPlaceId: string, minute: number): Call => ({
     ...call(
-      localStopId,
-      localStopId === "marktplatz" && minute === 4
+      stopPlaceId,
+      stopPlaceId === "marktplatz" && minute === 4
         ? "de:08212:1011"
         : ({
             europaplatz: "de:08212:1004",
             kronenplatz: "de:08212:1002",
             marktplatz: "de:08212:1003",
-          }[localStopId] ?? `provider-${localStopId}-${minute}`),
+          }[stopPlaceId] ?? `provider-${stopPlaceId}-${minute}`),
     ),
     timetabledArrivalTime: `2026-09-04T12:0${minute}:00+02:00`,
     timetabledDepartureTime: `2026-09-04T12:0${minute}:00+02:00`,
@@ -1004,8 +1004,8 @@ test("places a vehicle on the nearest occurrence when a route visits a stop twic
 });
 
 test("keeps line 5 on its arriving lane between Europaplatz platforms", () => {
-  const timedCall = (stopId: string, providerId: string, bay: string, minute: number) => ({
-    ...call(stopId, providerId, bay),
+  const timedCall = (stopId: string, stopPointId: string, bay: string, minute: number) => ({
+    ...call(stopId, stopPointId, bay),
     timetabledArrivalTime: `2026-09-04T12:0${minute}:00+02:00`,
     timetabledDepartureTime: `2026-09-04T12:0${minute}:00+02:00`,
     delayMinutes: 0,
@@ -1207,8 +1207,8 @@ test("keeps one stable marker through a Zentrum turnaround", () => {
 
 /* Both directions of a line hold one lane, so meeting trams briefly overlap. */
 test("marks ride their line's lane, either way along the corridor", () => {
-  const timedCall = (localStopId: string, providerStopPointId: string, minute: number): Call => ({
-    ...call(localStopId, providerStopPointId),
+  const timedCall = (stopPlaceId: string, stopPointId: string, minute: number): Call => ({
+    ...call(stopPlaceId, stopPointId),
     timetabledArrivalTime: `2026-09-04T12:0${minute}:00+02:00`,
     timetabledDepartureTime: `2026-09-04T12:0${minute}:00+02:00`,
     delayMinutes: 0,
@@ -1281,8 +1281,8 @@ test("marks ride their line's lane, either way along the corridor", () => {
 
 /* Marks ride the drawn stroke, so rides on two corridors meet on the stop's capsule. */
 test("hands a mark over between corridors exactly where its line's stroke turns", () => {
-  const timedCall = (localStopId: string, providerStopPointId: string, minute: number): Call => ({
-    ...call(localStopId, providerStopPointId),
+  const timedCall = (stopPlaceId: string, stopPointId: string, minute: number): Call => ({
+    ...call(stopPlaceId, stopPointId),
     timetabledArrivalTime: `2026-09-04T12:0${minute}:00+02:00`,
     timetabledDepartureTime: `2026-09-04T12:0${minute}:00+02:00`,
     delayMinutes: 0,
@@ -1327,8 +1327,8 @@ test("hands a mark over between corridors exactly where its line's stroke turns"
 test("parks a mark inside a stop place its reading starts in, pointing the way out", () => {
   // The S1 crossing between Marktplatz's tunnels, with no call before it to say which way it came
   // in: the mark parks where the leaving corridor's lane begins, facing its way out.
-  const timedCall = (localStopId: string, providerStopPointId: string, minute: number): Call => ({
-    ...call(localStopId, providerStopPointId),
+  const timedCall = (stopPlaceId: string, stopPointId: string, minute: number): Call => ({
+    ...call(stopPlaceId, stopPointId),
     timetabledArrivalTime: `2026-09-04T12:0${minute}:00+02:00`,
     timetabledDepartureTime: `2026-09-04T12:0${minute}:00+02:00`,
     delayMinutes: 0,
@@ -1385,13 +1385,13 @@ test("parks a mark inside a stop place its reading starts in, pointing the way o
 test("stands at each of a stop place's two capsules in turn and rides between them", () => {
   // The S1 calls at Marktplatz's Kaiserstraße tunnel, then beneath the Pyramide, a minute apart.
   const located = (
-    localStopId: string,
-    providerStopPointId: string,
+    stopPlaceId: string,
+    stopPointId: string,
     bay: string,
     [latitude, longitude]: readonly [number, number],
     [arrival, departure]: readonly [string, string],
   ): Call => ({
-    ...call(localStopId, providerStopPointId, bay),
+    ...call(stopPlaceId, stopPointId, bay),
     latitude,
     longitude,
     timetabledArrivalTime: `2026-09-04T12:${arrival}:00+02:00`,
@@ -1481,11 +1481,11 @@ test("rides the line's lane through a stop the feed left untimed", () => {
   // An untimed call between two timed ones: the mark follows the lane through the stop, not a
   // chord.
   const timedCall = (
-    localStopId: string,
-    providerStopPointId: string,
+    stopPlaceId: string,
+    stopPointId: string,
     minute: number | undefined,
   ): Call => ({
-    ...call(localStopId, providerStopPointId),
+    ...call(stopPlaceId, stopPointId),
     timetabledArrivalTime: minute === undefined ? undefined : `2026-09-04T12:0${minute}:00+02:00`,
     timetabledDepartureTime: minute === undefined ? undefined : `2026-09-04T12:0${minute}:00+02:00`,
     delayMinutes: 0,
@@ -1522,8 +1522,8 @@ test("rides the line's lane through a stop the feed left untimed", () => {
 });
 
 test("lights the corridors ahead of a placed vehicle, and none behind it", () => {
-  const timedCall = (localStopId: string, providerStopPointId: string, minute: number): Call => ({
-    ...call(localStopId, providerStopPointId),
+  const timedCall = (stopPlaceId: string, stopPointId: string, minute: number): Call => ({
+    ...call(stopPlaceId, stopPointId),
     timetabledArrivalTime: `2026-09-04T12:0${minute}:00+02:00`,
     timetabledDepartureTime: `2026-09-04T12:0${minute}:00+02:00`,
     delayMinutes: 0,

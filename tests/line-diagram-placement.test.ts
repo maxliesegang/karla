@@ -64,9 +64,9 @@ const journey = (id: string, destination: string, stopIds: readonly string[]) =>
     id,
     journeyRef: id,
     destinationText: destination,
-    boardingLocalStopId: stopIds[0],
+    boardingStopPlaceId: stopIds[0],
     status: "scheduled",
-    calls: stopIds.map((localStopId) => ({ stopName: localStopId.toUpperCase(), localStopId })),
+    calls: stopIds.map((stopPlaceId) => ({ stopName: stopPlaceId.toUpperCase(), stopPlaceId })),
   });
 
 const OUTBOUND = journey("outbound", "Wörth", ["a", "b", "c", "d"]);

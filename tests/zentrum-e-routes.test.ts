@@ -62,7 +62,7 @@ for (const datedJourney of fixture.datedJourneys) {
     const expectedStops = expectedStopsByJourneyCode[datedJourney.journeyCode];
 
     assert.deepEqual(
-      calls.map(({ localStopId }) => localStopId),
+      calls.map(({ stopPlaceId }) => stopPlaceId),
       expectedStops,
     );
     assert.equal(reading.linePaths.length, 1);
@@ -113,7 +113,7 @@ test("keeps through lanes aligned where Stadtbahn lines join between Ebertstraß
       createStopEvent({
         id: lineId,
         lineId,
-        calls: stops.map((localStopId) => ({ stopName: localStopId, localStopId })),
+        calls: stops.map((stopPlaceId) => ({ stopName: stopPlaceId, stopPlaceId })),
       }),
     ),
   );

@@ -4,6 +4,7 @@ import type { StopPlace } from "../data/transit-types";
 import type { RecentStop } from "../lib/recent-stops";
 import { navigateTo, routePaths } from "../routing";
 import { FEED_UNREADABLE_TEXT } from "./feed-copy";
+import { getStopPlaceSubtitle } from "../lib/stop-naming";
 
 /**
  * Stop search by name (`/` focuses it). Authored stops match locally at once; the provider is asked
@@ -89,7 +90,11 @@ export function StopSearch({
   // One list, so the keyboard reaches recent and found stops alike.
   const settledResults = settledSearch?.results ?? NO_RESULTS;
   const visibleResults: readonly SearchOption[] = isQueryLongEnough
-    ? settledResults.map((stop) => ({ stopId: stop.id, name: stop.name, detail: stop.alias }))
+    ? settledResults.map((stop) => ({
+        stopId: stop.id,
+        name: stop.name,
+        detail: getStopPlaceSubtitle(stop),
+      }))
     : recentStops.map((visit) => ({
         stopId: visit.stopId,
         name: visit.stopName ?? visit.stopId,

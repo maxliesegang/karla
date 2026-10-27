@@ -123,10 +123,10 @@ export function useLineDiagramReading({
   // Without a selected journey the diagram is still drawn from one, held across stops
   // (`chooseLineDiagramDatedJourney`). The rider's stop includes the stop point a stop place's row
   // leaves from.
-  const boardingLocalStopId = stopEvent?.boardingLocalStopId;
+  const boardingStopPlaceId = stopEvent?.boardingStopPlaceId;
   const riderStopIds = useMemo(
-    () => (boardingLocalStopId ? [stop.id, boardingLocalStopId] : [stop.id]),
-    [boardingLocalStopId, stop.id],
+    () => (boardingStopPlaceId ? [stop.id, boardingStopPlaceId] : [stop.id]),
+    [boardingStopPlaceId, stop.id],
   );
   // The stop's whole-journey readings: candidates for the drawn journey and a sibling's journey.
   const stopDatedJourneyStopEvents = useMemo(
@@ -336,7 +336,7 @@ export function useLineDiagramReading({
     diagramStopNames,
     isPinnedDatedJourneyReading,
     // On a ride the rider is on board, at no stop.
-    currentStopIndex: isRide ? -1 : getCurrentStopIndex(diagramStops, stop.id, boardingLocalStopId),
+    currentStopIndex: isRide ? -1 : getCurrentStopIndex(diagramStops, stop.id, boardingStopPlaceId),
     // The stop chain is the coordinate system: a new chain remounts the marker layer so nothing
     // slides across. The drawn journey is not part of the key; it changes on refreshes.
     vehicleCoordinateKey: getLineDiagramCoordinateKey(line.id, diagramStops),

@@ -65,7 +65,7 @@ export function useStopPlacement({
     if (placed?.key === placementKey && placed.chainKey === chainKey) return;
 
     const stopRow =
-      container.querySelector<HTMLElement>('[data-trip-position-anchor="true"]') ??
+      container.querySelector<HTMLElement>('[data-journey-position-anchor="true"]') ??
       container.querySelector<HTMLElement>('[data-current-stop="true"]');
     if (!stopRow) return;
     if (placed?.chainKey === chainKey) {
@@ -121,7 +121,7 @@ export function useRequestedDatedJourneyPosition(
   useLayoutEffect(() => {
     if (request === handledRequestRef.current) return;
     const anchor = containerRef.current?.querySelector<HTMLElement>(
-      '[data-run-position-anchor="true"]',
+      '[data-journey-position-anchor="true"]',
     );
     // If the sequence is being replaced, fulfil the request next render.
     if (!anchor) return;

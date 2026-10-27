@@ -846,7 +846,7 @@ const getZentrumSchematicPlacedDatedJourneys = (
         }
       | undefined;
     for (let index = 0; index < calls.length - 1; index += 1) {
-      if (calls[index].localStopId !== placement.fromStopId) continue;
+      if (calls[index].stopPlaceId !== placement.fromStopId) continue;
       // The far end is the first drawn call the link names; drawn calls before it were left
       // untimed and are ridden through, undrawn ones are ignored.
       const via: ZentrumSchematicNode[] = [];
@@ -854,7 +854,7 @@ const getZentrumSchematicPlacedDatedJourneys = (
       for (let ahead = index + 1; ahead < calls.length; ahead += 1) {
         const node = nodeOf(calls[ahead]);
         if (!node) continue;
-        if (calls[ahead].localStopId !== placement.toStopId) {
+        if (calls[ahead].stopPlaceId !== placement.toStopId) {
           via.push(node);
           continue;
         }
@@ -884,7 +884,7 @@ const getZentrumSchematicPlacedDatedJourneys = (
       while (first > 0 && nodeOf(calls[first - 1])?.id === node.id) first -= 1;
       let last = callIndex;
       while (last < calls.length - 1 && nodeOf(calls[last + 1])?.id === node.id) last += 1;
-      const placeOf = (call: Call) => `${call.providerStopPointId}|${call.bay}`;
+      const placeOf = (call: Call) => `${call.stopPointId}|${call.bay}`;
       if (last - first !== 1 || placeOf(calls[first]) === placeOf(calls[last])) return undefined;
       const before = nodeOf(calls[first - 1]);
       const after = nodeOf(calls[last + 1]);

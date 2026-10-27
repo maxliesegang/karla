@@ -22,11 +22,11 @@ test("every stop the app addresses can be located from the catalog", () => {
 });
 
 test("every stop place's stop point is still one the operator publishes", () => {
-  for (const [localStopId, { stopPoints }] of Object.entries(stopPlaces)) {
+  for (const [stopPlaceId, { stopPoints }] of Object.entries(stopPlaces)) {
     for (const stopPointId of stopPoints) {
       assert.ok(
         findCatalogStop(stopPointId),
-        `${localStopId} joins ${stopPointId}, which the catalog does not carry`,
+        `${stopPlaceId} joins ${stopPointId}, which the catalog does not carry`,
       );
     }
   }
@@ -35,29 +35,29 @@ test("every stop place's stop point is still one the operator publishes", () => 
 /** No stop point is claimed by two local stops, or resolution would depend on their order. */
 test("no stop point is claimed by two local stops", () => {
   const claimedBy = new Map<string, string>();
-  for (const [localStopId, { stopPoints }] of Object.entries(stopPlaces)) {
+  for (const [stopPlaceId, { stopPoints }] of Object.entries(stopPlaces)) {
     for (const stopPointId of stopPoints) {
       const claimant = claimedBy.get(stopPointId);
       assert.equal(
         claimant,
         undefined,
-        `${stopPointId} is claimed by both ${claimant} and ${localStopId}`,
+        `${stopPointId} is claimed by both ${claimant} and ${stopPlaceId}`,
       );
-      claimedBy.set(stopPointId, localStopId);
+      claimedBy.set(stopPointId, stopPlaceId);
     }
   }
 });
 
 /** A place's stop points stand together, or one page would cover two places. */
 test("a place's stop points stand near the one that names it", () => {
-  for (const [localStopId, { stopPoints }] of Object.entries(stopPlaces)) {
+  for (const [stopPlaceId, { stopPoints }] of Object.entries(stopPlaces)) {
     const [first, ...others] = stopPoints.map((stopPointId) => findCatalogStop(stopPointId));
     for (const [index, other] of others.entries()) {
       assert.ok(first && other);
       const distance = Math.round(getDistanceMeters(first.latitude, first.longitude, other));
       assert.ok(
         distance <= 400,
-        `${localStopId} joins ${stopPoints[index + 1]}, which stands ${distance} m from ${stopPoints[0]}`,
+        `${stopPlaceId} joins ${stopPoints[index + 1]}, which stands ${distance} m from ${stopPoints[0]}`,
       );
     }
   }

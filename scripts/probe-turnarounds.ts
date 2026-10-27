@@ -142,7 +142,7 @@ let pollCount = 0;
 
 function isAtTerminus(call: FeedCall, terminus: TerminusRecord): boolean {
   return (
-    (call.providerId !== undefined && terminus.stopPointIds.has(call.providerId)) ||
+    (call.stopPointId !== undefined && terminus.stopPointIds.has(call.stopPointId)) ||
     (terminus.stopName !== undefined && call.stopName === terminus.stopName)
   );
 }
@@ -167,7 +167,7 @@ async function readStarts(
     const timetabledDeparture = toInstant(first.timetabledDepartureTime);
     if (timetabledDeparture === undefined) continue;
     const key = getJourneyKey(stopEvent);
-    const nextStopPointId = calls.find((call) => !isAtTerminus(call, terminus))?.providerId;
+    const nextStopPointId = calls.find((call) => !isAtTerminus(call, terminus))?.stopPointId;
     if (nextStopPointId && terminus.neighbourIds.size < NEIGHBOUR_LIMIT) {
       terminus.neighbourIds.add(nextStopPointId);
     }

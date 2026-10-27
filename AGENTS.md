@@ -66,9 +66,7 @@ These describe outcomes, not implementations. If a simpler design meets them, pr
   board by that line rather than asking for more rows. Fetch a dated journey's calls once, not once per stop.
 - **One dated journey, one reading.** Every view shows the same data for the same dated journey.
 - **A dated journey is a `JourneyRef` on an `OperatingDayRef`.** Requests, addresses and
-  `datedJourneyId` use both. The reading store's record is keyed by the `JourneyRef` alone, which
-  recurs the next day, so a record must retire well before then (see
-  `dated-journey-reading-store.ts`).
+  `datedJourneyId` and the reading store's records use both; a `JourneyRef` alone recurs daily.
 - **Addresses degrade gracefully.** A journey that is gone falls back to its line, and a line to its
   stop. A bundle (`line/S1+S11`) exists only when the rider chooses it.
 - **Routing goes through `routePaths` / `navigateTo`.** Components take time from props or clock

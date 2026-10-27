@@ -82,7 +82,7 @@ _Avoid_: run sequence
 each dated journey. Every view reads dated journeys from it.
 
 **Journey keys**:
-- `getJourneyRecordKey` (the `JourneyRef`, undated; `data/dated-journey-reading-store.ts`)
+- `getJourneyRecordKey` (dated; `data/dated-journey-reading-store.ts`)
   shares a dated journey's data and requests.
 - `getDatedJourneyMarkKey` (dated; `lib/journeys.ts`) identifies a drawn vehicle.
 - `getBoardRowKey` (`data/stop-event-dated-journeys.ts`) merges a board's duplicate rows for one

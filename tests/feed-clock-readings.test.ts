@@ -21,7 +21,7 @@ const createStopEvent = (overrides: Partial<StopEvent> = {}): StopEvent =>
     destinationText: "Durlach Turmberg",
     minutesUntilDeparture: 7,
     bay: "1",
-    boardingLocalStopId: "marktplatz",
+    boardingStopPlaceId: "marktplatz",
     status: "realtime",
     timetabledDepartureTime: "2026-08-30T17:32:00+02:00",
     ...overrides,
@@ -46,11 +46,8 @@ test("a departure still passes on its own once the minute it was due has gone by
   assert.equal(getCountdownMinutes(stopEvent, Date.parse("2026-08-30T17:40:00+02:00")), 0);
 });
 
-/**
- * The delay is truncated, the prediction is not: about one row in twenty has `delay: 0` against a
- * `realDateTime` a minute later, which must not read as punctual.
- */
-test("the published time is the feed's own prediction, not the schedule plus its truncated delay", () => {
+/** A whole-minute delay is rounded, the prediction is not; the prediction wins. */
+test("the published time is the feed's own prediction, not the schedule plus its rounded delay", () => {
   const stopEvent = createStopEvent({
     delayMinutes: 0,
     estimatedDepartureTime: "2026-08-30T17:33:00+02:00",

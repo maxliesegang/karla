@@ -28,14 +28,14 @@ import { ZENTRUM_PORTRAIT_FRAME } from "../src/lib/zentrum-plan-canvas.ts";
 import { createStopEvent } from "./support/fixtures.ts";
 
 const call = (
-  localStopId: string,
-  providerStopPointId: string,
+  stopPlaceId: string,
+  stopPointId: string,
   bay = "1",
   place?: { latitude: number; longitude: number },
 ): Call => ({
-  stopName: localStopId,
-  localStopId,
-  providerStopPointId,
+  stopName: stopPlaceId,
+  stopPlaceId,
+  stopPointId,
   bay,
   ...place,
 });
@@ -51,9 +51,9 @@ const stopEvent = (lineId: string, calls: readonly Call[]): StopEvent => {
     destinationText: "Testziel",
     minutesUntilDeparture: 3,
     bay: "1",
-    boardingLocalStopId: calls[0]?.localStopId ?? "",
-    boardingProviderStopPointId: calls[0]?.providerStopPointId ?? "",
-    boardingProviderStopPointName: calls[0]?.stopName ?? "",
+    boardingStopPlaceId: calls[0]?.stopPlaceId ?? "",
+    boardingStopPointId: calls[0]?.stopPointId ?? "",
+    boardingStopPointName: calls[0]?.stopName ?? "",
     status: "realtime",
     timetabledDepartureTime: "2026-09-04T12:00:00+02:00",
     calls,
@@ -396,10 +396,10 @@ const readLiveJourneys = (fileName: string) =>
     Array.from({ length: count }, () => ({
       ...stopEvent(
         lineId,
-        calls.map(([localStopId, providerStopPointId, bay, latitude, longitude]) =>
+        calls.map(([stopPlaceId, stopPointId, bay, latitude, longitude]) =>
           call(
-            localStopId,
-            providerStopPointId,
+            stopPlaceId,
+            stopPointId,
             bay,
             latitude === null || longitude === null ? undefined : { latitude, longitude },
           ),

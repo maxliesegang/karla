@@ -69,12 +69,12 @@ function setup(t: TestContext, { measureOnRender = true } = {}) {
       calls: [
         {
           stopName: "Europaplatz",
-          localStopId: "europaplatz",
+          stopPlaceId: "europaplatz",
           timetabledDepartureTime: new Date(now - 60_000).toISOString(),
         },
         {
           stopName: "Marktplatz",
-          localStopId: "marktplatz",
+          stopPlaceId: "marktplatz",
           timetabledArrivalTime: new Date(now + 60_000).toISOString(),
           timetabledDepartureTime: new Date(now + 60_000).toISOString(),
         },

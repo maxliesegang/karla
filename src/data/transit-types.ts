@@ -12,8 +12,10 @@ export type BayKind = "track" | "stand";
 export type StopPlace = {
   id: string;
   name: string;
-  /** A second name the stop is known by: a former name, or the municipality for a stop outside. */
-  alias?: string;
+  /** The municipality or district, where the name alone could be anywhere (`Durlach`). */
+  placeName?: string;
+  /** A name riders still use (`Mendelssohnplatz`). */
+  formerName?: string;
   /** Required for projected core-network stops. */
   latitude?: number;
   longitude?: number;
@@ -38,10 +40,10 @@ export type Call = {
    * to derive boarding places.
    */
   bay?: string;
-  /** The stop point's DHID, finer than `localStopId`: it tells Marktplatz's two tunnels apart. */
-  providerStopPointId?: string;
-  /** Present when the provider stop can be resolved to one of our supported local stop pages. */
-  localStopId?: string;
+  /** The stop point's DHID, finer than `stopPlaceId`: it tells Marktplatz's two tunnels apart. */
+  stopPointId?: string;
+  /** The stop place the stop point resolved to. */
+  stopPlaceId?: string;
   /** The stop whose board produced this departure. */
   isThisCall?: boolean;
   /** Where this calling point really is, as the feed states it. */
@@ -51,8 +53,8 @@ export type Call = {
   timetabledArrivalTime?: string;
   timetabledDepartureTime?: string;
   /**
-   * Predictions to the second where the feed states them (TRIAS); they win over schedule plus
-   * deviation. The whole-minute delays below are then their rounded, printable form.
+   * Predictions to the second (`EstimatedTime`). The whole-minute delays below are their rounded,
+   * printable form.
    */
   estimatedArrivalTime?: string;
   estimatedDepartureTime?: string;
@@ -95,16 +97,16 @@ export type StopEvent = {
   /** The feed's own word for that bay; `undefined` where it stated none. */
   bayKind?: BayKind;
   /**
-   * The local stop this row departs from, which can differ from the board's (a stop place's page lists
-   * all its stop points). Same grain as `Call.localStopId`.
+   * The stop place this row departs from, which can differ from the board's (a stop place's page lists
+   * all its stop points). Same grain as `Call.stopPlaceId`.
    */
-  boardingLocalStopId: string;
+  boardingStopPlaceId: string;
   /**
    * The stop point's DHID and its name, as `Call` carries them. The name is the operator's signage
    * (`Marktplatz (Pyramide U)`), which tells tunnel and street level apart.
    */
-  boardingProviderStopPointId: string;
-  boardingProviderStopPointName: string;
+  boardingStopPointId: string;
+  boardingStopPointName: string;
   status: StopEventStatus;
   /** Timetabled departure as an ISO string, used for stable labels on displays. */
   timetabledDepartureTime: string;

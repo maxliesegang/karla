@@ -7,13 +7,13 @@ import { createStopEvent } from "./support/fixtures.ts";
 const calls = (delayMinutes: number): Call[] => [
   {
     stopName: "A",
-    localStopId: "a",
+    stopPlaceId: "a",
     timetabledDepartureTime: "2026-09-06T10:00:00.000Z",
     delayMinutes,
   },
   {
     stopName: "B",
-    localStopId: "b",
+    stopPlaceId: "b",
     timetabledArrivalTime: "2026-09-06T10:05:00.000Z",
     delayMinutes,
   },
@@ -41,20 +41,26 @@ const read = (
   at: number,
 ) => store.rememberSequence(store.findJourneyRecordKey(rowId), sequence(journeyCalls, at), at);
 
-const stopEvent = (id: string, stopId: string, overrides: Partial<StopEvent> = {}): StopEvent =>
-  createStopEvent({
+/** A row of `provider-trip` on 2026-09-06, unless the overrides name another dated journey. */
+const stopEvent = (id: string, stopId: string, overrides: Partial<StopEvent> = {}): StopEvent => {
+  const journeyRef = "journeyRef" in overrides ? overrides.journeyRef : "provider-trip";
+  const operatingDayRef = overrides.operatingDayRef ?? "2026-09-06";
+  return createStopEvent({
     id,
-    journeyRef: "provider-trip",
+    journeyRef,
+    operatingDayRef,
+    ...(journeyRef ? { datedJourneyId: `${journeyRef}@${operatingDayRef}` } : {}),
     lineId: "2",
     ptMode: "tram",
     destinationText: "B",
     minutesUntilDeparture: 1,
     bay: "1",
-    boardingLocalStopId: stopId,
+    boardingStopPlaceId: stopId,
     status: "realtime",
     timetabledDepartureTime: "2026-09-06T10:00:00.000Z",
     ...overrides,
   });
+};
 
 const DATED_JOURNEY_ENDS_AT = Date.parse("2026-09-06T10:05:00.000Z");
 
@@ -164,12 +170,11 @@ test("one run is one record from its first row, with no sequence needed to say s
 
 test("a run crossing midnight is one record at the stops on either side of it", () => {
   const store = new DatedJourneyReadingStore();
-  // A run out at 23:50 states different days before and after midnight; the store reads no day, so
-  // both stops are the same run.
+  // Both stops state the run's operating day, not the calendar day.
   const before = stopEvent("before", "o", { timetabledDepartureTime: "2026-09-06T23:50:00.000Z" });
   const datedJourneyCalls: Call[] = [
-    { stopName: "O", localStopId: "o", timetabledDepartureTime: "2026-09-06T23:50:00.000Z" },
-    { stopName: "C", localStopId: "c", timetabledArrivalTime: "2026-09-07T00:30:00.000Z" },
+    { stopName: "O", stopPlaceId: "o", timetabledDepartureTime: "2026-09-06T23:50:00.000Z" },
+    { stopName: "C", stopPlaceId: "c", timetabledArrivalTime: "2026-09-07T00:30:00.000Z" },
   ];
   const after = stopEvent("after", "c", { timetabledDepartureTime: "2026-09-07T00:30:00.000Z" });
   store.rememberRow(stamp(before, 100), 100);
@@ -180,27 +185,29 @@ test("a run crossing midnight is one record at the stops on either side of it", 
   // The stop after midnight gets only the sequence, never the other stop's facts.
   assert.deepEqual(store.findSequence("after")?.calls, datedJourneyCalls);
   assert.equal(store.findDatedJourney("after")?.id, "after");
-  assert.equal(store.findDatedJourney("after")?.boardingLocalStopId, "c");
+  assert.equal(store.findDatedJourney("after")?.boardingStopPlaceId, "c");
 });
 
-test("a run is retired before its trip code is issued again the next day", () => {
+test("the same journey on the next operating day is a record of its own", () => {
   const store = new DatedJourneyReadingStore();
-  const today = Date.parse("2026-09-06T09:55:00.000Z");
-  store.rememberRow(stamp(stopEvent("today", "a"), today), today);
-  read(store, "today", calls(0), today);
-  assert.ok(store.findSequence("today"));
-
-  // Tomorrow's dated journey shares the `JourneyRef`; only the first record's retirement keeps
-  // them apart.
-  const tomorrow = Date.parse("2026-09-07T09:55:00.000Z");
+  const now = Date.parse("2026-09-06T09:55:00.000Z");
+  store.rememberRow(stamp(stopEvent("today", "a"), now), now);
+  read(store, "today", calls(0), now);
+  // Tomorrow's row is already on a board while today's run is still out.
   const next = stopEvent("tomorrow", "a", {
+    operatingDayRef: "2026-09-07",
     timetabledDepartureTime: "2026-09-07T10:00:00.000Z",
   });
-  store.rememberRow(stamp(next, tomorrow), tomorrow);
+  store.rememberRow(stamp(next, now + 1), now + 1);
 
-  assert.equal(store.findRow("today"), undefined, "yesterday's row is gone");
-  assert.equal(store.findSequence("tomorrow"), undefined, "and cannot answer for today's run");
+  assert.notEqual(store.findJourneyRecordKey("tomorrow"), store.findJourneyRecordKey("today"));
+  assert.equal(store.findSequence("tomorrow"), undefined);
   assert.equal(store.findDatedJourney("tomorrow")?.calls, undefined);
+  assert.equal(store.findSequence("today")?.readAt, now);
+  assert.equal(
+    store.findDatedJourneyRow(store.findJourneyRecordKey("today"))?.stopEvent.id,
+    "today",
+  );
 });
 
 test("a run still being read is never retired, however far behind its last call is", () => {
@@ -226,8 +233,8 @@ test("spends the cap on runs that are over before the vehicles still out", () =>
       store,
       id,
       [
-        { stopName: "A", localStopId: "a", timetabledDepartureTime: arrival },
-        { stopName: "B", localStopId: "b", timetabledArrivalTime: arrival },
+        { stopName: "A", stopPlaceId: "a", timetabledDepartureTime: arrival },
+        { stopName: "B", stopPlaceId: "b", timetabledArrivalTime: arrival },
       ],
       now,
     );
@@ -245,7 +252,7 @@ test("spends the cap on runs that are over before the vehicles still out", () =>
 
 test("keeps the fuller sequence when two readings of one instant disagree in length", () => {
   const store = new DatedJourneyReadingStore();
-  const full = [...calls(1), { stopName: "C", localStopId: "c", delayMinutes: 1 }];
+  const full = [...calls(1), { stopName: "C", stopPlaceId: "c", delayMinutes: 1 }];
   store.rememberRow(stamp(stopEvent("row", "a"), 100), 100);
   read(store, "row", full, 100);
   // A reading of the same instant replaces another only where it says more.
@@ -381,7 +388,7 @@ test("learns a farther run end from a reading that does not replace the current 
   store.rememberSequence(
     store.findJourneyRecordKey("row"),
     sequence(
-      [...calls(3), { stopName: "C", localStopId: "c", timetabledArrivalTime: laterEnd }],
+      [...calls(3), { stopName: "C", stopPlaceId: "c", timetabledArrivalTime: laterEnd }],
       150,
     ),
     150,
@@ -407,42 +414,15 @@ test("a newer unconfirmed excerpt keeps known coverage and its original age", ()
   assert.equal(reading?.coverageReadAt, 100);
 });
 
-test("a foreign response and future row cannot alter the active instance", () => {
+test("a row without its operating day shares no record, even with a journey of its code", () => {
   const store = new DatedJourneyReadingStore();
-  store.rememberRow(stamp(stopEvent("today", "a"), 100), 100);
-  read(store, "today", calls(0), 100);
-  const future = stopEvent("future", "a", { timetabledDepartureTime: "2026-09-07T10:00:00Z" });
-  store.rememberRow(stamp(future, 200), 200);
-  assert.equal(store.canReadDatedJourney("future"), false);
-  assert.equal(store.findDatedJourney("future")?.calls, undefined);
-  assert.equal(
-    store.findDatedJourneyRow(store.findJourneyRecordKey("today"))?.stopEvent.id,
-    "today",
-  );
-  assert.equal(
-    store.rememberSequence(
-      store.findJourneyRecordKey("today"),
-      sequence([{ ...calls(0)[0], timetabledDepartureTime: "2026-09-07T10:00:00Z" }], 300),
-      300,
-    ),
-    false,
-  );
-  assert.equal(store.findSequence("today")?.readAt, 100);
-});
+  store.rememberRow(stamp(stopEvent("dated", "a"), 100), 100);
+  read(store, "dated", calls(0), 100);
+  const undated = stopEvent("undated", "b", { operatingDayRef: undefined });
+  store.rememberRow(stamp(undated, 110), 110);
 
-test("today can take ownership when tomorrow's basic row was observed first", () => {
-  const store = new DatedJourneyReadingStore();
-  const now = Date.parse("2026-09-06T10:00:00Z");
-  store.rememberRow(
-    stopEvent("future", "a", { timetabledDepartureTime: "2026-09-07T10:00:00Z" }),
-    now,
-  );
-  store.rememberRow(stamp(stopEvent("today", "a"), now + 1), now + 1);
-  read(store, "today", calls(0), now + 1);
-  assert.equal(store.canReadDatedJourney("today"), true);
-  assert.equal(store.canReadDatedJourney("future"), false);
-  assert.equal(store.findDatedJourney("today")?.calls?.length, 2);
-  assert.equal(store.findDatedJourney("future")?.calls, undefined);
+  assert.notEqual(store.findJourneyRecordKey("undated"), store.findJourneyRecordKey("dated"));
+  assert.equal(store.findSequence("undated"), undefined);
 });
 
 test("a confirmed shorter terminus replaces older coverage", () => {

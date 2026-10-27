@@ -20,7 +20,7 @@ const journey = (
     destinationText: "C",
     minutesUntilDeparture: 0,
     bay: "1",
-    boardingLocalStopId: "b",
+    boardingStopPlaceId: "b",
     status,
     timetabledDepartureTime: new Date(start + 60_000).toISOString(),
     calls: [...journeyCalls],

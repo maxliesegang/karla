@@ -33,7 +33,7 @@ import {
 } from "./direction-coverage";
 import { createStopEventId, keepOneRowPerDatedJourney } from "./stop-event-dated-journeys";
 import { SharedRequests } from "./request-sharing";
-import { DYNAMIC_STOP_ID_PATTERN, StopRegistry, hashProviderStopId } from "./stop-registry";
+import { DYNAMIC_STOP_ID_PATTERN, StopRegistry, hashStopPointId } from "./stop-registry";
 import { ServingDirections } from "./serving-directions";
 import { sortStopEventsByExpectedInstant } from "../lib/stop-event-order";
 import { isBetterDatedJourneyReading } from "../lib/journeys";
@@ -63,14 +63,14 @@ export type DatedJourneyDiscoveryRequest = {
 export { createStopEventId };
 
 /**
- * The boundary the views talk to. Nothing above it knows about TRIAS, provider ids or HTTP.
+ * The boundary the views talk to. Nothing above it knows about TRIAS, stop points or HTTP.
  */
 export interface TransitSource {
   getDatedJourneyDiscoveryReading(
     posts: readonly DatedJourneyDiscoveryPost[],
     options: DatedJourneyDiscoveryRequest,
   ): Promise<DatedJourneyDiscoveryReading>;
-  /** Stops and lines: the local identities views address. */
+  /** Stop places and lines, as views address them. */
   getNetwork(): TransitNetwork;
   /** Resolves both local core-network stops and any stop exposed by the KVV network. */
   resolveStop(stopId: string): Promise<StopPlace | undefined>;
@@ -92,7 +92,7 @@ export interface TransitSource {
     request: LineStopEventBoardsRequest,
   ): Promise<StopEventBoard[]>;
   /**
-   * A line-direction's route as local stop ids, addressed through one of its rows; kept for the
+   * A line-direction's route as stop place ids, addressed through one of its rows; kept for the
    * session. `undefined` where it could not be read.
    */
   getLineRoute(rowId: string): Promise<readonly string[] | undefined>;
@@ -123,7 +123,7 @@ export interface TransitSource {
  */
 export const DEFAULT_BOARD_MAX_AGE_MS = 30_000;
 const BASIC_BOARD_CACHE_VARIANT = "basic";
-const DETAILED_BOARD_CACHE_VARIANT = "with-trip-calls";
+const DETAILED_BOARD_CACHE_VARIANT = "with-calls";
 const COVERED_BOARD_CACHE_VARIANT = "covered-directions";
 const LINE_BOARD_CACHE_VARIANT = "line";
 /**
@@ -205,7 +205,7 @@ export class TriasTransitSource implements TransitSource {
     const rows = boards.flatMap((board) => board.stopEvents);
     const rowsByDatedJourney = new Map<string, StopEvent>();
     for (const row of rows) {
-      if (!this.datedJourneyReadings.canReadDatedJourney(row.id)) continue;
+      if (!this.datedJourneyReadings.findRow(row.id)) continue;
       const key = this.datedJourneyReadings.findJourneyRecordKey(row.id);
       const known = rowsByDatedJourney.get(key);
       if (!known || isBetterDatedJourneyReading(row, known)) rowsByDatedJourney.set(key, row);
@@ -313,10 +313,10 @@ export class TriasTransitSource implements TransitSource {
     const [, slug, digest] = DYNAMIC_STOP_ID_PATTERN.exec(stopId) ?? [];
     if (!slug || !digest) return undefined;
     const matches = await this.client.searchStops(slug.replace(/-/g, " "));
-    const match = matches.find((candidate) => hashProviderStopId(candidate.providerId) === digest);
+    const match = matches.find((candidate) => hashStopPointId(candidate.stopPointId) === digest);
     return match
       ? this.stops.register({
-          providerId: match.providerId,
+          stopPointId: match.stopPointId,
           name: match.name,
           placeName: match.placeName,
           latitude: match.latitude,
@@ -336,7 +336,9 @@ export class TriasTransitSource implements TransitSource {
 
     const normalized = trimmed.toLowerCase();
     const local = this.network.stops.filter((stop) =>
-      [stop.name, stop.alias].some((name) => name?.toLowerCase().includes(normalized)),
+      [stop.name, stop.formerName, stop.placeName].some((name) =>
+        name?.toLowerCase().includes(normalized),
+      ),
     );
 
     // A failed provider read is not "nothing": answer with local matches, or fail.
@@ -350,7 +352,7 @@ export class TriasTransitSource implements TransitSource {
       if (!isWithinScopeBounds(network.scope, match.latitude, match.longitude)) return [];
       return [
         this.stops.register({
-          providerId: match.providerId,
+          stopPointId: match.stopPointId,
           name: match.name,
           placeName: match.placeName,
           latitude: match.latitude,
@@ -416,7 +418,7 @@ export class TriasTransitSource implements TransitSource {
     const rows = boards.flatMap((board) => board.stopEvents);
     const rowByDatedJourneyRecordKey = new Map<string, StopEvent>();
     for (const row of rows) {
-      if (!this.datedJourneyReadings.canReadDatedJourney(row.id)) continue;
+      if (!this.datedJourneyReadings.findRow(row.id)) continue;
       const recordKey = this.datedJourneyReadings.findJourneyRecordKey(row.id);
       const known = rowByDatedJourneyRecordKey.get(recordKey);
       if (!known || isBetterDatedJourneyReading(row, known))
@@ -459,7 +461,7 @@ export class TriasTransitSource implements TransitSource {
               ...new Set(
                 this.stops
                   .toCalls(route)
-                  .map(({ localStopId }) => localStopId)
+                  .map(({ stopPlaceId }) => stopPlaceId)
                   .filter((stopId): stopId is string => Boolean(stopId)),
               ),
             ];
@@ -478,8 +480,7 @@ export class TriasTransitSource implements TransitSource {
     maxAgeMs = DEFAULT_BOARD_MAX_AGE_MS,
   ): Promise<StopEvent | undefined> {
     const row = this.datedJourneyReadings.findRow(rowId);
-    if (!row || !this.datedJourneyReadings.canReadDatedJourney(rowId))
-      return Promise.resolve(undefined);
+    if (!row) return Promise.resolve(undefined);
     const cached = this.datedJourneyReadings.findSequence(rowId);
     const current = () => (cached ? this.findDatedJourney(rowId) : undefined);
 
@@ -495,7 +496,7 @@ export class TriasTransitSource implements TransitSource {
     const read =
       this.datedJourneyRequests.find(this.datedJourneyReadings.findJourneyRecordKey(rowId)) ??
       this.requestDatedJourney(rowId, journey, {
-        stopPointId: row.stopEvent.boardingProviderStopPointId,
+        stopPointId: row.stopEvent.boardingStopPointId,
         timetabledTime: row.stopEvent.timetabledDepartureTime,
       });
     // A failed read answers nothing, so the caller backs off.
@@ -664,7 +665,7 @@ export class TriasTransitSource implements TransitSource {
   ): StopEvent {
     // A board can cover several stop points; each row keeps the one it leaves from, so it can match
     // its own call in the sequence.
-    const eventStopId = this.stops.findLocalStopId(stopEvent.stopPointId) ?? stopId;
+    const eventStopId = this.stops.findStopPlaceId(stopEvent.stopPointId) ?? stopId;
     const rowId = createStopEventId(stopEvent, eventStopId);
     const id = eventKind === "arrival" ? `arrival:${rowId}` : rowId;
     const calls = stopEvent.calls && this.stops.toCalls(stopEvent.calls);
@@ -682,9 +683,9 @@ export class TriasTransitSource implements TransitSource {
       delayMinutes: stopEvent.delayMinutes,
       bay: stopEvent.bay,
       bayKind: stopEvent.bayKind,
-      boardingLocalStopId: eventStopId,
-      boardingProviderStopPointId: stopEvent.stopPointId,
-      boardingProviderStopPointName: stopEvent.stopPointName,
+      boardingStopPlaceId: eventStopId,
+      boardingStopPointId: stopEvent.stopPointId,
+      boardingStopPointName: stopEvent.stopPointName,
       status: stopEvent.status,
       timetabledDepartureTime: stopEvent.timetabledDepartureTime,
       estimatedDepartureTime: stopEvent.estimatedDepartureTime,

@@ -166,7 +166,7 @@ export const getSchematicBoardingPlaces = (
   for (const stopEvent of stopEvents) {
     const calls = stopEvent.calls ?? [];
     const nodeIds = calls.map((call) =>
-      call.localStopId && nodes.has(call.localStopId) ? call.localStopId : undefined,
+      call.stopPlaceId && nodes.has(call.stopPlaceId) ? call.stopPlaceId : undefined,
     );
     for (const [index, call] of calls.entries()) {
       const nodeId = nodeIds[index];
@@ -174,7 +174,7 @@ export const getSchematicBoardingPlaces = (
       const bays = baysByNodeId.get(nodeId) ?? new Map();
       baysByNodeId.set(nodeId, bays);
       // A level and a code: the tunnel's `1(U)` and the street's `1` are two bays.
-      const key = `${call.providerStopPointId ?? ""}|${call.bay}`;
+      const key = `${call.stopPointId ?? ""}|${call.bay}`;
       const bay: ObservedBay = bays.get(key) ?? {
         key,
         code: call.bay,
@@ -207,13 +207,13 @@ export const getSchematicBoardingPlaces = (
         bay.travel.y += axis.y;
       }
       const neighbors = [previous, next]
-        .map((neighbor) => neighbor?.localStopId ?? neighbor?.providerStopPointId)
-        .filter((id): id is string => Boolean(id) && id !== call.localStopId);
+        .map((neighbor) => neighbor?.stopPlaceId ?? neighbor?.stopPointId)
+        .filter((id): id is string => Boolean(id) && id !== call.stopPlaceId);
       if (neighbors.length === 2 && neighbors[0] !== neighbors[1])
         bay.routePairs.add([...neighbors].sort().join("|"));
       for (const neighbor of [calls[index - 1], calls[index + 1]]) {
-        const route = neighbor?.localStopId ?? neighbor?.providerStopPointId;
-        if (!route || route === call.localStopId) continue;
+        const route = neighbor?.stopPlaceId ?? neighbor?.stopPointId;
+        if (!route || route === call.stopPlaceId) continue;
         bay.routes.set(route, (bay.routes.get(route) ?? 0) + 1);
       }
       // Adjacent calls only: a journey leaving the plan and returning must not invent a corridor.
@@ -267,8 +267,8 @@ const getAuthoredCorridors = (
   const byKey = new Map<string, Segment>();
   for (const { calls = [] } of stopEvents) {
     for (let index = 1; index < calls.length; index += 1) {
-      const from = nodes.get(calls[index - 1].localStopId ?? "");
-      const to = nodes.get(calls[index].localStopId ?? "");
+      const from = nodes.get(calls[index - 1].stopPlaceId ?? "");
+      const to = nodes.get(calls[index].stopPlaceId ?? "");
       if (!from || !to || from === to) continue;
       byKey.set([from.id, to.id].sort().join("|"), [from, to]);
     }
@@ -381,9 +381,9 @@ export function createSchematicBoardingReading(
   }
   const resolveNodeId = (call: Call) => {
     const stopId =
-      call.localStopId && authoredNodes.has(call.localStopId) ? call.localStopId : undefined;
+      call.stopPlaceId && authoredNodes.has(call.stopPlaceId) ? call.stopPlaceId : undefined;
     return stopId
-      ? (nodeIdByBay.get(`${stopId}|${call.providerStopPointId ?? ""}|${call.bay ?? ""}`) ?? stopId)
+      ? (nodeIdByBay.get(`${stopId}|${call.stopPointId ?? ""}|${call.bay ?? ""}`) ?? stopId)
       : undefined;
   };
   return { nodesById, placesByStopId, boardingPlacesByNodeId: placesByNodeId, resolveNodeId };

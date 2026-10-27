@@ -23,12 +23,12 @@ test("a clipped junction retains its distinct boarding places from full neighbor
   const north = reading.resolveNodeId(
     datedJourneys
       .flatMap((r) => r.calls ?? [])
-      .find((c) => c.localStopId === "tullastrasse" && c.bay === "4")!,
+      .find((c) => c.stopPlaceId === "tullastrasse" && c.bay === "4")!,
   )!;
   const east = reading.resolveNodeId(
     datedJourneys
       .flatMap((r) => r.calls ?? [])
-      .find((c) => c.localStopId === "tullastrasse" && c.bay === "1b")!,
+      .find((c) => c.stopPlaceId === "tullastrasse" && c.bay === "1b")!,
   )!;
   assert.notEqual(north, east);
   assert.ok(reading.nodesById.get(north)!.y < reading.nodesById.get(east)!.y);
@@ -73,14 +73,14 @@ test("the same geographic rule works with unrelated stop and platform names", ()
     ...r,
     calls: r.calls?.map((c) => ({
       ...c,
-      localStopId:
-        c.localStopId === "tullastrasse"
+      stopPlaceId:
+        c.stopPlaceId === "tullastrasse"
           ? "hub"
-          : c.localStopId === "gottesauer-platz"
+          : c.stopPlaceId === "gottesauer-platz"
             ? "west"
-            : c.localStopId === "schloss-gottesaue"
+            : c.stopPlaceId === "schloss-gottesaue"
               ? "south"
-              : c.localStopId,
+              : c.stopPlaceId,
       bay: c.bay ? `track-${c.bay}` : undefined,
     })),
   }));
@@ -97,9 +97,9 @@ test("equal aggregate neighbors do not merge different observed through routes",
   const along = (code: string, from: string, to: string) =>
     createStopEvent({
       calls: [
-        { stopName: from, localStopId: from },
-        { stopName: "Hub", localStopId: "hub", bay: code },
-        { stopName: to, localStopId: to },
+        { stopName: from, stopPlaceId: from },
+        { stopName: "Hub", stopPlaceId: "hub", bay: code },
+        { stopName: to, stopPlaceId: to },
       ],
     });
   const reading = createSchematicBoardingReading(
@@ -135,10 +135,10 @@ test("geographic boarding places produce only horizontal, vertical or diagonal s
 });
 
 test("a boarding place stands a step off its stop, turns square off the bundle and runs on out", () => {
-  const call = (stopName: string, latitude: number, longitude: number, localStopId?: string) => ({
+  const call = (stopName: string, latitude: number, longitude: number, stopPlaceId?: string) => ({
     stopName,
-    localStopId,
-    providerStopPointId: stopName,
+    stopPlaceId,
+    stopPointId: stopName,
     latitude,
     longitude,
   });
@@ -173,10 +173,10 @@ test("a boarding place stands a step off its stop, turns square off the bundle a
 });
 
 test("a place seen with one platform still runs the way the timetable's pair does", () => {
-  const call = (stopName: string, latitude: number, longitude: number, localStopId?: string) => ({
+  const call = (stopName: string, latitude: number, longitude: number, stopPlaceId?: string) => ({
     stopName,
-    localStopId,
-    providerStopPointId: stopName,
+    stopPlaceId,
+    stopPointId: stopName,
     latitude,
     longitude,
   });
@@ -228,10 +228,10 @@ test("a place seen with one platform still runs the way the timetable's pair doe
 });
 
 test("a line leaving the plan runs on as a stub the way it really goes", () => {
-  const karlstor: Call = { stopName: "Karlstor", localStopId: "karlstor" };
+  const karlstor: Call = { stopName: "Karlstor", stopPlaceId: "karlstor" };
   const europaplatz: Call = {
     stopName: "Europaplatz",
-    localStopId: "europaplatz",
+    stopPlaceId: "europaplatz",
     latitude: 49.0101,
     longitude: 8.3937,
   };
@@ -256,8 +256,8 @@ test("a line leaving the plan runs on as a stub the way it really goes", () => {
 test("a stub straight on keeps the lanes of the corridor it continues", () => {
   const journey = (id: string, lineId: string, calls: Call[]) =>
     createStopEvent({ id, lineId, calls });
-  const europaplatz: Call = { stopName: "Europaplatz", localStopId: "europaplatz" };
-  const karlstor: Call = { stopName: "Karlstor", localStopId: "karlstor" };
+  const europaplatz: Call = { stopName: "Europaplatz", stopPlaceId: "europaplatz" };
+  const karlstor: Call = { stopName: "Karlstor", stopPlaceId: "karlstor" };
   const reading = buildZentrumSchematicReading([
     journey("on", "S1", [europaplatz, karlstor, { stopName: "South" }]),
     journey("ends", "3", [europaplatz, karlstor]),
@@ -282,7 +282,7 @@ test("calls without positions still split a stop into the places its platforms s
       calls: registry.toCalls(
         calls.map((call) => {
           const [stop, bay] = call.split("|");
-          return { stopName: stop, providerId: stop, bay };
+          return { stopName: stop, stopPointId: stop, bay };
         }),
       ),
     });

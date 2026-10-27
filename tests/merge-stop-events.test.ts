@@ -11,11 +11,11 @@ const minute = 60_000;
 const createDatedJourney = (stops: readonly string[], startMinute = 0): StopEvent =>
   createStopEvent({
     calls: stops.map((stop, index) => {
-      const [localStopId, bay] = stop.split("@");
+      const [stopPlaceId, bay] = stop.split("@");
       const at = new Date(start + (startMinute + index) * minute).toISOString();
       return {
-        localStopId,
-        stopName: localStopId,
+        stopPlaceId,
+        stopName: stopPlaceId,
         bay,
         timetabledArrivalTime: at,
         timetabledDepartureTime: at,

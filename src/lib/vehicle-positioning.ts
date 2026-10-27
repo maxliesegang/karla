@@ -145,7 +145,7 @@ function steadyDelays(calls: readonly Call[], delays: DelayHistory, feedNow: num
     return getSteadyDelayMinutes(changes, minutes, feedNow);
   };
   const steadied = calls.map((call) => {
-    const key = `${call.localStopId}|${call.timetabledArrivalTime ?? call.timetabledDepartureTime}`;
+    const key = `${call.stopPlaceId}|${call.timetabledArrivalTime ?? call.timetabledDepartureTime}`;
     // A prediction to the second does not flap between minutes; the timeline reads it instead.
     return {
       ...call,
@@ -171,7 +171,7 @@ function getTimedCalls(
   originStatedShift: number | undefined;
 } {
   const localCalls = steadyDelays(
-    collapseTurnaroundCalls(stopEvent.calls ?? []).filter((call) => call.localStopId),
+    collapseTurnaroundCalls(stopEvent.calls ?? []).filter((call) => call.stopPlaceId),
     delays,
     feedNow,
   );
@@ -181,12 +181,12 @@ function getTimedCalls(
   const originStatedShift = originShift !== undefined && originShift > 0 ? originShift : undefined;
   const timed: TimedCall[] = [];
   for (const { call, arrival, departure: callDeparture } of timeline) {
-    if (!call.localStopId) continue;
+    if (!call.stopPlaceId) continue;
     const previous = timed.at(-1);
     const isPublishedCurrentCall = call.isThisCall === true;
     if (
       previous &&
-      previous.stopId === call.localStopId &&
+      previous.stopId === call.stopPlaceId &&
       (previous.isPublishedCurrentCall || isPublishedCurrentCall)
     ) {
       previous.arrival = Math.min(previous.arrival, arrival);
@@ -194,7 +194,7 @@ function getTimedCalls(
       previous.isPublishedCurrentCall ||= isPublishedCurrentCall;
     } else {
       timed.push({
-        stopId: call.localStopId,
+        stopId: call.stopPlaceId,
         arrival,
         departure: callDeparture,
         isPublishedCurrentCall,
@@ -246,8 +246,8 @@ function findDatedJourneyEndStops(stopEvent: StopEvent): DatedJourneyEndStops {
   const firstCall = calls[0];
   const lastCall = calls[calls.length - 1];
   return {
-    startStopId: statesDatedJourneyStart(firstCall) ? firstCall?.localStopId : undefined,
-    endStopId: statesDatedJourneyEnd(lastCall) ? lastCall?.localStopId : undefined,
+    startStopId: statesDatedJourneyStart(firstCall) ? firstCall?.stopPlaceId : undefined,
+    endStopId: statesDatedJourneyEnd(lastCall) ? lastCall?.stopPlaceId : undefined,
   };
 }
 

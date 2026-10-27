@@ -29,8 +29,8 @@ const isUnderground = (code: string) => code.endsWith("(U)");
 const call = (code: string, overrides: Partial<Call> = {}): Call => ({
   stopName: isUnderground(code) ? "Europaplatz (U)" : "Europaplatz",
   placeName: "Karlsruhe",
-  localStopId: "europaplatz",
-  providerStopPointId: isUnderground(code) ? "de:08212:1004" : "de:08212:37",
+  stopPlaceId: "europaplatz",
+  stopPointId: isUnderground(code) ? "de:08212:1004" : "de:08212:37",
   bayText: `Gleis ${code}`,
   bay: code,
   ...EUROPAPLATZ_BAYS[code],
@@ -48,9 +48,9 @@ function stopEvent(code: string, calls?: readonly Call[]): StopEvent {
     minutesUntilDeparture: 5,
     bay: code,
     bayKind: code === "A" ? "stand" : "track",
-    boardingLocalStopId: "europaplatz",
-    boardingProviderStopPointId: isUnderground(code) ? "de:08212:1004" : "de:08212:37",
-    boardingProviderStopPointName: isUnderground(code) ? "Europaplatz (U)" : "Europaplatz",
+    boardingStopPlaceId: "europaplatz",
+    boardingStopPointId: isUnderground(code) ? "de:08212:1004" : "de:08212:37",
+    boardingStopPointName: isUnderground(code) ? "Europaplatz (U)" : "Europaplatz",
     status: "scheduled",
     timetabledDepartureTime: "2026-09-04T08:58:00+02:00",
     ...(calls ? { calls } : {}),
@@ -62,12 +62,12 @@ const placesOf = (stopEvents: readonly StopEvent[]) =>
   getStopBoardingPlaces(updateStopBoardingObservations(null, "europaplatz", stopEvents));
 
 /** Onward calls of a tram stopping at both street platforms in turn, as trip 1374 does. */
-const streetDoubleCall = [call("3"), call("5"), { stopName: "Mühlburger Tor", localStopId: "mt" }];
+const streetDoubleCall = [call("3"), call("5"), { stopName: "Mühlburger Tor", stopPlaceId: "mt" }];
 
 test("a stop nothing has been observed to part is one place", () => {
   // Platforms are parted only by evidence, never by a distance threshold.
   const places = placesOf([
-    stopEvent("3", [call("3"), { stopName: "Mühlburger Tor", localStopId: "mt" }]),
+    stopEvent("3", [call("3"), { stopName: "Mühlburger Tor", stopPlaceId: "mt" }]),
     stopEvent("4"),
   ]);
 
@@ -82,7 +82,7 @@ test("a trip calling at two platforms in turn parts them, whatever the codes sug
     stopEvent("3", streetDoubleCall),
     stopEvent("4"),
     stopEvent("5"),
-    stopEvent("6", [call("6"), call("4"), { stopName: "Durlacher Tor", localStopId: "dt" }]),
+    stopEvent("6", [call("6"), call("4"), { stopName: "Durlacher Tor", stopPlaceId: "dt" }]),
   ]);
 
   assert.deepEqual(
@@ -104,7 +104,7 @@ test("a level is never merged into the one above it, however close the two stand
     stopEvent("2(U)"),
   ]);
 
-  const tunnel = places.find((place) => place.providerStopPointId === "de:08212:1004");
+  const tunnel = places.find((place) => place.stopPointId === "de:08212:1004");
   assert.deepEqual(tunnel?.bays, ["1(U)", "2(U)"]);
   // The label comes from the stop point's bracketed aside.
   assert.equal(tunnel && getBoardingPlaceLabel(tunnel), "U");
@@ -180,8 +180,8 @@ test("a vehicle turning round is not two places, from whichever end it is read",
   const bay = (code: string, overrides: Partial<Call> = {}): Call => ({
     stopName: "Turmberg",
     placeName: "Karlsruhe",
-    localStopId: "durlach-turmberg",
-    providerStopPointId: "de:08212:18",
+    stopPlaceId: "durlach-turmberg",
+    stopPointId: "de:08212:18",
     bay: code,
     bayText: `Bstg. ${code}`,
     timetabledArrivalTime: "2026-09-04T07:29:00+02:00",
@@ -193,9 +193,9 @@ test("a vehicle turning round is not two places, from whichever end it is read",
       ...stopEvent("A"),
       bay: code,
       bayKind: "stand",
-      boardingLocalStopId: "durlach-turmberg",
-      boardingProviderStopPointId: "de:08212:18",
-      boardingProviderStopPointName: "Turmberg",
+      boardingStopPlaceId: "durlach-turmberg",
+      boardingStopPointId: "de:08212:18",
+      boardingStopPointName: "Turmberg",
       calls,
     });
 

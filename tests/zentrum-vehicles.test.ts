@@ -4,10 +4,10 @@ import type { StopEvent, StopEventBoard, Call } from "../src/data/transit-types.
 import { getZentrumDatedJourneyObservation } from "../src/lib/zentrum-dated-journey-observation.ts";
 import { createStopEvent } from "./support/fixtures.ts";
 
-const call = (localStopId: string): Call => ({
-  stopName: localStopId,
-  localStopId,
-  providerStopPointId: `${localStopId}-1`,
+const call = (stopPlaceId: string): Call => ({
+  stopName: stopPlaceId,
+  stopPlaceId,
+  stopPointId: `${stopPlaceId}-1`,
   bay: "1",
 });
 
@@ -19,9 +19,9 @@ const stopEvent = (id: string, overrides: Partial<StopEvent> = {}): StopEvent =>
     destinationText: "Testziel",
     minutesUntilDeparture: 3,
     bay: "1",
-    boardingLocalStopId: "europaplatz",
-    boardingProviderStopPointId: "europaplatz-1",
-    boardingProviderStopPointName: "Europaplatz",
+    boardingStopPlaceId: "europaplatz",
+    boardingStopPointId: "europaplatz-1",
+    boardingStopPointName: "Europaplatz",
     status: "realtime",
     timetabledDepartureTime: "2026-09-04T12:00:00+02:00",
     calls: [call("europaplatz"), call("marktplatz")],

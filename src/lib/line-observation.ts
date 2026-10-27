@@ -142,11 +142,11 @@ export function extendLineCallStopIds(
   const known = new Set(knownStopIds);
   let expanded: string[] | undefined;
   for (const { calls } of journeys) {
-    for (const { localStopId } of calls ?? []) {
-      if (!localStopId || known.has(localStopId)) continue;
-      known.add(localStopId);
+    for (const { stopPlaceId } of calls ?? []) {
+      if (!stopPlaceId || known.has(stopPlaceId)) continue;
+      known.add(stopPlaceId);
       if (!expanded) expanded = [...knownStopIds];
-      expanded.push(localStopId);
+      expanded.push(stopPlaceId);
     }
   }
   return expanded ?? knownStopIds;

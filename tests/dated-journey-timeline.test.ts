@@ -7,9 +7,9 @@ import { createStopEvent } from "./support/fixtures.ts";
 
 test("position, area membership and retirement carry the same sparse delay", () => {
   const start = Date.parse("2026-10-07T12:00:00Z");
-  const calls = ["marktplatz", "kronenplatz", "durlacher-tor"].map((localStopId, index) => ({
-    localStopId,
-    stopName: localStopId,
+  const calls = ["marktplatz", "kronenplatz", "durlacher-tor"].map((stopPlaceId, index) => ({
+    stopPlaceId,
+    stopName: stopPlaceId,
     timetabledArrivalTime: new Date(start + index * 5 * 60_000).toISOString(),
     timetabledDepartureTime: new Date(start + index * 5 * 60_000).toISOString(),
     ...(index === 0 ? { delayMinutes: 10 } : {}),

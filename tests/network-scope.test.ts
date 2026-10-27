@@ -206,7 +206,7 @@ test("the crawl of KVV's line learns nothing from another network's line of that
     id: "kvv-4",
     lineId: "4",
     lineRef: "kvv:21004:E:H:s26",
-    calls: [{ stopName: "Marktplatz", localStopId: "marktplatz" }],
+    calls: [{ stopName: "Marktplatz", stopPlaceId: "marktplatz" }],
   });
   const selection = createLineSelectionOf(createLineSign("4", "tram", "kvv:21004:E:H:s26"));
 

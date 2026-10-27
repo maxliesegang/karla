@@ -86,7 +86,7 @@ export function getRideProgress(
   const minutesToNextCall = position ? (positionedMinutes ?? timetabledMinutes) : timetabledMinutes;
 
   const alightingIndex = alightingStopId
-    ? calls.findIndex((call) => call.localStopId === alightingStopId)
+    ? calls.findIndex((call) => call.stopPlaceId === alightingStopId)
     : -1;
   const isAlightingPassed = alightingIndex >= 0 && alightingIndex < passedCallCount;
   const alightingCall =

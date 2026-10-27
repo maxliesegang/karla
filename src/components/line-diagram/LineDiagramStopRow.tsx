@@ -58,7 +58,7 @@ function LineDiagramStopRowView({
         isLast && "terminus-end",
       )}
       data-current-stop={isCurrent || undefined}
-      data-run-position-anchor={isDatedJourneyPositionAnchor || undefined}
+      data-journey-position-anchor={isDatedJourneyPositionAnchor || undefined}
       data-line-diagram-stop-index={index}
       aria-current={isCurrent ? "location" : undefined}
     >

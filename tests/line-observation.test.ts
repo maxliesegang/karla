@@ -52,7 +52,7 @@ function lineStopEvent(lineId: string, lineRef: string | undefined): StopEvent {
 function journeyWithCalls(stopIds: readonly string[]): StopEvent {
   return createStopEvent({
     ...lineStopEvent("3", "kvv:21003:E:H:s26"),
-    calls: stopIds.map((stopId) => ({ stopName: stopId.toUpperCase(), localStopId: stopId })),
+    calls: stopIds.map((stopId) => ({ stopName: stopId.toUpperCase(), stopPlaceId: stopId })),
   }) as StopEvent;
 }
 

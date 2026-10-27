@@ -28,8 +28,8 @@ type CallSpec = {
 const call = ({ id, minute, place = "Karlsruhe", position, isLocal = true }: CallSpec): Call => ({
   stopName: `${id} (Gleis 1)`,
   placeName: place,
-  ...(isLocal ? { localStopId: id } : {}),
-  providerStopPointId: `700${id.length}`,
+  ...(isLocal ? { stopPlaceId: id } : {}),
+  stopPointId: `700${id.length}`,
   ...(position ? { latitude: position[0], longitude: position[1] } : {}),
   timetabledArrivalTime: at(minute),
   timetabledDepartureTime: at(minute),
@@ -83,7 +83,7 @@ test("draws each stop where the feed locates it, linked to the stops its runs ca
 test("places a stop its runs leave unlocated from elsewhere, or links across it", () => {
   const unlocatedKronenplatz = { ...KRONENPLATZ, position: undefined };
   const read = createGeoNetworkReader((stop) =>
-    stop.localStopId === "kronenplatz" ? { latitude: 49.0093, longitude: 8.411 } : undefined,
+    stop.stopPlaceId === "kronenplatz" ? { latitude: 49.0093, longitude: 8.411 } : undefined,
   );
   const placed = read([datedJourney("a", "S5", [MARKTPLATZ, unlocatedKronenplatz, DURLACH])]);
   assert.equal(placed.stops.get("kronenplatz")?.longitude, 8.411);

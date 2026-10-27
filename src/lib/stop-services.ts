@@ -12,11 +12,11 @@ import { getCallKey, getCallSequenceKey, getCallsAfterCurrentStop, runsInOrderOf
 
 /** Every name a stop goes by. */
 const getStopNameVariants = (stop: StopPlace): string[] =>
-  [stop.name, stop.alias].filter((name): name is string => Boolean(name));
+  [stop.name, stop.formerName].filter((name): name is string => Boolean(name));
 
 /**
- * Resolves a call's stop name to a local stop, also by base name, since a call names its bay
- * (`Marktplatz (Kaiserstraße U)`). The fallback where the provider id did not resolve.
+ * Resolves a call's stop name to a stop place, also by base name, since a call names its bay
+ * (`Marktplatz (Kaiserstraße U)`). The fallback where the stop point did not resolve.
  */
 export function findStopByName(network: TransitNetwork, name: string): StopPlace | undefined {
   const baseName = getBaseName(name);

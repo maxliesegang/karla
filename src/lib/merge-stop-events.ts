@@ -9,7 +9,7 @@ import { collapseTurnaroundCalls } from "./calls";
 
 const getStopTimeline = (datedJourney: StopEvent): TimedDatedJourneyCall[] =>
   getDatedJourneyTimeline(
-    collapseTurnaroundCalls(datedJourney.calls ?? []).filter((call) => call.localStopId),
+    collapseTurnaroundCalls(datedJourney.calls ?? []).filter((call) => call.stopPlaceId),
   );
 
 /** Lettered sections (`2a`, `2b`) are one track. Unstated, a bay is taken as shared. */
@@ -18,7 +18,7 @@ const getTrack = ({ call }: TimedDatedJourneyCall) => call.bay?.replace(/[a-z]$/
 /** One dated journey's approach to a stop it leaves for the same next stop as others. */
 type Approach = { from: string; track: string };
 
-const getStopId = ({ call }: TimedDatedJourneyCall) => call.localStopId ?? "";
+const getStopId = ({ call }: TimedDatedJourneyCall) => call.stopPlaceId ?? "";
 
 /**
  * Each dated journey's expected departures, as feed instants, where its way joins another's: a stop

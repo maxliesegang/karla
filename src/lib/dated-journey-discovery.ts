@@ -20,10 +20,10 @@ export function getDatedJourneyDiscoveryPosts(
     if (!isRailStopEvent(datedJourney) || datedJourney.status === "cancelled") continue;
     const calls = datedJourney.calls ?? [];
     for (const [index, call] of calls.entries()) {
-      const stopId = call.localStopId;
+      const stopId = call.stopPlaceId;
       if (!stopId || !area.has(stopId)) continue;
       const next = calls[index + 1];
-      if (next && !area.has(next.localStopId ?? "")) add(stopId, "departure");
+      if (next && !area.has(next.stopPlaceId ?? "")) add(stopId, "departure");
       if (index === calls.length - 1 && statesDatedJourneyEnd(call)) {
         add(stopId, "departure");
         add(stopId, "arrival");
@@ -43,10 +43,10 @@ export function isDatedJourneyInArea(
   const calls = datedJourney.calls ?? [];
   const timeline = new Map(getDatedJourneyTimeline(calls).map((entry) => [entry.call, entry]));
   for (let index = 0; index < calls.length; index += 1) {
-    if (!areaStopIds.has(calls[index].localStopId ?? "")) continue;
+    if (!areaStopIds.has(calls[index].stopPlaceId ?? "")) continue;
     const startsAt = timeline.get(calls[index])?.arrival;
     let end = index;
-    while (end + 1 < calls.length && areaStopIds.has(calls[end + 1].localStopId ?? "")) end += 1;
+    while (end + 1 < calls.length && areaStopIds.has(calls[end + 1].stopPlaceId ?? "")) end += 1;
     const endsAt = timeline.get(calls[end])?.departure;
     if (
       startsAt !== undefined &&

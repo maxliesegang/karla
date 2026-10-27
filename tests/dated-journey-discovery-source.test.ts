@@ -92,13 +92,13 @@ const sixRow = (eventKind: "arrival" | "departure"): FeedStopEvent => {
     calls: [
       {
         stopName: "ZKM",
-        providerId: "de:08212:65",
+        stopPointId: "de:08212:65",
         timetabledDepartureTime: "2026-10-05T12:00:00.000Z",
       },
       {
         stopName: "Arbeitsagentur",
         bay: "2",
-        providerId: "de:08212:64",
+        stopPointId: "de:08212:64",
         isThisCall: true,
         ...(eventKind === "arrival"
           ? { timetabledArrivalTime: time }
@@ -113,12 +113,12 @@ const sixTripInfo: FeedTripInfo = {
   calls: [
     {
       stopName: "ZKM",
-      providerId: "de:08212:65",
+      stopPointId: "de:08212:65",
       timetabledDepartureTime: "2026-10-05T12:00:00.000Z",
     },
     {
       stopName: "Arbeitsagentur",
-      providerId: "de:08212:64",
+      stopPointId: "de:08212:64",
       isThisCall: true,
       timetabledArrivalTime: "2026-10-05T12:02:00.000Z",
       timetabledDepartureTime: "2026-10-05T12:03:00.000Z",

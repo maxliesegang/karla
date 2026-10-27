@@ -254,7 +254,7 @@ export function LineDiagramPanel({
       className={classNames(
         "line-diagram",
         isRide && "ride",
-        stopEvent && "has-selected-run",
+        stopEvent && "has-selected-journey",
         /* A fork's legs stand side by side, so the diagram takes a wider column while there is
            one. */
         hasFork && "has-fork",
@@ -345,7 +345,7 @@ export function LineDiagramPanel({
 
       {/* The pinned journey's missing mark, explained in words. */}
       {datedJourneyPositionHint && (
-        <p className="line-diagram-trip-hint" role="status">
+        <p className="line-diagram-journey-hint" role="status">
           {datedJourneyPositionHint}
         </p>
       )}

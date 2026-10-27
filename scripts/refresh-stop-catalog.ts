@@ -127,10 +127,10 @@ async function sweepStops(): Promise<LocatedStop[]> {
       );
       continue;
     }
-    for (const { providerId, name, placeName, latitude, longitude } of found) {
-      if (!providerId.startsWith(stopIdPrefix) || !placeName) continue;
+    for (const { stopPointId, name, placeName, latitude, longitude } of found) {
+      if (!stopPointId.startsWith(stopIdPrefix) || !placeName) continue;
       if (latitude === undefined || longitude === undefined) continue;
-      byId.set(providerId, { globalId: providerId, name, latitude, longitude, placeName });
+      byId.set(stopPointId, { globalId: stopPointId, name, latitude, longitude, placeName });
     }
   }
   if (byId.size === 0) throw new Error("TRIAS: no stops found");

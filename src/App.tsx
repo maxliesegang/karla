@@ -368,7 +368,7 @@ export default function App() {
                           navigateTo(
                             routePaths.stop(
                               selection.alightingStopId ??
-                                rideProgress.finalCall?.localStopId ??
+                                rideProgress.finalCall?.stopPlaceId ??
                                 selection.originStopId ??
                                 selection.stopId,
                             ),

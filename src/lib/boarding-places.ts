@@ -23,7 +23,7 @@ export type BoardingPlace = {
   bays: readonly string[];
   /** The bay kind all bays here share, if they do. */
   bayKind?: BayKind;
-  providerStopPointId: string;
+  stopPointId: string;
 };
 
 /** Where a stop's departures leave from; empty where no bay is stated. */
@@ -68,16 +68,16 @@ export function updateStopBoardingObservations(
   let learned = false;
 
   for (const stopEvent of stopEvents) {
-    if (stopEvent.boardingLocalStopId !== stopId) continue;
-    if (!stopEvent.bay || !stopEvent.boardingProviderStopPointId) continue;
-    const key = getBayKey(stopEvent.boardingProviderStopPointId, stopEvent.bay);
+    if (stopEvent.boardingStopPlaceId !== stopId) continue;
+    if (!stopEvent.bay || !stopEvent.boardingStopPointId) continue;
+    const key = getBayKey(stopEvent.boardingStopPointId, stopEvent.bay);
     const known = bays.get(key);
     if (!known) {
       bays.set(key, {
-        providerStopPointId: stopEvent.boardingProviderStopPointId,
+        stopPointId: stopEvent.boardingStopPointId,
         bay: stopEvent.bay,
         bayKind: stopEvent.bayKind,
-        providerStopPointName: stopEvent.boardingProviderStopPointName,
+        stopPointName: stopEvent.boardingStopPointName,
       });
       learned = true;
       continue;
@@ -131,8 +131,7 @@ export function findBoardingPlace(
 ): BoardingPlace | undefined {
   return boardingPlaces.find(
     (place) =>
-      place.providerStopPointId === stopEvent.boardingProviderStopPointId &&
-      place.bays.includes(stopEvent.bay),
+      place.stopPointId === stopEvent.boardingStopPointId && place.bays.includes(stopEvent.bay),
   );
 }
 
@@ -154,14 +153,13 @@ export const getBoardingPlaceLabel = (place: BoardingPlace): string =>
 
 /** One bay of one stop point; places are built from these. */
 type BayKey = string;
-const getBayKey = (providerStopPointId: string, bay: string): BayKey =>
-  `${providerStopPointId}\u0000${bay}`;
+const getBayKey = (stopPointId: string, bay: string): BayKey => `${stopPointId}\u0000${bay}`;
 
 type BayReading = {
-  providerStopPointId: string;
+  stopPointId: string;
   bay: string;
   bayKind?: BayKind;
-  providerStopPointName: string;
+  stopPointName: string;
   latitude?: number;
   longitude?: number;
 };
@@ -174,8 +172,8 @@ function readBayPositions(
 ): boolean {
   let learned = false;
   for (const call of stopEvent.calls ?? []) {
-    if (call.localStopId !== stopId || !call.providerStopPointId || !call.bay) continue;
-    const key = getBayKey(call.providerStopPointId, call.bay);
+    if (call.stopPlaceId !== stopId || !call.stopPointId || !call.bay) continue;
+    const key = getBayKey(call.stopPointId, call.bay);
     const bay = bays.get(key);
     if (!bay || bay.latitude !== undefined) continue;
     if (call.latitude === undefined || call.longitude === undefined) continue;
@@ -201,7 +199,7 @@ function readCallPairs(
   for (let index = 1; index < calls.length; index += 1) {
     const previous = calls[index - 1];
     const call = calls[index];
-    if (previous.localStopId !== stopId || call.localStopId !== stopId) continue;
+    if (previous.stopPlaceId !== stopId || call.stopPlaceId !== stopId) continue;
     const left = toCallBayKey(previous);
     const right = toCallBayKey(call);
     // The same bay twice is a restated call.
@@ -216,7 +214,7 @@ function readCallPairs(
 }
 
 const toCallBayKey = (call: Call): BayKey | undefined =>
-  call.providerStopPointId && call.bay ? getBayKey(call.providerStopPointId, call.bay) : undefined;
+  call.stopPointId && call.bay ? getBayKey(call.stopPointId, call.bay) : undefined;
 
 /** Order-free key for a pair. */
 const getSeparationKey = (left: BayKey, right: BayKey): string =>
@@ -259,11 +257,11 @@ function canMerge(
 ): boolean {
   for (const here of left) {
     for (const there of right) {
-      if (here.providerStopPointId !== there.providerStopPointId) return false;
+      if (here.stopPointId !== there.stopPointId) return false;
       if (here.bayKind !== there.bayKind) return false;
       const key = getSeparationKey(
-        getBayKey(here.providerStopPointId, here.bay),
-        getBayKey(there.providerStopPointId, there.bay),
+        getBayKey(here.stopPointId, here.bay),
+        getBayKey(there.stopPointId, there.bay),
       );
       if (separated.has(key)) return false;
     }
@@ -288,11 +286,11 @@ function toBoardingPlace(cluster: readonly BayReading[]): BoardingPlace {
   const [first] = bays;
   const kinds = new Set(bays.map((bay) => bay.bayKind));
   return {
-    id: `${first.providerStopPointId}-${bays.map(({ bay }) => bay).join("-")}`,
-    label: findStopPointLabel(first.providerStopPointName),
+    id: `${first.stopPointId}-${bays.map(({ bay }) => bay).join("-")}`,
+    label: findStopPointLabel(first.stopPointName),
     bays: bays.map(({ bay }) => bay),
     bayKind: kinds.size === 1 ? [...kinds][0] : undefined,
-    providerStopPointId: first.providerStopPointId,
+    stopPointId: first.stopPointId,
   };
 }
 
@@ -300,11 +298,9 @@ function toBoardingPlace(cluster: readonly BayReading[]): BoardingPlace {
  * The operator's name for one part of a place, from the bracketed aside (`Marktplatz (Pyramide U)`,
  * `Europaplatz (U)`). `getBaseName` reads the other half.
  */
-function findStopPointLabel(providerStopPointName: string): string | undefined {
-  const bracketed = /\(([^)]+)\)\s*$/.exec(providerStopPointName)?.[1]?.trim();
-  return bracketed && getBaseName(providerStopPointName) !== providerStopPointName
-    ? bracketed
-    : undefined;
+function findStopPointLabel(stopPointName: string): string | undefined {
+  const bracketed = /\(([^)]+)\)\s*$/.exec(stopPointName)?.[1]?.trim();
+  return bracketed && getBaseName(stopPointName) !== stopPointName ? bracketed : undefined;
 }
 
 /** Bay order, matching the bay signposts; board order would reshuffle every refresh. */

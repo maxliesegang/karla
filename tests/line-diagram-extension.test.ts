@@ -5,7 +5,7 @@ import { extendLineDiagramCalls } from "../src/lib/line-diagram.ts";
 
 /** Chains in the diagram's order, destination first. */
 const calls = (...stopIds: string[]): Call[] =>
-  stopIds.map((localStopId) => ({ stopName: localStopId.toUpperCase(), localStopId }));
+  stopIds.map((stopPlaceId) => ({ stopName: stopPlaceId.toUpperCase(), stopPlaceId }));
 
 test("a short working is drawn out to the run observed farthest, past both of its ends", () => {
   // The drawn trip keeps its rows; the farther run adds what lies beyond.
@@ -43,7 +43,7 @@ test("a drawn chain is never narrowed by the run it is extended with", () => {
 });
 
 test("separate published calls at one stop are merged by occurrence", () => {
-  const marktplatz = (stopName: string): Call => ({ stopName, localStopId: "marktplatz" });
+  const marktplatz = (stopName: string): Call => ({ stopName, stopPlaceId: "marktplatz" });
   const route = [
     ...calls("d"),
     marktplatz("Marktplatz (Kaiserstraße U)"),
@@ -60,7 +60,7 @@ test("a repeated call the two chains name identically still lines up with its ow
   const europaplatz = (bayText: string): Call => ({
     stopName: "Europaplatz",
     placeName: "Karlsruhe",
-    localStopId: "europaplatz",
+    stopPlaceId: "europaplatz",
     bayText,
   });
   const drawn = [europaplatz("Gleis 5"), ...calls("muehlburger-tor")];
@@ -79,7 +79,7 @@ test("a repeated stop read from the opposite direction lines up place by place",
   // `Gleis 4` towards Waldstadt; 5/6 and 3/4 face each other.
   const europaplatz = (bay: string): Call => ({
     stopName: "Europaplatz",
-    localStopId: "europaplatz",
+    stopPlaceId: "europaplatz",
     bay,
   });
   const drawn = [

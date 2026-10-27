@@ -6,7 +6,7 @@ import {
   parseTriasSituations,
   parseTriasStopEvents,
   parseTriasTripInfo,
-  toProviderStopId,
+  toStopPointId,
 } from "../src/data/trias-parsers.ts";
 import type { DatedJourneyRef, RowCallRef } from "../src/data/feed.ts";
 import {
@@ -85,9 +85,9 @@ const PFORZHEIM: TriasCall = {
 };
 
 test("a stop ref reads as its stop's DHID, whatever the level", () => {
-  assert.equal(toProviderStopId("de:08212:1003:92:2"), "de:08212:1003");
-  assert.equal(toProviderStopId("de:08212:37"), "de:08212:37");
-  assert.equal(toProviderStopId("de:08237:1050:1:1"), "de:08237:1050");
+  assert.equal(toStopPointId("de:08212:1003:92:2"), "de:08212:1003");
+  assert.equal(toStopPointId("de:08212:37"), "de:08212:37");
+  assert.equal(toStopPointId("de:08237:1050:1:1"), "de:08237:1050");
 });
 
 test("a stop event reads as a row, with the prediction to the second", () => {
@@ -178,7 +178,7 @@ test("calls keep predictions to the second and their whole-minute delays", () =>
     {
       stopName: next.stopName,
       placeName: next.placeName,
-      providerId: next.providerId,
+      stopPointId: next.stopPointId,
       bayText: next.bayText,
       bay: next.bay,
       estimatedArrivalTime: next.estimatedArrivalTime,
@@ -189,7 +189,7 @@ test("calls keep predictions to the second and their whole-minute delays", () =>
     {
       stopName: "Kronenplatz (U)",
       placeName: "Karlsruhe",
-      providerId: "de:08212:1002",
+      stopPointId: "de:08212:1002",
       bayText: "Gleis 2(U)",
       bay: "2(U)",
       estimatedArrivalTime: "2026-10-17T21:06:12.000Z",
@@ -199,7 +199,7 @@ test("calls keep predictions to the second and their whole-minute delays", () =>
       arrivalDelayMinutes: undefined,
     },
   );
-  assert.equal(end.providerId, "de:08231:50");
+  assert.equal(end.stopPointId, "de:08231:50");
   assert.equal(end.stopName, "Pforzheim Hauptbahnhof");
   assert.equal(end.delayMinutes, undefined);
 });
@@ -312,7 +312,7 @@ test("a trip marks the call its row was read at", () => {
     ROW_CALL,
   );
   assert.deepEqual(
-    journey.calls.map(({ providerId, isThisCall }) => [providerId, isThisCall]),
+    journey.calls.map(({ stopPointId, isThisCall }) => [stopPointId, isThisCall]),
     [
       ["de:08212:1003", undefined],
       ["de:08212:1002", true],
@@ -357,7 +357,7 @@ test("a stop search reads ids, names, places and positions", () => {
   );
   assert.deepEqual(results, [
     {
-      providerId: "de:08212:1004",
+      stopPointId: "de:08212:1004",
       name: "Europaplatz",
       placeName: "Karlsruhe",
       latitude: 49.01005,

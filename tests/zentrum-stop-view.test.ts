@@ -6,9 +6,9 @@ import { createStopEvent } from "./support/fixtures.ts";
 
 const at = (minute: number) => `2026-09-04T12:${String(minute).padStart(2, "0")}:00+02:00`;
 const instant = (minute: number) => Date.parse(at(minute));
-const call = (localStopId: string, minute: number, delayMinutes?: number): Call => ({
-  localStopId,
-  stopName: localStopId,
+const call = (stopPlaceId: string, minute: number, delayMinutes?: number): Call => ({
+  stopPlaceId,
+  stopName: stopPlaceId,
   timetabledArrivalTime: at(minute),
   timetabledDepartureTime: at(minute),
   delayMinutes,

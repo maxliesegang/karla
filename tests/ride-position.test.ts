@@ -15,7 +15,7 @@ const createCall = (
   minute: number,
 ): Call => ({
   stopName: stopId,
-  localStopId: stopId,
+  stopPlaceId: stopId,
   latitude,
   longitude,
   timetabledArrivalTime: `2026-08-29T10:${String(minute).padStart(2, "0")}:00Z`,

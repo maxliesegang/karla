@@ -10,7 +10,7 @@ export const createCall =
     const time = new Date(start + minute * 60_000).toISOString();
     return {
       stopName: stopId.toUpperCase(),
-      localStopId: stopId,
+      stopPlaceId: stopId,
       timetabledArrivalTime: time,
       timetabledDepartureTime: time,
       delayMinutes,
