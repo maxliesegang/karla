@@ -30,7 +30,7 @@ const call = (code: string, overrides: Partial<Call> = {}): Call => ({
   stopName: isUnderground(code) ? "Europaplatz (U)" : "Europaplatz",
   placeName: "Karlsruhe",
   localStopId: "europaplatz",
-  providerStopPointId: isUnderground(code) ? "7001004" : "7000037",
+  providerStopPointId: isUnderground(code) ? "de:08212:1004" : "de:08212:37",
   bayText: `Gleis ${code}`,
   bay: code,
   ...EUROPAPLATZ_BAYS[code],
@@ -49,7 +49,7 @@ function stopEvent(code: string, calls?: readonly Call[]): StopEvent {
     bay: code,
     bayKind: code === "A" ? "stand" : "track",
     boardingLocalStopId: "europaplatz",
-    boardingProviderStopPointId: isUnderground(code) ? "7001004" : "7000037",
+    boardingProviderStopPointId: isUnderground(code) ? "de:08212:1004" : "de:08212:37",
     boardingProviderStopPointName: isUnderground(code) ? "Europaplatz (U)" : "Europaplatz",
     status: "scheduled",
     timetabledDepartureTime: "2026-09-04T08:58:00+02:00",
@@ -104,7 +104,7 @@ test("a level is never merged into the one above it, however close the two stand
     stopEvent("2(U)"),
   ]);
 
-  const tunnel = places.find((place) => place.providerStopPointId === "7001004");
+  const tunnel = places.find((place) => place.providerStopPointId === "de:08212:1004");
   assert.deepEqual(tunnel?.bays, ["1(U)", "2(U)"]);
   // The label comes from the stop point's bracketed aside.
   assert.equal(tunnel && getBoardingPlaceLabel(tunnel), "U");
@@ -181,7 +181,7 @@ test("a vehicle turning round is not two places, from whichever end it is read",
     stopName: "Turmberg",
     placeName: "Karlsruhe",
     localStopId: "turmberg",
-    providerStopPointId: "7000018",
+    providerStopPointId: "de:08212:18",
     bay: code,
     bayText: `Bstg. ${code}`,
     timetabledArrivalTime: "2026-09-04T07:29:00+02:00",
@@ -194,7 +194,7 @@ test("a vehicle turning round is not two places, from whichever end it is read",
       bay: code,
       bayKind: "stand",
       boardingLocalStopId: "turmberg",
-      boardingProviderStopPointId: "7000018",
+      boardingProviderStopPointId: "de:08212:18",
       boardingProviderStopPointName: "Turmberg",
       calls,
     });

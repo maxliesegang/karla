@@ -34,7 +34,7 @@ import {
 } from "../../lib/line-diagram";
 import { getJoinedDatedJourneyPortionPairs } from "../../lib/joined-dated-journey-portions";
 import {
-  createLineSelection,
+  createLineSelectionOf,
   getLineBundleControls,
   type LineBundleOffer,
 } from "../../lib/line-bundles";
@@ -92,12 +92,8 @@ export function useLineDiagramReading({
   );
   // With no sibling, the selection is the line itself.
   const lineSelection = useMemo(
-    () =>
-      createLineSelection(
-        line.id,
-        bundledLines.map(({ id }) => id),
-      ),
-    [bundledLines, line.id],
+    () => createLineSelectionOf({ id: line.id, identity: line.identity }, bundledLines),
+    [bundledLines, line.id, line.identity],
   );
   // Copies of a dated journey from different boards are ranked by their own read times.
   const observedDatedJourneyStopEvents = useMemo(
@@ -125,7 +121,7 @@ export function useLineDiagramReading({
     [stopEvent, lineSelection, datedJourneyStopEvents],
   );
   // Without a selected journey the diagram is still drawn from one, held across stops
-  // (`chooseLineDiagramDatedJourney`). The rider's stop includes the stop point a complex's row
+  // (`chooseLineDiagramDatedJourney`). The rider's stop includes the stop point a stop place's row
   // leaves from.
   const boardingLocalStopId = stopEvent?.boardingLocalStopId;
   const riderStopIds = useMemo(
@@ -146,10 +142,20 @@ export function useLineDiagramReading({
     [retainedLineDatedJourneyId],
   );
   const [retainedLineDatedJourney] = useDatedJourneys(retainedLineDatedJourneyIds);
+  // The pinned journey as the store holds it: without calls and without a failed read, its read is
+  // still out. One the store does not hold is never read.
+  const pinnedRowId = stopEvent?.id;
+  const pinnedRowIds = useMemo(() => (pinnedRowId ? [pinnedRowId] : NO_ROW_IDS), [pinnedRowId]);
+  const [storedPinnedStopEvent] = useDatedJourneys(pinnedRowIds);
+  const isPinnedDatedJourneyReading =
+    !stopEvent?.calls?.length &&
+    storedPinnedStopEvent !== undefined &&
+    storedPinnedStopEvent.readAt?.sequenceRefreshFailedAt === undefined;
   const diagramStopEvent = useMemo(
     () =>
       chooseLineDiagramDatedJourney({
         lineId: line.id,
+        identity: line.identity,
         riderStopIds,
         pinnedStopEvent: stopEvent,
         retainedStopEvent: retainedLineDatedJourney,
@@ -163,6 +169,7 @@ export function useLineDiagramReading({
       stopEventBoard,
       retainedLineDatedJourney,
       line.id,
+      line.identity,
       preferredDestination,
       stopDatedJourneyStopEvents,
     ],
@@ -327,6 +334,7 @@ export function useLineDiagramReading({
     bundleControls,
     diagramStops,
     diagramStopNames,
+    isPinnedDatedJourneyReading,
     // On a ride the rider is on board, at no stop.
     currentStopIndex: isRide ? -1 : getCurrentStopIndex(diagramStops, stop.id, boardingLocalStopId),
     // The stop chain is the coordinate system: a new chain remounts the marker layer so nothing

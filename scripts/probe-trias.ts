@@ -1,36 +1,33 @@
 /**
- * Measures what the KVV TRIAS interface offers next to the EFA JSON feed, to decide whether a
- * TRIAS provider is worth a proxy:
+ * Measures the TRIAS interface directly, without the proxy:
  * 1. Transport: can a browser call it directly (CORS, preflight, a `text/plain` body)?
- * 2. Stop identity: which refs name a stop, and does the EFA stop id work as a `StopPointRef`?
- * 3. Dated journey identity: how a StopEvent's `JourneyRef` relates to the EFA row's `tripCode`.
+ * 2. Stop identity: which refs a stop search names, and what each one's board answers.
+ * 3. Dated journey identity: `JourneyRef`, `OperatingDayRef`, line and direction per stop event.
  * 4. Precision: do timetabled and estimated times carry seconds?
  * 5. TripInfoRequest: calls, and whether `IncludePosition` returns a vehicle position.
  *
  *     npm run probe:trias -- [options]
  *
- *       --stop 7000037   EFA stop id to compare at (default Europaplatz)
- *       --rows 20        stop events to ask for (default 20)
- *       --out dir        also write each raw response, the requestor ref redacted
+ *       --stop de:08212:37   stop ref to read (default Europaplatz)
+ *       --name Europaplatz   stop search query (default Europaplatz)
+ *       --rows 20            stop events to ask for (default 20)
+ *       --out dir            also write each raw response, the requestor ref redacted
  *
- * The requestor ref comes from `TRIAS_REQUESTOR_REF`, or from `.env.local`. It is a secret: never
- * commit it or print it.
+ * The requestor ref is read as `trias-direct.ts` reads it.
  */
 
-import { existsSync } from "node:fs";
 import { mkdir, writeFile } from "node:fs/promises";
 import { join } from "node:path";
-import { KvvEfaClient } from "../src/data/kvv-efa-client.ts";
-import type { KvvStopEvent } from "../src/data/kvv-feed.ts";
 import { descendantsNamed, parseXml, type XmlElement } from "../src/data/xml-reader.ts";
+import { envelope, readRequestorRef, TRIAS_ENDPOINT } from "./trias-direct.ts";
 
-const TRIAS_ENDPOINT = "https://projekte.kvv-efa.de/liesegangtrias/trias";
-const DEFAULT_STOP_POINT_ID = "7000037";
+const DEFAULT_STOP_POINT_ID = "de:08212:37";
+const DEFAULT_STOP_NAME = "Europaplatz";
 const DEFAULT_ROWS = 20;
 const TIMEOUT_MS = 20_000;
 const PROBE_ORIGIN = "https://karla.example";
 
-type Options = { stopPointId: string; rows: number; outDir?: string };
+type Options = { stopPointId: string; stopName: string; rows: number; outDir?: string };
 
 function parseOptions(argv: readonly string[]): Options {
   const read = (name: string): string | undefined => {
@@ -40,20 +37,10 @@ function parseOptions(argv: readonly string[]): Options {
   const rows = Number(read("rows"));
   return {
     stopPointId: read("stop") ?? DEFAULT_STOP_POINT_ID,
+    stopName: read("name") ?? DEFAULT_STOP_NAME,
     rows: Number.isInteger(rows) && rows > 0 ? rows : DEFAULT_ROWS,
     outDir: read("out"),
   };
-}
-
-function readRequestorRef(): string {
-  if (!process.env.TRIAS_REQUESTOR_REF && existsSync(".env.local"))
-    process.loadEnvFile(".env.local");
-  const ref = process.env.TRIAS_REQUESTOR_REF?.trim();
-  if (!ref) {
-    console.error("Set TRIAS_REQUESTOR_REF, e.g. in .env.local (git-ignored).");
-    process.exit(1);
-  }
-  return ref;
 }
 
 // --- XML: descendant paths over the app's reader. ---
@@ -77,17 +64,6 @@ const textOf = (node: XmlElement | undefined, ...path: string[]): string | undef
 };
 
 // --- Requests ---
-
-function envelope(requestorRef: string, payload: string): string {
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<Trias version="1.2" xmlns="http://www.vdv.de/trias" xmlns:siri="http://www.siri.org.uk/siri">
-  <ServiceRequest>
-    <siri:RequestTimestamp>${new Date().toISOString()}</siri:RequestTimestamp>
-    <siri:RequestorRef>${requestorRef}</siri:RequestorRef>
-    <RequestPayload>${payload}</RequestPayload>
-  </ServiceRequest>
-</Trias>`;
-}
 
 const escapeXml = (value: string): string =>
   value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -215,24 +191,6 @@ const hasSeconds = (time: string | undefined): boolean =>
 const share = (count: number, total: number): string =>
   total ? `${count}/${total} (${Math.round((100 * count) / total)}%)` : "0/0";
 
-/**
- * The EFA row of the same dated journey: `JourneyRef` read as `{servingLine.stateless}:{tripCode}`.
- */
-function matchEfaRow(event: StopEvent, rows: readonly KvvStopEvent[]): KvvStopEvent | undefined {
-  const instant = event.timetabledTime ? Date.parse(event.timetabledTime) : Number.NaN;
-  return rows
-    .filter(
-      (row) =>
-        row.journeyLocator &&
-        `${row.journeyLocator.lineRef}:${row.journeyLocator.journeyCode}` === event.journeyRef,
-    )
-    .sort(
-      (a, b) =>
-        Math.abs(Date.parse(a.timetabledDepartureTime) - instant) -
-        Math.abs(Date.parse(b.timetabledDepartureTime) - instant),
-    )[0];
-}
-
 // --- Report ---
 
 const section = (title: string) => console.log(`\n== ${title} ==`);
@@ -308,12 +266,9 @@ async function probeStopEvents(
   return best;
 }
 
-function reportEvents(events: readonly StopEvent[], efaRows: readonly KvvStopEvent[]) {
-  section("3. Run identity (TRIAS stop event ↔ EFA row)");
-  let matched = 0;
+function reportEvents(events: readonly StopEvent[]) {
+  section("3. Dated journey identity");
   for (const event of events) {
-    const row = matchEfaRow(event, efaRows);
-    if (row) matched += 1;
     const time = event.timetabledTime?.slice(11, 19) ?? "?";
     console.log(
       [
@@ -322,15 +277,9 @@ function reportEvents(events: readonly StopEvent[], efaRows: readonly KvvStopEve
         `day ${event.operatingDayRef ?? "?"}`,
         `line ${event.lineRef ?? "?"} dir ${event.directionRef ?? "?"}`,
         `stop ${event.stopPointRef ?? "?"} bay ${event.bay ?? "?"}`,
-        row
-          ? `EFA ${row.timetabledDepartureTime.slice(11, 16)} ${row.bay} delay ${row.delayMinutes ?? "?"} min`
-          : "no EFA row",
       ].join(" | "),
     );
   }
-  console.log(
-    `same run on the EFA board, by JourneyRef = line:tripCode: ${share(matched, events.length)}`,
-  );
 
   section("4. Precision and realtime");
   const estimated = events.filter((event) => event.estimatedTime);
@@ -343,14 +292,13 @@ function reportEvents(events: readonly StopEvent[], efaRows: readonly KvvStopEve
   );
   console.log(`cancelled: ${events.filter((event) => event.cancelled).length}`);
   for (const event of estimated.slice(0, 8)) {
-    const row = matchEfaRow(event, efaRows);
-    const triasDelay =
+    const delay =
       event.timetabledTime && event.estimatedTime
         ? (Date.parse(event.estimatedTime) - Date.parse(event.timetabledTime)) / 1_000
         : undefined;
     console.log(
       `  ${event.publishedLineName ?? "?"} ${event.timetabledTime?.slice(11, 19)} → ${event.estimatedTime?.slice(11, 19)}`,
-      `TRIAS delay ${triasDelay ?? "?"} s, EFA ${row?.delayMinutes ?? "?"} min`,
+      `delay ${delay ?? "?"} s`,
     );
   }
   const calls = events.map((event) => event.previousCallCount + 1 + event.onwardCallCount);
@@ -400,15 +348,8 @@ async function main() {
   if (options.outDir) await mkdir(options.outDir, { recursive: true });
   const probe = new TriasProbe(requestorRef, options.outDir);
 
-  const efaBoard = await new KvvEfaClient().fetchStopEventBoard(options.stopPointId, {
-    limit: options.rows * 2,
-  });
-  console.log(
-    `EFA ${options.stopPointId}: ${efaBoard.stopName}, ${efaBoard.stopEvents.length} rows`,
-  );
-
-  await probeTransport(probe, efaBoard.stopName);
-  const refs = await probeStopIdentity(probe, efaBoard.stopName);
+  await probeTransport(probe, options.stopName);
+  const refs = await probeStopIdentity(probe, options.stopName);
   const events = await probeStopEvents(
     probe,
     [options.stopPointId, ...refs.slice(0, 2)],
@@ -418,7 +359,7 @@ async function main() {
     console.log("\nno stop events: nothing further to measure");
     return;
   }
-  reportEvents(events, efaBoard.stopEvents);
+  reportEvents(events);
   await probeTripInfo(probe, events);
 }
 

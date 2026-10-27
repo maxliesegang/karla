@@ -55,6 +55,7 @@ import type { StopCorridorPatterns } from "../lib/stop-corridor-patterns";
 import { getStopServiceCorridorLineGroups } from "../lib/stop-corridors";
 import { StopEventBoardLineOrder } from "./StopEventBoardLineOrder";
 import { isSameDatedJourney } from "../lib/journeys";
+import { FEED_UNREADABLE_TEXT } from "./feed-copy";
 
 type StopEventBoardPanelProps = {
   panelRef?: Ref<HTMLElement>;
@@ -388,7 +389,7 @@ export function StopEventBoardPanel({
           ? findNextCompatibleStopEvent(stopEvents, stopEvent)
           : undefined
       }
-      line={getLineSign(network.lines, stopEvent.lineId, stopEvent.ptMode)}
+      line={getLineSign(network.lines, stopEvent.lineId, stopEvent.ptMode, stopEvent.lineRef)}
       stopId={stop.id}
       lineSelection={lineSelection}
       isSelected={isStopEventSelected(stopEvent, selectedStopEvent, lineSelection)}
@@ -478,9 +479,7 @@ export function StopEventBoardPanel({
         {stopEventBoard?.dataStatus === "unavailable" && (
           <div className="panel-empty">
             <strong>Abfahrten nicht verfügbar</strong>
-            <span>
-              {stopEventBoard.errorMessage ?? "Der KVV-Feed konnte nicht gelesen werden."}
-            </span>
+            <span>{stopEventBoard.errorMessage ?? FEED_UNREADABLE_TEXT}</span>
           </div>
         )}
         {stopEventBoard?.dataStatus === "live" && stopEvents.length === 0 && (

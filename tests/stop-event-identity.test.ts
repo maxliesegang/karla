@@ -1,15 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { KvvStopEvent } from "../src/data/kvv-feed.ts";
+import type { FeedStopEvent } from "../src/data/feed.ts";
 import { createStopEventId } from "../src/data/transit-source.ts";
 
 /**
  * The pair this exists for is real: two S8 to Karlsruhe Tullastraße leave Augartenstraße Gleis 2
  * scheduled on the same minute, one running three minutes late and one not monitored at all.
  */
-const createStopEvent = (overrides: Partial<KvvStopEvent> = {}): KvvStopEvent =>
+const createStopEvent = (overrides: Partial<FeedStopEvent> = {}): FeedStopEvent =>
   ({
-    stopPointId: "7000074",
+    stopPointId: "de:08212:74",
     stopPointName: "Augartenstraße",
     journeyRef: "de:kvv:00S08_:.kvv-22-308-E.7.T0.613.s26",
     lineId: "S8",
@@ -20,7 +20,7 @@ const createStopEvent = (overrides: Partial<KvvStopEvent> = {}): KvvStopEvent =>
     status: "realtime",
     timetabledDepartureTime: "2026-08-24T18:50:00.000Z",
     ...overrides,
-  }) as KvvStopEvent;
+  }) as FeedStopEvent;
 
 test("tells two trips apart when line, Steig, destination and scheduled minute are all the same", () => {
   const delayed = createStopEvent({

@@ -1,5 +1,6 @@
-import type { StopEvent, StopEventBoard, PtMode, Call } from "../data/transit-types";
-import { compareLineIds, getLineFamilyId, isSameLineFamily } from "./line-families";
+import type { StopEvent, StopEventBoard, PtMode, Call, TransitLine } from "../data/transit-types";
+import { compareLines, getLineFamilyId, isSameLineFamily } from "./line-families";
+import { getLineIdentity, isRowOfLine, type LineNaming } from "./line-identity";
 import { findStopCorridorPattern, type StopCorridorPatterns } from "./stop-corridor-patterns";
 import {
   getCallSequenceKey,
@@ -18,6 +19,8 @@ export type LineSelection = {
   lineId: string;
   /** Siblings the rider added; empty for a single line. */
   bundledLineIds: readonly string[];
+  /** Each line's identity, by name, once resolved against a stop's rows (`line-identity.ts`). */
+  lineIdentities?: ReadonlyMap<string, string>;
 };
 
 /** `+` is literal in a fragment path and line ids are alphanumeric, so no escaping is needed. */
@@ -34,15 +37,40 @@ const MIN_LINE_BUNDLE_SHARED_CALLS = 3;
 export const createLineSelection = (
   lineId: string,
   bundledLineIds: readonly string[] = [],
-): LineSelection => ({ lineId, bundledLineIds });
+  lineIdentities?: ReadonlyMap<string, string>,
+): LineSelection =>
+  lineIdentities?.size ? { lineId, bundledLineIds, lineIdentities } : { lineId, bundledLineIds };
+
+/** The selection of these lines, with the identities their signs carry. */
+export const createLineSelectionOf = (
+  line: Pick<TransitLine, "id" | "identity">,
+  bundledLines: readonly Pick<TransitLine, "id" | "identity">[] = [],
+): LineSelection =>
+  createLineSelection(
+    line.id,
+    bundledLines.map(({ id }) => id),
+    new Map(
+      [line, ...bundledLines].flatMap(({ id, identity }) =>
+        identity ? [[id, identity] as const] : [],
+      ),
+    ),
+  );
 
 /** Primary first, as the address and diagram order them. */
 export function getLineSelectionIds({ lineId, bundledLineIds }: LineSelection): readonly string[] {
   return lineId ? [lineId, ...bundledLineIds] : [];
 }
 
-export const isSelectedLine = (selection: LineSelection, lineId: string): boolean =>
-  getLineSelectionIds(selection).some((selected) => isSameLineFamily(selected, lineId));
+export const getSelectedLineIdentity = (
+  selection: LineSelection,
+  lineId: string,
+): string | undefined => selection.lineIdentities?.get(lineId);
+
+/** A row of one of the selected lines: by name, and by identity where both state one. */
+export const isSelectedLine = (selection: LineSelection, row: LineNaming): boolean =>
+  getLineSelectionIds(selection).some((selected) =>
+    isRowOfLine(row, selected, getSelectedLineIdentity(selection, selected)),
+  );
 
 /**
  * The addressed siblings this stop answers for. The address stands until a live whole-stop board
@@ -82,6 +110,7 @@ export const formatLineSelection = (selection: LineSelection): string =>
 /** A sibling worth offering, and the stretches the offer could cover. */
 export type LineBundleOffer = {
   lineId: string;
+  identity?: string;
   /**
    * Every stretch both lines were observed running together past this stop, longest first. Several,
    * because two lines may share a stretch out of each end (S1/S11 at Ettlingen Neuwiesenreben: 39
@@ -157,6 +186,7 @@ function findDrawnSharedCalls(
 
 type ObservedLineRoutes = {
   ptMode: PtMode;
+  identity?: string;
   routes: (readonly Call[])[];
 };
 
@@ -164,11 +194,19 @@ type ObservedLineRoutes = {
 function collectObservedLineRoutes(
   stopEvents: readonly StopEvent[],
   patterns: StopCorridorPatterns,
+  primaryLineId: string,
+  primaryIdentity: string | undefined,
 ): Map<string, ObservedLineRoutes> {
   const byLine = new Map<string, ObservedLineRoutes>();
   const seenSequences = new Map<string, Set<string>>();
 
   for (const stopEvent of stopEvents) {
+    // Another network's line of the same name is neither the line nor a sibling.
+    if (
+      stopEvent.lineId === primaryLineId &&
+      !isRowOfLine(stopEvent, primaryLineId, primaryIdentity)
+    )
+      continue;
     const match = findStopCorridorPattern(patterns, stopEvent);
     if (!match?.hasFullRoute || match.calls.length === 0) continue;
 
@@ -179,7 +217,12 @@ function collectObservedLineRoutes(
     seen.add(sequenceKey);
     seenSequences.set(lineId, seen);
 
-    const entry = byLine.get(lineId) ?? { ptMode: stopEvent.ptMode, routes: [] };
+    const identity = getLineIdentity(stopEvent.lineRef);
+    const entry = byLine.get(lineId) ?? {
+      ptMode: stopEvent.ptMode,
+      ...(identity ? { identity } : {}),
+      routes: [],
+    };
     entry.routes.push(match.calls);
     byLine.set(lineId, entry);
   }
@@ -193,15 +236,18 @@ function collectObservedLineRoutes(
  */
 export function findLineBundleOffers({
   lineId,
+  identity,
   stopEvents,
   patterns,
 }: {
   lineId: string;
+  /** The line's identity, where resolved. */
+  identity?: string;
   stopEvents: readonly StopEvent[];
   patterns: StopCorridorPatterns;
 }): readonly LineBundleOffer[] {
   if (!lineId) return [];
-  const byLine = collectObservedLineRoutes(stopEvents, patterns);
+  const byLine = collectObservedLineRoutes(stopEvents, patterns, lineId, identity);
   const primary = byLine.get(getLineFamilyId(lineId));
   if (!primary) return [];
 
@@ -222,14 +268,17 @@ export function findLineBundleOffers({
     const sharedRoutes = keepLongestSharedRoutes(shared);
     if (sharedRoutes.length === 0) continue;
 
-    offers.push({ lineId: candidateId, sharedRoutes });
+    offers.push({ lineId: candidateId, identity: candidate.identity, sharedRoutes });
   }
 
   // Not capped here: which siblings can be drawn beside the journey is not known yet.
   return offers.sort(
     (first, second) =>
       second.sharedRoutes[0].length - first.sharedRoutes[0].length ||
-      compareLineIds(first.lineId, second.lineId),
+      compareLines(
+        { id: first.lineId, identity: first.identity },
+        { id: second.lineId, identity: second.identity },
+      ),
   );
 }
 

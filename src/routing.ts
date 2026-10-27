@@ -100,18 +100,6 @@ const defaultRoute: AppRoute = {
   isRide: false,
 };
 
-/**
- * The line named in EFA's journey id: the third segment of `de:kvv:00S02_:.kvv-21-12-E…`, padded
- * and underscore-terminated. Empty for any other shape; the shell then reads the line off the
- * board.
- */
-export function getJourneyLineId(journeyRef: string): string {
-  // `00S02_` is line S2: zeros pad both around the letter and in front of the number.
-  const lineSegment = (journeyRef.split(":")[2] ?? "").replace(/_+$/, "");
-  const padded = /^0*([A-Z]*?)0*(\d{1,3})$/.exec(lineSegment);
-  return padded ? getLineFamilyId(`${padded[1]}${padded[2]}`) : "";
-}
-
 const getRouteSegments = (hash: string): string[] =>
   hash.replace(/^#\/?/, "").split("/").filter(Boolean);
 
@@ -125,7 +113,7 @@ function decodePathSegment(segment: string | undefined): string {
   }
 }
 
-/** Colons are valid in a path segment and keep EFA's namespaced ids readable. */
+/** Colons are valid in a path segment and keep namespaced ids (`kvv:21005:E:R:s26:302`) readable. */
 const encodePathSegment = (segment: string): string =>
   encodeURIComponent(segment).replaceAll("%3A", ":");
 
@@ -215,7 +203,6 @@ export function parseRoute(hash: string): AppRoute {
         ...defaultRoute,
         view: "stop",
         stopId: "",
-        lineId: getJourneyLineId(addressId),
         addressId,
         isRide: true,
         originStopId: from,
@@ -387,7 +374,7 @@ export function getParentSelectionPath({
   return routePaths.home();
 }
 
-/** Prefers EFA's journey id for concise URLs, falling back to the local id. */
+/** Prefers the journey ref for concise URLs, falling back to the local id. */
 export function getStopEventAddressId(
   stopEvent: Pick<StopEvent, "id" | "journeyRef" | "datedJourneyId">,
 ): string {
@@ -409,7 +396,7 @@ export function getStopEventOpenPath(
   selection?: LineSelection,
 ): string {
   const { lineId, bundledLineIds } =
-    selection && isSelectedLine(selection, stopEvent.lineId)
+    selection && isSelectedLine(selection, stopEvent)
       ? selection
       : { lineId: stopEvent.lineId, bundledLineIds: [] };
   if (isPinned) return routePaths.line(lineId, stopId, bundledLineIds);

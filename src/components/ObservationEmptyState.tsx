@@ -1,4 +1,5 @@
 import type { StopEventBoardCoverage } from "../data/transit-types";
+import { FEED_UNREADABLE_TEXT } from "./feed-copy";
 
 /** A view's nouns for the three empty states. */
 export type ObservationEmptyStateLabels = {
@@ -25,7 +26,7 @@ export function ObservationEmptyState({
       ) : coverage.status === "unavailable" ? (
         <>
           <strong>{labels.unavailable}</strong>
-          <span>Der KVV-Feed konnte nicht gelesen werden.</span>
+          <span>{FEED_UNREADABLE_TEXT}</span>
         </>
       ) : (
         <strong>{labels.empty}</strong>

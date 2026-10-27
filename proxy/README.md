@@ -1,15 +1,15 @@
 # TRIAS proxy
 
-A thin PHP proxy in front of the KVV TRIAS interface ([docs/kvv-trias-api.md](../docs/kvv-trias-api.md)).
+A thin PHP proxy in front of the KVV TRIAS interface ([docs/trias-api.md](../docs/trias-api.md)).
 It holds the requestor ref, builds the TRIAS request from a few validated parameters, and serves
 the XML reply gzipped from a 15 s shared cache. Parsing stays in the client
-(`src/data/kvv-trias-client.ts`).
+(`src/data/trias-client.ts`).
 
 ## Endpoints
 
 | Endpoint | Parameters |
 | --- | --- |
-| `GET /api/stop-events.php` | `stop` (EFA id or `de:` ref), `rows` (1–60, default 20), `calls` (`0`/`1`), `kind` (`departure`/`arrival`), `lines` (up to 16 line refs, comma-separated) |
+| `GET /api/stop-events.php` | `stop` (a `de:` ref), `rows` (1–60, default 20), `calls` (`0`/`1`), `kind` (`departure`/`arrival`), `lines` (up to 16 line refs, comma-separated) |
 | `GET /api/trip-info.php` | `journey` (`JourneyRef`), `day` (`OperatingDayRef`, `YYYY-MM-DD`) |
 | `GET /api/locations.php` | `q` (2–60 characters; cached for an hour), `rows` (1–20, default 10) |
 
@@ -44,7 +44,7 @@ start it below and run Vite with `VITE_TRIAS_PROXY_URL=/api/`.
 
 ```bash
 npm run proxy        # php -S localhost:8080, with TRIAS_REQUESTOR_REF from .env.local
-curl 'http://localhost:8080/api/stop-events.php?stop=7000037&rows=5'
+curl 'http://localhost:8080/api/stop-events.php?stop=de:08212:37&rows=5'
 ```
 
 The ref is read from `trias-config.php` one level above `public/`, else from `TRIAS_REQUESTOR_REF`.

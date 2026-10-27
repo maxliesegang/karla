@@ -1,14 +1,14 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
-  KvvTriasError,
+  TriasError,
   parseTriasLocations,
   parseTriasSituations,
   parseTriasStopEvents,
   parseTriasTripInfo,
   toProviderStopId,
-} from "../src/data/kvv-trias-parsers.ts";
-import type { KvvJourneyLocator } from "../src/data/kvv-feed.ts";
+} from "../src/data/trias-parsers.ts";
+import type { JourneyLocator } from "../src/data/feed.ts";
 import {
   triasReply,
   triasSituation,
@@ -29,35 +29,38 @@ test("malformed XML never becomes a successful empty board", () => {
     valid.replace('version="1.2"', "version=1.2"),
     valid.replace("<trias:StopEventResponse>", "<trias:StopEventResponse>&unknown;"),
   ]) {
-    assert.throws(() => parseTriasStopEvents(xml, "7001003"), KvvTriasError);
+    assert.throws(() => parseTriasStopEvents(xml, "de:08212:1003"), TriasError);
   }
 });
 
 test("each endpoint requires its own payload and a valid feed clock", () => {
-  const locator: KvvJourneyLocator = {
+  const locator: JourneyLocator = {
     lineRef: "kvv:22305:E:R:s26",
     journeyCode: "1762",
-    stopPointId: "7001003",
+    stopPointId: "de:08212:1003",
     date: "20261017",
     time: "2301",
   };
   for (const time of ["", "not a time", "2026-10-17T21:01:46", "2026-02-30T21:01:46Z"]) {
-    assert.throws(() => parseTriasStopEvents(triasStopEvents(time, []), "7001003"), KvvTriasError);
+    assert.throws(
+      () => parseTriasStopEvents(triasStopEvents(time, []), "de:08212:1003"),
+      TriasError,
+    );
     assert.throws(
       () => parseTriasLocations(triasReply(time, "<trias:LocationInformationResponse/>")),
-      KvvTriasError,
+      TriasError,
     );
     assert.throws(
       () => parseTriasTripInfo(triasTripInfo(time, { previous: [MARKTPLATZ] }), locator),
-      KvvTriasError,
+      TriasError,
     );
   }
   for (const payload of ["", "<trias:TripInfoResponse/>"]) {
     assert.throws(
-      () => parseTriasStopEvents(triasReply(RESPONDED_AT, payload), "7001003"),
-      KvvTriasError,
+      () => parseTriasStopEvents(triasReply(RESPONDED_AT, payload), "de:08212:1003"),
+      TriasError,
     );
-    assert.throws(() => parseTriasLocations(triasReply(RESPONDED_AT, payload)), KvvTriasError);
+    assert.throws(() => parseTriasLocations(triasReply(RESPONDED_AT, payload)), TriasError);
   }
   assert.deepEqual(
     parseTriasLocations(triasReply(RESPONDED_AT, "<trias:LocationInformationResponse/>")),
@@ -84,18 +87,18 @@ const PFORZHEIM: TriasCall = {
   arrival: { timetabled: "2026-10-17T21:50:00Z" },
 };
 
-test("Karlsruhe's stop refs read as EFA ids, others as their stop's DHID", () => {
-  assert.equal(toProviderStopId("de:08212:1003:92:2"), "7001003");
-  assert.equal(toProviderStopId("de:08212:37"), "7000037");
+test("a stop ref reads as its stop's DHID, whatever the level", () => {
+  assert.equal(toProviderStopId("de:08212:1003:92:2"), "de:08212:1003");
+  assert.equal(toProviderStopId("de:08212:37"), "de:08212:37");
   assert.equal(toProviderStopId("de:08237:1050:1:1"), "de:08237:1050");
 });
 
-test("a stop event reads as the row EFA would publish, with the prediction to the second", () => {
+test("a stop event reads as a row, with the prediction to the second", () => {
   const board = parseTriasStopEvents(
     triasStopEvents(RESPONDED_AT, [
       triasStopEvent({ current: MARKTPLATZ, journeyNumber: "85099" }),
     ]),
-    "7001003",
+    "de:08212:1003",
   );
   const [row] = board.stopEvents;
 
@@ -119,7 +122,7 @@ test("a stop event reads as the row EFA would publish, with the prediction to th
       calls: row.calls,
     },
     {
-      stopPointId: "7001003",
+      stopPointId: "de:08212:1003",
       stopPointName: "Marktplatz (Kaiserstraße U)",
       lineId: "S5",
       ptMode: "lightRail",
@@ -142,13 +145,13 @@ test("a stop event reads as the row EFA would publish, with the prediction to th
 test("the countdown is the clock minutes between the feed's reading and the expected departure", () => {
   const [row] = parseTriasStopEvents(
     triasStopEvents("2026-10-17T21:01:59Z", [triasStopEvent({ current: MARKTPLATZ })]),
-    "7001003",
+    "de:08212:1003",
   ).stopEvents;
   // 21:01 to 21:05, though only 3 min 13 s remain.
   assert.equal(row.minutesUntilDeparture, 4);
 });
 
-test("the locator names the run as EFA does, and carries TRIAS's operating day", () => {
+test("the locator splits the journey ref into line and code, and carries the operating day", () => {
   const [row] = parseTriasStopEvents(
     triasStopEvents(RESPONDED_AT, [
       triasStopEvent({
@@ -156,12 +159,12 @@ test("the locator names the run as EFA does, and carries TRIAS's operating day",
         service: { operatingDay: "2026-10-17" },
       }),
     ]),
-    "7001003",
+    "de:08212:1003",
   ).stopEvents;
   assert.deepEqual(row.journeyLocator, {
     lineRef: "kvv:22305:E:R:s26",
     journeyCode: "1762",
-    stopPointId: "7001003",
+    stopPointId: "de:08212:1003",
     // 00:10 the next calendar day in Karlsruhe, still the 17th's operating day.
     date: "20261018",
     time: "0010",
@@ -174,7 +177,7 @@ test("calls keep predictions to the second and their whole-minute delays", () =>
     triasStopEvents(RESPONDED_AT, [
       triasStopEvent({ current: MARKTPLATZ, onward: [KRONENPLATZ, PFORZHEIM] }),
     ]),
-    "7001003",
+    "de:08212:1003",
   ).stopEvents;
   const [here, next, end] = row.calls ?? [];
 
@@ -194,7 +197,7 @@ test("calls keep predictions to the second and their whole-minute delays", () =>
     {
       stopName: "Kronenplatz (U)",
       placeName: "Karlsruhe",
-      providerId: "7001002",
+      providerId: "de:08212:1002",
       bayText: "Gleis 2(U)",
       bay: "2(U)",
       estimatedArrivalTime: "2026-10-17T21:06:12.000Z",
@@ -216,7 +219,7 @@ test("a departure without a prediction is scheduled, not on time", () => {
         current: { ...MARKTPLATZ, departure: { timetabled: "2026-10-17T21:30:00Z" } },
       }),
     ]),
-    "7001003",
+    "de:08212:1003",
   ).stopEvents;
   assert.equal(row.status, "scheduled");
   assert.equal(row.delayMinutes, undefined);
@@ -228,7 +231,7 @@ test("a cancelled trip says so", () => {
     triasStopEvents(RESPONDED_AT, [
       triasStopEvent({ current: MARKTPLATZ, service: { cancelled: true } }),
     ]),
-    "7001003",
+    "de:08212:1003",
   ).stopEvents;
   assert.equal(row.status, "cancelled");
 });
@@ -254,7 +257,7 @@ test("only the local network's lines are read", () => {
         },
       }),
     ]),
-    "7001003",
+    "de:08212:1003",
   );
   assert.deepEqual(
     board.stopEvents.map(({ lineId, ptMode }) => [lineId, ptMode]),
@@ -270,7 +273,7 @@ test("an arrival board times its rows by the arrival", () => {
         previous: [MARKTPLATZ],
       }),
     ]),
-    "7001002",
+    "de:08212:1002",
     "arrival",
   ).stopEvents;
   assert.equal(row.timetabledDepartureTime, "2026-10-17T21:02:00.000Z");
@@ -280,29 +283,31 @@ test("an arrival board times its rows by the arrival", () => {
 test("a stop with nothing due is an empty board; any other error is a failure", () => {
   const empty = parseTriasStopEvents(
     triasStopEvents(RESPONDED_AT, [], "STOPEVENT_LOCATIONUNSERVED"),
-    "7001003",
+    "de:08212:1003",
   );
   assert.deepEqual(empty.stopEvents, []);
   assert.deepEqual(
-    parseTriasStopEvents(triasStopEvents(RESPONDED_AT, [], "STOPEVENT_NOEVENTFOUND"), "7001003")
-      .stopEvents,
+    parseTriasStopEvents(
+      triasStopEvents(RESPONDED_AT, [], "STOPEVENT_NOEVENTFOUND"),
+      "de:08212:1003",
+    ).stopEvents,
     [],
   );
   assert.throws(
     () =>
       parseTriasStopEvents(
         triasStopEvents(RESPONDED_AT, [], "STOPEVENT_DATEOUTOFRANGE"),
-        "7001003",
+        "de:08212:1003",
       ),
-    KvvTriasError,
+    TriasError,
   );
-  assert.throws(() => parseTriasStopEvents("<html>502</html>", "7001003"), KvvTriasError);
+  assert.throws(() => parseTriasStopEvents("<html>502</html>", "de:08212:1003"), TriasError);
 });
 
-const LOCATOR: KvvJourneyLocator = {
+const LOCATOR: JourneyLocator = {
   lineRef: "kvv:22305:E:R:s26",
   journeyCode: "1762",
-  stopPointId: "7001002",
+  stopPointId: "de:08212:1002",
   date: "20261017",
   time: "2302",
   operatingDayRef: "2026-10-17",
@@ -316,8 +321,8 @@ test("a trip marks the call its row was read at", () => {
   assert.deepEqual(
     journey.calls.map(({ providerId, isThisCall }) => [providerId, isThisCall]),
     [
-      ["7001003", undefined],
-      ["7001002", true],
+      ["de:08212:1003", undefined],
+      ["de:08212:1002", true],
       ["de:08231:50", undefined],
     ],
   );
@@ -359,7 +364,7 @@ test("a stop search reads ids, names, places and positions", () => {
   );
   assert.deepEqual(results, [
     {
-      providerId: "7001004",
+      providerId: "de:08212:1004",
       name: "Europaplatz",
       placeName: "Karlsruhe",
       latitude: 49.01005,
@@ -374,7 +379,7 @@ test("an empty-stop notice cannot hide another provider error", () => {
     "</trias:StopEventResponse>",
     "<trias:ErrorMessage><trias:Code>ERROR</trias:Code><trias:Text><trias:Text>INVALID_REQUEST</trias:Text></trias:Text></trias:ErrorMessage></trias:StopEventResponse>",
   );
-  assert.throws(() => parseTriasStopEvents(mixed, "7001003"), KvvTriasError);
+  assert.throws(() => parseTriasStopEvents(mixed, "de:08212:1003"), TriasError);
 });
 
 test("a board's situations read on their own, in the operator's terms", () => {
@@ -417,5 +422,5 @@ test("a board's situations read on their own, in the operator's terms", () => {
     },
   ]);
   // The board itself carries none of it.
-  assert.equal("notices" in parseTriasStopEvents(reply, "7001003"), false);
+  assert.equal("notices" in parseTriasStopEvents(reply, "de:08212:1003"), false);
 });

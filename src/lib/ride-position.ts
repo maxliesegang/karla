@@ -38,7 +38,7 @@ function projectOntoLink(from: LocalPoint, to: LocalPoint) {
   const deltaX = to.x - from.x;
   const deltaY = to.y - from.y;
   const lengthSquared = deltaX ** 2 + deltaY ** 2;
-  // Two calls at one coordinate (a complex's halves) have no direction; the fix is at that point.
+  // Two calls at one coordinate (a stop place's halves) have no direction; the fix is at that point.
   const progress =
     lengthSquared === 0
       ? 1

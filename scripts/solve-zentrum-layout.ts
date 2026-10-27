@@ -18,9 +18,11 @@
  */
 
 import { readFileSync, writeFileSync } from "node:fs";
-import { findCatalogStop } from "../src/data/generated/kvv-stop-catalog.ts";
-import { KvvEfaClient } from "../src/data/kvv-efa-client.ts";
-import { kvvStopMappingByLocalStopId } from "../src/data/kvv-stop-mappings.ts";
+import { findCatalogStop } from "../src/networks/kvv/generated/stop-catalog.ts";
+import { DEFAULT_TRIAS_PROXY_URL } from "../src/data/trias-proxy.ts";
+import { TriasClient } from "../src/data/trias-client.ts";
+import { fetchStopPlaceBoard } from "../src/data/feed.ts";
+import { kvvStopPlaces } from "../src/networks/kvv/stop-places.ts";
 import { StopRegistry } from "../src/data/stop-registry.ts";
 import type { StopEventBoard, Call } from "../src/data/transit-types.ts";
 import { zentrumStopIds } from "../src/data/zentrum-stops.ts";
@@ -76,19 +78,19 @@ const readOption = (flag: string): string | undefined => {
  */
 async function observe(rowLimit: number): Promise<Observations> {
   const stops = new StopRegistry([]);
-  const client = new KvvEfaClient();
+  const client = new TriasClient({ proxyUrl: DEFAULT_TRIAS_PROXY_URL });
   const boards: StopEventBoard[] = [];
   const coordinates = new Map<string, { latitudes: number[]; longitudes: number[] }>();
 
   for (const stopId of zentrumStopIds) {
-    const mapping = kvvStopMappingByLocalStopId[stopId];
-    if (!mapping) {
-      console.error(`! ${stopId} has no provider mapping and cannot be read`);
+    const stopPlace = kvvStopPlaces[stopId];
+    if (!stopPlace) {
+      console.error(`! ${stopId} has no stop points and cannot be read`);
       continue;
     }
     try {
-      const board = await client.fetchStopEventBoard(mapping.providerStopId, {
-        limit: mapping.stopEventLimit ?? rowLimit,
+      const board = await fetchStopPlaceBoard(client, stopPlace.stopPoints, {
+        limit: rowLimit,
         includeCalls: true,
       });
       boards.push({
@@ -392,8 +394,8 @@ async function main(): Promise<void> {
   // return.
   for (const stopId of zentrumStopIds) {
     if (observations.nodes.some((node) => node.id === stopId)) continue;
-    const mapping = kvvStopMappingByLocalStopId[stopId];
-    const catalogued = mapping && findCatalogStop(mapping.providerStopId);
+    const stopPoint = kvvStopPlaces[stopId]?.stopPoints[0];
+    const catalogued = stopPoint && findCatalogStop(stopPoint);
     if (!catalogued) {
       console.error(`! ${stopId} was neither observed nor catalogued, and cannot be placed`);
       continue;

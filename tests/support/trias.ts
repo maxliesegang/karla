@@ -1,4 +1,4 @@
-/** TRIAS replies in the shape KVV's server writes them (docs/kvv-trias-api.md), trimmed to the facts tested. */
+/** TRIAS replies in the shape KVV's server writes them (docs/trias-api.md), trimmed to the facts tested. */
 
 const text = (value: string) =>
   `<trias:Text>${value}</trias:Text><trias:Language>de</trias:Language>`;

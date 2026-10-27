@@ -80,7 +80,7 @@ test("an unmonitored arrival stays a timetable estimate even with a predicted de
   );
 });
 
-test("a direct ride retains its last boarding call in a complex, never another stop's platform", () => {
+test("a direct ride retains its last boarding call in a stop place, never another stop's platform", () => {
   const stopEvent = createStopEvent({
     id: "origin-reading",
     journeyRef: "run-2",

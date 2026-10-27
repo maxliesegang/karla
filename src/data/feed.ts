@@ -1,10 +1,8 @@
-/**
- * The provider boundary below `TransitSource`: what a KVV feed answers, in one model whichever
- * interface (EFA or TRIAS) read it.
- */
+/** The provider boundary below `TransitSource`: what the TRIAS feed answers, decoded. */
+import { findExpectedDepartureInstant } from "../lib/feed-clock";
 import type { StopEventStatus, BayKind, PtMode, Call, VehicleAccess } from "./transit-types";
 
-export type KvvStopEventBoardOptions = {
+export type FeedStopEventBoardOptions = {
   limit?: number;
   includeCalls?: boolean;
   /** Line-direction ids (`lineRef`) to filter by. */
@@ -13,27 +11,27 @@ export type KvvStopEventBoardOptions = {
 };
 
 /**
- * What the app reads from KVV, through one interface for the whole session (`kvv-feed-config.ts`).
+ * What the app reads from the feed.
  * Every method rejects when the provider could not be read.
  */
-export interface KvvFeed {
+export interface Feed {
   fetchStopEventBoard(
     stopPointId: string,
-    options?: KvvStopEventBoardOptions,
-  ): Promise<KvvStopEventBoard>;
-  fetchTripInfo(locator: KvvJourneyLocator): Promise<KvvTripInfo>;
-  searchStops(query: string): Promise<KvvStopSearchResult[]>;
+    options?: FeedStopEventBoardOptions,
+  ): Promise<FeedStopEventBoard>;
+  fetchTripInfo(locator: JourneyLocator): Promise<FeedTripInfo>;
+  searchStops(query: string): Promise<FeedStopSearchResult[]>;
   /** A line-direction's stops, addressed through one of its dated journeys. */
-  fetchLineRoute(locator: KvvJourneyLocator): Promise<KvvCall[]>;
+  fetchLineRoute(locator: JourneyLocator): Promise<FeedCall[]>;
 }
 
 /** A calling point as the feed states it, still carrying the provider stop id it was read from. */
-export type KvvCall = Call & { providerId?: string };
+export type FeedCall = Call & { providerId?: string };
 
 /**
  * The provider tuple that identifies one dated journey; every field is copied from its board row.
  */
-export type KvvJourneyLocator = {
+export type JourneyLocator = {
   journeyCode: string;
   /** The provider's own key for the service designation (`servingLine.stateless`), not the sign. */
   lineRef: string;
@@ -45,25 +43,22 @@ export type KvvJourneyLocator = {
   operatingDayRef?: string;
 };
 
-export type KvvTripInfo = {
+export type FeedTripInfo = {
   serverTime: string;
-  calls: KvvCall[];
+  calls: FeedCall[];
   /** Only exceptional whole-journey states override the fresher stop-specific DM row. */
   status?: Extract<StopEventStatus, "cancelled" | "diverted">;
 };
 
-export type KvvStopEvent = {
-  /** Provider stop point the vehicle departs from; a complex reports several of these. */
+export type FeedStopEvent = {
+  /** Provider stop point the vehicle departs from; a stop place reports several of these. */
   stopPointId: string;
   stopPointName: string;
-  /**
-   * The timetable-journey identity: EFA's `RealtimeTripId` (AVMS as fallback), TRIAS's
-   * `JourneyRef`.
-   */
+  /** The timetable-journey identity, TRIAS's `JourneyRef`. */
   journeyRef?: string;
   /** Dated identity, for matching older shared links and deduplicating operating instances. */
   datedJourneyId?: string;
-  /** `servingLine.trainNum`, including where two separately addressed portions share one train. */
+  /** The train number (`PublishedJourneyNumber`), shared where two separately addressed portions run as one. */
   publishedJourneyNumber?: string;
   lineId: string;
   /** Opaque identity for this line and operating direction (`kvv:21005:E:R:s26`). */
@@ -77,40 +72,25 @@ export type KvvStopEvent = {
   status: StopEventStatus;
   timetabledDepartureTime: string;
   estimatedDepartureTime?: string;
-  /** The prediction is stated to the second (TRIAS); EFA's is truncated to the minute. */
+  /** The prediction is stated to the second; some pools state whole minutes. */
   isEstimatedToTheSecond?: boolean;
   serviceNote?: string;
   /** What the feed states about boarding this vehicle, where it states anything at all. */
   vehicleAccess?: VehicleAccess;
   /** Opaque provider state used below `TransitSource` to load only this journey. */
-  journeyLocator?: KvvJourneyLocator;
-  calls?: KvvCall[];
+  journeyLocator?: JourneyLocator;
+  calls?: FeedCall[];
 };
 
-export type KvvStopEventBoard = {
+export type FeedStopEventBoard = {
   stopPointId: string;
   stopName: string;
   /** Server time of the feed, so countdowns are anchored to the source, not the browser clock. */
   serverTime: string;
-  /**
-   * Timetabled line-directions the stop monitor can query; never evidence of a departure itself.
-   * EFA states them; TRIAS does not, so its boards leave them empty.
-   */
-  servingLines: KvvServingLine[];
-  stopEvents: KvvStopEvent[];
+  stopEvents: FeedStopEvent[];
 };
 
-/**
- * A line-direction a stop serves, paired with the line's name. Direction ids are opaque, so this
- * pairing is the only way to name a line with no departure on the board.
- */
-export type KvvServingLine = {
-  lineId?: string;
-  lineRef: string;
-  ptMode?: PtMode;
-};
-
-export type KvvStopSearchResult = {
+export type FeedStopSearchResult = {
   providerId: string;
   name: string;
   /** The municipality the stop is in, as the feed states it. */
@@ -135,4 +115,46 @@ export function getDatedJourneyId(
   const journeyStartTime = firstCall?.timetabledDepartureTime ?? firstCall?.timetabledArrivalTime;
   // To the minute: rows publish the first call to the minute, sequences to the second.
   return journeyStartTime ? `${journeyRef}@${journeyStartTime.slice(0, 16)}` : journeyRef;
+}
+
+const getExpectedInstant = (stopEvent: FeedStopEvent): number =>
+  findExpectedDepartureInstant(
+    stopEvent.timetabledDepartureTime,
+    stopEvent.estimatedDepartureTime,
+    stopEvent.delayMinutes,
+  ) ?? Number.POSITIVE_INFINITY;
+
+/**
+ * Boards read apart (a stop place's stop points, a line filter split across requests) as one. A
+ * board that answered `limit` rows may have more after its last, so the joined board ends there:
+ * past it, only the quieter boards' rows would show.
+ */
+export function joinStopEventBoards(
+  boards: readonly FeedStopEventBoard[],
+  limit: number,
+): FeedStopEventBoard {
+  if (boards.length === 1) return boards[0];
+  const end = Math.min(
+    ...boards
+      .filter(({ stopEvents }) => stopEvents.length >= limit)
+      .map(({ stopEvents }) => Math.max(...stopEvents.map(getExpectedInstant))),
+  );
+  return {
+    ...boards[0],
+    stopEvents: boards
+      .flatMap(({ stopEvents }) => stopEvents)
+      .filter((stopEvent) => getExpectedInstant(stopEvent) <= end),
+  };
+}
+
+/** A stop place's board: each of its stop points read, and joined. */
+export async function fetchStopPlaceBoard(
+  feed: Feed,
+  stopPoints: readonly string[],
+  options: FeedStopEventBoardOptions & { limit: number },
+): Promise<FeedStopEventBoard> {
+  const boards = await Promise.all(
+    stopPoints.map((stopPointId) => feed.fetchStopEventBoard(stopPointId, options)),
+  );
+  return joinStopEventBoards(boards, options.limit);
 }

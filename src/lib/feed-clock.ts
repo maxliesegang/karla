@@ -42,8 +42,7 @@ export function findExpectedDepartureInstant(
 }
 
 /**
- * The feed's clock truncated to the minute: EFA's `countdown` subtracts whole minutes, and KVV's
- * own displays show that number.
+ * The feed's clock truncated to the minute: KVV's own displays count whole minutes.
  */
 const truncateToFeedMinute = (feedNow: number): number => Math.floor(feedNow / 60_000) * 60_000;
 

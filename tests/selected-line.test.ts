@@ -9,8 +9,11 @@ import type {
 import { parseRoute } from "../src/routing.ts";
 import { findBundledLines, findSelectedLine } from "../src/selected-line.ts";
 
-const JOURNEY = "de:kvv:00S02_:.kvv-21-12-E.5.T0.946.s26";
+const JOURNEY = "kvv:22302:E:H:s26:946";
 const network = { lines: [] } as unknown as TransitNetwork;
+const S2 = { id: "S2", identity: "kvv:22302", ptMode: "lightRail" } as TransitLine;
+/** The network once it has seen the S2: lines carry the identity their refs state. */
+const networkWithS2 = { lines: [S2] } as unknown as TransitNetwork;
 
 const row = (lineId: string, ptMode: StopEvent["ptMode"]) =>
   ({ id: `row-${lineId}`, lineId, ptMode }) as StopEvent;
@@ -25,7 +28,7 @@ test("a trip opened from a stop board keeps its line once it has left that stop"
 
   const line = findSelectedLine(
     route,
-    network,
+    networkWithS2,
     stopEvents,
     liveBoard(stopEvents),
     undefined,
@@ -39,9 +42,17 @@ test("a trip opened from a stop board keeps its line once it has left that stop"
 test("the line a departed trip names holds even when no other run of it calls here", () => {
   const route = parseRoute(`#/stop/marktplatz/trip/${JOURNEY}`);
 
-  const line = findSelectedLine(route, network, [], liveBoard([]), undefined, undefined);
+  const line = findSelectedLine(route, networkWithS2, [], liveBoard([]), undefined, undefined);
 
   assert.equal(line?.id, "S2");
+});
+
+test("a trip of another pool's line of the same name is not that line", () => {
+  const route = parseRoute("#/stop/marktplatz/trip/ddb:920S2:C:R:j26:12");
+
+  const line = findSelectedLine(route, networkWithS2, [], liveBoard([]), undefined, undefined);
+
+  assert.equal(line, undefined);
 });
 
 test("without a trip the bare stop names no line", () => {

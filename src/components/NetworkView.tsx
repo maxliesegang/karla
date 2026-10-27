@@ -12,6 +12,7 @@ import { getGroupedLines } from "../lib/line-families";
 import { LineTermini, getLineTerminiLabel } from "./LineTermini";
 import { SegmentedControl, type SegmentedControlItem } from "./SegmentedControl";
 import { useNetworkBandNavigation } from "../hooks/network-band-navigation";
+import { network as networkDefinition } from "../networks/network";
 
 /** Group order: trams, Stadtbahn, then buses. */
 const NETWORK_GROUP_ORDER: readonly PtMode[] = ["tram", "lightRail", "bus", "other"];
@@ -72,7 +73,7 @@ export function NetworkView({
     <div className="network-view">
       <div className="panel-heading">
         <div>
-          <h1>Linien in Karlsruhe</h1>
+          <h1>Linien in {networkDefinition.home.placeName}</h1>
         </div>
       </div>
       {groups.length > 1 && (

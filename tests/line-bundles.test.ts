@@ -472,9 +472,9 @@ test("falls back to live departure rows when a whole-stop line list is absent", 
 
 test("reads a departure of any bundled line as the selection", () => {
   const selection = { lineId: "S1", bundledLineIds: ["S11"] };
-  assert.equal(isSelectedLine(selection, "S11"), true);
-  assert.equal(isSelectedLine(selection, "S2"), false);
-  assert.equal(isSelectedLine({ lineId: "S1", bundledLineIds: [] }, "S11"), false);
+  assert.equal(isSelectedLine(selection, { lineId: "S11" }), true);
+  assert.equal(isSelectedLine(selection, { lineId: "S2" }), false);
+  assert.equal(isSelectedLine({ lineId: "S1", bundledLineIds: [] }, { lineId: "S11" }), false);
 });
 
 test("offers every sibling once: the ones being read as a way out, the rest as a way in", () => {

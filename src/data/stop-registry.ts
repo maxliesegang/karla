@@ -1,22 +1,15 @@
-import type { KvvCall } from "./kvv-feed";
-import { kvvStopMappingByLocalStopId } from "./kvv-stop-mappings";
+import type { FeedCall } from "./feed";
+import { network } from "../networks/network";
 import type { StopPlace, Call } from "./transit-types";
 import { createStopSlug } from "../lib/stop-slug";
-import { findCatalogStop } from "./generated/kvv-stop-catalog";
-import { kvvBayPositionByKey } from "./generated/kvv-bay-positions";
 
 /** A dynamic stop id: name slug plus a short digest of the provider id (`hbf--1a2b3c`). */
 export const DYNAMIC_STOP_ID_PATTERN = /^(.*?)--([a-z0-9]+)$/;
 
-/**
- * Provider stop point to local stop id, inverted once; every stop point of a place maps to it, so a
- * journey resolves from whichever it calls at.
- */
+/** Every stop point of an authored place maps to it, so a journey resolves from whichever it calls at. */
 const localStopIdByProviderId: ReadonlyMap<string, string> = new Map(
-  Object.entries(kvvStopMappingByLocalStopId).flatMap(([localId, mapping]) =>
-    [mapping.providerStopId, ...(mapping.otherProviderStopIds ?? [])].map(
-      (providerStopId) => [providerStopId, localId] as const,
-    ),
+  Object.entries(network.stopPlaces).flatMap(([localId, { stopPoints }]) =>
+    stopPoints.map((stopPointId) => [stopPointId, localId] as const),
   ),
 );
 
@@ -60,12 +53,10 @@ export class StopRegistry {
     return this.authoredStopsById.get(stopId) ?? this.dynamicStops.get(stopId);
   }
 
-  /** The provider stop point behind a local stop. */
-  findProviderStopId(stopId: string): string | undefined {
-    return (
-      kvvStopMappingByLocalStopId[stopId]?.providerStopId ??
-      this.providerIdByDynamicStopId.get(stopId)
-    );
+  /** The stop points a local stop's board joins; none for a stop the session has not met. */
+  findStopPoints(stopId: string): readonly string[] {
+    const dynamic = this.providerIdByDynamicStopId.get(stopId);
+    return network.stopPlaces[stopId]?.stopPoints ?? (dynamic ? [dynamic] : []);
   }
 
   /** The local page for a provider stop, preferring the fixed mapping. */
@@ -116,7 +107,7 @@ export class StopRegistry {
    * Provider calls with every stop resolved to a local one, and located where the feed left them
    * unlocated (a board's own call; every TRIAS call).
    */
-  toCalls(calls: readonly KvvCall[]): Call[] {
+  toCalls(calls: readonly FeedCall[]): Call[] {
     return calls.map(({ providerId, ...journeyStop }) => {
       const localStopId = providerId
         ? this.resolveCallStopId(providerId, journeyStop)
@@ -141,9 +132,9 @@ export class StopRegistry {
     providerId: string,
     bay: string | undefined,
   ): { latitude?: number; longitude?: number } {
-    const bayPosition = kvvBayPositionByKey.get(`${providerId}|${bay ?? ""}`);
+    const bayPosition = network.bayPositionByKey.get(`${providerId}|${bay ?? ""}`);
     if (bayPosition) return { latitude: bayPosition.latitude, longitude: bayPosition.longitude };
-    const catalogStop = findCatalogStop(providerId);
+    const catalogStop = network.findCatalogStop(providerId);
     if (catalogStop) return { latitude: catalogStop.latitude, longitude: catalogStop.longitude };
     const stopId = this.dynamicStopIdByProviderId.get(providerId);
     const stop = stopId === undefined ? undefined : this.dynamicStops.get(stopId);
@@ -156,7 +147,7 @@ export class StopRegistry {
    * The local id for a journey call, registering it with its position; fills in a position missing
    * from a search-registered stop.
    */
-  private resolveCallStopId(providerId: string, journeyStop: Omit<KvvCall, "providerId">): string {
+  private resolveCallStopId(providerId: string, journeyStop: Omit<FeedCall, "providerId">): string {
     const knownId = this.findLocalStopId(providerId);
     if (!knownId) {
       return this.register({

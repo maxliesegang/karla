@@ -33,6 +33,7 @@ import {
   useVehicleLayerGeometry,
 } from "./line-diagram/layout";
 import { useLineDiagramReading } from "./line-diagram/reading";
+import { FEED_UNREADABLE_TEXT } from "./feed-copy";
 
 type LineDiagramPanelProps = {
   line: TransitLine;
@@ -122,6 +123,7 @@ export function LineDiagramPanel({
     bundleControls,
     diagramStops,
     diagramStopNames,
+    isPinnedDatedJourneyReading,
     currentStopIndex,
     vehicleCoordinateKey,
     vehicles,
@@ -410,7 +412,8 @@ export function LineDiagramPanel({
           <p className="line-diagram-split behind">{fork.terminatingBehind}</p>
         )}
         {diagramStops.length === 0 &&
-          (stopEventBoard === null ? (
+          // A journey whose read is still out is loading, not unavailable.
+          (stopEventBoard === null || isPinnedDatedJourneyReading ? (
             <div className="panel-empty">
               <strong>Fahrtverlauf wird geladen …</strong>
             </div>
@@ -418,9 +421,7 @@ export function LineDiagramPanel({
             <div className="panel-empty">
               <strong>Fahrtverlauf nicht verfügbar</strong>
               {stopEventBoard.dataStatus === "unavailable" && (
-                <span>
-                  {stopEventBoard.errorMessage ?? "Der KVV-Feed konnte nicht gelesen werden."}
-                </span>
+                <span>{stopEventBoard.errorMessage ?? FEED_UNREADABLE_TEXT}</span>
               )}
             </div>
           ))}

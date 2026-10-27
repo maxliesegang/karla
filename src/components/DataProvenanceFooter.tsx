@@ -1,5 +1,6 @@
 import type { StopEventBoard, StopEventBoardCoverage } from "../data/transit-types";
 import { formatClockTime } from "../lib/stop-event-presentation";
+import { network } from "../networks/network";
 
 /** Data source, reading status and provider disclaimer. */
 export function DataProvenanceFooter({
@@ -47,7 +48,9 @@ export function DataProvenanceFooter({
 
   return (
     <footer className="data-provenance-footer">
-      <span>Kein offizielles KVV-Angebot · {statusLabel}</span>
+      <span>
+        Kein offizielles {network.operator.name}-Angebot · {statusLabel}
+      </span>
     </footer>
   );
 }

@@ -30,6 +30,7 @@ const toTopology = (stopEvent: StopEvent): ObservedJourneyTopology | undefined =
         id: stopEvent.id,
         ...(stopEvent.journeyRef ? { journeyRef: stopEvent.journeyRef } : {}),
         lineId: stopEvent.lineId,
+        ...(stopEvent.lineRef ? { lineRef: stopEvent.lineRef } : {}),
         ptMode: stopEvent.ptMode,
         destinationText: stopEvent.destinationText,
         calls: stopEvent.calls.map(toTopologyCall),

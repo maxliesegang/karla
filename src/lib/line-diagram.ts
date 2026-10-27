@@ -3,7 +3,7 @@ import { createStopSlug } from "./stop-slug";
 import { findHomePlaceName, getStopPlaceQualifier } from "./stop-naming";
 import { findStopByName } from "./stop-services";
 import type { JoinedDatedJourneyPortionPair } from "./joined-dated-journey-portions";
-import { isSameLineFamily } from "./line-families";
+import { isRowOfLine } from "./line-identity";
 import { isSelectedLine, type LineSelection } from "./line-bundles";
 import {
   alignSameRouteCalls,
@@ -239,7 +239,7 @@ export function getLineDiagramDatedJourneyStopEvents(
   stopEvents: readonly StopEvent[],
 ): StopEvent[] {
   return getDistinctDatedJourneys(
-    stopEvents.filter((stopEvent) => isSelectedLine(selection, stopEvent.lineId)),
+    stopEvents.filter((stopEvent) => isSelectedLine(selection, stopEvent)),
   );
 }
 
@@ -397,8 +397,8 @@ function arbitrateBays(
 }
 
 /**
- * One mark for a joined working while its portions share a link. EFA may time only one portion, so
- * that one stands for both within their shared prefix.
+ * One mark for a joined working while its portions share a link. The feed may time only one
+ * portion, so that one stands for both within their shared prefix.
  */
 function mergeJoinedPortions(
   drawn: readonly PlacedLineDiagramVehicle[],
@@ -537,6 +537,7 @@ export function getDatedJourneyPositionAnchorIndex(
  */
 export function chooseLineDiagramDatedJourney({
   lineId,
+  identity,
   riderStopIds,
   pinnedStopEvent,
   retainedStopEvent,
@@ -545,8 +546,9 @@ export function chooseLineDiagramDatedJourney({
   boardStopEvents,
 }: {
   lineId: string;
+  identity?: string;
   /**
-   * Every id naming the rider's stop: the address's, and a complex's other stop point where the row
+   * Every id naming the rider's stop: the address's, and a stop place's other stop point where the row
    * leaves from one.
    */
   riderStopIds: readonly string[];
@@ -562,14 +564,14 @@ export function chooseLineDiagramDatedJourney({
   boardStopEvents: readonly StopEvent[];
 }): StopEvent | undefined {
   if (pinnedStopEvent) return pinnedStopEvent;
-  if (retainedStopEvent && callsAtStop(retainedStopEvent, lineId, riderStopIds))
+  if (retainedStopEvent && callsAtStop(retainedStopEvent, lineId, identity, riderStopIds))
     return retainedStopEvent;
 
   // The longest dated journey that way, not the soonest: the best chain to extend
   // (`extendLineDiagramCalls`).
   const heading = preferredDestination ?? retainedStopEvent?.destinationText;
   const ofLine = (candidates: readonly StopEvent[]) =>
-    candidates.filter((candidate) => isSameLineFamily(candidate.lineId, lineId));
+    candidates.filter((candidate) => isRowOfLine(candidate, lineId, identity));
   const farthestRunning = (candidates: readonly StopEvent[]) =>
     candidates.reduce<StopEvent | undefined>(
       (farthest, candidate) =>
@@ -588,13 +590,18 @@ export function chooseLineDiagramDatedJourney({
   return preferred(loadedDatedJourneys) ?? preferred(ofLine(boardStopEvents));
 }
 
-const callsAtStop = (stopEvent: StopEvent, lineId: string, stopIds: readonly string[]): boolean =>
-  isSameLineFamily(stopEvent.lineId, lineId) &&
+const callsAtStop = (
+  stopEvent: StopEvent,
+  lineId: string,
+  identity: string | undefined,
+  stopIds: readonly string[],
+): boolean =>
+  isRowOfLine(stopEvent, lineId, identity) &&
   Boolean(stopEvent.calls?.some((call) => call.localStopId && stopIds.includes(call.localStopId)));
 
 /**
  * Which row is the rider's stop. The address comes first because it is stable while boards re-key
- * after a step; the boarding stop covers a complex whose row leaves from another of its points.
+ * after a step; the boarding stop covers a stop place whose row leaves from another of its points.
  */
 export function getCurrentStopIndex(
   diagramStops: readonly Pick<LineDiagramStop, "stopId">[],

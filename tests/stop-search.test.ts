@@ -1,66 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { KvvEfaClient } from "../src/data/kvv-efa-client.ts";
-import { isWithinKvvArea } from "../src/data/kvv-area.ts";
-import { parseStopSearchResponse } from "../src/data/kvv-efa-parsers.ts";
-import { type KvvStopSearchResult } from "../src/data/kvv-feed.ts";
-import { KvvTransitSource } from "../src/data/transit-source.ts";
-import type { KvvEfaClient as KvvEfaClientType } from "../src/data/kvv-efa-client.ts";
+import { isWithinScopeBounds } from "../src/data/network-scope.ts";
+import { kvvNetwork } from "../src/networks/kvv/kvv-network.ts";
+import type { Feed, FeedStopSearchResult } from "../src/data/feed.ts";
+import { TriasTransitSource } from "../src/data/transit-source.ts";
 import type { TransitNetwork } from "../src/data/transit-types.ts";
-
-test("the stop search parser reads where a found stop stands", () => {
-  const results = parseStopSearchResponse({
-    stopFinder: {
-      points: [
-        { anyType: "loc", name: "Landau", ref: { id: "2500001" } },
-        {
-          anyType: "stop",
-          name: "Karlsruhe, Mühlburg West",
-          ref: { id: "7000091", place: "Karlsruhe", coords: "8.350730,49.020297" },
-        },
-        { anyType: "stop", name: "Ohne Position", ref: { id: "7000992", place: "Irgendwo" } },
-        {
-          anyType: "stop",
-          name: "Verdorbene Koordinaten",
-          ref: { id: "7000993", place: "Irgendwo", coords: "keine,zahlen" },
-        },
-      ],
-    },
-  });
-
-  assert.deepEqual(results, [
-    {
-      providerId: "7000091",
-      name: "Mühlburg West",
-      placeName: "Karlsruhe",
-      latitude: 49.020297,
-      longitude: 8.35073,
-    },
-    { providerId: "7000992", name: "Ohne Position", placeName: "Irgendwo" },
-    { providerId: "7000993", name: "Verdorbene Koordinaten", placeName: "Irgendwo" },
-  ]);
-});
-
-test("the stop search asks the feed to answer in WGS84", async () => {
-  let requestedUrl: URL | undefined;
-  const client = new KvvEfaClient({
-    stopSearchEndpoint: "https://example.test/XSLT_STOPFINDER_REQUEST",
-    fetchFn: async (input) => {
-      requestedUrl = new URL(String(input));
-      return new Response(JSON.stringify({ stopFinder: { points: [] } }), {
-        status: 200,
-        headers: { "Content-Type": "application/json" },
-      });
-    },
-  });
-
-  await client.searchStops("Mühlburg");
-
-  assert.equal(requestedUrl?.searchParams.get("type_sf"), "any");
-  assert.equal(requestedUrl?.searchParams.get("name_sf"), "Mühlburg");
-  assert.equal(requestedUrl?.searchParams.get("coordOutputFormat"), "WGS84[DD.ddddd]");
-});
 
 test("the KVV area box keeps the network's far corners and excludes the neighbours", () => {
   const inside: [string, number, number][] = [
@@ -82,10 +27,18 @@ test("the KVV area box keeps the network's far corners and excludes the neighbou
   ];
 
   for (const [name, latitude, longitude] of inside) {
-    assert.equal(isWithinKvvArea(latitude, longitude), true, `${name} should be inside`);
+    assert.equal(
+      isWithinScopeBounds(kvvNetwork.scope, latitude, longitude),
+      true,
+      `${name} should be inside`,
+    );
   }
   for (const [name, latitude, longitude] of outside) {
-    assert.equal(isWithinKvvArea(latitude, longitude), false, `${name} should be outside`);
+    assert.equal(
+      isWithinScopeBounds(kvvNetwork.scope, latitude, longitude),
+      false,
+      `${name} should be outside`,
+    );
   }
 });
 
@@ -103,11 +56,11 @@ const network: TransitNetwork = {
   lines: [],
 };
 
-const clientWith = (matches: KvvStopSearchResult[]): KvvEfaClientType =>
-  ({ searchStops: async () => matches }) as unknown as KvvEfaClientType;
+const clientWith = (matches: FeedStopSearchResult[]): Feed =>
+  ({ searchStops: async () => matches }) as unknown as Feed;
 
 test("a link with an unmatched digest cannot resolve to another stop with the same name", async () => {
-  const source = new KvvTransitSource(
+  const source = new TriasTransitSource(
     clientWith([{ providerId: "de:08235:9711", name: "Bahnhof", placeName: "Anderer Ort" }]),
     { stops: [], lines: [] },
   );
@@ -123,13 +76,13 @@ test("a legacy name-only link requires one exact stop match", async () => {
       { providerId: "2", name: "Bahnhof" },
     ],
   ]) {
-    const source = new KvvTransitSource(clientWith(matches), { stops: [], lines: [] });
+    const source = new TriasTransitSource(clientWith(matches), { stops: [], lines: [] });
     assert.equal(await source.resolveStop("bahnhof"), undefined);
   }
 });
 
 test("the search answers with local matches first and keeps only in-area provider matches", async () => {
-  const source = new KvvTransitSource(
+  const source = new TriasTransitSource(
     clientWith([
       {
         providerId: "2000991",
@@ -139,13 +92,13 @@ test("the search answers with local matches first and keeps only in-area provide
         longitude: 9.7398,
       },
       {
-        providerId: "7000091",
+        providerId: "de:08212:91",
         name: "Mühlburg West",
         placeName: "Karlsruhe",
         latitude: 49.020297,
         longitude: 8.35073,
       },
-      { providerId: "7000992", name: "Ohne Position", placeName: "Karlsruhe" },
+      { providerId: "de:08212:992", name: "Ohne Position", placeName: "Karlsruhe" },
     ]),
     network,
   );
@@ -171,7 +124,7 @@ test("the search answers with local matches first and keeps only in-area provide
 });
 
 test("a search for what only the provider knows outside the area answers nothing", async () => {
-  const source = new KvvTransitSource(
+  const source = new TriasTransitSource(
     clientWith([
       {
         providerId: "2000991",
@@ -193,7 +146,7 @@ test("a provider read that failed still answers with the local matches", async (
       throw new Error("offline");
     },
   };
-  const source = new KvvTransitSource(failing as unknown as KvvEfaClientType, network);
+  const source = new TriasTransitSource(failing as unknown as Feed, network);
 
   assert.deepEqual(await source.searchStops("mühlburg"), [network.stops[0]]);
 });
@@ -204,7 +157,7 @@ test("a failed provider read without local matches stays a failed search", async
       throw new Error("offline");
     },
   };
-  const source = new KvvTransitSource(failing as unknown as KvvEfaClientType, network);
+  const source = new TriasTransitSource(failing as unknown as Feed, network);
 
   await assert.rejects(source.searchStops("schloss"));
 });
@@ -212,8 +165,8 @@ test("a failed provider read without local matches stays a failed search", async
 test("a stop the session has already met is answered without another wait", async () => {
   // A view that has to await an answer it already holds renders the not-knowing first, and for a
   // rider walking along a line diagram that was the whole shell blanking between two of its stops.
-  const source = new KvvTransitSource(
-    clientWith([{ providerId: "7000992", name: "Ohne Position", placeName: "Karlsruhe" }]),
+  const source = new TriasTransitSource(
+    clientWith([{ providerId: "de:08212:992", name: "Ohne Position", placeName: "Karlsruhe" }]),
     network,
   );
 
@@ -233,10 +186,10 @@ test("a provider stop with a stable local id never gains a dynamic duplicate", a
     latitude: 49.002532,
     longitude: 8.403165,
   };
-  const source = new KvvTransitSource(
+  const source = new TriasTransitSource(
     clientWith([
       {
-        providerId: "7001013",
+        providerId: "de:08212:1013",
         name: "Kongresszentrum (U)",
         placeName: "Karlsruhe",
         latitude: 49.002532,
@@ -252,48 +205,20 @@ test("a provider stop with a stable local id never gains a dynamic duplicate", a
 
   // Old shared links still resolve, but their answer is the stable identity. The selection chain
   // writes this id back into the address and uses it for the board and its calling sequences.
-  const resolved = await source.resolveStop("kongresszentrum-u--15c5d97");
+  const resolved = await source.resolveStop("kongresszentrum-u--1o924sc");
   assert.equal(resolved?.id, "kongresszentrum");
-  assert.equal(source.getKnownStop("kongresszentrum-u--15c5d97"), undefined);
-});
-
-test("a search that matched exactly one stop is read, not dropped", () => {
-  // The finder lists its points when it found several and wraps the one point in an object when it
-  // found one. Reading only the list shape lost every search that succeeded outright — and that is
-  // the search a deep link performs: a stop whose name matches nothing else could then not be
-  // resolved by the one query that names it precisely, and the whole address failed with it.
-  const results = parseStopSearchResponse({
-    stopFinder: {
-      points: {
-        point: {
-          anyType: "stop",
-          name: "Öhringen, Öhringen Hbf",
-          ref: { id: "5410220", place: "Öhringen", coords: "9.502280,49.203248" },
-        },
-      },
-    },
-  });
-
-  assert.deepEqual(results, [
-    {
-      providerId: "5410220",
-      name: "Öhringen Hbf",
-      placeName: "Öhringen",
-      longitude: 9.50228,
-      latitude: 49.203248,
-    },
-  ]);
+  assert.equal(source.getKnownStop("kongresszentrum-u--1o924sc"), undefined);
 });
 
 test("a stop the session has never met is resolved from the id in a shared link", () => {
   // The digest in the id says which stop point the link was made from, so only that one will do.
   const client = {
-    searchStops: async (): Promise<KvvStopSearchResult[]> => [
+    searchStops: async (): Promise<FeedStopSearchResult[]> => [
       { providerId: "5419603", name: "Öhringen West", placeName: "Öhringen" },
       { providerId: "5410220", name: "Öhringen Hbf", placeName: "Öhringen" },
     ],
-  } as unknown as KvvEfaClientType;
-  const source = new KvvTransitSource(client, { stops: [], lines: [] } as TransitNetwork);
+  } as unknown as Feed;
+  const source = new TriasTransitSource(client, { stops: [], lines: [] } as TransitNetwork);
 
   return source.resolveStop("oehringen-hbf--1lmhxmn").then((stop) => {
     assert.equal(stop?.id, "oehringen-hbf--1lmhxmn");

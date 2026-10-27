@@ -291,7 +291,7 @@ test("collapses calls outside the board's municipality to the place they are in"
 });
 
 test("names a Karlsruhe district the way it names a municipality", () => {
-  // EFA gives districts (`Durlach`, `Rüppurr`) in the place field and plain `Karlsruhe` for the
+  // Calls name districts (`Durlach`, `Rüppurr`) in the place field and plain `Karlsruhe` for the
   // centre.
   const live = stopEvent({
     id: "live",
@@ -741,7 +741,7 @@ test("groups exceptional short and through trips by their own observed corridor"
     id: "later-rappenwoert",
     journeyRef: "later-rappenwoert",
   });
-  // A stop complex as two consecutive calls is still the rider's stop, not a shared outgoing link.
+  // A stop place as two consecutive calls is still the rider's stop, not a shared outgoing link.
   const shared = calls(
     "Hauptfriedhof",
     "Hauptfriedhof",

@@ -2,9 +2,7 @@
  * The plan itself: the stops it draws, the window it is cropped to, and the geometry every reading
  * of it is measured in. Authored, not observed; what runs over it is `zentrum-schematic.ts`.
  */
-import { findCatalogStop } from "../data/generated/kvv-stop-catalog";
-import { kvvStopMappingByLocalStopId } from "../data/kvv-stop-mappings";
-import { getVerifiedLineColor } from "../data/line-signs";
+import { kvvNetwork } from "../networks/kvv/kvv-network";
 import type { StopEvent } from "../data/transit-types";
 import { isZentrumStop } from "../data/zentrum-stops";
 import { getLineTrunkId } from "./line-families";
@@ -106,8 +104,8 @@ const authoredZentrumNodes: readonly ZentrumSchematicNode[] = [
 
 export const ZENTRUM_SCHEMATIC_NODES: readonly ZentrumSchematicNode[] = authoredZentrumNodes.map(
   (node) => {
-    const mapping = kvvStopMappingByLocalStopId[node.id];
-    const stop = mapping && findCatalogStop(mapping.providerStopId);
+    const stopPoint = kvvNetwork.stopPlaces[node.id]?.stopPoints[0];
+    const stop = stopPoint && kvvNetwork.findCatalogStop(stopPoint);
     return stop
       ? { ...node, geographicPosition: { latitude: stop.latitude, longitude: stop.longitude } }
       : node;
@@ -350,7 +348,7 @@ export type ZentrumSchematicLinePath = {
  */
 const getLineTrackKey = (lineId: string): string => {
   const trunkId = getLineTrunkId(lineId);
-  const color = getVerifiedLineColor(lineId);
+  const color = kvvNetwork.getLineColor(lineId);
   return trunkId && color ? `${trunkId}\u0000${color}` : `\u0000${lineId}`;
 };
 

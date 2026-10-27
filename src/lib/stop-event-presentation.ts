@@ -184,7 +184,7 @@ export function getCountdownReading(
 
 /**
  * Whether a row reads as selected: the pinned journey, else every journey of the selected lines.
- * Matched by vehicle (`isSameDatedJourney`), since a journey calling at two of a complex's places
+ * Matched by vehicle (`isSameDatedJourney`), since a journey calling at two of a stop place's stop points
  * has two rows (Europaplatz: `Gleis 6` at 13:43, `Gleis 4` at 13:44).
  */
 export function isStopEventSelected(
@@ -194,7 +194,7 @@ export function isStopEventSelected(
 ): boolean {
   return selectedStopEvent
     ? isSameDatedJourney(stopEvent, selectedStopEvent)
-    : Boolean(lineSelection && isSelectedLine(lineSelection, stopEvent.lineId));
+    : Boolean(lineSelection && isSelectedLine(lineSelection, stopEvent));
 }
 
 /**

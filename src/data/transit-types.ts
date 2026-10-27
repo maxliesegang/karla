@@ -42,7 +42,7 @@ export type Call = {
    * to derive boarding places.
    */
   bay?: string;
-  /** The EFA stop point, finer than `localStopId`: it tells Marktplatz's two tunnels apart. */
+  /** The stop point's DHID, finer than `localStopId`: it tells Marktplatz's two tunnels apart. */
   providerStopPointId?: string;
   /** Present when the provider stop can be resolved to one of our supported local stop pages. */
   localStopId?: string;
@@ -75,9 +75,7 @@ export type Call = {
 export type StopEvent = {
   /** Stop-specific fallback identity for a board entry; URLs prefer `journeyRef`. */
   id: string;
-  /**
-   * EFA `RealtimeTripId`, or `AVMSTripID` fallback, shared by the timetable journey across dates.
-   */
+  /** TRIAS's `JourneyRef`, shared by the timetable journey across dates. */
   journeyRef?: string;
   /** Dated identity, for matching older shared links and deduplicating operating instances. */
   datedJourneyId?: string;
@@ -99,12 +97,12 @@ export type StopEvent = {
   /** The feed's own word for that bay; `undefined` where it stated none. */
   bayKind?: BayKind;
   /**
-   * The local stop this row departs from, which can differ from the board's (a complex's page lists
+   * The local stop this row departs from, which can differ from the board's (a stop place's page lists
    * all its stop points). Same grain as `Call.localStopId`.
    */
   boardingLocalStopId: string;
   /**
-   * The EFA stop point and its name, as `Call` carries them. The name is the operator's signage
+   * The stop point's DHID and its name, as `Call` carries them. The name is the operator's signage
    * (`Marktplatz (Pyramide U)`), which tells tunnel and street level apart.
    */
   boardingProviderStopPointId: string;
@@ -114,7 +112,7 @@ export type StopEvent = {
   timetabledDepartureTime: string;
   /** The provider's prediction. Absent means there is no realtime basis. */
   estimatedDepartureTime?: string;
-  /** The prediction is stated to the second (TRIAS); EFA's is truncated to the minute. */
+  /** The prediction is stated to the second; some pools state whole minutes. */
   isEstimatedToTheSecond?: boolean;
   /** Operator-provided remark such as a diversion, already trimmed for rider-facing copy. */
   serviceNote?: string;
@@ -155,6 +153,8 @@ export type DatedJourneyCalls = {
 
 export type TransitLine = {
   id: LineId;
+  /** Pool and line number (`kvv:22301`), where a row of it stated a line ref (`lib/line-identity.ts`). */
+  identity?: string;
   name: string;
   /** The mode the line was seen running under. */
   ptMode?: PtMode;

@@ -1,7 +1,6 @@
-/** Pure decoding of KVV's TRIAS replies (docs/kvv-trias-api.md); the transport is `kvv-trias-client.ts`. */
+/** Pure decoding of TRIAS replies (docs/trias-api.md); the transport is `trias-client.ts`. */
 import {
   formatNetworkDateAndTime,
-  isLocalNetworkPool,
   joinServiceNotes,
   normalizeNoticeLineNumber,
   parseNoticeDetails,
@@ -9,16 +8,18 @@ import {
   readOperatingNote,
   readVehicleAccess,
   splitDestination,
-} from "./kvv-conventions";
+} from "./feed-conventions";
 import {
   getDatedJourneyId,
-  type KvvStopEvent,
-  type KvvStopEventBoard,
-  type KvvStopSearchResult,
-  type KvvTripInfo,
-  type KvvCall,
-  type KvvJourneyLocator,
-} from "./kvv-feed";
+  type FeedStopEvent,
+  type FeedStopEventBoard,
+  type FeedStopSearchResult,
+  type FeedTripInfo,
+  type FeedCall,
+  type JourneyLocator,
+} from "./feed";
+import { network } from "../networks/network";
+import { isWithinScopePools, type NetworkScope } from "./network-scope";
 import type { StopEventStatus, BayKind, PtMode } from "./transit-types";
 import {
   child,
@@ -29,37 +30,28 @@ import {
   type XmlElement,
 } from "./xml-reader";
 
-export class KvvTriasError extends Error {
+export class TriasError extends Error {
   constructor(message: string, options?: ErrorOptions) {
     super(message, options);
-    this.name = "KvvTriasError";
+    this.name = "TriasError";
   }
 }
 
 /** The provider's answers for a stop with nothing due, as opposed to a failed request. */
 const NO_STOP_EVENTS_ERRORS = new Set(["STOPEVENT_LOCATIONUNSERVED", "STOPEVENT_NOEVENTFOUND"]);
 
-/**
- * The provider stop id for a TRIAS ref (`de:08212:37:6:6`, stop, area, quay). Karlsruhe's EFA ids
- * are `7` and the stop number to six digits (all 389 stops of the catalog); elsewhere they differ,
- * so the stop's DHID stands in, which EFA accepts too.
- */
-export function toProviderStopId(ref: string): string {
-  const stop = ref.split(":").slice(0, 3).join(":");
-  const karlsruhe = /^de:08212:(\d+)$/.exec(stop);
-  return karlsruhe ? `7${karlsruhe[1].padStart(6, "0")}` : stop;
-}
+/** The stop's DHID for a TRIAS ref (`de:08212:37:6:6`: stop, area, quay). */
+export const toProviderStopId = (ref: string): string => ref.split(":").slice(0, 3).join(":");
 
-/** TRIAS prefixes Karlsruhe's stop names with the city, spelled out or as `KA`. */
-const NETWORK_CITY_PREFIX = /^(?:KA|Karlsruhe) (?=\S)/;
-
+/** The feed prefixes the home municipality's stop names with it. */
 function readStopName(name: string): { stopName: string; placeName?: string } {
-  const stopName = name.replace(NETWORK_CITY_PREFIX, "");
-  return stopName === name ? { stopName } : { stopName, placeName: "Karlsruhe" };
+  const { placeName, stopNamePrefix } = network.home;
+  const stopName = name.replace(stopNamePrefix, "");
+  return stopName === name ? { stopName } : { stopName, placeName };
 }
 
 /** `Gleis 2(U)` or `Bstg. A`: the kind word, then the signed code. */
-function readBay(label: string | undefined): { code?: string; kind?: BayKind } {
+export function readBay(label: string | undefined): { code?: string; kind?: BayKind } {
   if (!label) return {};
   const [, word, code] = /^(\S+)\s+(.+)$/.exec(label) ?? [];
   const kind = parseBayKind(word);
@@ -81,7 +73,7 @@ function readServiceTime(element: XmlElement | undefined): ServiceTime | undefin
 }
 
 /** A call, from a board's `CallAtStop` or a journey's bare call element. */
-function parseCall(element: XmlElement | undefined, isThisCall: boolean): KvvCall | null {
+function parseCall(element: XmlElement | undefined, isThisCall: boolean): FeedCall | null {
   const call = child(element, "CallAtStop") ?? element;
   const name = textAt(call, "StopPointName", "Text");
   if (!call || !name) return null;
@@ -106,7 +98,7 @@ function parseCall(element: XmlElement | undefined, isThisCall: boolean): KvvCal
   };
 }
 
-/** The modes read, as EFA's local network selects them; demand-responsive buses are not. */
+/** The local network's modes; demand-responsive buses are not read. */
 function parsePtMode(mode: XmlElement | undefined): PtMode | undefined {
   const ptMode = textAt(mode, "PtMode");
   if (ptMode === "tram") return "tram";
@@ -138,16 +130,16 @@ function readDelivery(xml: string, requestDescription: string, responseName: str
   try {
     root = parseXml(xml);
   } catch (cause) {
-    throw new KvvTriasError(`${requestDescription}: ungültiges XML`, { cause });
+    throw new TriasError(`${requestDescription}: ungültiges XML`, { cause });
   }
   const delivery = root.name === "Trias" ? child(root, "ServiceDelivery") : undefined;
   const serverTime = textAt(delivery, "ResponseTimestamp");
   const response = child(delivery, "DeliveryPayload", responseName);
   if (!delivery || !response || textAt(delivery, "Status") === "false") {
-    throw new KvvTriasError(`${requestDescription}: unerwartete Antwort`);
+    throw new TriasError(`${requestDescription}: unerwartete Antwort`);
   }
   if (!serverTime || !isValidFeedTimestamp(serverTime)) {
-    throw new KvvTriasError(`${requestDescription}: ungültige Feed-Zeit`);
+    throw new TriasError(`${requestDescription}: ungültige Feed-Zeit`);
   }
   return { serverTime, response };
 }
@@ -177,7 +169,8 @@ function parseStopEvent(
   event: XmlElement,
   eventKind: "departure" | "arrival",
   serverNow: number,
-): KvvStopEvent | null {
+  scope: NetworkScope,
+): FeedStopEvent | null {
   const service = child(event, "Service");
   const section = child(service, "ServiceSection");
   const journeyRef = textAt(service, "JourneyRef");
@@ -186,7 +179,7 @@ function parseStopEvent(
   const destinationText = textAt(service, "DestinationText", "Text");
   const ptMode = parsePtMode(child(section, "Mode"));
   if (!journeyRef || !journey || !lineId || !destinationText || !ptMode) return null;
-  if (!isLocalNetworkPool(journeyRef)) return null;
+  if (!isWithinScopePools(scope, journeyRef)) return null;
 
   const thisCall = parseCall(child(event, "ThisCall"), true);
   if (!thisCall?.providerId) return null;
@@ -194,10 +187,10 @@ function parseStopEvent(
   const after = childrenNamed(event, "OnwardCall").map((call) => parseCall(call, false));
   const calls =
     before.length + after.length > 0
-      ? [...before, thisCall, ...after].filter((call): call is KvvCall => call !== null)
+      ? [...before, thisCall, ...after].filter((call): call is FeedCall => call !== null)
       : undefined;
 
-  // An arrival board's row is timed by the arrival, as EFA's arrival list is.
+  // An arrival board's row is timed by the arrival.
   const timetabledDepartureTime =
     eventKind === "arrival"
       ? (thisCall.timetabledArrivalTime ?? thisCall.timetabledDepartureTime)
@@ -254,7 +247,8 @@ export function parseTriasStopEvents(
   xml: string,
   stopPointId: string,
   eventKind: "departure" | "arrival" = "departure",
-): KvvStopEventBoard {
+  scope: NetworkScope = network.scope,
+): FeedStopEventBoard {
   const description = `Abfahrtstafel ${stopPointId}`;
   const { serverTime, response } = readDelivery(xml, description, "StopEventResponse");
   const errors = readErrorCodes(response);
@@ -262,24 +256,23 @@ export function parseTriasStopEvents(
     (error) => !NO_STOP_EVENTS_ERRORS.has(textAt(error, "Text", "Text") ?? ""),
   );
   if (hasUnexpectedError) {
-    throw new KvvTriasError(`${description}: ${errors.join(", ")}`);
+    throw new TriasError(`${description}: ${errors.join(", ")}`);
   }
   const serverNow = Date.parse(serverTime);
   const stopEvents = childrenNamed(response, "StopEventResult")
     .map((result) => child(result, "StopEvent"))
-    .flatMap((event) => (event ? (parseStopEvent(event, eventKind, serverNow) ?? []) : []));
+    .flatMap((event) => (event ? (parseStopEvent(event, eventKind, serverNow, scope) ?? []) : []));
   return {
     stopPointId,
     stopName: stopEvents[0]?.stopPointName ?? "",
     serverTime,
-    servingLines: [],
     stopEvents,
   };
 }
 
 /**
- * A SIRI situation as a board carries it (`StopEventResponseContext`): TRIAS's counterpart to EFA's
- * published notices, only those of the board's rows' lines. In the operator's terms: line refs, not
+ * A SIRI situation as a board carries it (`StopEventResponseContext`), only those of the board's
+ * rows' lines. In the operator's terms: line refs, not
  * line numbers. The app reads none for now, and the proxy strips the block.
  */
 export type TriasSituation = {
@@ -351,8 +344,8 @@ const readInstant = (value: string | undefined): string[] => {
 };
 
 /** The call the locator's row was read at: its stop at its minute, else its stop. */
-function findRowCallIndex(calls: readonly KvvCall[], locator: KvvJourneyLocator): number {
-  const atStop = (call: KvvCall) => call.providerId === locator.stopPointId;
+function findRowCallIndex(calls: readonly FeedCall[], locator: JourneyLocator): number {
+  const atStop = (call: FeedCall) => call.providerId === locator.stopPointId;
   const rowCallIndex = calls.findIndex((call) => {
     const time = call.timetabledDepartureTime ?? call.timetabledArrivalTime;
     if (!atStop(call) || !time) return false;
@@ -363,20 +356,20 @@ function findRowCallIndex(calls: readonly KvvCall[], locator: KvvJourneyLocator)
 }
 
 /** Validates the echoed journey: a failed lookup is an HTTP 200 carrying an error code. */
-export function parseTriasTripInfo(xml: string, locator: KvvJourneyLocator): KvvTripInfo {
+export function parseTriasTripInfo(xml: string, locator: JourneyLocator): FeedTripInfo {
   const description = `Fahrt ${locator.journeyCode}`;
   const { serverTime, response } = readDelivery(xml, description, "TripInfoResponse");
   const result = child(response, "TripInfoResult");
   const service = child(result, "Service");
   if (!result || textAt(service, "JourneyRef") !== `${locator.lineRef}:${locator.journeyCode}`) {
-    throw new KvvTriasError(`${description}: nicht gefunden`);
+    throw new TriasError(`${description}: nicht gefunden`);
   }
 
   const calls = [
     ...childrenNamed(result, "PreviousCall"),
     ...childrenNamed(result, "OnwardCall"),
   ].flatMap((element) => parseCall(element, false) ?? []);
-  if (calls.length === 0) throw new KvvTriasError(`${description}: keine Halte`);
+  if (calls.length === 0) throw new TriasError(`${description}: keine Halte`);
   const rowCallIndex = findRowCallIndex(calls, locator);
   if (rowCallIndex >= 0) calls[rowCallIndex].isThisCall = true;
 
@@ -388,10 +381,10 @@ export function parseTriasTripInfo(xml: string, locator: KvvJourneyLocator): Kvv
   };
 }
 
-export function parseTriasLocations(xml: string): KvvStopSearchResult[] {
+export function parseTriasLocations(xml: string): FeedStopSearchResult[] {
   const { response } = readDelivery(xml, "Haltestellensuche", "LocationInformationResponse");
   const errors = readErrorCodes(response);
-  if (errors.length > 0) throw new KvvTriasError(`Haltestellensuche: ${errors.join(", ")}`);
+  if (errors.length > 0) throw new TriasError(`Haltestellensuche: ${errors.join(", ")}`);
   return childrenNamed(response, "LocationResult").flatMap((result) => {
     const location = child(result, "Location");
     const stop = child(location, "StopPoint") ?? child(location, "StopPlace");

@@ -1,4 +1,4 @@
-/** How KVV words its data, in both the EFA and the TRIAS feed. */
+/** How KVV words its data in the feed. */
 import { EXCEPTIONAL_OPERATION_WORDS } from "./operational-exceptions";
 import type { BayKind, VehicleAccess } from "./transit-types";
 
@@ -22,19 +22,6 @@ export function formatNetworkDateAndTime(instant: number): { date: string; time:
     date: `${parts.year}${parts.month}${parts.day}`,
     time: `${parts.hour}${parts.minute}`,
   };
-}
-
-/**
- * The data pool of KVV's own lines, the first segment of a line id (`kvv:22304:E:H:s26`). The
- * server also answers for other pools that share KVV's modes: DB's S-Bahn Rhein-Neckar (S3, S6, S9,
- * since December 2025) and `rab:` rail replacement. Measured 5 September 2026.
- */
-const LOCAL_NETWORK_POOL = "kvv";
-
-/** An unstated pool is unknown, not foreign. */
-export function isLocalNetworkPool(lineId: string | undefined): boolean {
-  if (lineId === undefined || !lineId.includes(":")) return true;
-  return lineId.slice(0, lineId.indexOf(":")) === LOCAL_NETWORK_POOL;
 }
 
 /**

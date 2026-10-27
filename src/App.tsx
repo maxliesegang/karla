@@ -116,14 +116,16 @@ export default function App() {
   );
   // Bundle offers from what the visit observed; no extra request.
   const selectedLineId = selection.lineSelection.lineId;
+  const selectedLineIdentity = selection.lineSelection.lineIdentities?.get(selectedLineId);
   const lineBundleOffers = useMemo(
     () =>
       findLineBundleOffers({
         lineId: selectedLineId,
+        identity: selectedLineIdentity,
         stopEvents: selection.stopEvents,
         patterns: stopCorridorPatterns,
       }),
-    [selectedLineId, selection.stopEvents, stopCorridorPatterns],
+    [selectedLineId, selectedLineIdentity, selection.stopEvents, stopCorridorPatterns],
   );
   const feedNow = useFeedNow(selection.stopEventBoard);
   const locatableStops = useLocatableStops(network, observationBoards);

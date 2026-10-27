@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import test, { type TestContext } from "node:test";
 import { renderHook } from "./support/render-hook.ts";
-import { KvvEfaClient } from "../src/data/kvv-efa-client.ts";
-import type { KvvStopEvent, KvvTripInfo } from "../src/data/kvv-feed.ts";
-import { KvvTransitSource, transitSource } from "../src/data/transit-source.ts";
+import type { Feed } from "../src/data/feed.ts";
+import type { FeedStopEvent, FeedTripInfo } from "../src/data/feed.ts";
+import { TriasTransitSource, transitSource } from "../src/data/transit-source.ts";
 import type { StopEvent, StopEventBoard } from "../src/data/transit-types.ts";
 import { useZentrumVehicles } from "../src/hooks/zentrum-vehicles.ts";
 import { createCall, datedJourney } from "./support/calls.ts";
@@ -17,7 +17,7 @@ const flush = () =>
 /** The app's source discovers `runs` on `board` and reads them through `source`. */
 const serveDiscovery = (
   t: TestContext,
-  source: KvvTransitSource,
+  source: TriasTransitSource,
   board: StopEventBoard,
   datedJourneys: readonly StopEvent[],
 ) => {
@@ -67,8 +67,8 @@ test("a discovered Zentrum run is placed from its own reads, never its board's c
     call("kronenplatz", 2),
     call("durlacher-tor", 3),
   ]);
-  const stopEvent: KvvStopEvent = {
-    stopPointId: "7001004",
+  const stopEvent: FeedStopEvent = {
+    stopPointId: "de:08212:1004",
     stopPointName: "Europaplatz (U)",
     journeyRef: "test-trip",
     lineId: "S2",
@@ -83,28 +83,27 @@ test("a discovered Zentrum run is placed from its own reads, never its board's c
     journeyLocator: {
       journeyCode: "531",
       lineRef: "kvv:21012:E:R:s26",
-      stopPointId: "7001004",
+      stopPointId: "de:08212:1004",
       date: "20261007",
       time: "1520",
     },
   };
-  const client = new KvvEfaClient();
+  const client = {} as Feed;
   client.fetchStopEventBoard = async () => ({
-    stopPointId: "7001004",
+    stopPointId: "de:08212:1004",
     stopName: "Europaplatz",
     serverTime: new Date(start).toISOString(),
-    servingLines: [],
     stopEvents: [stopEvent],
   });
   let journeyFetches = 0;
-  client.fetchTripInfo = async (): Promise<KvvTripInfo> => {
+  client.fetchTripInfo = async (): Promise<FeedTripInfo> => {
     journeyFetches += 1;
     return {
       serverTime: new Date(now).toISOString(),
       calls: calls.map((call) => ({ ...call, delayMinutes: journeyFetches === 1 ? 0 : 2 })),
     };
   };
-  const source = new KvvTransitSource(client);
+  const source = new TriasTransitSource(client);
   const board = await source.getStopEventBoard("europaplatz");
   serveDiscovery(t, source, board, board.stopEvents);
   const vehicles = await renderHook(() => useZentrumVehicles([]), {});
@@ -140,15 +139,14 @@ test("a run still far from the plan is left off it but kept for travel times", a
     call("durlacher-tor", 18),
     call("kronenplatz", 19),
   ]);
-  const client = new KvvEfaClient();
+  const client = {} as Feed;
   client.fetchStopEventBoard = async () => ({
-    stopPointId: "7000007",
+    stopPointId: "de:08212:7",
     stopName: "Tullastraße",
     serverTime: new Date(start).toISOString(),
-    servingLines: [],
     stopEvents: [
       {
-        stopPointId: "7000007",
+        stopPointId: "de:08212:7",
         stopPointName: "Tullastraße/Alter Schlachthof",
         journeyRef: "test-trip",
         lineId: "S5",
@@ -161,7 +159,7 @@ test("a run still far from the plan is left off it but kept for travel times", a
         journeyLocator: {
           journeyCode: "305",
           lineRef: "kvv:22305:E:R:s26",
-          stopPointId: "7000007",
+          stopPointId: "de:08212:7",
           date: "20261007",
           time: "1535",
         },
@@ -169,7 +167,7 @@ test("a run still far from the plan is left off it but kept for travel times", a
     ],
   });
   client.fetchTripInfo = async () => ({ serverTime: new Date(start).toISOString(), calls });
-  const source = new KvvTransitSource(client);
+  const source = new TriasTransitSource(client);
   const board = await source.getStopEventBoard("tullastrasse");
   const discovered = await source.getDatedJourney(board.stopEvents[0].id);
   assert.ok(discovered?.calls?.length);

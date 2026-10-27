@@ -1,3 +1,5 @@
+import { isWithinScopePools } from "../data/network-scope";
+import { network } from "../networks/network";
 import type { TransitLine } from "../data/transit-types";
 
 /**
@@ -23,14 +25,16 @@ export function findLineForRoute(
   return lines.find((line) => isSameLineFamily(line.id, requestedId));
 }
 
-/**
- * The trunk an S-Bahn number is built on (S11 → S1, S51 → S5). KVV's numbering only: S4 and S41
- * part north of the city, so it does not mean they run together.
- */
-export const getLineTrunkId = (lineId: string): string | undefined => lineId.match(/^S\d/)?.[0];
+/** The network's own line, or one named by an address alone; its numbering applies only to these. */
+const isNetworkLineIdentity = (identity: string | undefined): boolean =>
+  identity === undefined || isWithinScopePools(network.scope, identity);
+
+/** The trunk a branch's name is built on (S11 → S1); none for another network's line. */
+export const getLineTrunkId = (lineId: string, identity?: string): string | undefined =>
+  isNetworkLineIdentity(identity) ? network.getLineTrunkId(lineId) : undefined;
 
 /**
- * Trams first, then by number, branches beside their trunk (S1, S11, S12, S2), as KVV signs list
+ * Trams first, then by number, branches beside their trunk (S1, S11, S12, S2), as KVV's signs list
  * them.
  */
 export function compareLineIds(a: string, b: string): number {
@@ -42,4 +46,18 @@ export function compareLineIds(a: string, b: string): number {
     return trunk(a) - trunk(b) || number(a) - number(b) || a.localeCompare(b);
   }
   return number(a) - number(b) || a.localeCompare(b);
+}
+
+const compareNaturally = new Intl.Collator("de", { numeric: true }).compare;
+
+/** The network's own lines in its order, then other networks' lines by name. */
+export function compareLines(
+  a: Pick<TransitLine, "id" | "identity">,
+  b: Pick<TransitLine, "id" | "identity">,
+): number {
+  const isOwnA = isNetworkLineIdentity(a.identity);
+  const isOwnB = isNetworkLineIdentity(b.identity);
+  if (isOwnA && isOwnB) return compareLineIds(a.id, b.id);
+  if (isOwnA !== isOwnB) return isOwnA ? -1 : 1;
+  return compareNaturally(a.id, b.id) || (a.identity ?? "").localeCompare(b.identity ?? "");
 }

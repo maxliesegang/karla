@@ -59,7 +59,7 @@ export function getDirectTravelTimes(
       ? resolvedCalls.filter(([, id]) => id !== undefined)
       : resolvedCalls;
     const stopIds = eligibleCalls.map(([, id]) => id);
-    // Boarding at a complex's last call.
+    // Boarding at a stop place's last call.
     let boardingCallIndex = -1;
     for (const [index, [call]] of eligibleCalls.entries()) {
       if (stopIds[index] !== originStopId || stopIds[index + 1] === originStopId) continue;

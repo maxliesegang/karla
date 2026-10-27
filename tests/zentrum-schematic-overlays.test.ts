@@ -23,9 +23,9 @@ const at = (minute: number) => `2026-09-04T12:${String(minute).padStart(2, "0")}
 const instant = (minute: number) => Date.parse(at(minute));
 
 const stopPointIds: Record<string, string> = {
-  europaplatz: "7001004",
-  marktplatz: "7001003",
-  kronenplatz: "7001002",
+  europaplatz: "de:08212:1004",
+  marktplatz: "de:08212:1003",
+  kronenplatz: "de:08212:1002",
 };
 
 const timedCall = (localStopId: string, minute: number): Call => ({
@@ -290,7 +290,7 @@ test("a shared stop board includes inferred boarding places and lights their phy
     ...stopEvent,
     calls: stopEvent.calls?.map((call) =>
       call.localStopId === "tullastrasse"
-        ? { ...call, providerStopPointId: "7000007", bay: code, latitude, longitude }
+        ? { ...call, providerStopPointId: "de:08212:7", bay: code, latitude, longitude }
         : call,
     ),
   });

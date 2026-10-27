@@ -1,10 +1,11 @@
 # KARLA
 
-A static React + TypeScript + Vite site showing live Karlsruhe public transport departures.
-The [README](./README.md) covers the data source and station-board parameters,
-[CONTEXT.md](./CONTEXT.md) the domain terms, and [docs/kvv-trias-api.md](docs/kvv-trias-api.md) and
-[docs/kvv-efa-api.md](docs/kvv-efa-api.md) the verified feed behaviour. Read the feed docs before
-changing a request or parser.
+A static React + TypeScript + Vite site showing live public transport departures from the TRIAS
+feed, for one network per build (KVV). The [README](./README.md) covers addresses, the station
+board and how to run it, [CONTEXT.md](./CONTEXT.md) the domain terms,
+[docs/trias-api.md](docs/trias-api.md) the verified feed behaviour and
+[docs/networks/](docs/networks/) each network's facts. Read the feed doc before changing a request
+or parser.
 
 ## Commands
 
@@ -14,12 +15,12 @@ npm run build          # tsc -b && vite build
 npm run lint
 npm run format         # biome format --write . — the formatter is the style authority
 npm test               # tests and build must pass before handing off a change
-npm run refresh:stops  # regenerates src/data/generated from the operator's published data
+npm run refresh:stops  # regenerates src/networks/<id>/generated from TRIAS and GTFS
 npm run solve:zentrum  # measures the Zentrum plan against the feed, and solves for a truer one
 npm run solve:region   # derives the region plan's nodes from the feed and solves its layout
 npm run probe:*        # live feed measurements behind the timing constants
 npm run proxy          # the TRIAS proxy on :8080; run the app with VITE_TRIAS_PROXY_URL=/api/ to use it
-VITE_USE_EFA=true npm run dev   # the whole app on EFA instead of TRIAS
+VITE_NETWORK=kvv npm run dev    # the network a build reads (default and only: kvv)
 ```
 
 GitHub Actions tests, builds and deploys `dist` on push to `main`; don't commit it.
@@ -37,8 +38,9 @@ GitHub Actions tests, builds and deploys `dist` on push to `main`; don't commit 
 | [src/lib/](src/lib/) | pure domain logic |
 | [src/hooks/](src/hooks/) | React glue: polling (`useKeyedLoad`), store subscriptions, device state; imported by module |
 | [src/components/](src/components/) | views; German copy |
-| [src/data/](src/data/) | `TransitSource` boundary, dated journey store, the `KvvFeed` model, TRIAS and EFA clients and parsers |
-| [src/data/generated/](src/data/generated/) | written by [scripts/](scripts/); never edited by hand |
+| [src/data/](src/data/) | `TransitSource` boundary, dated journey store, the `Feed` model, the TRIAS client and parsers |
+| [src/networks/](src/networks/) | `NetworkDefinition` and each network's data; `network` is the build's |
+| `src/networks/<id>/generated/` | written by [scripts/](scripts/); never edited by hand |
 | [proxy/](proxy/) | the PHP TRIAS proxy: holds the requestor ref, caches, passes XML through |
 | [tests/](tests/) | `node --test`; no network. Type-checked by `npm run build`. Fixtures in `tests/support/fixtures.ts`; hooks are tested with `tests/support/render-hook.ts` (happy-dom) |
 
@@ -51,6 +53,11 @@ These describe outcomes, not implementations. If a simpler design meets them, pr
   repo.
 - **Views never touch the provider.** Fetching, id resolution and merging live behind
   `TransitSource`.
+- **Generic code names no network.** What is true of one network (its pools, area, stop places,
+  colours, numbering) lives in its `NetworkDefinition`; code reads it through `network`. The
+  Zentrum and region plan are KVV's and import it directly.
+- **Stops are DHIDs.** A stop place's stop points are stop-level DHIDs (`de:08212:1003`); slugs are
+  only the app's addresses.
 - **The network is observed.** The stops and lines shown come from live journeys, so a line that stops
   running disappears on its own.
 - **Bandwidth matters.** Hidden pages neither poll nor tick. To see further along a line, filter the
@@ -70,15 +77,15 @@ These describe outcomes, not implementations. If a simpler design meets them, pr
 - A failed refresh keeps the last good board on screen, and the board states its age.
 - Each row has one time: the expected departure instant (`findExpectedDepartureInstant`). The
   countdown, printed time and order all come from it.
-- Keep times to the second where the feed states them (TRIAS predictions); a call's instant comes
+- Keep times to the second where the feed states them; a call's instant comes
   from `getCallShiftMs`. Delays print as whole minutes, rounded. Only by the rider's setting, and only
   for a prediction to the second, does the last minute count in seconds, in ten-second steps.
 - Quote service notices verbatim, once the app shows them again.
 
 ## Code style
 
-- Identifiers use US spelling. Fields the provider names keep its spelling (`trainNum`,
-  `stopSeqCoords`). The Zentrum is `zentrum` in code; its map on the experiment page is `center`.
+- Identifiers use US spelling. Names the provider gives keep its spelling (`PlannedBay`,
+  `OperatingDayRef`). The Zentrum is `zentrum` in code; its map on the experiment page is `center`.
 - Comments are rare and short. Most functions need none; a good name is the documentation. Add one
   only for what the code cannot say: a feed quirk, a measured constant, a non-obvious constraint.
   One line is the norm, three the most for a function, and a module header says its role in a

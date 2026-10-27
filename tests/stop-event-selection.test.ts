@@ -24,7 +24,7 @@ const createStopEvent = (overrides: Partial<StopEvent> = {}): StopEvent =>
     status: "realtime",
     timetabledDepartureTime: "2026-09-04T11:43:00.000Z",
     boardingLocalStopId: "europaplatz",
-    boardingProviderStopPointId: "7000037",
+    boardingProviderStopPointId: "de:08212:37",
     boardingProviderStopPointName: "Europaplatz",
     ...overrides,
   }) as StopEvent;
@@ -33,7 +33,7 @@ const selected = createStopEvent({
   id: `europaplatz-${JOURNEY_REF}-2026-09-04T11:43:00.000Z`,
 });
 
-test("reads both rows of one vehicle at a complex's two places as the selection", () => {
+test("reads both rows of one vehicle at a stop place's two places as the selection", () => {
   const sibling = createStopEvent({
     id: `europaplatz-${JOURNEY_REF}-2026-09-04T11:44:00.000Z`,
     bay: "4",

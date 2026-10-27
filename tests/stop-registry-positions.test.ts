@@ -1,17 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { findCatalogStop } from "../src/data/generated/kvv-stop-catalog.ts";
-import { kvvBayPositionByKey } from "../src/data/generated/kvv-bay-positions.ts";
+import { findCatalogStop } from "../src/networks/kvv/generated/stop-catalog.ts";
+import { bayPositionByKey } from "../src/networks/kvv/generated/bay-positions.ts";
 import { StopRegistry } from "../src/data/stop-registry.ts";
 
 test("an unlocated call stands where the catalog puts its stop; a stated position is kept", () => {
   const registry = new StopRegistry([]);
-  const catalogStop = findCatalogStop("7000037");
+  const catalogStop = findCatalogStop("de:08212:37");
   assert.ok(catalogStop);
 
   const [unlocated, located] = registry.toCalls([
-    { stopName: "Europaplatz", providerId: "7000037" },
-    { stopName: "Europaplatz", providerId: "7000037", latitude: 49.0101, longitude: 8.3949 },
+    { stopName: "Europaplatz", providerId: "de:08212:37" },
+    { stopName: "Europaplatz", providerId: "de:08212:37", latitude: 49.0101, longitude: 8.3949 },
   ]);
 
   assert.deepEqual(
@@ -38,14 +38,14 @@ test("outside the city, an unlocated call takes the position its stop was regist
 
 test("an unlocated call at a known rail platform stands at that platform", () => {
   const [street, tunnel] = new StopRegistry([]).toCalls([
-    { stopName: "Europaplatz", providerId: "7000037", bay: "3" },
-    { stopName: "Europaplatz (U)", providerId: "7001004", bay: "1(U)" },
+    { stopName: "Europaplatz", providerId: "de:08212:37", bay: "3" },
+    { stopName: "Europaplatz (U)", providerId: "de:08212:1004", bay: "1(U)" },
   ]);
   for (const [call, key] of [
-    [street, "7000037|3"],
-    [tunnel, "7001004|1(U)"],
+    [street, "de:08212:37|3"],
+    [tunnel, "de:08212:1004|1(U)"],
   ] as const) {
-    const bay = kvvBayPositionByKey.get(key);
+    const bay = bayPositionByKey.get(key);
     assert.ok(bay);
     assert.deepEqual([call.latitude, call.longitude], [bay.latitude, bay.longitude]);
   }

@@ -10,8 +10,8 @@ import {
   isStationBoardStopView,
 } from "../src/view-layout.ts";
 
-const JOURNEY = "de:kvv:00S11_:.kvv-22-311-E.5.T0.161.s26";
-const OTHER_JOURNEY = "de:kvv:00S11_:.kvv-22-311-E.5.T0.161.s27";
+const JOURNEY = "kvv:22311:E:H:s26:161";
+const OTHER_JOURNEY = "kvv:22311:E:H:s26:162";
 
 const layoutFor = (
   hash: string,
@@ -50,8 +50,11 @@ test("a stop is its board alone, and a line beside it opens the second panel", (
   assert.equal(line.isSinglePanel, false);
 });
 
-test("the ride sets the board aside as soon as the address names it", () => {
-  const ride = layoutFor(`#/trip/${JOURNEY}/from/europaplatz`, { stopId: "europaplatz" });
+test("the ride sets the board aside as soon as its line resolves", () => {
+  const ride = layoutFor(`#/trip/${JOURNEY}/from/europaplatz`, {
+    stopId: "europaplatz",
+    lineId: "S11",
+  });
   assert.equal(ride.isRideInView, true);
   assert.equal(ride.hasStopEventBoard, false);
   assert.equal(ride.isSinglePanel, true);
@@ -59,6 +62,7 @@ test("the ride sets the board aside as soon as the address names it", () => {
   // Still waiting for the boards to answer: the board must not flash open in the meantime.
   const pending = layoutFor(`#/trip/${JOURNEY}`, {
     stopId: "europaplatz",
+    lineId: "S11",
     hasSelectedStopEvent: false,
   });
   assert.equal(pending.isRideInView, false);

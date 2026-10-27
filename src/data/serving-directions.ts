@@ -1,13 +1,12 @@
 /**
  * The line-directions a stop is served by, learned from the dated journeys read: each dated
  * journey's direction counts for every stop it calls at, so a board at one stop teaches the stops
- * its dated journeys pass. TRIAS states no serving lines; this stands in for EFA's list.
+ * its dated journeys pass. TRIAS states no serving lines.
  */
 import type { StopEvent, ServingLine } from "./transit-types";
 
 /**
- * How long one observed dated journey keeps a direction serving a stop: past an hourly line's gap,
- * and as long as a session's day of a stop's EFA serving lines was kept.
+ * How long one observed dated journey keeps a direction serving a stop: past an hourly line's gap.
  */
 export const SERVING_DIRECTION_TTL_MS = 6 * 60 * 60_000;
 

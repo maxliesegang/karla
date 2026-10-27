@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { STOP_EVENT_BOARD_CACHE_CAPACITY, KvvTransitSource } from "../src/data/transit-source.ts";
-import type { KvvEfaClient } from "../src/data/kvv-efa-client.ts";
-import type { KvvStopEvent, KvvStopEventBoard } from "../src/data/kvv-feed.ts";
-import { kvvStopMappingByLocalStopId } from "../src/data/kvv-stop-mappings.ts";
+import { STOP_EVENT_BOARD_CACHE_CAPACITY, TriasTransitSource } from "../src/data/transit-source.ts";
+import type { Feed } from "../src/data/feed.ts";
+import type { FeedStopEvent, FeedStopEventBoard } from "../src/data/feed.ts";
+import { kvvStopPlaces } from "../src/networks/kvv/stop-places.ts";
 
-const STOP_ID = "europaplatz";
-/** These tests check what is asked for, not row counts. */
-const STOP_ROW_LIMIT = kvvStopMappingByLocalStopId[STOP_ID].stopEventLimit ?? 20;
+/** One stop point, so each board is one request. */
+const STOP_ID = "muehlburger-tor";
+const STOP_ROW_LIMIT = 20;
 
 /** Records what the provider was asked for. */
 function createRecordingSource() {
@@ -21,7 +21,7 @@ function createRecordingSource() {
     fetchStopEventBoard: async (
       providerStopId: string,
       options: { includeCalls?: boolean; limit?: number; lineIds?: readonly string[] } = {},
-    ): Promise<KvvStopEventBoard> => {
+    ): Promise<FeedStopEventBoard> => {
       requests.push({
         providerStopId,
         includeCalls: Boolean(options.includeCalls),
@@ -30,14 +30,13 @@ function createRecordingSource() {
       });
       return {
         stopPointId: providerStopId,
-        stopName: "Europaplatz",
+        stopName: "Mühlburger Tor",
         serverTime: "",
-        servingLines: [],
         stopEvents: [],
       };
     },
-  } as unknown as KvvEfaClient;
-  return { source: new KvvTransitSource(client), requests };
+  } as unknown as Feed;
+  return { source: new TriasTransitSource(client), requests };
 }
 
 test("a board already in hand answers a second reader without a request of its own", async () => {
@@ -86,10 +85,10 @@ function stopEvent(
   journeyRef: string,
   lineRef: string,
   timetabledDepartureTime: string,
-): KvvStopEvent {
+): FeedStopEvent {
   return {
     stopPointId: "provider-stop",
-    stopPointName: "Europaplatz",
+    stopPointName: "Mühlburger Tor",
     journeyRef,
     lineId:
       lineRef === directionA
@@ -109,6 +108,38 @@ function stopEvent(
   };
 }
 
+/**
+ * `feed`, whose runs read at Karlstor also call at Mühlburger Tor under `lineRefs`: TRIAS boards state
+ * no serving lines, so reading Karlstor is how the source learns what serves Mühlburger Tor.
+ */
+function servedBy(feed: Feed, lineRefs: readonly string[]): Feed {
+  const [karlstor] = kvvStopPlaces.karlstor.stopPoints;
+  const [stopPoint] = kvvStopPlaces[STOP_ID].stopPoints;
+  return {
+    ...feed,
+    fetchStopEventBoard: async (stopPointId, options) =>
+      stopPointId === karlstor
+        ? {
+            stopPointId,
+            stopName: "Karlstor",
+            serverTime,
+            stopEvents: lineRefs.map((lineRef) => ({
+              ...stopEvent(`serving-${lineRef}`, lineRef, serverTime),
+              stopPointId,
+              calls: [{ stopName: "Mühlburger Tor", providerId: stopPoint }],
+            })),
+          }
+        : feed.fetchStopEventBoard(stopPointId, options),
+  };
+}
+
+/** A source that has learned `lineRefs` serve Mühlburger Tor. */
+async function createServedSource(feed: Feed, lineRefs: readonly string[]) {
+  const source = new TriasTransitSource(servedBy(feed, lineRefs));
+  await source.getStopEventBoard("karlstor", { includeCalls: true });
+  return source;
+}
+
 test("a covered stop board batches sparse directions and keeps only live rows inside its horizon", async () => {
   const requests: { lineIds?: readonly string[]; limit?: number }[] = [];
   const baseStopEvents = [
@@ -124,14 +155,13 @@ test("a covered stop board batches sparse directions and keeps only live rows in
         limit?: number;
         lineIds?: readonly string[];
       } = {},
-    ): Promise<KvvStopEventBoard> => {
+    ): Promise<FeedStopEventBoard> => {
       requests.push(options);
       return options.lineIds
         ? {
             stopPointId: "provider-stop",
-            stopName: "Europaplatz",
+            stopName: "Mühlburger Tor",
             serverTime,
-            servingLines: [],
             stopEvents: [
               baseStopEvents[3],
               stopEvent("b2", directionB, "2026-08-26T11:20:00.000Z"),
@@ -142,19 +172,15 @@ test("a covered stop board batches sparse directions and keeps only live rows in
           }
         : {
             stopPointId: "provider-stop",
-            stopName: "Europaplatz",
+            stopName: "Mühlburger Tor",
             serverTime,
-            servingLines: [
-              { lineId: "test", lineRef: directionA },
-              { lineId: "test", lineRef: directionB },
-              { lineId: "test", lineRef: directionC },
-            ],
             stopEvents: baseStopEvents,
           };
     },
-  } as unknown as KvvEfaClient;
+  } as unknown as Feed;
 
-  const board = await new KvvTransitSource(client).getStopEventBoard(STOP_ID, {
+  const source = await createServedSource(client, [directionA, directionB, directionC]);
+  const board = await source.getStopEventBoard(STOP_ID, {
     minimumStopEventsPerDirection: 2,
     coverageHorizonMs: 2 * 60 * 60_000,
   });
@@ -183,7 +209,7 @@ test("a full second answer that still starves a direction earns a third pass", a
     stopEvent("b1", directionB, "2026-08-26T10:20:00.000Z"),
   ];
   // As many rows as the limit, all for the first direction asked.
-  const supplementRowsByFirstDirection: Record<string, KvvStopEvent[]> = {
+  const supplementRowsByFirstDirection: Record<string, FeedStopEvent[]> = {
     [directionB]: [
       stopEvent("b2", directionB, "2026-08-26T10:50:00.000Z"),
       stopEvent("b3", directionB, "2026-08-26T11:00:00.000Z"),
@@ -210,26 +236,21 @@ test("a full second answer that still starves a direction earns a third pass", a
         limit?: number;
         lineIds?: readonly string[];
       } = {},
-    ): Promise<KvvStopEventBoard> => {
+    ): Promise<FeedStopEventBoard> => {
       requests.push(options);
       return {
         stopPointId: "provider-stop",
-        stopName: "Europaplatz",
+        stopName: "Mühlburger Tor",
         serverTime,
-        servingLines: options.lineIds
-          ? []
-          : [directionA, directionB, directionC, directionD].map((lineRef) => ({
-              lineId: "test",
-              lineRef,
-            })),
         stopEvents: options.lineIds
           ? (supplementRowsByFirstDirection[options.lineIds[0]] ?? [])
           : baseStopEvents,
       };
     },
-  } as unknown as KvvEfaClient;
+  } as unknown as Feed;
 
-  const board = await new KvvTransitSource(client).getStopEventBoard(STOP_ID, {
+  const source = await createServedSource(client, [directionA, directionB, directionC, directionD]);
+  const board = await source.getStopEventBoard(STOP_ID, {
     minimumStopEventsPerDirection: 2,
     coverageHorizonMs: 2 * 60 * 60_000,
   });
@@ -265,26 +286,20 @@ test("a coverage supplement is a reading of its own, not part of the board's cyc
     fetchStopEventBoard: async (
       _providerStopId: string,
       options: { lineIds?: readonly string[] } = {},
-    ): Promise<KvvStopEventBoard> => {
+    ): Promise<FeedStopEventBoard> => {
       requests.push(options);
       return {
         stopPointId: "provider-stop",
-        stopName: "Europaplatz",
+        stopName: "Mühlburger Tor",
         serverTime,
-        servingLines: options.lineIds
-          ? []
-          : [
-              { lineId: "test", lineRef: directionA },
-              { lineId: "test", lineRef: directionC },
-            ],
         // On no unfiltered board, which is why it is asked for.
         stopEvents: options.lineIds
           ? [stopEvent("c1", directionC, "2026-08-26T11:00:00.000Z")]
           : [base],
       };
     },
-  } as unknown as KvvEfaClient;
-  const source = new KvvTransitSource(client);
+  } as unknown as Feed;
+  const source = await createServedSource(client, [directionA, directionC]);
   const read = () =>
     source.getStopEventBoard(STOP_ID, { minimumStopEventsPerDirection: 2, maxAgeMs: 0 });
 
@@ -304,23 +319,17 @@ test("a held supplement is dropped rather than aged into the rider's next few mi
     fetchStopEventBoard: async (
       _providerStopId: string,
       options: { lineIds?: readonly string[] } = {},
-    ): Promise<KvvStopEventBoard> => ({
+    ): Promise<FeedStopEventBoard> => ({
       stopPointId: "provider-stop",
-      stopName: "Europaplatz",
+      stopName: "Mühlburger Tor",
       serverTime,
-      servingLines: options.lineIds
-        ? []
-        : [
-            { lineId: "test", lineRef: directionA },
-            { lineId: "test", lineRef: directionC },
-          ],
       stopEvents: options.lineIds
         ? // Two minutes out: nearer than the reading's age, so the live board's to state.
           [stopEvent("c1", directionC, "2026-08-26T10:02:00.000Z")]
         : [stopEvent("a1", directionA, "2026-08-26T10:10:00.000Z")],
     }),
-  } as unknown as KvvEfaClient;
-  const source = new KvvTransitSource(client);
+  } as unknown as Feed;
+  const source = await createServedSource(client, [directionA, directionC]);
   const read = () =>
     source.getStopEventBoard(STOP_ID, { minimumStopEventsPerDirection: 2, maxAgeMs: 0 });
 
@@ -340,25 +349,19 @@ test("a failed coverage pass returns the current basic board, never a half-compl
     fetchStopEventBoard: async (
       _providerStopId: string,
       options: { lineIds?: readonly string[] } = {},
-    ): Promise<KvvStopEventBoard> => {
+    ): Promise<FeedStopEventBoard> => {
       if (options.lineIds && failSupplement) throw new Error("offline");
       return {
         stopPointId: "provider-stop",
-        stopName: "Europaplatz",
+        stopName: "Mühlburger Tor",
         serverTime,
-        servingLines: options.lineIds
-          ? []
-          : [
-              { lineId: "test", lineRef: directionA },
-              { lineId: "test", lineRef: directionC },
-            ],
         stopEvents: options.lineIds
           ? [stopEvent("c1", directionC, "2026-08-26T11:00:00.000Z")]
           : [base],
       };
     },
-  } as unknown as KvvEfaClient;
-  const source = new KvvTransitSource(client);
+  } as unknown as Feed;
+  const source = await createServedSource(client, [directionA, directionC]);
 
   failSupplement = true;
   const board = await source.getStopEventBoard(STOP_ID, { minimumStopEventsPerDirection: 2 });
@@ -462,20 +465,12 @@ test("a filtered board does not shrink what the stop is known to serve", async (
       options: {
         lineIds?: readonly string[];
       } = {},
-    ): Promise<KvvStopEventBoard> => {
+    ): Promise<FeedStopEventBoard> => {
       requests.push(options);
       return {
         stopPointId: "provider-stop",
-        stopName: "Europaplatz",
+        stopName: "Mühlburger Tor",
         serverTime,
-        // Only the unfiltered board states the whole set.
-        servingLines: options.lineIds
-          ? []
-          : [
-              { lineId: "test", lineRef: directionA },
-              { lineId: "test", lineRef: directionB },
-              { lineId: "test", lineRef: directionC },
-            ],
         stopEvents: [
           stopEvent("a1", directionA, "2026-08-26T10:10:00.000Z"),
           stopEvent("a2", directionA, "2026-08-26T10:40:00.000Z"),
@@ -483,8 +478,8 @@ test("a filtered board does not shrink what the stop is known to serve", async (
         ],
       };
     },
-  } as unknown as KvvEfaClient;
-  const source = new KvvTransitSource(client);
+  } as unknown as Feed;
+  const source = await createServedSource(client, [directionA, directionB, directionC]);
 
   await source.getStopEventBoard(STOP_ID);
   await source.getStopEventBoard(STOP_ID, { lineRefs: [directionA] });
@@ -502,7 +497,7 @@ const datedJourneyReading = (
   journeyRef: string,
   timetabledDepartureTime: string,
   delayMinutes?: number,
-): KvvStopEvent => ({
+): FeedStopEvent => ({
   ...stopEvent(journeyRef, directionA, timetabledDepartureTime),
   publishedJourneyNumber: "84991",
   status: delayMinutes === undefined ? "scheduled" : "realtime",
@@ -512,11 +507,10 @@ const datedJourneyReading = (
 test("one run read twice is one row, and it is the row carrying the prediction", async () => {
   // The monitor returns the same S5 twice (trip ids differing by a segment, one train number).
   const client = {
-    fetchStopEventBoard: async (): Promise<KvvStopEventBoard> => ({
+    fetchStopEventBoard: async (): Promise<FeedStopEventBoard> => ({
       stopPointId: "provider-stop",
-      stopName: "Europaplatz",
+      stopName: "Mühlburger Tor",
       serverTime,
-      servingLines: [{ lineId: "test", lineRef: directionA }],
       stopEvents: [
         datedJourneyReading(
           "de:kvv:00S05_:.kvv-22-305-E.7.T0.1604.s26",
@@ -534,9 +528,9 @@ test("one run read twice is one row, and it is the row carrying the prediction",
         },
       ],
     }),
-  } as unknown as KvvEfaClient;
+  } as unknown as Feed;
 
-  const board = await new KvvTransitSource(client).getStopEventBoard(STOP_ID);
+  const board = await new TriasTransitSource(client).getStopEventBoard(STOP_ID);
 
   assert.equal(board.stopEvents.length, 2);
   assert.deepEqual(
@@ -562,11 +556,10 @@ test("a completion may not state a run the live board already carries", async ()
     fetchStopEventBoard: async (
       _providerStopId: string,
       options: { lineIds?: readonly string[] } = {},
-    ): Promise<KvvStopEventBoard> => ({
+    ): Promise<FeedStopEventBoard> => ({
       stopPointId: "provider-stop",
-      stopName: "Europaplatz",
+      stopName: "Mühlburger Tor",
       serverTime,
-      servingLines: [{ lineId: "test", lineRef: directionA }],
       stopEvents: options.lineIds
         ? [
             datedJourneyReading(
@@ -576,55 +569,12 @@ test("a completion may not state a run the live board already carries", async ()
           ]
         : [baseRow],
     }),
-  } as unknown as KvvEfaClient;
+  } as unknown as Feed;
 
-  const board = await new KvvTransitSource(client).getStopEventBoard(STOP_ID, {
+  const board = await new TriasTransitSource(client).getStopEventBoard(STOP_ID, {
     minimumStopEventsPerDirection: 2,
   });
 
   assert.equal(board.stopEvents.length, 1);
   assert.equal(board.stopEvents[0].delayMinutes, 6);
-});
-
-test("a board that describes the whole stop names the directions it knows there", async () => {
-  // At a terminus the returning direction has no row anywhere; only this metadata names it.
-  const client = {
-    fetchStopEventBoard: async (
-      _providerStopId: string,
-      options: { lineIds?: readonly string[] } = {},
-    ): Promise<KvvStopEventBoard> => ({
-      stopPointId: "provider-stop",
-      stopName: "Europaplatz",
-      serverTime,
-      // A filtered answer covers only what it asked about.
-      servingLines: options.lineIds
-        ? [{ lineId: "test", lineRef: directionA }]
-        : [
-            { lineId: "test", lineRef: directionA },
-            { lineId: "test", lineRef: directionB },
-          ],
-      stopEvents: [],
-    }),
-  } as unknown as KvvEfaClient;
-  const source = new KvvTransitSource(client);
-
-  const wholeStop = await source.getStopEventBoard(STOP_ID);
-  assert.deepEqual(
-    wholeStop.servingLines?.map(({ lineRef }) => lineRef),
-    [directionA, directionB],
-  );
-
-  // A filtered board carries none: its silence is not evidence.
-  const filtered = await source.getStopEventBoard(STOP_ID, { lineRefs: [directionA] });
-  assert.equal(filtered.servingLines, undefined);
-});
-
-test("a stop whose board is shared between boarding places asks for more of it", async () => {
-  const { source, requests } = createRecordingSource();
-
-  // Europaplatz shares one board between four places, street trips listed twice; twenty rows are
-  // too few.
-  await source.getStopEventBoard(STOP_ID);
-  assert.equal(requests[0].limit, 40);
-  assert.ok(STOP_ROW_LIMIT > 20);
 });

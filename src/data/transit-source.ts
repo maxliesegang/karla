@@ -1,15 +1,18 @@
 import { transitNetwork } from "./transit-network";
-import { readKvvFeedConfig } from "./kvv-feed-config";
-import { KvvEfaClient } from "./kvv-efa-client";
-import { KvvTriasClient } from "./kvv-trias-client";
-import { isWithinKvvArea } from "./kvv-area";
+import { readTriasProxyUrl } from "./trias-proxy";
+import { TriasClient } from "./trias-client";
+import { network } from "../networks/network";
+import { isWithinScopeBounds } from "./network-scope";
 import {
+  fetchStopPlaceBoard,
   getDatedJourneyId,
-  type KvvStopEvent,
-  type KvvFeed,
-  type KvvTripInfo,
-  type KvvJourneyLocator,
-} from "./kvv-feed";
+  type FeedStopEventBoard,
+  type FeedStopEventBoardOptions,
+  type FeedStopEvent,
+  type Feed,
+  type FeedTripInfo,
+  type JourneyLocator,
+} from "./feed";
 import type {
   StopEventBoard,
   StopEventBoardRequest,
@@ -19,7 +22,6 @@ import type {
   TransitNetwork,
   DatedJourneyDiscoveryPost,
   DatedJourneyDiscoveryReading,
-  ServingLine,
 } from "./transit-types";
 import { DatedJourneyReadingStore } from "./dated-journey-reading-store";
 import { StopEventBoardReadings, unavailableStopEventBoard } from "./stop-event-board-readings";
@@ -30,7 +32,6 @@ import {
   type DirectionCoverage,
 } from "./direction-coverage";
 import { createStopEventId, keepOneRowPerDatedJourney } from "./stop-event-dated-journeys";
-import { kvvStopMappingByLocalStopId } from "./kvv-stop-mappings";
 import { SharedRequests } from "./request-sharing";
 import { DYNAMIC_STOP_ID_PATTERN, StopRegistry, hashProviderStopId } from "./stop-registry";
 import { ServingDirections } from "./serving-directions";
@@ -63,7 +64,7 @@ export type DatedJourneyDiscoveryRequest = {
 export { createStopEventId };
 
 /**
- * The boundary the views talk to. Nothing above it knows about EFA, provider ids or HTTP.
+ * The boundary the views talk to. Nothing above it knows about TRIAS, provider ids or HTTP.
  */
 export interface TransitSource {
   getDatedJourneyDiscoveryReading(
@@ -140,16 +141,12 @@ const STOP_SEARCH_LIMIT = 8;
  */
 const DATED_JOURNEY_UNDER_WAY_MINUTES = 30;
 
-/** The one feed the session reads (`kvv-feed-config.ts`). */
-export function createKvvFeed(environment = import.meta.env ?? {}): KvvFeed {
-  const config = readKvvFeedConfig(environment);
-  return config.feed === "efa"
-    ? new KvvEfaClient()
-    : new KvvTriasClient({ proxyUrl: config.proxyUrl });
+export function createFeed(environment = import.meta.env ?? {}): Feed {
+  return new TriasClient({ proxyUrl: readTriasProxyUrl(environment) });
 }
 
 /** Core-network stops are local data; every other stop is resolved from KVV on request. */
-export class KvvTransitSource implements TransitSource {
+export class TriasTransitSource implements TransitSource {
   private readonly boards = new StopEventBoardReadings();
   private readonly datedJourneyRequests = new SharedRequests<DatedJourneyCalls | undefined>();
   private readonly lineRouteRequests = new SharedRequests<readonly string[] | undefined>();
@@ -161,11 +158,11 @@ export class KvvTransitSource implements TransitSource {
   private readonly servingDirections = new ServingDirections();
   private readonly stops: StopRegistry;
 
-  private readonly client: KvvFeed;
+  private readonly client: Feed;
   private readonly network: TransitNetwork;
 
   // Fields rather than constructor parameter properties, for the type-stripping test runner.
-  constructor(client: KvvFeed = createKvvFeed(), network: TransitNetwork = transitNetwork) {
+  constructor(client: Feed = createFeed(), network: TransitNetwork = transitNetwork) {
     this.client = client;
     this.network = network;
     this.stops = new StopRegistry(network.stops);
@@ -259,10 +256,8 @@ export class KvvTransitSource implements TransitSource {
     const filtered = await this.getDiscoveryEventBoard(post, maxAgeMs, directions);
     if (filtered.dataStatus !== "live") return [filtered, base];
     const horizon = Date.parse(filtered.feedUpdatedAt) + horizonMs;
-    const limit =
-      kvvStopMappingByLocalStopId[base.stopId]?.stopEventLimit ?? DEFAULT_STOP_EVENT_LIMIT;
     let sparse: string[] = [];
-    if (filtered.stopEvents.length >= limit && directions.length > 1) {
+    if (filtered.stopEvents.length >= DEFAULT_STOP_EVENT_LIMIT && directions.length > 1) {
       const covered = new Set(
         filtered.stopEvents
           .filter(
@@ -350,7 +345,7 @@ export class KvvTransitSource implements TransitSource {
     if (!matches) return local.slice(0, STOP_SEARCH_LIMIT);
     const remote = matches.flatMap((match) => {
       if (match.latitude === undefined || match.longitude === undefined) return [];
-      if (!isWithinKvvArea(match.latitude, match.longitude)) return [];
+      if (!isWithinScopeBounds(network.scope, match.latitude, match.longitude)) return [];
       return [
         this.stops.register({
           providerId: match.providerId,
@@ -516,17 +511,15 @@ export class KvvTransitSource implements TransitSource {
     lineIds?: readonly string[],
     eventKind: "departure" | "arrival" = "departure",
   ): Promise<StopEventBoard> {
-    const providerId = this.stops.findProviderStopId(stopId);
-    if (!providerId)
+    if (this.stops.findStopPoints(stopId).length === 0)
       return unavailableStopEventBoard(
         stopId,
-        "Haltestelle konnte im KVV-Netz nicht aufgelöst werden",
+        `Haltestelle konnte im ${network.operator.name}-Netz nicht aufgelöst werden`,
       );
 
     try {
-      const board = await this.client.fetchStopEventBoard(providerId, {
+      const board = await this.readStopPlace(stopId, {
         includeCalls,
-        limit: kvvStopMappingByLocalStopId[stopId]?.stopEventLimit ?? DEFAULT_STOP_EVENT_LIMIT,
         ...(lineIds?.length ? { lineIds } : {}),
         ...(eventKind === "arrival" ? { eventKind } : {}),
       });
@@ -537,7 +530,7 @@ export class KvvTransitSource implements TransitSource {
       this.servingDirections.remember(stopEvents, receivedAt);
       // A filtered board saw only its lines, so it never states the stop's serving directions.
       const isWholeStop = !lineIds?.length;
-      const servingLines = isWholeStop ? this.findServingLines(stopId, board.servingLines) : [];
+      const servingLines = isWholeStop ? this.servingDirections.find(stopId) : [];
       if (isWholeStop && eventKind === "departure" && servingLines.length > 0) {
         this.coverage.rememberServingDirections(
           stopId,
@@ -568,13 +561,6 @@ export class KvvTransitSource implements TransitSource {
    * What the feed states the stop serves, and what dated journeys read this session were seen to
    * serve.
    */
-  private findServingLines(stopId: string, stated: readonly ServingLine[]): ServingLine[] {
-    const byLineRef = new Map(stated.map((line) => [line.lineRef, line]));
-    for (const line of this.servingDirections.find(stopId)) {
-      if (!byLineRef.has(line.lineRef)) byLineRef.set(line.lineRef, line);
-    }
-    return [...byLineRef.values()];
-  }
 
   /** The stop's board completed for sparse directions (`direction-coverage.ts`). */
   private async fetchDirectionCoveredBoard(
@@ -585,11 +571,10 @@ export class KvvTransitSource implements TransitSource {
     const base = await this.getStopEventBoard(stopId, { maxAgeMs });
     if (base.dataStatus !== "live") return base;
 
-    const providerId = this.stops.findProviderStopId(stopId);
-    if (!providerId) return base;
+    if (this.stops.findStopPoints(stopId).length === 0) return base;
 
     return this.coverage.complete(base, coverage, async (lineIds, limit) => {
-      const supplement = await this.client.fetchStopEventBoard(providerId, { lineIds, limit });
+      const supplement = await this.readStopPlace(stopId, { lineIds, limit });
       const receivedAt = Date.now();
       return {
         stopEvents: supplement.stopEvents.map((stopEvent) =>
@@ -597,6 +582,16 @@ export class KvvTransitSource implements TransitSource {
         ),
         rowLimitReached: supplement.stopEvents.length >= limit,
       };
+    });
+  }
+
+  private readStopPlace(
+    stopId: string,
+    { limit = DEFAULT_STOP_EVENT_LIMIT, ...options }: FeedStopEventBoardOptions,
+  ): Promise<FeedStopEventBoard> {
+    return fetchStopPlaceBoard(this.client, this.stops.findStopPoints(stopId), {
+      ...options,
+      limit,
     });
   }
 
@@ -634,7 +629,7 @@ export class KvvTransitSource implements TransitSource {
   }
 
   private toStopEvent(
-    stopEvent: KvvStopEvent,
+    stopEvent: FeedStopEvent,
     stopId: string,
     receivedAt: number,
     eventKind: "departure" | "arrival" = "departure",
@@ -680,7 +675,7 @@ export class KvvTransitSource implements TransitSource {
 
   private requestDatedJourney(
     rowId: string,
-    locator: KvvJourneyLocator,
+    locator: JourneyLocator,
   ): Promise<DatedJourneyCalls | undefined> {
     const requestKey = this.datedJourneyReadings.findJourneyRecordKey(rowId);
     const requestedAt = Date.now();
@@ -720,7 +715,7 @@ export class KvvTransitSource implements TransitSource {
    */
   private createSequenceReading(
     datedJourneyKey: string,
-    journey: KvvTripInfo,
+    journey: FeedTripInfo,
     receivedAt: number,
   ): DatedJourneyCalls | undefined {
     const stopEvent = this.datedJourneyReadings.findDatedJourneyRow(datedJourneyKey)?.stopEvent;
@@ -739,4 +734,4 @@ export class KvvTransitSource implements TransitSource {
   }
 }
 
-export const transitSource: TransitSource = new KvvTransitSource();
+export const transitSource: TransitSource = new TriasTransitSource();

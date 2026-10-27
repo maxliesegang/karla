@@ -1,4 +1,4 @@
-import type { KvvStopEvent } from "./kvv-feed";
+import type { FeedStopEvent } from "./feed";
 import type { StopEvent } from "./transit-types";
 import { getExpectedDepartureInstant } from "../lib/stop-event-order";
 
@@ -84,7 +84,7 @@ export function createDatedJourneyCollector(base: readonly StopEvent[]) {
  * 2 on the same minute), so it is only the fallback without a journey id. Not `datedJourneyId`,
  * which changes once a detailed board adds calls.
  */
-export function createStopEventId(stopEvent: KvvStopEvent, stopId: string): string {
+export function createStopEventId(stopEvent: FeedStopEvent, stopId: string): string {
   const journeyIdentity =
     stopEvent.journeyRef ?? `${stopEvent.lineId}-${stopEvent.bay}-${stopEvent.destinationText}`;
   return `${stopId}-${journeyIdentity}-${stopEvent.timetabledDepartureTime}`;

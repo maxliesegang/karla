@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseStopEventBoardResponse } from "../src/data/kvv-efa-parsers.ts";
+import { parseTriasStopEvents } from "../src/data/trias-parsers.ts";
 import type { StopEvent } from "../src/data/transit-types.ts";
 import { groupStopEventsByBay } from "../src/lib/stop-event-order.ts";
 import {
@@ -12,15 +12,15 @@ import {
   getBayWord,
 } from "../src/lib/bay-naming.ts";
 import { createStopEvent as createFixture } from "./support/fixtures.ts";
+import { triasStopEvent, triasStopEvents } from "./support/trias.ts";
 
 // `station-board.ts` reads the address at import time, so it is loaded after a window exists.
 Object.defineProperty(globalThis, "window", { value: { location: { search: "" } } });
 const { normalizeBay } = await import("../src/station-board.ts");
 
 /**
- * The words here are the operator's. `XSLT_DM_REQUEST` states a `pointType` beside every platform
- * code — `Gleis 1(U)` and `Bstg. A` are both reported at Europaplatz, and the buses 50 and 62 are
- * reported at `Gleis 24` at the Hauptbahnhof, which is why the word cannot be read off the mode.
+ * The words here are the operator's: `Gleis 1(U)` and `Bstg. A` are both stated at Europaplatz, and
+ * buses at `Gleis 24` at the Hauptbahnhof, so the word cannot be read off the mode.
  */
 
 const createStopEvent = (overrides: Partial<StopEvent> = {}): StopEvent =>
@@ -37,15 +37,15 @@ const createStopEvent = (overrides: Partial<StopEvent> = {}): StopEvent =>
     ...overrides,
   });
 
-const createFeedStopEvent = (bay: string, pointType?: string) => ({
-  stopID: "7000037",
-  nameWO: "Europaplatz",
-  countdown: "4",
-  dateTime: { year: "2026", month: "8", day: "24", hour: "14", minute: "34" },
-  platform: bay,
-  ...(pointType ? { pointType } : {}),
-  servingLine: { symbol: "S1", number: "S1", direction: "Bad Herrenalb", motType: "1" },
-});
+const createFeedStopEvent = (bay: string) =>
+  triasStopEvent({
+    current: {
+      ref: "de:08212:37:1:1",
+      name: "KA Europaplatz",
+      bay,
+      departure: { timetabled: "2026-08-24T12:34:00Z" },
+    },
+  });
 
 test("names a platform with the feed's own word", () => {
   assert.equal(formatBayText("24", "track"), "Gleis 24");
@@ -101,18 +101,15 @@ test("uses the generic word when reports disagree about one platform", () => {
 });
 
 test("reads the word from the feed and keeps the bare code as the platform's identity", () => {
-  const board = parseStopEventBoardResponse(
-    {
-      parameters: [{ name: "serverTime", value: "2026-08-24T14:30:00" }],
-      departureList: [
-        createFeedStopEvent("1(U)", "Gleis"),
-        createFeedStopEvent("A", "Bstg"),
-        // The Hauptbahnhof reports entries with a platform and no kind at all; guessing one from the
-        // mode would put "Gleis" in front of a bus stand.
-        createFeedStopEvent("7"),
-      ],
-    },
-    "7000037",
+  const board = parseTriasStopEvents(
+    triasStopEvents("2026-08-24T12:30:00Z", [
+      createFeedStopEvent("Gleis 1(U)"),
+      createFeedStopEvent("Bstg. A"),
+      // A bay without a kind stays without one; guessing from the mode would put "Gleis" in front
+      // of a bus stand.
+      createFeedStopEvent("7"),
+    ]),
+    "de:08212:37",
   );
 
   assert.deepEqual(

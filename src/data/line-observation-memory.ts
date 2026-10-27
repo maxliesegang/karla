@@ -1,3 +1,4 @@
+import { isSameLineIdentity } from "../lib/line-identity";
 import type { LineObservation } from "../lib/line-observation";
 
 /**
@@ -9,17 +10,28 @@ import type { LineObservation } from "../lib/line-observation";
 /** Lines remembered; the oldest is forgotten past this. */
 const LINE_OBSERVATION_MEMORY_CAPACITY = 24;
 
-const observationByLineId = new Map<string, LineObservation>();
+/** By name; the identity tells another network's line of the same name apart. */
+const observationByLineId = new Map<string, { identity?: string; observation: LineObservation }>();
 
-export function recallLineObservation(lineId: string): LineObservation | undefined {
-  return observationByLineId.get(lineId);
+export function recallLineObservation(
+  lineId: string,
+  identity?: string,
+): LineObservation | undefined {
+  const remembered = observationByLineId.get(lineId);
+  return remembered && isSameLineIdentity(remembered.identity, identity)
+    ? remembered.observation
+    : undefined;
 }
 
-export function rememberLineObservation(lineId: string, observation: LineObservation): void {
+export function rememberLineObservation(
+  lineId: string,
+  observation: LineObservation,
+  identity?: string,
+): void {
   if (observation.stopIds.length === 0 && observation.lineRefs.length === 0) return;
   // Re-inserted, so recently read lines are the ones kept.
   observationByLineId.delete(lineId);
-  observationByLineId.set(lineId, observation);
+  observationByLineId.set(lineId, { identity, observation });
   for (const forgotten of observationByLineId.keys()) {
     if (observationByLineId.size <= LINE_OBSERVATION_MEMORY_CAPACITY) break;
     observationByLineId.delete(forgotten);

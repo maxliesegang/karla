@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import type { KvvCall } from "../src/data/kvv-feed.ts";
+import type { FeedCall } from "../src/data/feed.ts";
 import { StopRegistry } from "../src/data/stop-registry.ts";
 import { transitNetwork } from "../src/data/transit-network.ts";
 import type { PtMode } from "../src/data/transit-types.ts";
@@ -15,7 +15,7 @@ const fixture: {
     lineRef: string;
     ptMode: PtMode;
     destinationText: string;
-    calls: KvvCall[];
+    calls: FeedCall[];
   }[];
 } = JSON.parse(
   readFileSync(new URL("./support/zentrum-e-dated-journeys.json", import.meta.url), "utf8"),

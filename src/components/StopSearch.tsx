@@ -3,6 +3,7 @@ import { transitSource } from "../data/transit-source";
 import type { StopPlace } from "../data/transit-types";
 import type { RecentStop } from "../lib/recent-stops";
 import { navigateTo, routePaths } from "../routing";
+import { FEED_UNREADABLE_TEXT } from "./feed-copy";
 
 /**
  * Stop search by name (`/` focuses it). Authored stops match locally at once; the provider is asked
@@ -190,7 +191,7 @@ export function StopSearch({
               ) : settledSearch?.failed ? (
                 <>
                   <strong>Suche nicht erreichbar</strong>
-                  <small>Der KVV-Feed konnte nicht gelesen werden.</small>
+                  <small>{FEED_UNREADABLE_TEXT}</small>
                 </>
               ) : (
                 <>

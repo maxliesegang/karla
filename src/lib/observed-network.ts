@@ -66,6 +66,8 @@ export type ObservedStop = {
 export type ObservedLine = {
   id: string;
   ptMode: PtMode;
+  /** A line ref the line's journeys stated, for its identity. */
+  lineRef?: string;
   /** Destinations seen on this line, most frequent first — what a rider reads on the front. */
   destinations: string[];
   /**
@@ -87,7 +89,7 @@ export type ObservedNetwork = {
  */
 export type ObservedJourneyTopology = Pick<
   StopEvent,
-  "id" | "journeyRef" | "lineId" | "ptMode" | "destinationText" | "calls"
+  "id" | "journeyRef" | "lineId" | "lineRef" | "ptMode" | "destinationText" | "calls"
 >;
 
 /** Where named stops are, from every journey's calls: a few posts locate hundreds of stops. */
@@ -137,7 +139,12 @@ export function buildObservedNetworkFromJourneys(
   const stops = new Map<string, ObservedStop>();
   const lines = new Map<
     string,
-    { ptMode: PtMode; destinations: string[]; journeys: ObservedJourneyTopology[] }
+    {
+      ptMode: PtMode;
+      lineRef?: string;
+      destinations: string[];
+      journeys: ObservedJourneyTopology[];
+    }
   >();
 
   for (const journey of journeys) {
@@ -146,6 +153,7 @@ export function buildObservedNetworkFromJourneys(
       destinations: [],
       journeys: [],
     };
+    line.lineRef ??= journey.lineRef;
     line.destinations.push(journey.destinationText);
     line.journeys.push(journey);
     lines.set(journey.lineId, line);
@@ -169,6 +177,7 @@ export function buildObservedNetworkFromJourneys(
     lines: [...lines.entries()].map(([id, line]) => ({
       id,
       ptMode: line.ptMode,
+      ...(line.lineRef ? { lineRef: line.lineRef } : {}),
       destinations: getDistinctByFrequency(line.destinations),
       farthestDatedJourneyTermini: getFarthestLineDatedJourneyTermini(id, line.journeys),
     })),
@@ -190,18 +199,18 @@ type ObservedLineFamily = {
 export function getObservedTransitLines(network: ObservedNetwork): TransitLine[] {
   const familyById = new Map<string, ObservedLineFamily>();
 
-  const getFamily = (lineId: string, ptMode: PtMode): ObservedLineFamily => {
+  const getFamily = (lineId: string, ptMode: PtMode, lineRef?: string): ObservedLineFamily => {
     const familyId = getLineFamilyId(lineId);
     const existing = familyById.get(familyId);
     if (existing) return existing;
-    const sign = { ...createLineSign(lineId, ptMode), id: familyId, name: familyId };
+    const sign = { ...createLineSign(lineId, ptMode, lineRef), id: familyId, name: familyId };
     const created: ObservedLineFamily = { sign, destinations: [], zentrumCalls: [] };
     familyById.set(familyId, created);
     return created;
   };
 
   for (const observed of network.lines) {
-    const family = getFamily(observed.id, observed.ptMode);
+    const family = getFamily(observed.id, observed.ptMode, observed.lineRef);
     for (const destination of observed.destinations) addOnce(family.destinations, destination);
     // The family's first observation stands; merged raw lines are not one extent.
     if (!family.farthestDatedJourneyTermini)

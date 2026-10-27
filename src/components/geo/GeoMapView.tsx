@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { findCatalogStop, kvvStopCatalog } from "../../data/generated/kvv-stop-catalog";
+import { network } from "../../networks/network";
 import type { StopEventBoard, StopEventBoardCoverage, Call } from "../../data/transit-types";
 import { useDailyZentrumVehicles } from "../../hooks/zentrum-vehicles";
 import { getDirectTravelTimes } from "../../lib/direct-travel-times";
@@ -27,7 +27,9 @@ const geoEmptyLabels = {
 
 /** A board's own call comes unlocated; the operator's catalog knows the city's stops. */
 const locateCatalogStop = (call: Call) => {
-  const stop = call.providerStopPointId ? findCatalogStop(call.providerStopPointId) : undefined;
+  const stop = call.providerStopPointId
+    ? network.findCatalogStop(call.providerStopPointId)
+    : undefined;
   return stop && { latitude: stop.latitude, longitude: stop.longitude };
 };
 
@@ -37,7 +39,7 @@ const locateCatalogStop = (call: Call) => {
  */
 const GEO_MAP_SCALE = {
   opening: getPointsBox(
-    kvvStopCatalog.filter(({ lineCount }) => lineCount > 0).map(projectGeoPosition),
+    network.stopCatalog.filter(({ lineCount }) => lineCount > 0).map(projectGeoPosition),
     0.5,
   ) ?? { x: -8, y: -6, width: 16, height: 13 },
   maximumScale: 900,

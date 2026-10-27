@@ -1,5 +1,5 @@
 import { defineConfig } from "vite";
-import { DEFAULT_TRIAS_PROXY_URL, DEV_TRIAS_PROXY_PATH } from "./src/data/kvv-feed-config.ts";
+import { DEFAULT_TRIAS_PROXY_URL, DEV_TRIAS_PROXY_PATH } from "./src/data/trias-proxy.ts";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({

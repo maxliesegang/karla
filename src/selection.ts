@@ -13,7 +13,7 @@ import {
 import { mergeAddressedDatedJourney } from "./lib/calls";
 import { findBestDatedJourneyReading } from "./lib/journeys";
 import { findLineForRoute } from "./lib/line-families";
-import { createLineSelection, type LineSelection } from "./lib/line-bundles";
+import { createLineSelectionOf, type LineSelection } from "./lib/line-bundles";
 import type {
   StopEvent,
   StopEventBoard,
@@ -138,13 +138,14 @@ export function useSelectionChain(
   const selectedLineId = selectedLine?.id;
   // Siblings come only from the address and stay while this stop's board lists them.
   const bundledLines = useBundledLines(route.bundledLineIds, selectedLine, network, stopEventBoard);
+  const selectedLineIdentity = selectedLine?.identity;
   const lineSelection = useMemo(
     () =>
-      createLineSelection(
-        selectedLineId ?? "",
-        bundledLines.map(({ id }) => id),
+      createLineSelectionOf(
+        { id: selectedLineId ?? "", identity: selectedLineIdentity },
+        bundledLines,
       ),
-    [bundledLines, selectedLineId],
+    [bundledLines, selectedLineId, selectedLineIdentity],
   );
   const selectionLines = useMemo(
     () => (selectedLine ? [selectedLine, ...bundledLines] : bundledLines),

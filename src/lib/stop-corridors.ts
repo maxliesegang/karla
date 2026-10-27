@@ -1,6 +1,6 @@
 import type { StopEvent, TransitLine, Call } from "../data/transit-types";
 import { createLineSign } from "../data/line-signs";
-import { compareLineIds, getLineFamilyId } from "./line-families";
+import { compareLines, getLineFamilyId } from "./line-families";
 import { findStopCorridorPattern, type StopCorridorPatterns } from "./stop-corridor-patterns";
 import {
   getCallDirectionLabel,
@@ -153,7 +153,7 @@ export function getStopServiceCorridorLineGroups(
       : `unknown:${stopEvent.destinationText}`;
     const group = groups.get(lineId) ?? {
       line: {
-        ...createLineSign(stopEvent.lineId, stopEvent.ptMode),
+        ...createLineSign(stopEvent.lineId, stopEvent.ptMode, stopEvent.lineRef),
         id: lineId,
         name: lineId,
         destinations: [],
@@ -197,5 +197,5 @@ export function getStopServiceCorridorLineGroups(
         ),
       };
     })
-    .sort((first, second) => compareLineIds(first.id, second.id));
+    .sort((first, second) => compareLines(first.line, second.line));
 }

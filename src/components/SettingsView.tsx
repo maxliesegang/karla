@@ -2,6 +2,10 @@ import { useStoredPreference } from "../hooks/stored-preference";
 import { appSettings, type AppSettings } from "../lib/app-settings";
 import { type AppLanding } from "../lib/app-settings";
 import { SegmentedControl, type SegmentedControlItem } from "./SegmentedControl";
+import { network } from "../networks/network";
+
+const { operator } = network;
+const { gtfs } = network.catalogSource;
 
 /** One setting: label, a line of description, the control on the right. */
 function SettingsRow({
@@ -123,21 +127,24 @@ export function SettingsView() {
       <section className="settings-about" aria-labelledby="settings-about-title">
         <h2 id="settings-about-title">Daten & Haftung</h2>
         <p>
-          KARLA ist kein offizielles Angebot des Karlsruher Verkehrsverbunds (KVV). Der KVV haftet
+          KARLA ist kein offizielles Angebot {operator.fullGenitive}. {operator.nominative} haftet
           nicht für die Inhalte dieser App.
         </p>
         <p>
-          Abfahrten und Haltestellen stammen aus der elektronischen Fahrplanauskunft des KVV, Linien
-          und Linienfarben aus seinen{" "}
-          <a
-            href="https://www.kvv.de/fahrplan/fahrplaene/open-data.html"
-            target="_blank"
-            rel="noreferrer"
-          >
+          Abfahrten und Haltestellen stammen aus der elektronischen Fahrplanauskunft{" "}
+          {operator.genitive}, Linienfarben aus seinen{" "}
+          <a href={operator.openData.url} target="_blank" rel="noreferrer">
             Open Data
           </a>{" "}
-          (CC0). Der KVV kann den Zugang zu diesen Daten jederzeit beschränken, ändern oder
-          einstellen.
+          ({operator.openData.licence}). {operator.nominative} kann den Zugang zu diesen Daten
+          jederzeit beschränken, ändern oder einstellen.
+        </p>
+        <p>
+          Fahrplandaten für Linien, Steige und Haltestellen: {gtfs.publisher},{" "}
+          <a href={gtfs.licenceUrl} target="_blank" rel="noreferrer">
+            {gtfs.licence}
+          </a>
+          .
         </p>
       </section>
     </section>

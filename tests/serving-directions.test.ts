@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { KvvStopEventBoard, KvvFeed } from "../src/data/kvv-feed.ts";
+import type { FeedStopEventBoard, Feed } from "../src/data/feed.ts";
 import { SERVING_DIRECTION_TTL_MS, ServingDirections } from "../src/data/serving-directions.ts";
-import { KvvTransitSource } from "../src/data/transit-source.ts";
+import { TriasTransitSource } from "../src/data/transit-source.ts";
 import { createStopEvent } from "./support/fixtures.ts";
 
 const S5 = "kvv:22305:E:R:s26";
@@ -41,28 +41,27 @@ test("a run's direction serves every stop it calls at, until the TTL passes unse
   assert.deepEqual(directions.find("karlstor"), []);
 });
 
-/** A feed whose boards state no serving lines, as TRIAS's do, unless told otherwise. */
-function createFeed(boards: Record<string, Partial<KvvStopEventBoard>>) {
+/** A feed answering each stop point with the board given for it, empty otherwise. */
+function createFeed(boards: Record<string, Partial<FeedStopEventBoard>>) {
   return {
-    fetchStopEventBoard: async (stopPointId: string): Promise<KvvStopEventBoard> => ({
+    fetchStopEventBoard: async (stopPointId: string): Promise<FeedStopEventBoard> => ({
       stopPointId,
       stopName: "",
       serverTime: "2026-10-20T08:00:00.000Z",
-      servingLines: [],
       stopEvents: [],
       ...boards[stopPointId],
     }),
-  } as unknown as KvvFeed;
+  } as unknown as Feed;
 }
 
-test("a stop's board names the directions observed runs serve it by, beside what the feed states", async () => {
-  const source = new KvvTransitSource(
+test("a stop's board names the directions observed runs serve it by", async () => {
+  const source = new TriasTransitSource(
     createFeed({
       // Europaplatz's board, with each run's calls.
-      "7000037": {
+      "de:08212:37": {
         stopEvents: [
           {
-            stopPointId: "7000037",
+            stopPointId: "de:08212:37",
             stopPointName: "Europaplatz",
             lineId: "S5",
             lineRef: S5,
@@ -73,29 +72,22 @@ test("a stop's board names the directions observed runs serve it by, beside what
             status: "realtime",
             timetabledDepartureTime: "2026-10-20T08:03:00.000Z",
             calls: [
-              { stopName: "Europaplatz", providerId: "7000037" },
-              { stopName: "Karlstor", providerId: "7000061" },
+              { stopName: "Europaplatz", providerId: "de:08212:37" },
+              { stopName: "Karlstor", providerId: "de:08212:61" },
             ],
           },
         ],
-      },
-      // Karlstor's feed states another line itself.
-      "7000061": {
-        servingLines: [{ lineId: "2", lineRef: LINE_2, ptMode: "tram" }],
       },
     }),
   );
 
   await source.getStopEventBoard("europaplatz", { includeCalls: true });
   const karlstor = await source.getStopEventBoard("karlstor");
-  const filtered = await source.getStopEventBoard("karlstor", { lineRefs: [LINE_2] });
+  const filtered = await source.getStopEventBoard("karlstor", { lineRefs: [S5] });
 
   assert.deepEqual(
     karlstor.servingLines?.map(({ lineId, lineRef }) => [lineId, lineRef]),
-    [
-      ["2", LINE_2],
-      ["S5", S5],
-    ],
+    [["S5", S5]],
   );
   assert.equal(filtered.servingLines, undefined);
 });

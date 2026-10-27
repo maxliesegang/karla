@@ -164,12 +164,12 @@ test("the rider's own row is the one the address names, answered or not", () => 
 });
 
 test("a board answering for another stop point does not move the note off the tapped row", () => {
-  // A later reading naming another point of the complex is not a step.
+  // A later reading naming another point of the stop place is not a step.
   assert.equal(getCurrentStopIndex(ROWS, "b", "b-platform-2"), 2);
 });
 
 test("the boarding stop point answers where the address names a stop the chain does not", () => {
-  // A complex page listing a departure from another of its points.
+  // A stop place page listing a departure from another of its points.
   assert.equal(getCurrentStopIndex(ROWS, "complex", "c"), 1);
 });
 

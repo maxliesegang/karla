@@ -5,7 +5,8 @@ import { getLineSign } from "./data/line-signs";
 import type { StopEvent, StopEventBoard, TransitLine, TransitNetwork } from "./data/transit-types";
 import { getResolvedBundledLineIds } from "./lib/line-bundles";
 import { findLineForRoute, isSameLineFamily } from "./lib/line-families";
-import { getJourneyLineId, type AppRoute } from "./routing";
+import { getLineIdentity } from "./lib/line-identity";
+import type { AppRoute } from "./routing";
 
 /**
  * The line in view: running if this stop's board lists it, observation or not (how buses keep their
@@ -24,20 +25,23 @@ export function findSelectedLine(
   const lineStopEvent = route.lineId
     ? stopEvents.find((stopEvent) => isSameLineFamily(stopEvent.lineId, route.lineId))
     : ownStopEvent;
-  if (lineStopEvent) return getLineSign(network.lines, lineStopEvent.lineId, lineStopEvent.ptMode);
+  if (lineStopEvent)
+    return getLineSign(
+      network.lines,
+      lineStopEvent.lineId,
+      lineStopEvent.ptMode,
+      lineStopEvent.lineRef,
+    );
 
   // A restored ride keeps its line with a neutral sign until its retained dated journey resolves.
   if (route.isRide && route.lineId) return getLineSign(network.lines, route.lineId, "other");
 
-  // A stop-scoped journey past this stop is on no board here but names its line in its id; the line
+  // A journey past this stop is on no board here, but its ref names its line's identity; the line
   // holds as long as the journey does, so the line's readings can still find it.
-  const journeyLineId = route.addressId && !route.lineId ? getJourneyLineId(route.addressId) : "";
-  if (journeyLineId) {
-    const sameLine = stopEvents.find((stopEvent) =>
-      isSameLineFamily(stopEvent.lineId, journeyLineId),
-    );
-    return getLineSign(network.lines, journeyLineId, sameLine?.ptMode ?? "other");
-  }
+  const journeyIdentity = route.lineId ? undefined : getLineIdentity(route.addressId);
+  const journeyLine =
+    journeyIdentity && network.lines.find(({ identity }) => identity === journeyIdentity);
+  if (journeyLine) return journeyLine;
 
   // An asked-for line keeps a neutral sign while the board loads or fails; only a readable board
   // without it drops it.
@@ -68,7 +72,7 @@ export function findBundledLines(
     const observed = findLineForRoute(network.lines, lineId);
     if (observed) return [observed];
     return running
-      ? [getLineSign(network.lines, running.lineId, running.ptMode)]
+      ? [getLineSign(network.lines, running.lineId, running.ptMode, running.lineRef)]
       : [getLineSign(network.lines, lineId, "other")];
   });
 }

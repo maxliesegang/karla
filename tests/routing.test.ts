@@ -11,7 +11,7 @@ import {
   routePaths,
 } from "../src/routing.ts";
 
-const JOURNEY = "de:kvv:00S11_:.kvv-22-311-E.5.T0.161.s26";
+const JOURNEY = "kvv:22311:E:H:s26:161";
 
 test("the retired notices page opens home", () => {
   assert.equal(parseRoute("#/notices").view, "home");
@@ -160,9 +160,7 @@ test("the lines ride along with the stop they belong to, not an address of their
 });
 
 test("a line diagram places itself, so no address it is read at starts at the top", () => {
-  const journeyRoute = parseRoute(
-    "#/stop/augartenstrasse/line/S11/trip/de:kvv:00S11_:.kvv-22-311-E.5.T0.161.s26",
-  );
+  const journeyRoute = parseRoute("#/stop/augartenstrasse/line/S11/trip/kvv:22311:E:H:s26:161");
   // Selecting a trip is not a move; the diagram aims at its vehicle.
   assert.equal(getViewStartKey(journeyRoute), null);
   // Nor is stepping along the line.
@@ -171,7 +169,7 @@ test("a line diagram places itself, so no address it is read at starts at the to
 });
 
 test("a ride is a view again, and a plain stop always was", () => {
-  const rideKey = getViewStartKey(parseRoute("#/trip/de:kvv:00S11_:.kvv-22-311-E.5.T0.161.s26"));
+  const rideKey = getViewStartKey(parseRoute("#/trip/kvv:22311:E:H:s26:161"));
   assert.ok(rideKey);
   assert.notEqual(rideKey, getViewStartKey(parseRoute("#/stop/augartenstrasse")));
   assert.equal(
@@ -207,7 +205,8 @@ test("a ride carries the stop it was begun at, beside the one it is heading for"
   assert.equal(both.originStopId, "europaplatz");
   assert.equal(both.alightingStopId, "durlach-bahnhof");
   assert.equal(both.isRide, true);
-  assert.equal(both.lineId, "S11");
+  // The address names no line; the network resolves it from the ref's identity.
+  assert.equal(both.lineId, "");
   // Every resolved level is written back, origin included.
   assert.equal(
     getSelectionPath({

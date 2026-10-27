@@ -3,7 +3,7 @@ import test from "node:test";
 
 import { isAddressOutstanding } from "../src/routing.ts";
 
-const JOURNEY = "de:kvv:00S02_:.kvv-21-12-E.5.T0.946.s26";
+const JOURNEY = "kvv:22302:E:H:s26:946";
 
 test("a trip that has left the rider's stop is not dropped while its line is still being read", () => {
   // The trip departed this stop half an hour ago, so the stop's own board is read and has no row

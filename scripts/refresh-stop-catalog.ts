@@ -1,184 +1,172 @@
 /**
- * Regenerates `src/data/generated/kvv-stop-catalog.ts` from two sources, one fact each:
- * - EFA `XML_STOPLIST_REQUEST`: the municipality's stops with provider id, global id, name,
- *   position and locality (which GTFS lacks).
- * - KVV's CC0 GTFS feed: lines and calls per stop, for the whole municipality in one download.
- * Joined on the global id, not on the provider id's shape. Also writes
- * `src/data/generated/kvv-line-days.ts`: the rail and tram lines that do not run every day, and
- * `src/data/generated/kvv-bay-runs.ts`: which way each rail bay runs, and
- * `src/data/generated/kvv-bay-positions.ts`: where each one stands.
+ * Regenerates the build network's catalog under `src/networks/<id>/generated/` from two sources, one
+ * fact each:
+ * - TRIAS `LocationInformationRequest` by rectangle: the home municipality's stops with DHID, name,
+ *   position and locality.
+ * - The network's GTFS feed (`catalogSource.gtfs`): lines and calls per stop, kept to the
+ *   network's pools by route id (`kvv-21-002E-1`).
+ * Joined on the stop's DHID. Also writes `line-days.ts`: the rail and tram lines that do not run
+ * every day; `bay-runs.ts`: which way each rail bay runs; and `bay-positions.ts`: where each one
+ * stands.
  *
  *     npm run refresh:stops
  *
- * Run by hand when the timetable period changes. Requires `unzip`; the archive is 227 MB unpacked
- * (`stop_times.txt` 207 MB), so it is streamed.
+ * Run by hand when the timetable period changes. Requires `unzip` and the requestor ref
+ * (`trias-direct.ts`). The statewide archive is 777 MB unpacked (`stop_times.txt` 706 MB), so it
+ * is streamed.
  */
 
-import { spawn } from "node:child_process";
 import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createInterface } from "node:readline";
+import type { Bounds } from "../src/data/network-scope.ts";
+import { parseTriasLocations, readBay } from "../src/data/trias-parsers.ts";
 import { type BayRun, getTravelAxis, measureBayRun } from "../src/lib/bay-runs.ts";
+import type { CatalogStop } from "../src/networks/network-definition.ts";
+import { network } from "../src/networks/network.ts";
+import { downloadGtfsArchive, readTable } from "./gtfs-archive.ts";
+import { envelope, readRequestorRef, TRIAS_ENDPOINT } from "./trias-direct.ts";
 
-const STOP_LIST_ENDPOINT = "https://projekte.kvv-efa.de/sl3-alone/XML_STOPLIST_REQUEST";
-const GTFS_ARCHIVE_URL = "https://projekte.kvv-efa.de/GTFS/google_transit.zip";
-const OUTPUT_PATH = new URL("../src/data/generated/kvv-stop-catalog.ts", import.meta.url);
-const LINE_DAYS_OUTPUT_PATH = new URL("../src/data/generated/kvv-line-days.ts", import.meta.url);
-const BAY_RUNS_OUTPUT_PATH = new URL("../src/data/generated/kvv-bay-runs.ts", import.meta.url);
-const BAY_POSITIONS_OUTPUT_PATH = new URL(
-  "../src/data/generated/kvv-bay-positions.ts",
-  import.meta.url,
-);
+const { stopIdPrefix, bounds, gtfs } = network.catalogSource;
+const outputPath = (name: string) =>
+  new URL(`../src/networks/${network.id}/generated/${name}`, import.meta.url);
+
 /** GTFS `route_type`s of trams, metros and rail: the lines the maps draw. */
 const RAIL_ROUTE_TYPES = new Set(["0", "1", "2"]);
-/**
- * A line runs on a weekday when it runs on at least this share of that weekday's dates.
- */
+/** A line runs on a weekday when it runs on at least this share of that weekday's dates. */
 const WEEKDAY_SHARE = 0.5;
+const DAY_MS = 86_400_000;
+/** The sweep's tile edge in degrees, and the most stops one tile may answer before it is split. */
+const SWEEP_TILE_DEGREES = 0.02;
+const SWEEP_RESULT_LIMIT = 500;
 
-/** The official municipality key (Gemeindekennziffer). */
-const MUNICIPALITY_OMC = "8212000";
-/** The municipality's global id prefix; GTFS prefixes stations with `P`. */
-const GLOBAL_ID_PREFIX = "de:08212:";
-
-/** One stop's catalog entry; mirrors `KvvCatalogStop`. */
-type CatalogStop = {
-  providerStopId: string;
-  globalId: string;
-  name: string;
-  latitude: number;
-  longitude: number;
-  placeId: string;
-  placeName: string;
-  lineCount: number;
-  callCount: number;
-};
+type Position = { latitude: number; longitude: number };
+type LocatedStop = Omit<CatalogStop, "lineCount" | "callCount">;
 
 async function main(): Promise<void> {
-  const stops = await fetchMunicipalityStops();
-  console.log(`EFA: ${stops.length} stops in municipality ${MUNICIPALITY_OMC}`);
+  const stops = await sweepStops();
+  console.log(`TRIAS: ${stops.length} stops under ${stopIdPrefix}`);
 
   const workingDirectory = await mkdtemp(join(tmpdir(), "karla-gtfs-"));
   try {
-    const archivePath = join(workingDirectory, "google_transit.zip");
-    const feedVersion = await downloadGtfsArchive(archivePath);
+    const archivePath = join(workingDirectory, "gtfs.zip");
+    const feedVersion = await downloadGtfsArchive(gtfs.url, archivePath);
+    const source = `${gtfs.publisher}, ${gtfs.licence}, feed version ${feedVersion}, ${gtfs.url}`;
     console.log(`GTFS: feed version ${feedVersion}`);
 
     const { lineByJourneyRef, serviceIdsByRailLine, railJourneyRefs } =
       await readLinesByJourney(archivePath);
-    console.log(`GTFS: ${lineByJourneyRef.size} trips`);
+    console.log(`GTFS: ${lineByJourneyRef.size} journeys of ${[...network.scope.pools]}`);
 
-    const { runs: bayRuns, positions: bayPositions } = await readBayRuns(
-      archivePath,
-      railJourneyRefs,
-      new Map(stops.map(({ globalId, providerStopId }) => [globalId, providerStopId])),
-    );
-    await writeFile(BAY_RUNS_OUTPUT_PATH, renderBayRunsModule(bayRuns, feedVersion));
-    console.log(`GTFS: runs read for ${bayRuns.size} rail platforms`);
-    await writeFile(BAY_POSITIONS_OUTPUT_PATH, renderBayPositionsModule(bayPositions, feedVersion));
-    console.log(`GTFS: positions read for ${bayPositions.size} rail platforms`);
+    const globalIds = new Set(stops.map(({ globalId }) => globalId));
+    const { runs, positions } = await readBayRuns(archivePath, railJourneyRefs, globalIds);
+    await writeFile(outputPath("bay-runs.ts"), renderBayRunsModule(runs, source));
+    console.log(`GTFS: runs read for ${runs.size} rail bays`);
+    await writeFile(outputPath("bay-positions.ts"), renderBayPositionsModule(positions, source));
+    console.log(`GTFS: positions read for ${positions.size} rail bays`);
 
     const nonDailyLineIds = await readNonDailyLines(archivePath, serviceIdsByRailLine);
-    await writeFile(LINE_DAYS_OUTPUT_PATH, renderLineDaysModule(nonDailyLineIds, feedVersion));
+    await writeFile(outputPath("line-days.ts"), renderLineDaysModule(nonDailyLineIds, source));
     console.log(`GTFS: lines not running every day: ${nonDailyLineIds.join(", ")}`);
 
-    const serviceByGlobalId = await readServiceByStation(archivePath, lineByJourneyRef);
-    console.log(`GTFS: service read for ${serviceByGlobalId.size} stations`);
-
+    const serviceByGlobalId = await readServiceByStop(archivePath, lineByJourneyRef, globalIds);
     const catalog = stops
       .map((stop) => {
         const service = serviceByGlobalId.get(stop.globalId);
-        return {
-          ...stop,
-          lineCount: service?.lines.size ?? 0,
-          callCount: service?.calls ?? 0,
-        };
+        return { ...stop, lineCount: service?.lines.size ?? 0, callCount: service?.calls ?? 0 };
       })
       // By stop number, so refreshes diff by changed stops.
-      .sort((first, second) => catalogSortKey(first) - catalogSortKey(second));
+      .sort((first, second) => compareIds(first.globalId, second.globalId));
 
-    await writeFile(OUTPUT_PATH, renderModule(catalog, feedVersion), "utf8");
+    await writeFile(outputPath("stop-catalog.ts"), renderCatalogModule(catalog, source), "utf8");
     const served = catalog.filter(({ lineCount }) => lineCount > 0).length;
-    console.log(
-      `Wrote ${catalog.length} stops (${served} with scheduled service) to ${OUTPUT_PATH.pathname}`,
-    );
+    console.log(`Wrote ${catalog.length} stops (${served} with scheduled service)`);
   } finally {
     await rm(workingDirectory, { recursive: true, force: true });
   }
 }
 
-/** The operator's stop number from a global id. */
-const catalogSortKey = ({ globalId }: { globalId: string }): number =>
-  Number.parseInt(globalId.slice(GLOBAL_ID_PREFIX.length), 10) || 0;
+const compareIds = (left: string, right: string): number =>
+  left.localeCompare(right, "en", { numeric: true });
+
+/** A stop's DHID from any of its stop points' (`de:08212:1003:1:1`). */
+const toStopId = (stopPointId: string): string => stopPointId.split(":").slice(0, 3).join(":");
+
+// --- Stops: TRIAS by rectangle ---
 
 /**
- * The municipality's stops with their locality. `XML_STOPLIST_REQUEST` only answers in `rapidJSON`;
- * `json` gives HTTP 200 with an empty body.
+ * The municipality's stops, swept tile by tile. A tile answering the most a request may is split,
+ * as it may have cut stops off; an area with no stop answers error `-20100`.
  */
-async function fetchMunicipalityStops(): Promise<Omit<CatalogStop, "lineCount" | "callCount">[]> {
-  const url = new URL(STOP_LIST_ENDPOINT);
-  url.search = new URLSearchParams({
-    outputFormat: "rapidJSON",
-    coordOutputFormat: "WGS84[DD.ddddd]",
-    stopListOMC: MUNICIPALITY_OMC,
-  }).toString();
+async function sweepStops(): Promise<LocatedStop[]> {
+  const requestorRef = readRequestorRef();
+  const byId = new Map<string, LocatedStop>();
+  const tiles: Bounds[] = [];
+  for (let south = bounds.south; south < bounds.north; south += SWEEP_TILE_DEGREES) {
+    for (let west = bounds.west; west < bounds.east; west += SWEEP_TILE_DEGREES) {
+      tiles.push({
+        south,
+        north: Math.min(south + SWEEP_TILE_DEGREES, bounds.north),
+        west,
+        east: Math.min(west + SWEEP_TILE_DEGREES, bounds.east),
+      });
+    }
+  }
+  for (let tile = tiles.pop(); tile; tile = tiles.pop()) {
+    const found = await locateStops(requestorRef, tile);
+    if (found.length >= SWEEP_RESULT_LIMIT) {
+      const latitude = (tile.south + tile.north) / 2;
+      const longitude = (tile.west + tile.east) / 2;
+      tiles.push(
+        { ...tile, north: latitude, east: longitude },
+        { ...tile, north: latitude, west: longitude },
+        { ...tile, south: latitude, east: longitude },
+        { ...tile, south: latitude, west: longitude },
+      );
+      continue;
+    }
+    for (const { providerId, name, placeName, latitude, longitude } of found) {
+      if (!providerId.startsWith(stopIdPrefix) || !placeName) continue;
+      if (latitude === undefined || longitude === undefined) continue;
+      byId.set(providerId, { globalId: providerId, name, latitude, longitude, placeName });
+    }
+  }
+  if (byId.size === 0) throw new Error("TRIAS: no stops found");
+  return [...byId.values()];
+}
 
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`Stop list: HTTP ${response.status}`);
-  const payload = (await response.json()) as {
-    locations?: {
-      id?: string;
-      name?: string;
-      coord?: [number, number];
-      properties?: { stopId?: string };
-      parent?: { id?: string; name?: string };
-    }[];
-  };
-
-  const stops = (payload.locations ?? []).flatMap((location) => {
-    const providerStopId = location.properties?.stopId;
-    const globalId = location.id;
-    const [latitude, longitude] = location.coord ?? [];
-    const placeId = location.parent?.id;
-    const placeName = location.parent?.name;
-    if (!providerStopId || !globalId?.startsWith(GLOBAL_ID_PREFIX)) return [];
-    if (latitude === undefined || longitude === undefined || !placeId || !placeName) return [];
-    return [
-      {
-        providerStopId,
-        globalId,
-        name: location.name ?? "",
-        latitude,
-        longitude,
-        placeId,
-        placeName,
-      },
-    ];
+async function locateStops(requestorRef: string, tile: Bounds) {
+  const payload = `<LocationInformationRequest>
+    <InitialInput><GeoRestriction><Rectangle>
+      <UpperLeft><Longitude>${tile.west}</Longitude><Latitude>${tile.north}</Latitude></UpperLeft>
+      <LowerRight><Longitude>${tile.east}</Longitude><Latitude>${tile.south}</Latitude></LowerRight>
+    </Rectangle></GeoRestriction></InitialInput>
+    <Restrictions><Type>stop</Type><NumberOfResults>${SWEEP_RESULT_LIMIT}</NumberOfResults></Restrictions>
+  </LocationInformationRequest>`;
+  const response = await fetch(TRIAS_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "text/xml" },
+    body: envelope(requestorRef, payload),
+    signal: AbortSignal.timeout(20_000),
   });
-  if (stops.length === 0) throw new Error("Stop list: no stops returned");
-  return stops;
+  if (!response.ok) throw new Error(`TRIAS: HTTP ${response.status}`);
+  try {
+    return parseTriasLocations(await response.text());
+  } catch (error) {
+    if (error instanceof Error && error.message.includes("-20100")) return [];
+    throw error;
+  }
 }
 
-/** Downloads the archive; returns its `feed_version`. */
-async function downloadGtfsArchive(archivePath: string): Promise<string> {
-  const response = await fetch(GTFS_ARCHIVE_URL);
-  if (!response.ok) throw new Error(`GTFS archive: HTTP ${response.status}`);
-  await writeFile(archivePath, Buffer.from(await response.arrayBuffer()));
+// --- Timetable: GTFS ---
 
-  const rows = await readArchiveMember(archivePath, "feed_info.txt", 8);
-  const header = await rows.next();
-  const values = await rows.next();
-  await rows.return?.(undefined);
-  const versionIndex = header.value?.indexOf("feed_version") ?? -1;
-  const version = versionIndex >= 0 ? values.value?.[versionIndex] : undefined;
-  if (!version) throw new Error("GTFS archive: no feed_version");
-  return version;
-}
+/** A route of the network's own pools: GTFS route ids lead with the pool (`kvv-21-002E-1`). */
+const isNetworkRoute = (routeId: string): boolean =>
+  [...network.scope.pools].some((pool) => routeId.startsWith(`${pool}-`));
 
 /**
- * The passenger-facing line name for each journey, and the services each rail line's journeys run
- * on.
+ * The passenger-facing line name for each of the network's journeys, and the services each rail
+ * line's journeys run on.
  */
 async function readLinesByJourney(archivePath: string): Promise<{
   lineByJourneyRef: Map<string, string>;
@@ -187,8 +175,12 @@ async function readLinesByJourney(archivePath: string): Promise<{
 }> {
   const nameByRouteId = new Map<string, string>();
   const railRouteIds = new Set<string>();
-  for await (const [routeId, , shortName, , routeType] of columnsOf(archivePath, "routes.txt", 5)) {
-    if (!routeId || !shortName) continue;
+  for await (const [routeId, shortName, routeType] of readTable(archivePath, "routes.txt", [
+    "route_id",
+    "route_short_name",
+    "route_type",
+  ])) {
+    if (!routeId || !shortName || !isNetworkRoute(routeId)) continue;
     nameByRouteId.set(routeId, shortName);
     if (RAIL_ROUTE_TYPES.has(routeType ?? "")) railRouteIds.add(routeId);
   }
@@ -196,11 +188,11 @@ async function readLinesByJourney(archivePath: string): Promise<{
   const lineByJourneyRef = new Map<string, string>();
   const serviceIdsByRailLine = new Map<string, Set<string>>();
   const railJourneyRefs = new Set<string>();
-  for await (const [routeId = "", serviceId, journeyRef] of columnsOf(
-    archivePath,
-    "trips.txt",
-    3,
-  )) {
+  for await (const [routeId = "", serviceId, journeyRef] of readTable(archivePath, "trips.txt", [
+    "route_id",
+    "service_id",
+    "trip_id",
+  ])) {
     const name = nameByRouteId.get(routeId);
     if (!journeyRef || !name) continue;
     lineByJourneyRef.set(journeyRef, name);
@@ -214,44 +206,41 @@ async function readLinesByJourney(archivePath: string): Promise<{
 }
 
 /** A rail bay of the municipality, and what its journeys state about it. */
-type GtfsBay = {
+type GtfsBay = Position & {
   station: string;
   code: string;
-  latitude: number;
-  longitude: number;
   /** Each journey's neighbouring stations, as an unordered pair. */
   routePairs: Set<string>;
   travel: { x: number; y: number };
 };
 
-type BayPosition = { latitude: number; longitude: number };
-
 /**
- * Which way each rail bay runs, by `providerStopId|bay`: along it and the bays of its station that
- * serve the same through route, else along its journeys. Every direction runs in the timetable, so
- * a pair is measured that a live reading may see only half of. Its position is the mean of the GTFS
- * stops sharing its code.
+ * Which way each rail bay runs, by `DHID|bay`: along it and the bays of its station that serve the
+ * same through route, else along its journeys. Every direction runs in the timetable, so a pair is
+ * measured that a live reading may see only half of. Its position is the mean of the GTFS stop
+ * points sharing its code.
  */
 async function readBayRuns(
   archivePath: string,
   railJourneyRefs: ReadonlySet<string>,
-  providerStopIdByGlobalId: ReadonlyMap<string, string>,
-): Promise<{ runs: Map<string, BayRun>; positions: Map<string, BayPosition> }> {
-  const positionByStopId = new Map<string, { latitude: number; longitude: number }>();
-  const stationByStopId = new Map<string, string>();
-  const bayByStopId = new Map<string, GtfsBay>();
-  for await (const [stopId, , latitude, longitude, , , , parent, , code] of columnsOf(
+  globalIds: ReadonlySet<string>,
+): Promise<{ runs: Map<string, BayRun>; positions: Map<string, Position> }> {
+  const positionByStopPointId = new Map<string, Position>();
+  const bayByStopPointId = new Map<string, GtfsBay>();
+  for await (const [stopPointId, latitude, longitude, platform] of readTable(
     archivePath,
     "stops.txt",
-    10,
+    ["stop_id", "stop_lat", "stop_lon", "platform_code"],
   )) {
-    if (!stopId || !latitude || !longitude) continue;
+    // Signed as the feed's bays are (`Gleis 1(U)`); keyed by the bare code, as rows state it.
+    const code = readBay(platform).code;
+    if (!stopPointId || !latitude || !longitude) continue;
     const position = { latitude: Number(latitude), longitude: Number(longitude) };
-    positionByStopId.set(stopId, position);
-    stationByStopId.set(stopId, parent || stopId);
-    if (!code || !parent?.startsWith(`P${GLOBAL_ID_PREFIX}`)) continue;
-    bayByStopId.set(stopId, {
-      station: parent.slice(1),
+    positionByStopPointId.set(stopPointId, position);
+    const station = toStopId(stopPointId);
+    if (!code || station === stopPointId || !globalIds.has(station)) continue;
+    bayByStopPointId.set(stopPointId, {
+      station,
       code,
       ...position,
       routePairs: new Set(),
@@ -259,16 +248,18 @@ async function readBayRuns(
     });
   }
 
-  const readJourney = (calls: { sequence: number; stopId: string }[]) => {
+  const readJourney = (calls: { sequence: number; stopPointId: string }[]) => {
     calls.sort((left, right) => left.sequence - right.sequence);
     for (let index = 1; index < calls.length - 1; index += 1) {
-      const bay = bayByStopId.get(calls[index].stopId);
-      const previous = calls[index - 1].stopId;
-      const next = calls[index + 1].stopId;
+      const bay = bayByStopPointId.get(calls[index].stopPointId);
       if (!bay) continue;
-      const stations = [previous, next].map((stopId) => stationByStopId.get(stopId) ?? stopId);
+      const previous = calls[index - 1].stopPointId;
+      const next = calls[index + 1].stopPointId;
+      const stations = [toStopId(previous), toStopId(next)];
+      // An operational point no rider can find (`Tullastraße (44)`, a depot track) sets no way.
+      if (stations.some((id) => id.startsWith(stopIdPrefix) && !globalIds.has(id))) continue;
       bay.routePairs.add(stations.sort().join("|"));
-      const [from, to] = [positionByStopId.get(previous), positionByStopId.get(next)];
+      const [from, to] = [positionByStopPointId.get(previous), positionByStopPointId.get(next)];
       if (!from || !to) continue;
       const axis = getTravelAxis(from, to);
       bay.travel.x += axis.x;
@@ -277,30 +268,28 @@ async function readBayRuns(
   };
   // Rows come grouped by journey.
   let journeyRef: string | undefined;
-  let calls: { sequence: number; stopId: string }[] = [];
-  for await (const [rowJourneyRef, , , stopId, sequence] of columnsOf(
+  let calls: { sequence: number; stopPointId: string }[] = [];
+  for await (const [rowJourneyRef, stopPointId, sequence] of readTable(
     archivePath,
     "stop_times.txt",
-    5,
+    ["trip_id", "stop_id", "stop_sequence"],
   )) {
     if (rowJourneyRef !== journeyRef) {
       readJourney(calls);
       journeyRef = rowJourneyRef;
       calls = [];
     }
-    if (rowJourneyRef && stopId && railJourneyRefs.has(rowJourneyRef)) {
-      calls.push({ sequence: Number(sequence), stopId });
+    if (rowJourneyRef && stopPointId && railJourneyRefs.has(rowJourneyRef)) {
+      calls.push({ sequence: Number(sequence), stopPointId });
     }
   }
   readJourney(calls);
 
-  const bays = [...bayByStopId.values()].filter(({ routePairs }) => routePairs.size > 0);
+  const bays = [...bayByStopPointId.values()].filter(({ routePairs }) => routePairs.size > 0);
   const runs = new Map<string, BayRun>();
   const sharingByKey = new Map<string, GtfsBay[]>();
   for (const bay of bays) {
-    const providerStopId = providerStopIdByGlobalId.get(bay.station);
-    if (!providerStopId) continue;
-    const key = `${providerStopId}|${bay.code}`;
+    const key = `${bay.station}|${bay.code}`;
     sharingByKey.set(key, [...(sharingByKey.get(key) ?? []), bay]);
     const partners = bays.filter(
       (other) =>
@@ -328,60 +317,18 @@ async function readBayRuns(
   return { runs, positions };
 }
 
-function renderBayPositionsModule(
-  positions: ReadonlyMap<string, BayPosition>,
-  feedVersion: string,
-): string {
-  const rows = [...positions]
-    .sort(([left], [right]) => left.localeCompare(right, "en", { numeric: true }))
-    .map(
-      ([key, { latitude, longitude }]) =>
-        `  [${JSON.stringify(key)}, ${latitude.toFixed(6)}, ${longitude.toFixed(6)}],`,
-    )
-    .join("\n");
-  return `// Generated by scripts/refresh-stop-catalog.ts — do not edit by hand.
-//
-// KVV GTFS feed version ${feedVersion} (CC0), https://projekte.kvv-efa.de/GTFS/google_transit.zip
-//
-// Refresh with: npm run refresh:stops
-
-type BayPositionRow = [key: string, latitude: number, longitude: number];
-
-const rows: readonly BayPositionRow[] = [
-${rows}
-];
-
-/** Where each rail bay stands, by \`providerStopPointId|bay\`. */
-export const kvvBayPositionByKey: ReadonlyMap<
-  string,
-  { latitude: number; longitude: number }
-> = new Map(rows.map(([key, latitude, longitude]) => [key, { latitude, longitude }]));
-`;
-}
-
-function renderBayRunsModule(runs: ReadonlyMap<string, BayRun>, feedVersion: string): string {
-  const rows = [...runs]
-    .sort(([left], [right]) => left.localeCompare(right, "en", { numeric: true }))
-    .map(([key, run]) => `  [${JSON.stringify(key)}, ${JSON.stringify(run)}],`)
-    .join("\n");
-  return `// Generated by scripts/refresh-stop-catalog.ts — do not edit by hand.
-//
-// KVV GTFS feed version ${feedVersion} (CC0), https://projekte.kvv-efa.de/GTFS/google_transit.zip
-//
-// Refresh with: npm run refresh:stops
-
-import type { BayRun } from "../../lib/bay-runs";
-
-/** Which way each rail bay runs, by \`providerStopPointId|bay\`. */
-export const kvvBayRunByKey: ReadonlyMap<string, BayRun> = new Map<string, BayRun>([
-${rows}
-]);
-`;
-}
-
-const DAY_MS = 86_400_000;
 const parseGtfsDate = (value: string): number =>
   Date.UTC(Number(value.slice(0, 4)), Number(value.slice(4, 6)) - 1, Number(value.slice(6, 8)));
+
+const WEEKDAY_COLUMNS = [
+  "monday",
+  "tuesday",
+  "wednesday",
+  "thursday",
+  "friday",
+  "saturday",
+  "sunday",
+] as const;
 
 /**
  * The rail lines that miss a weekday: on fewer than `WEEKDAY_SHARE` of that weekday's dates in the
@@ -391,22 +338,32 @@ async function readNonDailyLines(
   archivePath: string,
   serviceIdsByLine: ReadonlyMap<string, ReadonlySet<string>>,
 ): Promise<string[]> {
+  const wanted = new Set([...serviceIdsByLine.values()].flatMap((ids) => [...ids]));
   const datesByServiceId = new Map<string, Set<number>>();
   let [periodStart, periodEnd] = [Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY];
-  for await (const [serviceId, ...fields] of columnsOf(archivePath, "calendar.txt", 10)) {
-    const [start, end] = [fields[7], fields[8]];
+  for await (const [serviceId, start, end, ...weekdays] of readTable(archivePath, "calendar.txt", [
+    "service_id",
+    "start_date",
+    "end_date",
+    ...WEEKDAY_COLUMNS,
+  ])) {
     if (!serviceId || !start || !end) continue;
+    periodStart = Math.min(periodStart, parseGtfsDate(start));
+    periodEnd = Math.max(periodEnd, parseGtfsDate(end));
+    if (!wanted.has(serviceId)) continue;
     const dates = new Set<number>();
     for (let day = parseGtfsDate(start); day <= parseGtfsDate(end); day += DAY_MS) {
       // `monday` comes first; `getUTCDay` counts from Sunday.
-      if (fields[(new Date(day).getUTCDay() + 6) % 7] === "1") dates.add(day);
+      if (weekdays[(new Date(day).getUTCDay() + 6) % 7] === "1") dates.add(day);
     }
     datesByServiceId.set(serviceId, dates);
-    periodStart = Math.min(periodStart, parseGtfsDate(start));
-    periodEnd = Math.max(periodEnd, parseGtfsDate(end));
   }
-  for await (const [serviceId, date, type] of columnsOf(archivePath, "calendar_dates.txt", 3)) {
-    if (!serviceId || !date) continue;
+  for await (const [serviceId, date, type] of readTable(archivePath, "calendar_dates.txt", [
+    "service_id",
+    "date",
+    "exception_type",
+  ])) {
+    if (!serviceId || !date || !wanted.has(serviceId)) continue;
     const dates = datesByServiceId.get(serviceId) ?? new Set<number>();
     datesByServiceId.set(serviceId, dates);
     if (type === "1") dates.add(parseGtfsDate(date));
@@ -432,26 +389,22 @@ async function readNonDailyLines(
 }
 
 /**
- * Distinct lines and calls per parent station. Calls count over the feed period (a ranking, not a
+ * Distinct lines and calls per stop. Calls count over the feed period (a ranking, not a
  * frequency).
  */
-async function readServiceByStation(
+async function readServiceByStop(
   archivePath: string,
   lineByJourneyRef: ReadonlyMap<string, string>,
+  globalIds: ReadonlySet<string>,
 ): Promise<Map<string, { lines: Set<string>; calls: number }>> {
-  const stationByBayId = new Map<string, string>();
-  for await (const [stopId, , , , , , , parentStation] of columnsOf(archivePath, "stops.txt", 8)) {
-    // GTFS's station `Pde:08212:1011` is EFA's `de:08212:1011`.
-    if (stopId?.startsWith(GLOBAL_ID_PREFIX) && parentStation?.startsWith(`P${GLOBAL_ID_PREFIX}`)) {
-      stationByBayId.set(stopId, parentStation.slice(1));
-    }
-  }
-
   const serviceByGlobalId = new Map<string, { lines: Set<string>; calls: number }>();
-  for await (const [journeyRef, , , stopId] of columnsOf(archivePath, "stop_times.txt", 4)) {
-    const globalId = stationByBayId.get(stopId ?? "");
+  for await (const [journeyRef, stopPointId] of readTable(archivePath, "stop_times.txt", [
+    "trip_id",
+    "stop_id",
+  ])) {
+    const globalId = stopPointId && toStopId(stopPointId);
     const line = lineByJourneyRef.get(journeyRef ?? "");
-    if (!globalId || !line) continue;
+    if (!globalId || !line || !globalIds.has(globalId)) continue;
     const service = serviceByGlobalId.get(globalId) ?? { lines: new Set<string>(), calls: 0 };
     service.lines.add(line);
     service.calls += 1;
@@ -460,148 +413,85 @@ async function readServiceByStation(
   return serviceByGlobalId;
 }
 
-/** One archive member's rows, header skipped, cut to the needed columns. */
-async function* columnsOf(
-  archivePath: string,
-  member: string,
-  fieldCount: number,
-): AsyncGenerator<(string | undefined)[]> {
-  const rows = readArchiveMember(archivePath, member, fieldCount);
-  await rows.next();
-  yield* rows;
-}
+// --- Modules ---
 
-/**
- * One archive member streamed via `unzip -p` as quoted CSV; only the leading `fieldCount` fields
- * parsed.
- */
-async function* readArchiveMember(
-  archivePath: string,
-  member: string,
-  fieldCount: number,
-): AsyncGenerator<(string | undefined)[]> {
-  const unzip = spawn("unzip", ["-p", archivePath, member], { stdio: ["ignore", "pipe", "pipe"] });
-  const failure = new Promise<never>((_, reject) => {
-    unzip.on("error", (error: Error) => reject(new Error(`unzip ${member}: ${error.message}`)));
-    unzip.on(
-      "close",
-      (code: number | null) => code && reject(new Error(`unzip ${member}: exited ${code}`)),
-    );
-  });
-  failure.catch(() => {});
-
-  try {
-    for await (const line of createInterface({ input: unzip.stdout, crlfDelay: Infinity })) {
-      // Every member starts with a BOM.
-      if (line) yield readFields(line.charCodeAt(0) === 0xfeff ? line.slice(1) : line, fieldCount);
-    }
-    await Promise.race([failure, Promise.resolve()]);
-  } finally {
-    unzip.kill();
-  }
-}
-
-/** The leading fields of a CSV row; quotes escape by doubling. */
-function readFields(line: string, fieldCount: number): (string | undefined)[] {
-  const fields: (string | undefined)[] = [];
-  let index = 0;
-  while (fields.length < fieldCount && index <= line.length) {
-    if (line[index] === '"') {
-      let value = "";
-      index += 1;
-      while (index < line.length) {
-        if (line[index] !== '"') {
-          value += line[index];
-          index += 1;
-        } else if (line[index + 1] === '"') {
-          value += '"';
-          index += 2;
-        } else {
-          break;
-        }
-      }
-      fields.push(value);
-      index += 2;
-    } else {
-      const end = line.indexOf(",", index);
-      const value = line.slice(index, end === -1 ? undefined : end);
-      fields.push(value || undefined);
-      if (end === -1) break;
-      index = end + 1;
-    }
-  }
-  return fields;
-}
-
-function renderLineDaysModule(nonDailyLineIds: readonly string[], feedVersion: string): string {
-  return `// Generated by scripts/refresh-stop-catalog.ts — do not edit by hand.
+const header = (
+  sources: string,
+) => `// Generated by scripts/refresh-stop-catalog.ts — do not edit by hand.
 //
-// KVV GTFS feed version ${feedVersion} (CC0), https://projekte.kvv-efa.de/GTFS/google_transit.zip
+${sources}
 //
 // Refresh with: npm run refresh:stops
+`;
 
+function renderBayPositionsModule(
+  positions: ReadonlyMap<string, Position>,
+  source: string,
+): string {
+  const rows = [...positions]
+    .sort(([left], [right]) => compareIds(left, right))
+    .map(
+      ([key, { latitude, longitude }]) =>
+        `  [${JSON.stringify(key)}, ${latitude.toFixed(6)}, ${longitude.toFixed(6)}],`,
+    )
+    .join("\n");
+  return `${header(`// Timetable: ${source}`)}
+type BayPositionRow = [key: string, latitude: number, longitude: number];
+
+const rows: readonly BayPositionRow[] = [
+${rows}
+];
+
+/** Where each rail bay stands, by \`DHID|bay\`. */
+export const bayPositionByKey: ReadonlyMap<
+  string,
+  { latitude: number; longitude: number }
+> = new Map(rows.map(([key, latitude, longitude]) => [key, { latitude, longitude }]));
+`;
+}
+
+function renderBayRunsModule(runs: ReadonlyMap<string, BayRun>, source: string): string {
+  const rows = [...runs]
+    .sort(([left], [right]) => compareIds(left, right))
+    .map(([key, run]) => `  [${JSON.stringify(key)}, ${JSON.stringify(run)}],`)
+    .join("\n");
+  return `${header(`// Timetable: ${source}`)}
+import type { BayRun } from "../../../lib/bay-runs";
+
+/** Which way each rail bay runs, by \`DHID|bay\`. */
+export const bayRunByKey: ReadonlyMap<string, BayRun> = new Map<string, BayRun>([
+${rows}
+]);
+`;
+}
+
+function renderLineDaysModule(nonDailyLineIds: readonly string[], source: string): string {
+  return `${header(`// Timetable: ${source}`)}
 /**
  * Rail and tram lines that miss a weekday in the timetable period: weekday-only, weekend-only,
  * night and leisure lines. A line not named here runs every day.
  */
-export const kvvNonDailyLineIds: ReadonlySet<string> = new Set(${JSON.stringify(nonDailyLineIds).replaceAll(",", ", ")});
+export const nonDailyLineIds: ReadonlySet<string> = new Set(${JSON.stringify(nonDailyLineIds).replaceAll(",", ", ")});
 `;
 }
 
-/** The generated module, one row per stop for clean diffs. */
-function renderModule(catalog: readonly CatalogStop[], feedVersion: string): string {
+/** The catalog, one row per stop for clean diffs. */
+function renderCatalogModule(catalog: readonly CatalogStop[], source: string): string {
   const rows = catalog
     .map(
-      ({
-        providerStopId,
-        globalId,
-        name,
-        latitude,
-        longitude,
-        placeId,
-        placeName,
-        lineCount,
-        callCount,
-      }) =>
-        `  [${JSON.stringify(providerStopId)}, ${JSON.stringify(globalId)}, ${JSON.stringify(name)}, ` +
-        `${latitude}, ${longitude}, ${JSON.stringify(placeId)}, ${JSON.stringify(placeName)}, ` +
-        `${lineCount}, ${callCount}],`,
+      ({ globalId, name, latitude, longitude, placeName, lineCount, callCount }) =>
+        `  [${JSON.stringify(globalId)}, ${JSON.stringify(name)}, ${latitude}, ${longitude}, ` +
+        `${JSON.stringify(placeName)}, ${lineCount}, ${callCount}],`,
     )
     .join("\n");
-
-  return `// Generated by scripts/refresh-stop-catalog.ts — do not edit by hand.
-//
-// Stops: EFA XML_STOPLIST_REQUEST, municipality ${MUNICIPALITY_OMC}.
-// Service: KVV GTFS feed version ${feedVersion} (CC0), https://projekte.kvv-efa.de/GTFS/google_transit.zip
-//
-// Refresh with: npm run refresh:stops
-
-/** What the timetable states about one stop of the municipality. */
-export type KvvCatalogStop = {
-  /** The EFA stop id boards are requested with, as \`kvv-stop-mappings.ts\` states it. */
-  providerStopId: string;
-  /** The stop's national id, which is how the two sources above are joined. */
-  globalId: string;
-  /** The operator's name for the stop, without its municipality. */
-  name: string;
-  latitude: number;
-  longitude: number;
-  /** The locality within the municipality: Karlsruhe itself, or a district such as Durlach. */
-  placeId: string;
-  placeName: string;
-  /** Distinct lines calling here in the timetable period. Zero where the period schedules none. */
-  lineCount: number;
-  /** Calls here in the timetable period. Ranks stops against each other; it is not a frequency. */
-  callCount: number;
-};
+  return `${header(`// Stops: TRIAS LocationInformationRequest, ${stopIdPrefix}*.\n// Service: ${source}`)}
+import type { CatalogStop } from "../../network-definition";
 
 type CatalogRow = [
-  providerStopId: string,
   globalId: string,
   name: string,
   latitude: number,
   longitude: number,
-  placeId: string,
   placeName: string,
   lineCount: number,
   callCount: number,
@@ -611,25 +501,23 @@ const rows: readonly CatalogRow[] = [
 ${rows}
 ];
 
-export const kvvStopCatalog: readonly KvvCatalogStop[] = rows.map(
-  ([providerStopId, globalId, name, latitude, longitude, placeId, placeName, lineCount, callCount]) => ({
-    providerStopId,
+export const stopCatalog: readonly CatalogStop[] = rows.map(
+  ([globalId, name, latitude, longitude, placeName, lineCount, callCount]) => ({
     globalId,
     name,
     latitude,
     longitude,
-    placeId,
     placeName,
     lineCount,
     callCount,
   }),
 );
 
-const catalogByProviderStopId = new Map(kvvStopCatalog.map((stop) => [stop.providerStopId, stop]));
+const catalogByGlobalId = new Map(stopCatalog.map((stop) => [stop.globalId, stop]));
 
-/** The catalog entry for an EFA stop id, or undefined for a stop outside the municipality. */
-export const findCatalogStop = (providerStopId: string): KvvCatalogStop | undefined =>
-  catalogByProviderStopId.get(providerStopId);
+/** The catalog entry for a stop's DHID, or undefined for a stop outside the municipality. */
+export const findCatalogStop = (globalId: string): CatalogStop | undefined =>
+  catalogByGlobalId.get(globalId);
 `;
 }
 

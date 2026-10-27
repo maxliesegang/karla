@@ -1,7 +1,7 @@
 /**
  * Solves the region plan: the observed network reduced to places and junctions
  * (`src/lib/region-plan.ts`), laid out octilinearly, written to
- * `src/data/generated/region-plan.ts`.
+ * `src/networks/kvv/generated/region-plan.ts`.
  *
  *     npm run solve:region -- [--from <file>] [--add] [--grid 20] [--gap 1.5] [--out <file>]
  *
@@ -11,9 +11,11 @@
  */
 
 import { existsSync, readFileSync, writeFileSync } from "node:fs";
-import { findCatalogStop } from "../src/data/generated/kvv-stop-catalog.ts";
-import { KvvEfaClient } from "../src/data/kvv-efa-client.ts";
-import { kvvStopMappingByLocalStopId } from "../src/data/kvv-stop-mappings.ts";
+import { findCatalogStop } from "../src/networks/kvv/generated/stop-catalog.ts";
+import { DEFAULT_TRIAS_PROXY_URL } from "../src/data/trias-proxy.ts";
+import { TriasClient } from "../src/data/trias-client.ts";
+import { fetchStopPlaceBoard } from "../src/data/feed.ts";
+import { kvvStopPlaces } from "../src/networks/kvv/stop-places.ts";
 import { StopRegistry } from "../src/data/stop-registry.ts";
 import type { StopEvent } from "../src/data/transit-types.ts";
 import { runsEveryDay } from "../src/lib/daily-lines.ts";
@@ -45,7 +47,7 @@ import {
 import { chooseLabelSide } from "./octilinear-layout.ts";
 
 const OBSERVATIONS_PATH = "scripts/region-plan-observations.json";
-const OUTPUT_PATH = "src/data/generated/region-plan.ts";
+const OUTPUT_PATH = "src/networks/kvv/generated/region-plan.ts";
 /**
  * The ways the region may shrink with distance: a smooth fisheye; the Zentrum, the city and the
  * rest as zones; or the same city with straight arms beyond it.
@@ -88,13 +90,13 @@ const readOption = (flag: string): string | undefined => {
  */
 async function observe(): Promise<GeoNetwork> {
   const registry = new StopRegistry([]);
-  const client = new KvvEfaClient();
+  const client = new TriasClient({ proxyUrl: DEFAULT_TRIAS_PROXY_URL });
   const stopEvents: StopEvent[] = [];
   for (const stopId of [...ZENTRUM_OBSERVATION_POST_STOP_IDS, ...REACH_OBSERVATION_POST_STOP_IDS]) {
-    const mapping = kvvStopMappingByLocalStopId[stopId];
-    if (!mapping) continue;
+    const stopPlace = kvvStopPlaces[stopId];
+    if (!stopPlace) continue;
     try {
-      const board = await client.fetchStopEventBoard(mapping.providerStopId, {
+      const board = await fetchStopPlaceBoard(client, stopPlace.stopPoints, {
         limit: 60,
         includeCalls: true,
       });
@@ -293,7 +295,7 @@ function formatPlans(
 //
 // Refresh with: npm run solve:region
 
-import type { RegionPlan, RegionScaleName } from "../../lib/region-plan";
+import type { RegionPlan, RegionScaleName } from "../../../lib/region-plan";
 
 export const REGION_PLANS: Record<RegionScaleName, RegionPlan> = ${JSON.stringify(plans, null, 2)};
 `;

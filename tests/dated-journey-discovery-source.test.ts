@@ -1,21 +1,28 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
-import { KvvEfaClient } from "../src/data/kvv-efa-client.ts";
-import { parseStopEventBoardResponse, parseTripInfoResponse } from "../src/data/kvv-efa-parsers.ts";
-import { KvvTransitSource } from "../src/data/transit-source.ts";
-import type { KvvJourneyLocator } from "../src/data/kvv-feed.ts";
+import type {
+  Feed,
+  JourneyLocator,
+  FeedStopEvent,
+  FeedStopEventBoard,
+  FeedTripInfo,
+} from "../src/data/feed.ts";
+import { TriasTransitSource } from "../src/data/transit-source.ts";
 
 test("tomorrow's reused S7 code never replaces or refreshes today's active run", async (t) => {
-  const fixture = JSON.parse(
-    readFileSync(new URL("./support/s7-date-reuse.json", import.meta.url), "utf8"),
-  );
+  // Recorded 7 October 2026: today's departure at Gottesauer Platz, tomorrow's arrival at the
+  // Pyramide under the same journey code, and tomorrow's trip.
+  const fixture: {
+    today: FeedStopEventBoard;
+    tomorrow: FeedStopEventBoard;
+    tomorrowTripInfo: FeedTripInfo;
+  } = JSON.parse(readFileSync(new URL("./support/s7-date-reuse.json", import.meta.url), "utf8"));
   let now = Date.parse("2026-10-07T13:42:45Z");
   t.mock.method(Date, "now", () => now);
-  const today = parseStopEventBoardResponse(fixture[14], "7000006");
-  const tomorrow = parseStopEventBoardResponse(fixture[340], "7001011", "arrival");
-  const requests: KvvJourneyLocator[] = [];
-  const client = new KvvEfaClient();
+  const { today, tomorrow } = fixture;
+  const requests: JourneyLocator[] = [];
+  const client = {} as Feed;
   client.fetchStopEventBoard = async (_stop, options) => {
     if (options?.eventKind === "arrival") {
       now += 1_000;
@@ -26,10 +33,10 @@ test("tomorrow's reused S7 code never replaces or refreshes today's active run",
   client.fetchTripInfo = async (locator) => {
     requests.push(locator);
     return locator.date === "20261008"
-      ? parseTripInfoResponse(fixture[363], locator)
+      ? fixture.tomorrowTripInfo
       : { serverTime: new Date(now).toISOString(), calls: today.stopEvents[0].calls ?? [] };
   };
-  const source = new KvvTransitSource(client);
+  const source = new TriasTransitSource(client);
   const board = await source.getStopEventBoard("gottesauer-platz");
   const active = board.stopEvents[0];
   const discovery = await source.getDatedJourneyDiscoveryReading(
@@ -64,101 +71,90 @@ test("tomorrow's reused S7 code never replaces or refreshes today's active run",
   assert.ok(requests.every((request) => request.date === "20261007"));
 });
 
-const at = { year: "2026", month: "10", day: "5", hour: "14", minute: "02" };
-const row = {
-  stopID: "7000064",
-  nameWO: "Arbeitsagentur",
-  countdown: "2",
-  dateTime: at,
-  platform: "2",
-  x: "8.431542",
-  y: "49.007335",
-  servingLine: {
-    key: "10",
-    symbol: "6",
-    number: "6",
-    direction: "Arbeitsagentur",
-    motType: "4",
-    stateless: "kvv:21006:E:H:s26",
-  },
-  attrs: [{ name: "RealtimeTripId", value: "six-inbound" }],
-  prevStopSeq: {
-    nameWO: "ZKM",
-    ref: { id: "7000065", depDateTimeSec: "20261005 14:00:00", depValid: "1" },
-  },
+/** Line 6 at Arbeitsagentur, its terminus: in from ZKM at 14:02, out again at 14:03. */
+const locator = (time: string): JourneyLocator => ({
+  journeyCode: "10",
+  lineRef: "kvv:21006:E:H:s26",
+  stopPointId: "de:08212:64",
+  date: "20261005",
+  time,
+});
+
+const sixRow = (eventKind: "arrival" | "departure"): FeedStopEvent => {
+  const time = eventKind === "arrival" ? "2026-10-05T12:02:00.000Z" : "2026-10-05T12:03:00.000Z";
+  return {
+    stopPointId: "de:08212:64",
+    stopPointName: "Arbeitsagentur",
+    journeyRef: "six-inbound",
+    datedJourneyId: "six-inbound@2026-10-05T12:00",
+    lineId: "6",
+    lineRef: "kvv:21006:E:H:s26",
+    ptMode: "tram",
+    destinationText: "Arbeitsagentur",
+    minutesUntilDeparture: eventKind === "arrival" ? 2 : 3,
+    bay: "2",
+    status: "scheduled",
+    timetabledDepartureTime: time,
+    journeyLocator: locator(eventKind === "arrival" ? "1402" : "1403"),
+    calls: [
+      {
+        stopName: "ZKM",
+        providerId: "de:08212:65",
+        timetabledDepartureTime: "2026-10-05T12:00:00.000Z",
+      },
+      {
+        stopName: "Arbeitsagentur",
+        bay: "2",
+        providerId: "de:08212:64",
+        isThisCall: true,
+        ...(eventKind === "arrival"
+          ? { timetabledArrivalTime: time }
+          : { timetabledDepartureTime: time }),
+      },
+    ],
+  };
 };
 
-test("arrival parsing accepts array and singleton rows without inventing a departure at the terminus", () => {
-  for (const arrivalList of [[row], row]) {
-    const parsed = parseStopEventBoardResponse(
-      { parameters: [{ name: "serverTime", value: "2026-10-05T14:00:00" }], arrivalList },
-      "7000064",
-      "arrival",
-    );
-    assert.equal(parsed.stopEvents.length, 1);
-    const final = parsed.stopEvents[0].calls?.at(-1);
-    assert.equal(final?.timetabledArrivalTime, "2026-10-05T12:02:00.000Z");
-    assert.equal(final?.timetabledDepartureTime, undefined);
-    assert.equal(final?.latitude, 49.007335);
-    assert.equal(final?.longitude, 8.431542);
-  }
-  for (const arrivalList of [undefined, null, {}, [null, { servingLine: {} }]])
-    assert.equal(
-      parseStopEventBoardResponse(
-        { parameters: [{ name: "serverTime", value: "2026-10-05T14:00:00" }], arrivalList },
-        "7000064",
-        "arrival",
-      ).stopEvents.length,
-      0,
-    );
-  assert.equal(
-    parseStopEventBoardResponse(
-      { parameters: [{ name: "serverTime", value: "2026-10-05T14:00:00" }], departureList: [row] },
-      "7000064",
-      "arrival",
-    ).stopEvents.length,
-    0,
-  );
+const sixTripInfo: FeedTripInfo = {
+  serverTime: "2026-10-05T12:00:00.000Z",
+  calls: [
+    {
+      stopName: "ZKM",
+      providerId: "de:08212:65",
+      timetabledDepartureTime: "2026-10-05T12:00:00.000Z",
+    },
+    {
+      stopName: "Arbeitsagentur",
+      providerId: "de:08212:64",
+      isThisCall: true,
+      timetabledArrivalTime: "2026-10-05T12:02:00.000Z",
+      timetabledDepartureTime: "2026-10-05T12:03:00.000Z",
+    },
+  ],
+};
+
+const board = (stopPointId: string, stopEvents: FeedStopEvent[]): FeedStopEventBoard => ({
+  stopPointId,
+  stopName: "Arbeitsagentur",
+  serverTime: "2026-10-05T12:00:00.000Z",
+  stopEvents,
 });
 
 test("arrival discovery shares one trip read with departure discovery and never answers a passenger board", async (t) => {
   t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-10-05T12:00:00Z") });
   let journeyReads = 0;
-  const requested: URL[] = [];
-  const client = new KvvEfaClient({
-    fetchFn: async (input) => {
-      const url = new URL(String(input));
-      requested.push(url);
-      if (url.pathname.endsWith("XML_TRIPSTOPTIMES_REQUEST")) {
-        journeyReads += 1;
-        return Response.json({
-          parameters: [{ name: "serverTime", value: "2026-10-05T14:00:00" }],
-          vehicleCallAtStop: { tC: "10", line: "kvv:21006:E:H:s26", stopID: "7000064" },
-          stopSeq: [
-            row.prevStopSeq,
-            {
-              nameWO: "Arbeitsagentur",
-              ref: {
-                id: "7000064",
-                arrDateTimeSec: "20261005 14:02:00",
-                depDateTimeSec: "20261005 14:03:00",
-                arrValid: "1",
-                depValid: "1",
-              },
-            },
-          ],
-        });
-      }
-      const arrival = url.searchParams.get("itdDateTimeDepArr") === "arr";
-      return Response.json({
-        parameters: [{ name: "serverTime", value: "2026-10-05T14:00:00" }],
-        [arrival ? "arrivalList" : "departureList"]: [
-          arrival ? row : { ...row, dateTime: { ...at, minute: "03" }, countdown: "3" },
-        ],
-      });
+  const eventKinds: (string | undefined)[] = [];
+  const client = {
+    fetchStopEventBoard: async (stopPointId, options) => {
+      eventKinds.push(options?.eventKind);
+      return board(stopPointId, [sixRow(options?.eventKind ?? "departure")]);
     },
-  });
-  const source = new KvvTransitSource(client);
+    fetchTripInfo: async () => {
+      journeyReads += 1;
+      return sixTripInfo;
+    },
+  } satisfies Partial<Feed> as unknown as Feed;
+  const source = new TriasTransitSource(client);
   const reading = await source.getDatedJourneyDiscoveryReading(
     [
       { stopId: "arbeitsagentur", eventKind: "arrival" },
@@ -172,84 +168,49 @@ test("arrival discovery shares one trip read with departure discovery and never 
   const stopEvents = await source.getStopEventBoard("arbeitsagentur");
   assert.equal(stopEvents.stopEvents[0].timetabledDepartureTime, "2026-10-05T12:03:00.000Z");
   assert.ok(!stopEvents.stopEvents[0].id.startsWith("arrival:"));
-  assert.ok(requested.some((url) => url.searchParams.get("itdDateTimeDepArr") === "arr"));
+  assert.ok(eventKinds.includes("arrival"));
 });
 
-test("a crowded board discovers a rail direction named only in serving metadata", async (t) => {
+test("a crowded board discovers a rail direction known only from runs read elsewhere", async (t) => {
   t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-10-05T12:00:00Z") });
   const sparseDirection = "kvv:22304:E:H:s26";
-  const requests: URL[] = [];
-  const client = new KvvEfaClient({
-    fetchFn: async (input) => {
-      const url = new URL(String(input));
-      requests.push(url);
-      if (url.pathname.endsWith("XML_TRIPSTOPTIMES_REQUEST"))
-        return Response.json({
-          parameters: [{ name: "serverTime", value: "2026-10-05T14:00:00" }],
-          vehicleCallAtStop: {
-            tC: url.searchParams.get("tripCode"),
-            line: url.searchParams.get("line"),
-            stopID: "7000064",
-          },
-          stopSeq: [
-            row.prevStopSeq,
-            {
-              nameWO: "Arbeitsagentur",
-              ref: {
-                id: "7000064",
-                arrDateTimeSec: "20261005 14:02:00",
-                arrValid: "1",
-                depValid: "0",
-              },
-            },
-          ],
-        });
-      const onlySparse =
-        url.searchParams.getAll("line").length === 1 &&
-        url.searchParams.get("line") === sparseDirection;
-      return Response.json({
-        parameters: [{ name: "serverTime", value: "2026-10-05T14:00:00" }],
-        servingLines: {
-          lines: [
-            { mode: { type: "4", number: "6", diva: { stateless: row.servingLine.stateless } } },
-            { mode: { type: "1", number: "S4", diva: { stateless: sparseDirection } } },
-          ],
-        },
-        departureList: onlySparse
-          ? [
-              {
-                ...row,
-                servingLine: {
-                  ...row.servingLine,
-                  key: "11",
-                  symbol: "S4",
-                  number: "S4",
-                  motType: "1",
-                  stateless: sparseDirection,
-                },
-                attrs: [],
-              },
-            ]
-          : Array.from({ length: 20 }, () => row),
-      });
+  const s4Row: FeedStopEvent = {
+    ...sixRow("departure"),
+    journeyRef: "s4",
+    datedJourneyId: undefined,
+    lineId: "S4",
+    lineRef: sparseDirection,
+    ptMode: "lightRail",
+    journeyLocator: { ...locator("1403"), journeyCode: "11", lineRef: sparseDirection },
+  };
+  const requests: { stopPointId: string; lineIds?: readonly string[]; limit?: number }[] = [];
+  const client = {
+    fetchStopEventBoard: async (stopPointId, options = {}) => {
+      // ZKM's board carries an S4 calling on at Arbeitsagentur.
+      if (stopPointId === "de:08212:65") return board(stopPointId, [s4Row]);
+      requests.push({ stopPointId, lineIds: options.lineIds, limit: options.limit });
+      const onlySparse = options.lineIds?.length === 1 && options.lineIds[0] === sparseDirection;
+      return board(
+        stopPointId,
+        onlySparse ? [s4Row] : Array.from({ length: 20 }, () => sixRow("departure")),
+      );
     },
-  });
-  const source = new KvvTransitSource(client);
+    fetchTripInfo: async () => ({
+      ...sixTripInfo,
+      calls: sixTripInfo.calls.map((call) =>
+        call.isThisCall ? { ...call, timetabledDepartureTime: undefined } : call,
+      ),
+    }),
+  } satisfies Partial<Feed> as unknown as Feed;
+  const source = new TriasTransitSource(client);
+  await source.getStopEventBoard("zkm", { includeCalls: true });
   const reading = await source.getDatedJourneyDiscoveryReading(
     [{ stopId: "arbeitsagentur", eventKind: "departure" }],
     { maxAgeMs: 0, datedJourneyMaxAgeMs: 0, topologyMaxAgeMs: 0, horizonMs: 110_000 },
   );
   assert.ok(
-    requests.some(
-      (url) =>
-        url.searchParams.getAll("line").length === 1 &&
-        url.searchParams.get("line") === sparseDirection,
-    ),
+    requests.some(({ lineIds }) => lineIds?.length === 1 && lineIds[0] === sparseDirection),
   );
   assert.ok(reading.datedJourneyStopEvents.some((datedJourney) => datedJourney.lineId === "S4"));
-  assert.ok(
-    requests
-      .filter((url) => url.pathname.endsWith("XSLT_DM_REQUEST"))
-      .every((url) => url.searchParams.get("limit") === "20"),
-  );
+  assert.ok(requests.filter(({ lineIds }) => !lineIds).every(({ limit }) => limit === 20));
 });

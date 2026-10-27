@@ -17,7 +17,11 @@ import {
   type LineObservationBoard,
   type LineObservations,
 } from "../lib/line-observation";
-import { getLineSelectionIds, type LineSelection } from "../lib/line-bundles";
+import {
+  getLineSelectionIds,
+  getSelectedLineIdentity,
+  type LineSelection,
+} from "../lib/line-bundles";
 import {
   LINE_OBSERVATION_REFRESH_MS,
   useStopEventBoardCollection,
@@ -118,7 +122,10 @@ export function useLineObservation({
   evidenceBoards: readonly LineObservationBoard[];
   isEnabled?: boolean;
 }): LineObservationReading {
-  const key = getLineSelectionIds(selection).slice().sort().join(",");
+  const key = getLineSelectionIds(selection)
+    .map((lineId) => `${lineId}@${getSelectedLineIdentity(selection, lineId) ?? ""}`)
+    .sort()
+    .join(",");
   const [state, setState] = useState<{ key: string; observations: LineObservations }>(() => ({
     key,
     observations: seedLineObservations(selection, lines, recallLineObservation),
@@ -171,9 +178,9 @@ export function useLineObservation({
   // Stored for the next visit, so in an effect.
   useEffect(() => {
     for (const [lineId, observation] of state.observations) {
-      rememberLineObservation(lineId, observation);
+      rememberLineObservation(lineId, observation, getSelectedLineIdentity(selection, lineId));
     }
-  }, [state.observations]);
+  }, [selection, state.observations]);
 
   return { boards, isReading: coverage.status === "loading" };
 }

@@ -1,5 +1,6 @@
 import type { StopEvent, Call } from "../data/transit-types";
-import { getLineFamilyId, isSameLineFamily } from "./line-families";
+import { getLineFamilyId } from "./line-families";
+import { getLineIdentity, isSameLine } from "./line-identity";
 import {
   getCallKey,
   getCallInstant,
@@ -10,7 +11,7 @@ import { getDatedJourneyMarkKey } from "./journeys";
 
 /**
  * Turnarounds at a terminus, inferred: the feed publishes an ending dated journey and a starting
- * one, and no field joins them (docs/kvv-efa-api.md). An arrival is paired with a departure only
+ * one, and no field joins them. An arrival is paired with a departure only
  * when:
  * - the feed states a dated journey end and a dated journey start (`statesDatedJourneyEnd` /
  * `statesDatedJourneyStart`);
@@ -149,7 +150,7 @@ function findDatedJourneyEnds(stopEvents: readonly StopEvent[]): {
  * five-minute services.
  */
 const getTurnaroundGroupKey = (end: DatedJourneyEnd): string =>
-  `${getLineFamilyId(end.stopEvent.lineId)}@${getCallKey(end.call)}`;
+  `${getLineFamilyId(end.stopEvent.lineId)}|${getLineIdentity(end.stopEvent.lineRef) ?? ""}@${getCallKey(end.call)}`;
 
 /**
  * The line's headway at a terminus, as the smallest gap between its published departures: a missed
@@ -203,7 +204,7 @@ export function findTurnarounds(stopEvents: readonly StopEvent[]): TurnaroundInd
         spentStartKeys.has(start.key) ||
         start.key === arrival.key ||
         start.timetabledInstant < arrival.timetabledInstant ||
-        !isSameLineFamily(arrival.stopEvent.lineId, start.stopEvent.lineId) ||
+        !isSameLine(arrival.stopEvent, start.stopEvent) ||
         !isSameCallStop(arrival.call, start.call) ||
         !isReversal(arrival, start)
       ) {

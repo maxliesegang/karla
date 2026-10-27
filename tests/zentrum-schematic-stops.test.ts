@@ -79,9 +79,9 @@ const getPlaceArms = (reading: ZentrumSchematicReading, nodeId: string) =>
 /** A stop on a band gets one capsule across every lane. */
 test("marks a through stop with one capsule across every lane", () => {
   const along = [
-    call("muehlburger-tor", "7000039"),
-    call("europaplatz", "7000037"),
-    call("marktplatz", "7000041"),
+    call("muehlburger-tor", "de:08212:39"),
+    call("europaplatz", "de:08212:37"),
+    call("marktplatz", "de:08212:41"),
   ];
   const reading = buildZentrumSchematicReading(
     ["1", "2", "3"].map((lineId) => stopEvent(lineId, along)),
@@ -98,9 +98,9 @@ test("marks a through stop with one capsule across every lane", () => {
 /** A stop on a bend gets one pill across it, as TfL draws a station on a curve. */
 test("marks a corner stop with one diagonal pill", () => {
   const turning = [
-    call("werderstrasse", "7000083"),
-    call("tivoli", "7000084"),
-    call("poststrasse", "7000098"),
+    call("werderstrasse", "de:08212:83"),
+    call("tivoli", "de:08212:84"),
+    call("poststrasse", "de:08212:98"),
   ];
   const reading = buildZentrumSchematicReading(
     ["3", "4"].map((lineId) => stopEvent(lineId, turning)),
@@ -147,19 +147,19 @@ test("routes a stop's corridors along its platforms and square through one junct
 
 test("marks every stop around the junction with one capsule, and the junction with none", () => {
   const reading = buildZentrumSchematicReading([
-    stopEvent("E", [call("albtalbahnhof", "7001201"), call("ebertstrasse", "7000091")]),
+    stopEvent("E", [call("albtalbahnhof", "de:08212:1201"), call("ebertstrasse", "de:08212:91")]),
     ...["S1", "S4", "S7"].map((lineId) =>
       stopEvent(lineId, [
-        call("albtalbahnhof", "7001201"),
-        call("hauptbahnhof", "7000089"),
-        call("poststrasse", "7000098"),
+        call("albtalbahnhof", "de:08212:1201"),
+        call("hauptbahnhof", "de:08212:89"),
+        call("poststrasse", "de:08212:98"),
       ]),
     ),
     ...["3", "6"].map((lineId) =>
       stopEvent(lineId, [
-        call("ebertstrasse", "7000091"),
-        call("hauptbahnhof", "7000089"),
-        call("poststrasse", "7000098"),
+        call("ebertstrasse", "de:08212:91"),
+        call("hauptbahnhof", "de:08212:89"),
+        call("poststrasse", "de:08212:98"),
       ]),
     ),
   ]);
@@ -243,14 +243,14 @@ const assertOctilinear = ({ from, to }: ZentrumSchematicStroke) => {
  */
 test("draws a stop the platforms say is two places as two capsules, linked", () => {
   const eastward = [
-    call("europaplatz", "7000037", "4"),
-    call("karlstor", "7000061", "1"),
-    call("ettlinger-tor", "7000071", "2"),
+    call("europaplatz", "de:08212:37", "4"),
+    call("karlstor", "de:08212:61", "1"),
+    call("ettlinger-tor", "de:08212:71", "2"),
   ];
   const southward = [
-    call("europaplatz", "7000037", "4"),
-    call("karlstor", "7000061", "3"),
-    call("mathystrasse", "7000062", "3"),
+    call("europaplatz", "de:08212:37", "4"),
+    call("karlstor", "de:08212:61", "3"),
+    call("mathystrasse", "de:08212:62", "3"),
   ];
   const reading = buildZentrumSchematicReading([
     ...["4", "5"].map((lineId) => stopEvent(lineId, eastward)),
@@ -279,15 +279,15 @@ test("draws a stop the platforms say is two places as two capsules, linked", () 
  */
 test("gathers platforms serving only another's corridors into its place", () => {
   const tunnel = [
-    call("muehlburger-tor", "7000039"),
-    call("europaplatz", "7001004", "2(U)"),
-    call("marktplatz", "7001003", "2(U)"),
+    call("muehlburger-tor", "de:08212:39"),
+    call("europaplatz", "de:08212:1004", "2(U)"),
+    call("marktplatz", "de:08212:1003", "2(U)"),
   ];
   const street = [
-    call("muehlburger-tor", "7000039"),
-    call("europaplatz", "7000037", "5"),
-    call("europaplatz", "7000037", "3"),
-    call("karlstor", "7000061", "3"),
+    call("muehlburger-tor", "de:08212:39"),
+    call("europaplatz", "de:08212:37", "5"),
+    call("europaplatz", "de:08212:37", "3"),
+    call("karlstor", "de:08212:61", "3"),
   ];
   const reading = buildZentrumSchematicReading([
     ...["1", "S1", "S2"].map((lineId) => stopEvent(lineId, tunnel)),
@@ -309,14 +309,14 @@ test("gathers platforms standing together into one place, whatever runs through 
   const read = (other: { latitude: number; longitude: number }) =>
     buildZentrumSchematicReading([
       stopEvent("S1", [
-        call("albtalbahnhof", "7001201"),
-        call("hauptbahnhof", "7000089", "21", near),
-        call("poststrasse", "7000098"),
+        call("albtalbahnhof", "de:08212:1201"),
+        call("hauptbahnhof", "de:08212:89", "21", near),
+        call("poststrasse", "de:08212:98"),
       ]),
       stopEvent("3", [
-        call("ebertstrasse", "7000091"),
-        call("hauptbahnhof", "7000089", "22", other),
-        call("poststrasse", "7000098"),
+        call("ebertstrasse", "de:08212:91"),
+        call("hauptbahnhof", "de:08212:89", "22", other),
+        call("poststrasse", "de:08212:98"),
       ]),
     ]);
 
@@ -327,27 +327,27 @@ test("gathers platforms standing together into one place, whatever runs through 
 
 test("a place with a corridor along its platforms crosses at the stop, on its own side", () => {
   const at = (code: string, latitude: number, longitude: number) =>
-    call("karlstor", "7000061", code, { latitude, longitude });
+    call("karlstor", "de:08212:61", code, { latitude, longitude });
   const reading = buildZentrumSchematicReading([
     stopEvent("4", [
-      call("europaplatz", "7000037"),
+      call("europaplatz", "de:08212:37"),
       at("3", 49.005184, 8.394622),
-      call("mathystrasse", "7000062"),
+      call("mathystrasse", "de:08212:62"),
     ]),
     stopEvent("4", [
-      call("mathystrasse", "7000062"),
+      call("mathystrasse", "de:08212:62"),
       at("4", 49.004423, 8.394514),
-      call("europaplatz", "7000037"),
+      call("europaplatz", "de:08212:37"),
     ]),
     stopEvent("5", [
-      call("ettlinger-tor", "7000071"),
+      call("ettlinger-tor", "de:08212:71"),
       at("1", 49.005502, 8.395421),
-      call("europaplatz", "7000037"),
+      call("europaplatz", "de:08212:37"),
     ]),
     stopEvent("5", [
-      call("europaplatz", "7000037"),
+      call("europaplatz", "de:08212:37"),
       at("2", 49.005467, 8.395951),
-      call("ettlinger-tor", "7000071"),
+      call("ettlinger-tor", "de:08212:71"),
     ]),
   ]);
 
@@ -364,14 +364,14 @@ test("a place with a corridor along its platforms crosses at the stop, on its ow
 /** A platform seen a handful of times is a diversion or layover, not a place. */
 test("leaves a barely used platform out of a stop's places", () => {
   const along = [
-    call("europaplatz", "7000037", "4"),
-    call("karlstor", "7000061", "1"),
-    call("ettlinger-tor", "7000071", "2"),
+    call("europaplatz", "de:08212:37", "4"),
+    call("karlstor", "de:08212:61", "1"),
+    call("ettlinger-tor", "de:08212:71", "2"),
   ];
   const diverted = [
-    call("europaplatz", "7000037", "4"),
-    call("karlstor", "7000061", "9"),
-    call("mathystrasse", "7000062", "3"),
+    call("europaplatz", "de:08212:37", "4"),
+    call("karlstor", "de:08212:61", "9"),
+    call("mathystrasse", "de:08212:62", "3"),
   ];
   const reading = buildZentrumSchematicReading([
     ...Array.from({ length: 30 }, () => stopEvent("1", along)),
@@ -673,7 +673,7 @@ test("reserves clear space for the selected stop before other reachable names", 
   }
 });
 
-test("the eastern extension has one name per complex and links its two Tullastraße places", () => {
+test("the eastern extension has one name per stop place and links its two Tullastraße places", () => {
   const samples: { lineId: string; calls: Call[] }[] = JSON.parse(
     readFileSync(new URL("./support/zentrum-stop-bays.json", import.meta.url), "utf8"),
   );

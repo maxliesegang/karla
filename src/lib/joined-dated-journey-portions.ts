@@ -3,7 +3,7 @@ import { getCallKey } from "./calls";
 import { getDatedJourneyMarkKey, isSameDatedJourney } from "./journeys";
 
 /**
- * Two separately addressed journeys running as one consist until the shorter ends. EFA publishes no
+ * Two separately addressed journeys running as one consist until the shorter ends. The feed states no
  * coupling, so pairing is strict: same line and departure point, the shorter route a prefix of the
  * longer, and every shared schedule time equal.
  */

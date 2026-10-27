@@ -162,7 +162,7 @@ function useLineDeparturesAtStop(
   return useMemo(() => {
     if (!selection.lineId) return EMPTY_STOP_EVENTS;
     // The cap applies to the whole selection, not per line.
-    const ofSelection = rows.filter((stopEvent) => isSelectedLine(selection, stopEvent.lineId));
+    const ofSelection = rows.filter((stopEvent) => isSelectedLine(selection, stopEvent));
     const loaded = ofSelection.slice(0, LINE_DATED_JOURNEY_LOAD_LIMIT);
     return ownStopEvent && !loaded.some(({ id }) => id === ownStopEvent.id)
       ? [ownStopEvent, ...loaded]

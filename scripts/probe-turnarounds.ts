@@ -9,7 +9,7 @@
  *
  *     npm run probe:turnarounds -- [options]
  *
- *       --stops 7000314,7004500   provider stop ids of termini to watch
+ *       --stops de:08212:314,de:08212:4500   provider stop ids of termini to watch
  *       --interval 60             seconds between polls (default 60)
  *       --minutes 20              how long to run (default 20)
  *       --out probe.jsonl         also write every reading, for analysis afterwards
@@ -19,16 +19,24 @@
  */
 
 import { appendFile } from "node:fs/promises";
-import { KvvEfaClient } from "../src/data/kvv-efa-client.ts";
-import type { KvvStopEvent, KvvCall } from "../src/data/kvv-feed.ts";
+import { DEFAULT_TRIAS_PROXY_URL } from "../src/data/trias-proxy.ts";
+import { TriasClient } from "../src/data/trias-client.ts";
+import type { FeedStopEvent, FeedCall } from "../src/data/feed.ts";
 
 /** The calls the feed marks as dated journey ends, as in `lib/calls.ts`. */
-const statesDatedJourneyStart = (call: KvvCall): boolean =>
+const statesDatedJourneyStart = (call: FeedCall): boolean =>
   call.timetabledDepartureTime !== undefined && call.timetabledArrivalTime === undefined;
-const statesDatedJourneyEnd = (call: KvvCall): boolean =>
+const statesDatedJourneyEnd = (call: FeedCall): boolean =>
   call.timetabledArrivalTime !== undefined && call.timetabledDepartureTime === undefined;
 
-const DEFAULT_TERMINUS_IDS = ["7000314", "7004500", "7000013", "7000089", "7000090", "7000084"];
+const DEFAULT_TERMINUS_IDS = [
+  "de:08212:314",
+  "de:08212:4500",
+  "de:08212:13",
+  "de:08212:89",
+  "de:08212:90",
+  "de:08212:84",
+];
 const DEFAULT_INTERVAL_SECONDS = 60;
 const DEFAULT_MINUTES = 20;
 /** Rows per board; a terminus lists one direction only. */
@@ -79,7 +87,7 @@ const hhmm = (instant: number | undefined): string =>
   instant === undefined ? "—" : clock.format(new Date(instant));
 const minutes = (ms: number): string => `${(ms / 60_000).toFixed(1)}`;
 
-const getJourneyKey = (stopEvent: KvvStopEvent): string =>
+const getJourneyKey = (stopEvent: FeedStopEvent): string =>
   stopEvent.datedJourneyId ??
   stopEvent.journeyRef ??
   `${stopEvent.lineId}@${stopEvent.timetabledDepartureTime}`;
@@ -91,7 +99,7 @@ type StartReading = {
   rowDelayMinutes?: number;
   /** The first call's departure deviation as the sequence states it. */
   callDelayMinutes?: number;
-  status: KvvStopEvent["status"];
+  status: FeedStopEvent["status"];
 };
 
 type Start = {
@@ -132,7 +140,7 @@ type TerminusRecord = {
 const terminusById = new Map<string, TerminusRecord>();
 let pollCount = 0;
 
-function isAtTerminus(call: KvvCall, terminus: TerminusRecord): boolean {
+function isAtTerminus(call: FeedCall, terminus: TerminusRecord): boolean {
   return (
     (call.providerId !== undefined && terminus.stopPointIds.has(call.providerId)) ||
     (terminus.stopName !== undefined && call.stopName === terminus.stopName)
@@ -140,7 +148,7 @@ function isAtTerminus(call: KvvCall, terminus: TerminusRecord): boolean {
 }
 
 async function readStarts(
-  client: KvvEfaClient,
+  client: TriasClient,
   terminus: TerminusRecord,
   options: Options,
 ): Promise<void> {
@@ -201,7 +209,7 @@ async function readStarts(
 }
 
 async function readArrivals(
-  client: KvvEfaClient,
+  client: TriasClient,
   terminus: TerminusRecord,
   neighbourId: string,
   options: Options,
@@ -249,7 +257,7 @@ async function readArrivals(
   }
 }
 
-async function poll(client: KvvEfaClient, options: Options): Promise<void> {
+async function poll(client: TriasClient, options: Options): Promise<void> {
   pollCount += 1;
   for (const terminus of terminusById.values()) {
     await readStarts(client, terminus, options).catch((error) =>
@@ -458,7 +466,7 @@ function reportTerminus(terminus: TerminusRecord): void {
 
 async function main(): Promise<void> {
   const options = parseOptions(process.argv.slice(2));
-  const client = new KvvEfaClient();
+  const client = new TriasClient({ proxyUrl: DEFAULT_TRIAS_PROXY_URL });
   for (const stopPointId of options.terminusIds) {
     terminusById.set(stopPointId, {
       stopPointId,

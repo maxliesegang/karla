@@ -1,21 +1,21 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { KvvJourneyLocator } from "../src/data/kvv-feed.ts";
+import type { JourneyLocator } from "../src/data/feed.ts";
 import type { StopEvent, DatedJourneyCalls, Call } from "../src/data/transit-types.ts";
 import { DatedJourneyReadingStore } from "../src/data/dated-journey-reading-store.ts";
 import { createStopEvent } from "./support/fixtures.ts";
 
 /** A run's provider address; the store keys by `line` and `tripCode`. */
-const locator: KvvJourneyLocator = {
+const locator: JourneyLocator = {
   journeyCode: "42",
   lineRef: "kvv:line:2:H",
-  stopPointId: "7000001",
+  stopPointId: "de:08212:1",
   date: "20260906",
   time: "1200",
 };
 
 /** The same run's row at another stop: only the asking point moves. */
-const atStop = (stopPointId: string, time: string): KvvJourneyLocator => ({
+const atStop = (stopPointId: string, time: string): JourneyLocator => ({
   ...locator,
   stopPointId,
   time,
@@ -124,11 +124,25 @@ test("shares one complete reading between stop rows of the same run", () => {
   const first = stopEvent("row-a", "a");
   const second = stopEvent("row-b", "b", { timetabledDepartureTime: "2026-09-06T10:05:00.000Z" });
   store.rememberRow(stamp(first, 100), locator, 100);
-  store.rememberRow(stamp(second, 110), atStop("7000002", "1005"), 110);
+  store.rememberRow(stamp(second, 110), atStop("de:08212:2", "1005"), 110);
   store.rememberSequence(store.findJourneyRecordKey("row-a"), sequence(calls(3), 200), 200);
 
   assert.equal(store.findJourneyRecordKey("row-a"), store.findJourneyRecordKey("row-b"));
   assert.equal(store.findSequence("row-b")?.readAt, 200);
+});
+
+test("a failed first read is marked until a sequence lands", () => {
+  const store = new DatedJourneyReadingStore();
+  store.rememberRow(stamp(stopEvent("row-a", "a"), 100), locator, 100);
+  const key = store.findJourneyRecordKey("row-a");
+  assert.equal(store.findDatedJourney("row-a")?.readAt?.sequenceRefreshFailedAt, undefined);
+
+  store.markSequenceRefreshFailed(key, 300);
+  assert.equal(store.findDatedJourney("row-a")?.readAt?.sequenceRefreshFailedAt, 300);
+  assert.equal(store.findDatedJourney("row-a")?.calls, undefined);
+
+  store.rememberSequence(key, sequence(calls(0), 400), 400);
+  assert.equal(store.findDatedJourney("row-a")?.readAt?.sequenceRefreshFailedAt, undefined);
 });
 
 test("refresh failures are shared by every row and cleared only by a newer sequence", () => {
@@ -136,7 +150,7 @@ test("refresh failures are shared by every row and cleared only by a newer seque
   store.rememberRow(stamp(stopEvent("row-a", "a"), 100), locator, 100);
   store.rememberRow(
     stamp(stopEvent("row-b", "b", { timetabledDepartureTime: "2026-09-06T10:05:00.000Z" }), 110),
-    atStop("7000002", "1005"),
+    atStop("de:08212:2", "1005"),
     110,
   );
   const key = store.findJourneyRecordKey("row-a");
@@ -168,7 +182,7 @@ test("one run is one record from its first row, with no sequence needed to say s
   store.rememberRow(stamp(plain("row-a", "a", "2026-09-06T10:00:00.000Z"), 100), locator, 100);
   store.rememberRow(
     stamp(plain("row-b", "b", "2026-09-06T10:05:00.000Z"), 110),
-    atStop("7000002", "1005"),
+    atStop("de:08212:2", "1005"),
     110,
   );
 
@@ -186,7 +200,7 @@ test("a run crossing midnight is one record at the stops on either side of it", 
   ];
   const after = stopEvent("after", "c", { timetabledDepartureTime: "2026-09-07T00:30:00.000Z" });
   store.rememberRow(stamp(before, 100), locator, 100);
-  store.rememberRow(stamp(after, 110), atStop("7000003", "0030"), 110);
+  store.rememberRow(stamp(after, 110), atStop("de:08212:3", "0030"), 110);
   read(store, "before", datedJourneyCalls, 120);
 
   assert.equal(store.findJourneyRecordKey("after"), store.findJourneyRecordKey("before"));
@@ -278,7 +292,7 @@ test("a sequence lands on the run it was asked for, whatever the boards did mean
   const requestKey = store.findJourneyRecordKey("row-a");
 
   // Boards keep arriving during a request; records never move, so the answer lands on its key.
-  store.rememberRow(stamp(stopEvent("row-b", "b"), 110), atStop("7000002", "1005"), 110);
+  store.rememberRow(stamp(stopEvent("row-b", "b"), 110), atStop("de:08212:2", "1005"), 110);
   store.rememberRow(stamp(stopEvent("row-a", "a", { destinationText: "C" }), 120), locator, 120);
 
   store.rememberSequence(requestKey, sequence(calls(2), 300), 300);
@@ -295,7 +309,7 @@ test("a row that learns its locator moves onto the run it names", () => {
   store.rememberRow(stamp(stopEvent("late", "b"), 110), undefined, 110);
   assert.notEqual(store.findJourneyRecordKey("late"), store.findJourneyRecordKey("known"));
 
-  store.rememberRow(stamp(stopEvent("late", "b"), 120), atStop("7000002", "1005"), 120);
+  store.rememberRow(stamp(stopEvent("late", "b"), 120), atStop("de:08212:2", "1005"), 120);
 
   assert.equal(store.findJourneyRecordKey("late"), store.findJourneyRecordKey("known"));
   assert.deepEqual(store.findSequence("late")?.calls, calls(1));

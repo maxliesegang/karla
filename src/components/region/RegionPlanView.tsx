@@ -1,6 +1,6 @@
 import { useMemo } from "react";
-import { kvvStopCatalog } from "../../data/generated/kvv-stop-catalog";
-import { REGION_PLANS } from "../../data/generated/region-plan";
+import { kvvNetwork } from "../../networks/kvv/kvv-network";
+import { REGION_PLANS } from "../../networks/kvv/generated/region-plan";
 import type { StopEventBoard, StopEventBoardCoverage } from "../../data/transit-types";
 import { useStoredPreference } from "../../hooks/stored-preference";
 import { useDailyZentrumVehicles } from "../../hooks/zentrum-vehicles";
@@ -42,7 +42,7 @@ const regionScalePreference = createStoredPreference<RegionScaleName>({
  * with a note such as "Neureut (Karlsruhe)" or "Grötzingen (b KA)".
  */
 const CITY_PLACE_NAMES = new Set(
-  kvvStopCatalog.map(({ placeName }) => placeName.replace(/\s*\(.*\)$/, "")),
+  kvvNetwork.stopCatalog.map(({ placeName }) => placeName.replace(/\s*\(.*\)$/, "")),
 );
 
 /** One solved plan as the map draws it. */

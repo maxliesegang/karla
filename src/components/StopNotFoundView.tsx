@@ -1,4 +1,5 @@
 import { navigateTo, routePaths } from "../routing";
+import { network } from "../networks/network";
 
 /**
  * A stop is the one level with nothing beneath it, so it is the only genuine dead end. A provider
@@ -18,8 +19,8 @@ export function StopNotFoundView({
         <>
           <h1>Haltestelle nicht erreichbar</h1>
           <p>
-            Diese Haltestelle ließ sich gerade nicht vom KVV-Feed lesen — ob es sie gibt, ist damit
-            nicht gesagt. Ein erneuter Versuch kann helfen.
+            Diese Haltestelle ließ sich gerade nicht vom {network.operator.name}-Feed lesen — ob es
+            sie gibt, ist damit nicht gesagt. Ein erneuter Versuch kann helfen.
           </p>
           <div className="stop-not-found-view-actions">
             <button onClick={onRetry}>Erneut versuchen</button>

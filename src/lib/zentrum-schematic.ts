@@ -95,7 +95,7 @@ export type ZentrumSchematicVehicle = {
 /** One drawn stop ahead of a vehicle, as its journey states it. */
 export type ZentrumSchematicAheadStop = {
   nodeId: string;
-  /** The call the dated journey leaves the stop by: the last of a complex's calls. */
+  /** The call the dated journey leaves the stop by: the last of a stop place's calls. */
   call: Call;
   /** When the dated journey is expected to leave the stop. */
   departsAt?: number;
@@ -104,7 +104,7 @@ export type ZentrumSchematicAheadStop = {
 };
 
 /**
- * The stretch of lane a mark follows, in the dated journey's direction. A link inside one complex
+ * The stretch of lane a mark follows, in the dated journey's direction. A link inside one stop place
  * (its two tunnel calls) runs from one place's capsule to the other's, or is a single point where
  * the line crosses no two.
  */
@@ -791,9 +791,9 @@ type ZentrumSchematicPlacedDatedJourney = {
    * the line's lane rather than straight across.
    */
   via: readonly ZentrumSchematicNode[];
-  /** For a link inside a complex: the corridor the journey leaves it by, where the mark parks. */
+  /** For a link inside a stop place: the corridor the journey leaves it by, where the mark parks. */
   leaving?: { from: ZentrumSchematicNode; to: ZentrumSchematicNode };
-  /** The arriving corridor for a complex with no drawn way out. */
+  /** The arriving corridor for a stop place with no drawn way out. */
   entering?: { from: ZentrumSchematicNode; to: ZentrumSchematicNode };
   /** For a link between two places of one stop: the stroke from the first's capsule to the next's. */
   crossing?: ZentrumSchematicStopStretch;
@@ -920,7 +920,7 @@ const getZentrumSchematicPlacedDatedJourneys = (
         const node = nodeOf(calls[ahead]);
         if (!node) continue;
         const departsAt = getCallInstant(calls[ahead]);
-        // The calls of one complex are one stop to a rider, left when its last call is.
+        // The calls of one stop place are one stop to a rider, left when its last call is.
         const last = aheadStops.at(-1);
         if (last?.nodeId === node.id) {
           last.call = calls[ahead];
@@ -1025,7 +1025,7 @@ const getVehiclePath = (
 ): ZentrumSchematicVehiclePath => {
   const paths = reading.vehiclePathsByLineId.get(stopEvent.lineId);
   if (crossing) return { points: crossing.points, steps: crossing.steps, corridorRanges: [] };
-  // Inside a complex the mark parks on its way out, or where it arrived if the way out is undrawn.
+  // Inside a stop place the mark parks on its way out, or where it arrived if the way out is undrawn.
   if (from.id === to.id) {
     const leavingPath = getDatedJourneyCorridorPath(reading, stopEvent, leaving);
     const enteringPath = getDatedJourneyCorridorPath(reading, stopEvent, entering);

@@ -1,7 +1,7 @@
 /** Bay grouping retains neighboring calls outside the drawn area. */
 import type { StopEvent, Call } from "../data/transit-types";
 import { type Located, getDistanceMeters, toLocalMeters } from "./geo";
-import { kvvBayRunByKey } from "../data/generated/kvv-bay-runs";
+import { network } from "../networks/network";
 import { type BayRun, getOctilinearDirections, getTravelAxis, measureBayRun } from "./bay-runs";
 import {
   BAY_RUN_VECTORS,
@@ -39,7 +39,8 @@ const getPlaceBayRun = (
   positions: readonly { latitude: number; longitude: number }[],
   travel: SchematicPoint,
 ): BayRun | undefined =>
-  bayKeys.map((key) => kvvBayRunByKey.get(key)).find(Boolean) ?? measureBayRun(positions, travel);
+  bayKeys.map((key) => network.bayRunByKey.get(key)).find(Boolean) ??
+  measureBayRun(positions, travel);
 
 const getMedian = (values: readonly number[]): number | undefined => {
   if (!values.length) return undefined;

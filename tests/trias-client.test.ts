@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { KvvTriasClient } from "../src/data/kvv-trias-client.ts";
-import { KvvTriasError } from "../src/data/kvv-trias-parsers.ts";
+import { TriasClient } from "../src/data/trias-client.ts";
+import { TriasError } from "../src/data/trias-parsers.ts";
 import { triasStopEvent, triasStopEvents, triasTripInfo } from "./support/trias.ts";
 
 const RESPONDED_AT = "2026-10-17T21:01:46Z";
@@ -30,19 +30,16 @@ function createProxy(reply: (url: URL) => Response | Promise<Response>) {
 }
 
 const createClient = (fetchFn: typeof fetch) =>
-  new KvvTriasClient({ proxyUrl: "https://proxy.test/api/", fetchFn });
+  new TriasClient({ proxyUrl: "https://proxy.test/api/", fetchFn });
 
 const xml = (body: string, headers: Record<string, string> = {}) =>
   new Response(body, { headers: { "Content-Type": "application/xml", ...headers } });
 
-test("a complex's board joins each of its stops and states no serving lines", async () => {
-  const proxy = createProxy((url) => {
-    const stop = url.searchParams.get("stop");
-    return xml(stopEventsReply(stop === "7001004" ? "de:08212:1004:1:1" : "de:08212:37:3:3"));
-  });
+test("a board asks the proxy for the one stop point it names", async () => {
+  const proxy = createProxy(() => xml(stopEventsReply("de:08212:37:3:3")));
   const client = createClient(proxy.fetchFn);
 
-  const board = await client.fetchStopEventBoard("7000037", { includeCalls: true, limit: 40 });
+  const board = await client.fetchStopEventBoard("de:08212:37", { includeCalls: true, limit: 40 });
 
   assert.deepEqual(
     proxy.requests.map((url) => [
@@ -51,16 +48,12 @@ test("a complex's board joins each of its stops and states no serving lines", as
       url.searchParams.get("calls"),
       url.searchParams.get("rows"),
     ]),
-    [
-      ["/api/stop-events.php", "7000037", "1", "40"],
-      ["/api/stop-events.php", "7001004", "1", "40"],
-    ],
+    [["/api/stop-events.php", "de:08212:37", "1", "40"]],
   );
   assert.deepEqual(
     board.stopEvents.map(({ stopPointId }) => stopPointId),
-    ["7000037", "7001004"],
+    ["de:08212:37"],
   );
-  assert.deepEqual(board.servingLines, []);
 });
 
 test("a filtered board asks for its lines, in groups the proxy accepts", async () => {
@@ -68,7 +61,7 @@ test("a filtered board asks for its lines, in groups the proxy accepts", async (
   const client = createClient(proxy.fetchFn);
   const lineIds = Array.from({ length: 17 }, (_, index) => `kvv:2100${index}:E:H:s26`);
 
-  await client.fetchStopEventBoard("7000039", { lineIds, eventKind: "arrival" });
+  await client.fetchStopEventBoard("de:08212:39", { lineIds, eventKind: "arrival" });
 
   assert.deepEqual(
     proxy.requests.map((url) => [
@@ -85,7 +78,7 @@ test("a filtered board asks for its lines, in groups the proxy accepts", async (
 test("a reply held in the proxy's cache advances the feed clock by its age", async () => {
   const proxy = createProxy(() => xml(stopEventsReply("de:08212:39:1:1"), { Age: "12" }));
   const client = createClient(proxy.fetchFn);
-  const board = await client.fetchStopEventBoard("7000039", { lineIds: ["kvv:21002:E:H:s26"] });
+  const board = await client.fetchStopEventBoard("de:08212:39", { lineIds: ["kvv:21002:E:H:s26"] });
   assert.equal(board.serverTime, "2026-10-17T21:01:58.000Z");
 });
 
@@ -112,7 +105,7 @@ const journeyReply = () =>
 const LOCATOR = {
   lineRef: "kvv:22305:E:R:s26",
   journeyCode: "1762",
-  stopPointId: "7000039",
+  stopPointId: "de:08212:39",
   date: "20261018",
   time: "0005",
 };
@@ -142,15 +135,30 @@ test("a line route is the calls of the run it is addressed through", async () =>
   const route = await client.fetchLineRoute(LOCATOR);
   assert.deepEqual(
     route.map(({ providerId }) => providerId),
-    ["7000039", "7000037"],
+    ["de:08212:39", "de:08212:37"],
   );
+});
+
+test("a run's reading and its route asked at once share one trip request", async () => {
+  const proxy = createProxy(journeyReply);
+  const client = createClient(proxy.fetchFn);
+
+  const [journey, route] = await Promise.all([
+    client.fetchTripInfo(LOCATOR),
+    client.fetchLineRoute({ ...LOCATOR, stopPointId: "de:08212:39" }),
+  ]);
+  await client.fetchTripInfo(LOCATOR);
+
+  // Once settled, the next reading asks again.
+  assert.equal(proxy.requests.length, 2);
+  assert.equal(journey.calls.length, route.length);
 });
 
 test("an unreachable or failing proxy rejects with a TRIAS error", async () => {
   const down = createClient((async () => {
     throw new TypeError("Failed to fetch");
   }) as typeof fetch);
-  await assert.rejects(down.searchStops("Europaplatz"), KvvTriasError);
+  await assert.rejects(down.searchStops("Europaplatz"), TriasError);
   for (const status of [400, 403, 502]) {
     const failing = createClient(createProxy(() => new Response("{}", { status })).fetchFn);
     await assert.rejects(failing.searchStops("Europaplatz"), new RegExp(`HTTP ${status}`));
@@ -170,7 +178,7 @@ test("a broken response body is a failed read", async () => {
         ),
     ).fetchFn,
   );
-  await assert.rejects(client.searchStops("a"), KvvTriasError);
+  await assert.rejects(client.searchStops("a"), TriasError);
 });
 
 test("a rate-limited client stops asking until numeric or dated Retry-After", async (t) => {

@@ -7,7 +7,7 @@ import type {
 } from "../data/transit-types";
 import { createStopSlug } from "./stop-slug";
 import { findHomePlaceName, getBaseName, getQualifiedStopName } from "./stop-naming";
-import { isSameLineFamily } from "./line-families";
+import { isRowOfLine, isSameLine } from "./line-identity";
 import { getCallKey, getCallSequenceKey, getCallsAfterCurrentStop, runsInOrderOf } from "./calls";
 
 /** Every name a stop goes by. */
@@ -30,7 +30,7 @@ export function findStopByName(network: TransitNetwork, name: string): StopPlace
 
 /** Whether two departures share direction and route pattern. */
 export function hasCompatibleStopPattern(first: StopEvent, second: StopEvent): boolean {
-  if (!isSameLineFamily(first.lineId, second.lineId)) return false;
+  if (!isSameLine(first, second)) return false;
   if (first.destinationText !== second.destinationText) return false;
 
   const firstCalls = getCallsAfterCurrentStop(first);
@@ -67,12 +67,13 @@ export function getLineTermini(line: TransitLine): string[] {
  */
 function findFarthestLineDatedJourneyCalls(
   lineId: string,
-  stopEvents: readonly Pick<StopEvent, "lineId" | "calls">[],
+  stopEvents: readonly Pick<StopEvent, "lineId" | "lineRef" | "calls">[],
+  identity?: string,
 ): readonly Call[] | undefined {
   let farthestCalls: readonly Call[] | undefined;
   let farthestReach = 0;
   for (const stopEvent of stopEvents) {
-    if (!isSameLineFamily(stopEvent.lineId, lineId) || !stopEvent.calls?.length) continue;
+    if (!isRowOfLine(stopEvent, lineId, identity) || !stopEvent.calls?.length) continue;
     const reach = new Set(stopEvent.calls.map(getCallKey)).size;
     if (reach > farthestReach) {
       farthestCalls = stopEvent.calls;
@@ -127,7 +128,7 @@ export function getFarthestLineDatedJourney(
   stopEvents: readonly StopEvent[],
   diagramCalls: readonly Call[],
 ): FarthestLineDatedJourney {
-  const farthestCalls = findFarthestLineDatedJourneyCalls(line.id, stopEvents);
+  const farthestCalls = findFarthestLineDatedJourneyCalls(line.id, stopEvents, line.identity);
 
   if (!farthestCalls || farthestCalls.length < 2) {
     const [firstTerminus, lastTerminus] = getLineTermini(line);

@@ -6,8 +6,8 @@ import { isTurnaroundPair } from "./calls";
 
 /**
  * Boarding places: the parts of a stop a rider chooses between before walking (Marktplatz's two
- * tunnels; Europaplatz's street bays, two stops under one stop point id). EFA answers for the
- * whole complex, so the board is split here, derived from observed journeys rather than authored.
+ * tunnels; Europaplatz's street bays, two stops under one stop point id). A stop's board joins all
+ * of them, so it is split here, derived from observed journeys rather than authored.
  */
 
 /** One place to stand at a stop, and the bays there. */

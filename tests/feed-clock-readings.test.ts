@@ -8,9 +8,10 @@ import {
   getStaleBoardLabel,
   getCallTimeReading,
 } from "../src/lib/stop-event-presentation.ts";
-import { parseStopEventBoardResponse } from "../src/data/kvv-efa-parsers.ts";
+import { parseTriasStopEvents } from "../src/data/trias-parsers.ts";
 import { sortStopEventsByExpectedInstant } from "../src/lib/stop-event-order.ts";
 import { createStopEvent as createFixture } from "./support/fixtures.ts";
+import { triasStopEvent, triasStopEvents } from "./support/trias.ts";
 
 const createStopEvent = (overrides: Partial<StopEvent> = {}): StopEvent =>
   createFixture({
@@ -27,7 +28,7 @@ const createStopEvent = (overrides: Partial<StopEvent> = {}): StopEvent =>
   });
 
 /**
- * EFA counts `17:34` minus `17:27` as seven; counting seconds would read a minute below the
+ * The operator counts `17:34` minus `17:27` as seven; counting seconds would read a minute below the
  * platform display.
  */
 test("a countdown is counted against the feed's clock at the minute, as the operator's own board is", () => {
@@ -106,27 +107,24 @@ test("the board is ordered by the prediction the rows publish, not by the delay 
  * The row's own call in the sequence carries the row's published time, so board and diagram agree.
  */
 test("the call a row completes carries the same published time as the row itself", () => {
-  const board = parseStopEventBoardResponse(
-    {
-      parameters: [{ name: "serverTime", value: "2026-08-30T17:27:24" }],
-      departureList: [
-        {
-          stopID: "7001003",
-          nameWO: "Marktplatz",
-          countdown: "5",
-          dateTime: { year: "2026", month: "8", day: "30", hour: "17", minute: "32" },
-          realDateTime: { year: "2026", month: "8", day: "30", hour: "17", minute: "33" },
-          servingLine: { symbol: "1", number: "1", direction: "Durlach", motType: "4", delay: "0" },
-          onwardStopSeq: [
-            {
-              nameWO: "Kronenplatz",
-              ref: { id: "7001002", depDateTimeSec: "20260830 17:34:00", depDelay: "0" },
-            },
-          ],
+  const board = parseTriasStopEvents(
+    triasStopEvents("2026-08-30T15:27:24Z", [
+      triasStopEvent({
+        current: {
+          ref: "de:08212:1003:1:1",
+          name: "KA Marktplatz",
+          departure: { timetabled: "2026-08-30T15:32:00Z", estimated: "2026-08-30T15:33:00Z" },
         },
-      ],
-    },
-    "marktplatz",
+        onward: [
+          {
+            ref: "de:08212:1002:1:1",
+            name: "KA Kronenplatz",
+            departure: { timetabled: "2026-08-30T15:34:00Z", estimated: "2026-08-30T15:34:00Z" },
+          },
+        ],
+      }),
+    ]),
+    "de:08212:1003",
   );
   const stopEvent = board.stopEvents[0];
   const ownCall = stopEvent.calls?.find((call) => call.isThisCall);

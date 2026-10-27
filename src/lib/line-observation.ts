@@ -1,7 +1,8 @@
 import type { StopEvent, ServingLine, TransitLine } from "../data/transit-types";
-import { getLineFamilyId, isSameLineFamily } from "./line-families";
+import { getLineFamilyId } from "./line-families";
+import { isRowOfLine, isSameLineIdentity } from "./line-identity";
 import { addOnce, toSortedIds } from "./collections";
-import { getLineSelectionIds, type LineSelection } from "./line-bundles";
+import { getLineSelectionIds, getSelectedLineIdentity, type LineSelection } from "./line-bundles";
 
 /**
  * Which stops a line's boards are read at, and which line-directions they are filtered to. Both are
@@ -81,11 +82,12 @@ export function getLineRouteRequests(
 ): readonly LineRouteRequest[] {
   const requestByLineRef = new Map<string, LineRouteRequest>();
   for (const lineId of getLineSelectionIds(selection)) {
+    const identity = getSelectedLineIdentity(selection, lineId);
     for (const board of boards) {
       for (const stopEvent of board.stopEvents) {
         const { lineRef, id: rowId } = stopEvent;
         if (!lineRef || !rowId || requestByLineRef.has(lineRef)) continue;
-        if (!isSameLineFamily(stopEvent.lineId, lineId)) continue;
+        if (!isRowOfLine(stopEvent, lineId, identity)) continue;
         requestByLineRef.set(lineRef, {
           lineId: getLineFamilyId(lineId),
           lineRef,
@@ -151,10 +153,14 @@ export function extendLineCallStopIds(
 }
 
 /** The provider direction ids (`:H:`, `:R:`) a line's departures state. */
-export function getLineRefs(lineId: string, stopEvents: readonly StopEvent[]): string[] {
+export function getLineRefs(
+  lineId: string,
+  stopEvents: readonly StopEvent[],
+  identity?: string,
+): string[] {
   return toSortedIds(
     stopEvents.flatMap((stopEvent) =>
-      stopEvent.lineRef && isSameLineFamily(stopEvent.lineId, lineId) ? [stopEvent.lineRef] : [],
+      stopEvent.lineRef && isRowOfLine(stopEvent, lineId, identity) ? [stopEvent.lineRef] : [],
     ),
   );
 }
@@ -223,20 +229,21 @@ export function extendLineObservation(
   known: LineObservation,
   lineId: string,
   boards: readonly LineObservationBoard[],
+  identity?: string,
 ): LineObservation {
   const journeys = boards.flatMap((board) =>
-    board.stopEvents.filter((stopEvent) => isSameLineFamily(stopEvent.lineId, lineId)),
+    board.stopEvents.filter((stopEvent) => isRowOfLine(stopEvent, lineId, identity)),
   );
   const stopIds = extendLineCallStopIds(known.stopIds, journeys);
 
   const lineRefs = new Set(known.lineRefs);
-  for (const lineRef of getLineRefs(lineId, journeys)) lineRefs.add(lineRef);
+  for (const lineRef of getLineRefs(lineId, journeys, identity)) lineRefs.add(lineRef);
   // A whole-stop board names every line calling there, due or not: the only way to learn a
   // direction that only arrives at a terminus, or a line without a row on a busy board.
   for (const board of boards) {
     for (const servingLine of board.servingLines ?? []) {
       const servedLineId = servingLine.lineId;
-      if (servedLineId && isSameLineFamily(servedLineId, lineId)) {
+      if (servedLineId && isRowOfLine({ ...servingLine, lineId: servedLineId }, lineId, identity)) {
         lineRefs.add(servingLine.lineRef);
       }
     }
@@ -263,7 +270,8 @@ export function extendLineObservations(
   let extended: Map<string, LineObservation> | undefined;
   for (const lineId of getLineSelectionIds(selection).map(getLineFamilyId)) {
     const observation = known.get(lineId) ?? EMPTY_LINE_OBSERVATION;
-    const next = extendLineObservation(observation, lineId, boards);
+    const identity = getSelectedLineIdentity(selection, lineId);
+    const next = extendLineObservation(observation, lineId, boards, identity);
     if (next === observation && known.has(lineId)) continue;
     extended ??= new Map(known);
     extended.set(lineId, next);
@@ -271,20 +279,26 @@ export function extendLineObservations(
   return extended ?? known;
 }
 
-/** Where a line's crawl starts: its core stops, a seed and never the answer. */
+/**
+ * Where a line's crawl starts: what an earlier visit learned, else its Zentrum calls, else nothing,
+ * when the rider's board and the line's route start it. A seed, never the answer.
+ */
 export function seedLineObservations(
   selection: LineSelection,
   lines: readonly TransitLine[],
-  recall: (lineId: string) => LineObservation | undefined,
+  recall: (lineId: string, identity?: string) => LineObservation | undefined,
 ): LineObservations {
   const seeded = new Map<string, LineObservation>();
   for (const lineId of getLineSelectionIds(selection).map(getLineFamilyId)) {
-    const remembered = recall(lineId);
+    const identity = getSelectedLineIdentity(selection, lineId);
+    const remembered = recall(lineId, identity);
     if (remembered) {
       seeded.set(lineId, remembered);
       continue;
     }
-    const zentrumCalls = lines.find((line) => isSameLineFamily(line.id, lineId))?.zentrumCalls;
+    const zentrumCalls = lines.find(
+      (line) => line.id === lineId && isSameLineIdentity(line.identity, identity),
+    )?.zentrumCalls;
     seeded.set(
       lineId,
       zentrumCalls?.length ? { stopIds: zentrumCalls, lineRefs: [] } : EMPTY_LINE_OBSERVATION,

@@ -14,6 +14,7 @@ import { findSharedBayKind, formatBayText, getBayWord } from "../lib/bay-naming"
 import { getBayText, isBayMatch, normalizeBay, type StationBoardConfig } from "../station-board";
 import { LineBadge } from "./LineBadge";
 import { classNames } from "../lib/class-names";
+import { FEED_UNREADABLE_TEXT } from "./feed-copy";
 
 /**
  * The unattended station board: read from metres away, untouched, on for weeks. It never scrolls or
@@ -45,7 +46,7 @@ function StationBoardRow({
   stationBoardConfig: StationBoardConfig;
   feedNow: number;
 }) {
-  const line = getLineSign(network.lines, stopEvent.lineId, stopEvent.ptMode);
+  const line = getLineSign(network.lines, stopEvent.lineId, stopEvent.ptMode, stopEvent.lineRef);
   const reading = getCountdownReading(stopEvent, feedNow);
   const timeReading = getDepartureTimeReading(stopEvent);
   // An operating note outranks the route; neither is ever truncated away.
@@ -208,9 +209,7 @@ export function StationBoardView({
       {stopEventBoard?.dataStatus === "unavailable" && (
         <p className="station-board-message">
           Abfahrten nicht verfügbar
-          <small>
-            {stopEventBoard.errorMessage ?? "Der KVV-Feed konnte nicht gelesen werden."}
-          </small>
+          <small>{stopEventBoard.errorMessage ?? FEED_UNREADABLE_TEXT}</small>
         </p>
       )}
       {hasBayMismatch && (

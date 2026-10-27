@@ -1,9 +1,9 @@
 # KARLA
 
-Karlsruher Abfahrten & Linien — a static React site showing the current state of the Karlsruhe
-public transport network: the stops served in the Zentrum, a line index, and stop views with live
-departures from the KVV realtime feed. It is not a journey planner: no routing, no ticketing, no
-accounts.
+Karlsruher Abfahrten & Linien — a static React site showing the current state of a public
+transport network, KVV's in Karlsruhe: the stops served in the Zentrum, a line index, and stop views
+with live departures from the realtime feed. It is not a journey planner: no routing, no ticketing,
+no accounts.
 
 KARLA is not an official KVV service.
 
@@ -13,8 +13,13 @@ The rider-facing copy is German; the code and this document are English.
 
 ```bash
 npm install
-npm run dev
+npm run dev     # reads the deployed proxy
+npm test        # tests and build must pass
 ```
+
+`npm run proxy` runs the TRIAS proxy locally on :8080 (`VITE_TRIAS_PROXY_URL=/api/ npm run dev`
+uses it). It and the scripts run by hand (`refresh:stops`, `probe:trias`) need the requestor ref
+in `.env.local` as `TRIAS_REQUESTOR_REF`.
 
 ## Addresses
 
@@ -29,7 +34,7 @@ refines the one above it:
 - `#/network` — the line index
 - `#/nearby` — the six nearest observed stops after a location reading
 - `#/settings` — where the app opens, whether it remembers stops, whether diagrams show other
-  vehicles, and the KVV data terms (not official, no KVV liability)
+  vehicles, and the data terms (not official, no KVV liability; NVBW timetable data)
 - `#/stop/europaplatz` — a stop with its departure board
 - `#/stop/europaplatz/line/2` — a line calling there, beside the board
 - `#/stop/hochstetten/line/S1+S11` — two lines read together over the stretch they share
@@ -68,40 +73,34 @@ not in the feed, it names the platforms actually reported.
 
 ## Data
 
-`src/data/transit-source.ts` is the boundary between views and data. `KvvTransitSource` reads KVV's
+`src/data/transit-source.ts` is the boundary between views and data. `TriasTransitSource` reads the
 TRIAS interface through a thin PHP proxy (`proxy/`, deployed with the site to
-`karla.app.liesegang.info`), which holds the access key: boards, runs, line routes and stop search,
-with times to the second; a stop's serving lines are learned from the runs read. The app shows no
-service notices for now: EFA's published notices (`KvvEfaClient.fetchServiceNotices`) and TRIAS's
-situations (`parseTriasSituations`) stay readable as two separate APIs.
+`karla.app.liesegang.info`), which holds the access key: boards, dated journeys, line routes and
+stop search, with times to the second; a stop's serving lines are learned from the journeys read.
+The app shows no service notices for now; TRIAS's situations (`parseTriasSituations`) stay readable.
+Failed reads retain the last complete reading and its age. Verified behaviour is recorded in
+[`docs/trias-api.md`](docs/trias-api.md).
 
-Built with `VITE_USE_EFA=true`, the whole app reads the EFA endpoints at
-`https://projekte.kvv-efa.de/sl3-alone/` instead, which allow cross-origin reads. The feed is
-chosen at build time and never switched while the app runs. Failed reads retain the last complete
-reading and its age. Verified behaviour is recorded in
-[`docs/kvv-trias-api.md`](docs/kvv-trias-api.md) and [`docs/kvv-efa-api.md`](docs/kvv-efa-api.md).
+A build reads one network, chosen by `VITE_NETWORK` (default and only: `kvv`). What the app knows
+about it beyond the feed lives in `src/networks/<id>/` ([`docs/networks/kvv.md`](docs/networks/kvv.md)):
+the pools whose lines boards keep, the area stop search keeps, the authored stop places, line
+colours, and the stop catalog `npm run refresh:stops` writes from TRIAS and NVBW's GTFS. The Zentrum
+(`src/data/zentrum-stops.ts`, `src/lib/zentrum-schematic-plan.ts`, solved by `npm run
+solve:zentrum`) and the region plan exist only for KVV.
 
-Boards are asked for the local network only (Stadtbahn, S-Bahn, tram, bus). Long-distance coaches
-and lines from other operators' data pools, which share those mode groups, are dropped when the
-answer is parsed.
-
-`src/lib/observed-network.ts` builds the served stops and lines from live trips, so a line that
-stops running leaves the view by itself. The only authored data is which stops count as the Zentrum
-(`src/data/zentrum-stops.ts`), the Zentrum's drawing (`src/lib/zentrum-schematic-plan.ts`, solved by
-`npm run solve:zentrum`), and the KVV line colours from GTFS (`src/data/line-signs.ts`). The stop
-catalog in `src/data/generated/` is written by `npm run refresh:stops` from EFA and GTFS
-([`docs/kvv-gtfs.md`](docs/kvv-gtfs.md)).
+`src/lib/observed-network.ts` builds the served stops and lines from live journeys, so a line that
+stops running leaves the view by itself.
 
 ### Bandwidth
 
 - Opening a line reads the rider's stop again, filtered to that line's two directions: twenty rows
   of one line reach hours ahead, where an unfiltered busy board reaches minutes.
-- The line's other stops are read filtered and without calling sequences; each run out on the line
-  is then read once through the single-trip endpoint (2.2 MB instead of 34.5 MB for one round of S4).
-- Boards refresh every 90 s on a line; run readings refresh on their own tolerance
-  (`LINE_DATED_JOURNEY_READING_MAX_AGE_MS`), since the feed revises runs about every 35 s.
-- What a stop's trips were observed to do is remembered for the visit (`StopCorridorPatterns`), so
-  grouping does not depend on which detailed board happens to be in hand.
+- The line's other stops are read filtered and without calls; each dated journey out on the line
+  is then read once (`TripInfoRequest`).
+- Boards refresh every 90 s on a line; dated journeys refresh on their own tolerance
+  (`LINE_DATED_JOURNEY_READING_MAX_AGE_MS`).
+- What a stop's journeys were observed to do is remembered for the visit (`StopCorridorPatterns`),
+  so grouping does not depend on which detailed board happens to be in hand.
 
 ### Reading two lines together
 
@@ -111,21 +110,21 @@ offered only where this visit has observed both lines on the same route out of t
 least three calls. The diagram draws a shared trunk and forks into one leg per line past the stop
 they part at; a line ending at the junction is stated in words (*S11 endet in Busenbach*).
 
-The Zentrum discovers observation posts from live trip sequences: the last stop before each
+The Zentrum discovers observation posts from live journeys' calls: the last stop before each
 exit, and arrival plus departure boards at internal termini. All area boards bootstrap the reading
 and refresh every five minutes to discover changed routes. Learned posts refresh every 90 seconds,
 filtered by rail direction; crowded boards receive separate direction reads to extend their horizon.
-Runs are retained within ten minutes of an area visit and two minutes after leaving it.
+Dated journeys are retained within ten minutes of an area visit and two minutes after leaving it.
 
-Boarding places share one stop name and board address. Platform coordinates and observed neighboring
-calls determine their grouping, including neighbors outside the map. Places with overlapping drawn
+Boarding places share one stop name and board address. Bay coordinates and observed neighbouring
+calls determine their grouping, including neighbours outside the map. Places with overlapping drawn
 routes receive separate marks positioned from their geographic offsets; Gleise remain visible.
 Corridors follow horizontal, vertical or 45° segments.
 
 ### Vehicle marks
 
-Marks are placed from each run's own calls, never from a position feed (KVV publishes none that
-answers). Pointing at or tapping a mark shows its destination. Marks standing at a terminus are drawn
+Marks are placed from each dated journey's own calls, never from a position feed (TRIAS states
+none). Pointing at or tapping a mark shows its destination. Marks standing at a terminus are drawn
 quieter, since no position was measured; an arrival and the departure it turns into are drawn as one
 standing mark where the narrow rules in `lib/line-turnarounds.ts` pair them.
 
@@ -154,8 +153,10 @@ launch. Vite emits `vite-manifest.json` so the worker can precache the hashed bu
 
 ## Deployment
 
-Every push to `main` builds and publishes the site via GitHub Pages. **Settings → Pages → Source**
-must be set to **GitHub Actions** once.
+Every push to `main` is tested and built, then published to GitHub Pages and, with the proxy, to
+All-Inkl (`karla.app.liesegang.info`) by `.github/workflows/deploy.yml`. **Settings → Pages →
+Source** must be set to **GitHub Actions** once. The FTP login is a repository secret; the proxy's
+requestor ref stays on the server ([proxy/README.md](proxy/README.md)).
 
 ## License
 

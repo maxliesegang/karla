@@ -143,7 +143,7 @@ test("a boarding place stands a step off its stop, turns square off the bundle a
     longitude,
   });
   const at = (code: string, latitude: number, longitude: number): Call => ({
-    ...call("7000039", latitude, longitude, "muehlburger-tor"),
+    ...call("de:08212:39", latitude, longitude, "muehlburger-tor"),
     bay: code,
   });
   const europaplatz = call("Europaplatz", 49.0101, 8.3937, "europaplatz");
@@ -181,7 +181,12 @@ test("a place seen with one platform still runs the way the timetable's pair doe
     longitude,
   });
   const at = (stopId: string, code: string, latitude: number, longitude: number): Call => ({
-    ...call(stopId === "muehlburger-tor" ? "7000039" : "7000007", latitude, longitude, stopId),
+    ...call(
+      stopId === "muehlburger-tor" ? "de:08212:39" : "de:08212:7",
+      latitude,
+      longitude,
+      stopId,
+    ),
     bay: code,
   });
   const journey = (id: string, lineId: string, calls: Call[]) =>
@@ -282,14 +287,62 @@ test("calls without positions still split a stop into the places its platforms s
       ),
     });
   const reading = createSchematicBoardingReading([
-    trias("3", ["7000084|2", "7000083|2", "7000085|4", "7000003|4", "7000401|2"]),
-    trias("3", ["7000401|1", "7000003|3", "7000085|3", "7000083|1", "7000084|1"]),
-    trias("4", ["7000401|1", "7000003|3", "7000085|1", "7000071|1", "7000061|1"]),
-    trias("5", ["7000061|2", "7000071|2", "7000085|2", "7000622|2", "7000623|2"]),
-    trias("3", ["7000062|3", "7000061|3", "7000037|3", "7000037|5", "7000039|1a"]),
-    trias("3", ["7000041|2", "7000039|2a", "7000037|6", "7000037|4", "7000061|4"]),
-    trias("1", ["7001002|1(U)", "7001003|1(U)", "7001004|1(U)", "7000039|3", "7007003|1"]),
-    trias("S2", ["7000041|2", "7000039|2a", "7001004|2(U)", "7001003|2(U)", "7001002|2(U)"]),
+    trias("3", [
+      "de:08212:84|2",
+      "de:08212:83|2",
+      "de:08212:85|4",
+      "de:08212:3|4",
+      "de:08212:401|2",
+    ]),
+    trias("3", [
+      "de:08212:401|1",
+      "de:08212:3|3",
+      "de:08212:85|3",
+      "de:08212:83|1",
+      "de:08212:84|1",
+    ]),
+    trias("4", [
+      "de:08212:401|1",
+      "de:08212:3|3",
+      "de:08212:85|1",
+      "de:08212:71|1",
+      "de:08212:61|1",
+    ]),
+    trias("5", [
+      "de:08212:61|2",
+      "de:08212:71|2",
+      "de:08212:85|2",
+      "de:08212:622|2",
+      "de:08212:623|2",
+    ]),
+    trias("3", [
+      "de:08212:62|3",
+      "de:08212:61|3",
+      "de:08212:37|3",
+      "de:08212:37|5",
+      "de:08212:39|1a",
+    ]),
+    trias("3", [
+      "de:08212:41|2",
+      "de:08212:39|2a",
+      "de:08212:37|6",
+      "de:08212:37|4",
+      "de:08212:61|4",
+    ]),
+    trias("1", [
+      "de:08212:1002|1(U)",
+      "de:08212:1003|1(U)",
+      "de:08212:1004|1(U)",
+      "de:08212:39|3",
+      "de:08212:7003|1",
+    ]),
+    trias("S2", [
+      "de:08212:41|2",
+      "de:08212:39|2a",
+      "de:08212:1004|2(U)",
+      "de:08212:1003|2(U)",
+      "de:08212:1002|2(U)",
+    ]),
   ]);
   const placesAt = (stopId: string) =>
     reading.placesByStopId
