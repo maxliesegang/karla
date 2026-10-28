@@ -152,6 +152,10 @@ const getDatedJourneyRef = ({
 }: StopEvent): DatedJourneyRef | undefined =>
   journeyRef && operatingDayRef ? { journeyRef, operatingDayRef } : undefined;
 
+/** What a board reads: the whole place, or one part of it, which is cached and completed apart. */
+const getReadingId = (stopId: string, stopPointId: string | undefined): string =>
+  stopPointId ? `${stopId}@${stopPointId}` : stopId;
+
 export class TriasTransitSource implements TransitSource {
   private readonly boards = new StopEventBoardReadings();
   private readonly datedJourneyRequests = new SharedRequests<DatedJourneyCalls | undefined>();
@@ -373,8 +377,7 @@ export class TriasTransitSource implements TransitSource {
     // Sorted so callers naming the same lines in any order share one request.
     const lineFilterKey = request.lineRefs?.length ? createSortedKey(request.lineRefs) : undefined;
     const { stopPointId } = request;
-    // One part's board is cached apart from the place's.
-    const cacheStopId = stopPointId ? `${stopId}@${stopPointId}` : stopId;
+    const cacheStopId = getReadingId(stopId, stopPointId);
     const cacheKey = this.getStopEventBoardCacheKey(
       cacheStopId,
       includeCalls,
@@ -598,7 +601,8 @@ export class TriasTransitSource implements TransitSource {
 
     if (this.stops.findStopPoints(stopId).length === 0) return base;
 
-    return this.coverage.complete(base, coverage, async (lineIds, limit) => {
+    const readingId = getReadingId(stopId, stopPointId);
+    return this.coverage.complete(readingId, base, coverage, async (lineIds, limit) => {
       const supplement = await this.readStopPlace(stopId, { lineIds, limit }, stopPointId);
       const receivedAt = Date.now();
       return {

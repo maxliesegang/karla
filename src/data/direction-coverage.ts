@@ -66,7 +66,12 @@ export class DirectionCoverageCompleter {
     this.servingLineRefsByStopId.set(stopId, lineRefs);
   }
 
+  /**
+   * `readingId` is what the board reads: the stop (`rememberServingDirections`'s id) or one part of
+   * it, which has supplements of its own and no serving directions.
+   */
   async complete(
+    readingId: string,
     base: LiveStopEventBoard,
     coverage: DirectionCoverage,
     fetchSupplement: FetchSupplement,
@@ -77,13 +82,13 @@ export class DirectionCoverageCompleter {
 
     const candidates = [
       ...new Set([
-        ...(this.servingLineRefsByStopId.get(base.stopId) ?? []),
+        ...(this.servingLineRefsByStopId.get(readingId) ?? []),
         ...base.stopEvents.flatMap(({ lineRef }) => (lineRef ? [lineRef] : [])),
       ]),
     ];
     if (candidates.length === 0) return base;
 
-    const supplementKey = `${base.stopId}:${coverageKey}`;
+    const supplementKey = `${readingId}:${coverageKey}`;
     const held = this.supplements.get(supplementKey);
     const heldAgeMs = held ? Date.now() - held.receivedAt : Number.POSITIVE_INFINITY;
     const isHeldReadable = heldAgeMs < DIRECTION_SUPPLEMENT_TTL_MS;

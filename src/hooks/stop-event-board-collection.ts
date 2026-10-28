@@ -1,10 +1,8 @@
 import { useMemo, useSyncExternalStore } from "react";
 import type { StopEventBoard, StopEventBoardCoverage } from "../data/transit-types";
-import {
-  REACH_OBSERVATION_POST_STOP_IDS,
-  ZENTRUM_OBSERVATION_POST_STOP_IDS,
-  type ObservedNetwork,
-} from "../lib/observed-network";
+import type { ObservedNetwork } from "../lib/observed-network";
+import { ZENTRUM_OBSERVATION_POST_STOP_IDS } from "../data/zentrum-stops";
+import { network as networkDefinition } from "../networks/network";
 import { transitSource } from "../data/transit-source";
 import {
   getBoardsFailureKind,
@@ -109,7 +107,7 @@ export function useZentrumNetwork({ isEnabled = true, isInView = true } = {}): {
   // Reach posts run on their slow clock regardless: boards and the nearby ranking need lines and
   // positions too.
   const { stopEventBoards: reachBoards } = useStopEventBoardCollection(
-    isEnabled ? REACH_OBSERVATION_POST_STOP_IDS : [],
+    isEnabled ? networkDefinition.reachObservationPostStopIds : [],
     REACH_OBSERVATION_REFRESH_MS,
   );
   const stopEventBoards = useMemo(

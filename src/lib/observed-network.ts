@@ -11,49 +11,6 @@ import { addOnce, getDistinctByFrequency } from "./collections";
  * Zentrum's membership (`zentrum-stops.ts`) is authored.
  */
 
-/**
- * The observation posts, in two tiers on two cadences: Zentrum posts feed the list a rider sees;
- * reach posts describe the rest of the network, which changes slowly.
- *
- * Chosen by measurement: candidate posts read at six service patterns (Mon 08:00, 12:00, 17:00,
- * Sat 18:00, Sun 11:00, Sun 03:00), scored on the worst-case share of the whole network's
- * stop-and-line pairs seen:
- *
- *     worst-case share of the network seen   stop*line   stops   lines
- *     the five Zentrum posts                     51%      57%     48%
- *     these nine                                 81%      82%     78%
- *
- * The nine also see 85% of the Zentrum's own pairs against 65%.
- */
-
-/** Zentrum posts. A fifth (Kronenplatz, Ettlinger Tor) added nothing at the worst reading. */
-export const ZENTRUM_OBSERVATION_POST_STOP_IDS = [
-  "europaplatz",
-  "karlstor",
-  "hauptbahnhof",
-  "albtalbahnhof",
-] as const;
-
-/**
- * Reach posts: where tram-trains change system (Durlach, Rheinbergstraße; Albtalbahnhof is a
- * Zentrum post) and bus hubs. What each alone sees, across the six readings:
- *
- *     durlach-bahnhof    RE1 RE45 RE73, S3 S31 S32, 21 31, MX17a, NL12 NL13
- *     rheinbergstrasse   S51, 74, 75
- *     entenfang          2 60 62 70, NL15 NL16 NL17
- *     zuendhuetle        1 24 44 47
- *     turmberg           23 26
- *
- * Turmberg is marginal (stops seen 82% → 86%) and the first to drop.
- */
-export const REACH_OBSERVATION_POST_STOP_IDS = [
-  "durlach-bahnhof",
-  "knielingen-rheinbergstrasse",
-  "entenfang",
-  "durlach-zuendhuetle",
-  "durlach-turmberg",
-] as const;
-
 export type ObservedStop = {
   id: string;
   name: string;

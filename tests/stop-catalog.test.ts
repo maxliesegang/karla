@@ -5,6 +5,14 @@ import { stopPlaces } from "../src/networks/kvv/generated/stop-places.ts";
 import { transitNetwork } from "../src/data/transit-network.ts";
 import type { StopPlace } from "../src/data/transit-types.ts";
 import { getDistanceMeters } from "../src/lib/geo.ts";
+import { DYNAMIC_STOP_ID_PATTERN, hashStopPointId } from "../src/data/stop-registry.ts";
+import { ZENTRUM_OBSERVATION_POST_STOP_IDS, zentrumStopIds } from "../src/data/zentrum-stops.ts";
+import {
+  ZENTRUM_SCHEMATIC_NODES,
+  getZentrumSchematicStopId,
+} from "../src/lib/zentrum-schematic-plan.ts";
+import { kvvNetwork } from "../src/networks/kvv/kvv-network.ts";
+import { REGION_PLANS } from "../src/networks/kvv/generated/region-plan.ts";
 
 /**
  * The stop places against the catalog they are derived from, refreshed by hand per timetable
@@ -96,4 +104,38 @@ test("positions are inside the area the app serves", () => {
 test("the catalog states each stop once", () => {
   const globalIds = new Set(stopCatalog.map(({ globalId }) => globalId));
   assert.equal(globalIds.size, stopCatalog.length);
+});
+
+/**
+ * Stop ids written by hand or solved offline are addresses into the derived places; a refresh that
+ * renames a place fails here. Beyond the catalog a plan names dynamic stops, which must not be one
+ * of its stops, or the stop would resolve to its place instead.
+ */
+test("every stop the app names by hand is still one of its places", () => {
+  const catalogDigests = new Set(stopCatalog.map(({ globalId }) => hashStopPointId(globalId)));
+  const named: [string, readonly string[]][] = [
+    ["defaultStopId", [kvvNetwork.defaultStopId]],
+    ["suggestedStopIds", kvvNetwork.suggestedStopIds],
+    ["reachObservationPostStopIds", kvvNetwork.reachObservationPostStopIds],
+    ["zentrumStopIds", zentrumStopIds],
+    ["ZENTRUM_OBSERVATION_POST_STOP_IDS", ZENTRUM_OBSERVATION_POST_STOP_IDS],
+    [
+      "ZENTRUM_SCHEMATIC_NODES",
+      ZENTRUM_SCHEMATIC_NODES.map(({ id }) => getZentrumSchematicStopId(id)),
+    ],
+    ...Object.entries(REGION_PLANS).map(([scale, { axis, nodes }]): [string, readonly string[]] => [
+      `REGION_PLANS.${scale}`,
+      [...axis, ...nodes.flatMap(({ stopIds }) => stopIds)],
+    ]),
+  ];
+  for (const [list, stopIds] of named) {
+    for (const stopId of stopIds) {
+      if (Object.hasOwn(stopPlaces, stopId)) continue;
+      const digest = DYNAMIC_STOP_ID_PATTERN.exec(stopId)?.[2];
+      assert.ok(
+        digest && !catalogDigests.has(digest),
+        `${list} names ${stopId}, which is no stop place`,
+      );
+    }
+  }
 });

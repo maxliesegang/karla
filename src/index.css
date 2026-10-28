@@ -2534,22 +2534,39 @@ button.brand:active .brand-mark,
   color: var(--ink);
 }
 
-/* Which part of a joined place the board reads (`Tunnel`, `Vorplatz`), or all of it. Unlike the place
-   bar it changes what the board says, so it sits directly under the stop's name. */
+/* Which part of a joined place the board reads (`Unten`, `Vorplatz`), or all of it. Unlike the place
+   bar it changes what the board says, so it belongs to the stop's name: text tabs in the subtitle's
+   size, lighter than the order pills, so those stay the board's only toolbar. */
 .departure-board-part-control {
-  --segment-pad: 2px;
-  --segment-gap: 1px;
-  --segment-radius: 7px;
-  margin: 8px var(--row-inset) 0;
-  border-radius: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 14px;
+  margin-top: 2px;
   font-size: 12px;
 }
 .departure-board-part-control button {
+  /* A tap target taller than the text; the underline sits on the text, not the target. */
   min-height: 28px;
-  padding: 0 12px;
-  border-radius: 7px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--ink-soft);
   font: inherit;
   font-weight: 650;
+  text-decoration: underline 2px transparent;
+  text-underline-offset: 5px;
+  cursor: pointer;
+  transition:
+    color 0.18s ease,
+    text-decoration-color 0.18s ease;
+}
+.departure-board-part-control button:hover {
+  color: var(--ink);
+}
+.departure-board-part-control button.selected {
+  /* Colour and underline, not weight, so the tabs beside it do not shift. */
+  color: var(--accent-ink);
+  text-decoration-color: currentColor;
 }
 
 /* The place a rider walks to, standing over the platforms they find when they get there. Set above

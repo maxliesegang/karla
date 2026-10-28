@@ -33,7 +33,7 @@ import {
 import { findBundledLines, findSelectedLine } from "./selected-line";
 import {
   chosenStopPlaceParts,
-  findStopPlacePart,
+  findReadStopPlacePart,
   type StopPlacePart,
 } from "./lib/stop-place-parts";
 import { stationBoardConfig } from "./station-board";
@@ -123,13 +123,8 @@ export function useSelectionChain(
   // Only the line order pays for per-direction completion, where a missing direction would be a
   // missing line.
   const boardOrder = useStoredPreference(stopEventBoardOrder);
-  // A remembered part answers only a bare stop; an addressed line or journey reads the whole place.
   const chosenParts = useStoredPreference(chosenStopPlaceParts);
-  const isBareStop = !route.lineId && !route.addressId;
-  const stopPlacePart = findStopPlacePart(
-    stopId,
-    route.partId || (isBareStop ? chosenParts[stopId] : undefined),
-  );
+  const stopPlacePart = findReadStopPlacePart(stopId, route, chosenParts);
   const stopEventBoardReading = useStopEventBoard(
     selectedStop ? stopId : undefined,
     NEEDS_BOARD_CALLS ? "calls" : boardOrder === "line" ? "covered" : "plain",

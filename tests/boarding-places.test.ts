@@ -106,8 +106,8 @@ test("a level is never merged into the one above it, however close the two stand
 
   const tunnel = places.find((place) => place.stopPointId === "de:08212:1004");
   assert.deepEqual(tunnel?.bays, ["1(U)", "2(U)"]);
-  // The label comes from the stop point's bracketed aside.
-  assert.equal(tunnel && getBoardingPlaceLabel(tunnel), "U");
+  // The label is the stop place's part.
+  assert.equal(tunnel && getBoardingPlaceLabel(tunnel), "Unten");
 });
 
 test("a bus bay is its own place, because its sign carries another word", () => {
@@ -118,10 +118,10 @@ test("a bus bay is its own place, because its sign carries another word", () => 
   assert.equal(bay?.bayKind, "stand");
 });
 
-test("a place with no name of its own is known by the platforms standing at it", () => {
+test("places of one part are told apart by the platforms standing at them", () => {
   const places = placesOf([stopEvent("3", streetDoubleCall), stopEvent("5")]);
 
-  assert.deepEqual(places.map(getBoardingPlaceLabel), ["3", "5"]);
+  assert.deepEqual(places.map(getBoardingPlaceLabel), ["Oben 3", "Oben 5"]);
 });
 
 test("the platform reading stands the platforms under the place they belong to", () => {
@@ -141,9 +141,9 @@ test("the platform reading stands the platforms under the place they belong to",
     ]),
     // Platform order, as the signposts are.
     [
-      ["U", ["1(U)"]],
-      ["3 · 4", ["3", "4"]],
-      ["5", ["5"]],
+      ["Unten", ["1(U)"]],
+      ["Oben 3 · 4", ["3", "4"]],
+      ["Oben 5", ["5"]],
     ],
   );
 });
@@ -170,7 +170,7 @@ test("a direction says which place it leaves from only where all of its trips ag
   const places = placesOf(stopEvents);
 
   const eastern = findSharedBoardingPlace(places, [stopEvents[0], stopEvents[1]]);
-  assert.equal(eastern && getBoardingPlaceLabel(eastern), "3 · 4");
+  assert.equal(eastern && getBoardingPlaceLabel(eastern), "Oben 3 · 4");
   assert.equal(findSharedBoardingPlace(places, [stopEvents[0], stopEvents[2]]), undefined);
 });
 

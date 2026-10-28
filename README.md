@@ -55,7 +55,7 @@ district outside Karlsruhe (`durlach-turmberg`). A stop beyond the catalog is `n
 ### Parts of a stop
 
 A stop place may join several stop points: Europaplatz's street and tunnel, Hauptbahnhof's
-Vorplatz and station. Its board offers `Alle` and each part (`Straße`, `Tunnel`, `Vorplatz`,
+Vorplatz and station. Its board offers `Alle` and each part (`Oben`, `Unten`, `Vorplatz`,
 `Bahnhof`); a part reads its own stop point's board, so it reaches as far ahead as that part
 alone. On the whole place, each row names its part beside the bay. The part chosen last at a
 place opens a bare stop address while stops are remembered; a line or journey link reads the whole

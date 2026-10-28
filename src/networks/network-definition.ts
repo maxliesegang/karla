@@ -16,7 +16,7 @@ export type StopPlaceDefinition = {
   formerName?: string;
   /** The busiest first; it places the page. */
   stopPoints: readonly [string, ...string[]];
-  /** Each stop point's name on the page (`Tunnel`, `Vorplatz`), where there are several. */
+  /** Each stop point's name on the page (`Unten`, `Vorplatz`), where there are several. */
   parts?: readonly string[];
 };
 
@@ -81,6 +81,13 @@ export type NetworkDefinition = {
   getLineColor(lineId: string, mode?: PtMode): string | undefined;
   /** The trunk a branch's name is built on (S11 → S1), by the operator's numbering. */
   getLineTrunkId(lineId: string): string | undefined;
+  /** Where an address naming no stop or no line lands. */
+  defaultStopId: string;
+  defaultLineId: string;
+  /** The stops a first visit is offered, before any is remembered. */
+  suggestedStopIds: readonly string[];
+  /** Boards read beyond the Zentrum's posts, for the network's slower-changing rest. */
+  reachObservationPostStopIds: readonly string[];
   /** What `npm run refresh:stops` reads: the home municipality's stops, and the timetable. */
   catalogSource: {
     /** The DHID prefix of the municipality's stops (`de:08212:`), and a rectangle around them. */

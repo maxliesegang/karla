@@ -1,17 +1,17 @@
 import { useLayoutEffect, useRef } from "react";
 import type { NearbyStopsController } from "../hooks/nearby-stops";
 import type { RecentStop } from "../lib/recent-stops";
+import { network } from "../networks/network";
 import { routePaths } from "../routing";
 import { HomeMenu } from "./HomeMenu";
 import { NearbyStopButton } from "./NearbyStopButton";
 import { StopSearch } from "./StopSearch";
 
-/** Starting stops for a first visit, authored so they show on the first paint. */
-const SUGGESTED_STOPS = [
-  { stopId: "marktplatz", name: "Marktplatz" },
-  { stopId: "europaplatz", name: "Europaplatz" },
-  { stopId: "hauptbahnhof", name: "Hauptbahnhof" },
-] as const;
+/** Starting stops for a first visit, from the network's own places so they show on the first paint. */
+const SUGGESTED_STOPS = network.suggestedStopIds.map((stopId) => ({
+  stopId,
+  name: network.stopPlaces[stopId].name,
+}));
 
 /**
  * The home: ways to reach a stop (search, recent or suggested stops, locate), then links to the

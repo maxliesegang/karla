@@ -1,13 +1,13 @@
 import type { StopEvent, BayKind, Call } from "../data/transit-types";
 import { getDistanceMeters } from "./geo";
-import { getBaseName } from "./stop-naming";
+import { findStopPointPart } from "./stop-place-parts";
 import { compareGermanNames } from "./text";
 import { isTurnaroundPair } from "./calls";
 
 /**
- * Boarding places: the parts of a stop a rider chooses between before walking (Marktplatz's two
- * tunnels; Europaplatz's street bays, two stops under one stop point id). A stop's board joins all
- * of them, so it is split here, derived from observed journeys rather than authored.
+ * Boarding places: where a rider stands, finer than a stop place's parts (Europaplatz's street bays,
+ * two stops under one stop point). Derived from observed journeys rather than authored; a place is
+ * named by its part (`stop-place-parts.ts`), else by its bays.
  */
 
 /** One place to stand at a stop, and the bays there. */
@@ -77,7 +77,6 @@ export function updateStopBoardingObservations(
         stopPointId: stopEvent.boardingStopPointId,
         bay: stopEvent.bay,
         bayKind: stopEvent.bayKind,
-        stopPointName: stopEvent.boardingStopPointName,
       });
       learned = true;
       continue;
@@ -104,13 +103,15 @@ export function getStopBoardingPlaces(observations: StopBoardingObservations): S
     [...observations.separated].filter((pair) => !observations.turnedAround.has(pair)),
   );
   const clusters = clusterBays([...observations.bays.values()], separated);
-  const places = clusters.map(toBoardingPlace).sort(compareBoardingPlaces);
+  const places = clusters
+    .map((cluster) => toBoardingPlace(observations.stopId, cluster))
+    .sort(compareBoardingPlaces);
   return disambiguateSharedLabels(places);
 }
 
 /**
- * Adds bay codes to labels shared by several places: `Hauptbahnhof (Vorplatz)` covers both the
- * bus bays and the tram bays, which buses 62 and 50 part.
+ * Adds bay codes to labels shared by several places: Hauptbahnhof's `Vorplatz` covers both the bus
+ * bays and the tram bays, which buses 62 and 50 part.
  */
 function disambiguateSharedLabels(places: readonly BoardingPlace[]): BoardingPlace[] {
   const countByLabel = new Map<string, number>();
@@ -159,7 +160,6 @@ type BayReading = {
   stopPointId: string;
   bay: string;
   bayKind?: BayKind;
-  stopPointName: string;
   latitude?: number;
   longitude?: number;
 };
@@ -281,26 +281,17 @@ function getClusterDistance(left: readonly BayReading[], right: readonly BayRead
   return nearest;
 }
 
-function toBoardingPlace(cluster: readonly BayReading[]): BoardingPlace {
+function toBoardingPlace(stopId: string, cluster: readonly BayReading[]): BoardingPlace {
   const bays = [...cluster].sort((left, right) => compareGermanNames(left.bay, right.bay));
   const [first] = bays;
   const kinds = new Set(bays.map((bay) => bay.bayKind));
   return {
     id: `${first.stopPointId}-${bays.map(({ bay }) => bay).join("-")}`,
-    label: findStopPointLabel(first.stopPointName),
+    label: findStopPointPart(stopId, first.stopPointId)?.name,
     bays: bays.map(({ bay }) => bay),
     bayKind: kinds.size === 1 ? [...kinds][0] : undefined,
     stopPointId: first.stopPointId,
   };
-}
-
-/**
- * The operator's name for one part of a place, from the bracketed aside (`Marktplatz (Pyramide U)`,
- * `Europaplatz (U)`). `getBaseName` reads the other half.
- */
-function findStopPointLabel(stopPointName: string): string | undefined {
-  const bracketed = /\(([^)]+)\)\s*$/.exec(stopPointName)?.[1]?.trim();
-  return bracketed && getBaseName(stopPointName) !== stopPointName ? bracketed : undefined;
 }
 
 /** Bay order, matching the bay signposts; board order would reshuffle every refresh. */

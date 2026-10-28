@@ -242,7 +242,10 @@ function StopEventOrderControl({
   );
 }
 
-/** Which part of the place the board reads: all of it, or one stop point's own board. */
+/**
+ * Which part of the place the board reads: all of it, or one stop point's own board. Text tabs
+ * under the name, so it reads as which variant of this stop, not as a second order control.
+ */
 function StopPlacePartControl({
   parts,
   part,
@@ -252,18 +255,26 @@ function StopPlacePartControl({
   part: StopPlacePart | undefined;
   onChoosePart: (partId: string | undefined) => void;
 }) {
-  const items: readonly SegmentedControlItem<string>[] = [
-    { value: "", label: "Alle", ariaLabel: "Abfahrten aller Bereiche" },
-    ...parts.map(({ id, name }) => ({ value: id, label: name, ariaLabel: `Abfahrten ${name}` })),
+  const items = [
+    { id: "", name: "Alle", ariaLabel: "Abfahrten aller Bereiche" },
+    ...parts.map(({ id, name }) => ({ id, name, ariaLabel: `Abfahrten ${name}` })),
   ];
+  const chosenId = part?.id ?? "";
   return (
-    <SegmentedControl
-      className="departure-board-part-control"
-      value={part?.id ?? ""}
-      items={items}
-      ariaLabel="Bereich der Haltestelle"
-      onValueChange={(partId) => onChoosePart(partId || undefined)}
-    />
+    <div className="departure-board-part-control" role="group" aria-label="Bereich der Haltestelle">
+      {items.map(({ id, name, ariaLabel }) => (
+        <button
+          key={id}
+          type="button"
+          className={id === chosenId ? "selected" : undefined}
+          aria-label={ariaLabel}
+          aria-pressed={id === chosenId}
+          onClick={() => onChoosePart(id || undefined)}
+        >
+          {name}
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -465,6 +476,9 @@ export function StopEventBoardPanel({
           {getStopPlaceSubtitle(stop) && (
             <p className="departure-board-stop-meta">{getStopPlaceSubtitle(stop)}</p>
           )}
+          {parts.length > 1 && (
+            <StopPlacePartControl parts={parts} part={part} onChoosePart={onChoosePart} />
+          )}
         </div>
         <div className="departure-board-heading-actions">
           <StopEventOrderControl order={stopEventOrder} onOrderChange={stopEventBoardOrder.write} />
@@ -475,10 +489,6 @@ export function StopEventBoardPanel({
           />
         </div>
       </div>
-
-      {parts.length > 1 && (
-        <StopPlacePartControl parts={parts} part={part} onChoosePart={onChoosePart} />
-      )}
 
       {/* A stale board says how old it is, in words. */}
       {staleLabel && (

@@ -20,10 +20,8 @@ import { StopRegistry } from "../src/data/stop-registry.ts";
 import type { StopEvent } from "../src/data/transit-types.ts";
 import { runsEveryDay } from "../src/lib/daily-lines.ts";
 import { createGeoNetworkReader, type GeoNetwork, type GeoStop } from "../src/lib/geo-map.ts";
-import {
-  REACH_OBSERVATION_POST_STOP_IDS,
-  ZENTRUM_OBSERVATION_POST_STOP_IDS,
-} from "../src/lib/observed-network.ts";
+import { ZENTRUM_OBSERVATION_POST_STOP_IDS } from "../src/data/zentrum-stops.ts";
+import { kvvNetwork } from "../src/networks/kvv/kvv-network.ts";
 import {
   extendAxis,
   compressRegion,
@@ -92,7 +90,10 @@ async function observe(): Promise<GeoNetwork> {
   const registry = new StopRegistry([]);
   const client = new TriasClient({ proxyUrl: DEFAULT_TRIAS_PROXY_URL });
   const stopEvents: StopEvent[] = [];
-  for (const stopId of [...ZENTRUM_OBSERVATION_POST_STOP_IDS, ...REACH_OBSERVATION_POST_STOP_IDS]) {
+  for (const stopId of [
+    ...ZENTRUM_OBSERVATION_POST_STOP_IDS,
+    ...kvvNetwork.reachObservationPostStopIds,
+  ]) {
     const stopPlace = stopPlaces[stopId];
     if (!stopPlace) continue;
     try {

@@ -30,6 +30,17 @@ ${rows}
   await writeFile(path, module, "utf8");
   const joined = Object.values(places).filter(({ stopPoints }) => stopPoints.length > 1).length;
   console.log(`Wrote ${Object.keys(places).length} stop places (${joined} joining stop points)`);
+  reportChangedIds(Object.keys(network.stopPlaces), Object.keys(places));
+}
+
+/** A stop id is an address: one that goes breaks links and remembered stops. */
+function reportChangedIds(before: readonly string[], after: readonly string[]): void {
+  const removed = before.filter((id) => !after.includes(id));
+  const added = after.filter((id) => !before.includes(id));
+  if (added.length > 0) console.log(`Added: ${added.join(", ")}`);
+  if (removed.length > 0) {
+    console.warn(`Removed: ${removed.join(", ")}. Pin one with \`slugs\` to keep its address.`);
+  }
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) await writeStopPlaces(network.stopCatalog);

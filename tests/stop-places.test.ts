@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { findReadStopPlacePart, getStopPlaceParts } from "../src/lib/stop-place-parts.ts";
 import { deriveStopPlaces } from "../src/lib/stop-places.ts";
 import type { CatalogStop } from "../src/networks/network-definition.ts";
 import { kvvNetwork } from "../src/networks/kvv/kvv-network.ts";
@@ -27,7 +28,7 @@ test("a tunnel and the street above it are one place, named by the busier", () =
     europaplatz: {
       name: "Europaplatz",
       stopPoints: ["de:1:37", "de:1:1004"],
-      parts: ["Straße", "Tunnel"],
+      parts: ["Oben", "Unten"],
     },
     "muehlburger-tor": { name: "Mühlburger Tor", stopPoints: ["de:1:39"] },
   });
@@ -76,7 +77,23 @@ test("overrides join, split and pin what the names miss", () => {
   });
 });
 
-test("a part is named by the operator's aside, a bare `U` being the tunnel", () => {
+test("an override naming what the catalog no longer has fails the derivation", () => {
+  const catalog = [stop("de:1:1", "Rathaus", 49.0, 8.4)];
+  assert.throws(
+    () => deriveStopPlaces(catalog, "Karlsruhe", { joins: [["de:1:8", "de:1:9"]] }),
+    /catalog lacks: de:1:8, de:1:9/,
+  );
+  assert.throws(
+    () => deriveStopPlaces(catalog, "Karlsruhe", { partNames: { "de:1:9": "Unten" } }),
+    /catalog lacks: de:1:9/,
+  );
+  assert.throws(
+    () => deriveStopPlaces(catalog, "Karlsruhe", { formerNames: { gone: "Alter Name" } }),
+    /no longer exist: gone/,
+  );
+});
+
+test("a part is named by the operator's aside, a bare `U` being `Unten`", () => {
   const { marktplatz } = deriveStopPlaces(
     [
       stop("de:1:1003", "Marktplatz (Kaiserstraße U)", 49.00966, 8.40238, "Karlsruhe", 7),
@@ -103,4 +120,25 @@ test("the generated stop places are the catalog's, as derived now", () => {
     ),
     "run npm run refresh:stop-places",
   );
+});
+
+test("a place's parts read `Oben` before `Unten`, whichever is busier", () => {
+  const names = (stopId: string) => getStopPlaceParts(stopId).map(({ name }) => name);
+
+  // Europaplatz's street is the busier, Kronenplatz's tunnel.
+  assert.deepEqual(names("europaplatz"), ["Oben", "Unten"]);
+  assert.deepEqual(names("kronenplatz"), ["Oben", "Unten"]);
+  assert.deepEqual(names("marktplatz"), ["Kaiserstraße", "Pyramide"]);
+});
+
+test("a remembered part answers only a bare stop address", () => {
+  const chosen = { europaplatz: "unten" };
+  const read = (address: { partId?: string; lineId?: string; addressId?: string }) =>
+    findReadStopPlacePart("europaplatz", { partId: "", lineId: "", ...address }, chosen)?.name;
+
+  assert.equal(read({}), "Unten");
+  assert.equal(read({ partId: "oben" }), "Oben");
+  assert.equal(read({ lineId: "2" }), undefined);
+  assert.equal(read({ addressId: "kvv:21002:E:H:s26:12" }), undefined);
+  assert.equal(read({ lineId: "2", partId: "oben" }), "Oben");
 });

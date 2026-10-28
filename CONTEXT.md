@@ -13,8 +13,8 @@ the network's overrides (`stop-place-overrides.ts`), written to `generated/stop-
 board reads each one. A stop beyond the catalog is a stop place of one stop point.
 _Avoid_: complex, local stop, transit stop, alias
 
-**Part** (`StopPlacePart`): one stop point of a joined stop place as the page names it (`Tunnel`,
-`Straße`, `Vorplatz`, `Pyramide`), from the operator's bracketed aside. A board can be read at one
+**Part** (`StopPlacePart`): one stop point of a joined stop place as the page names it (`Unten`,
+`Oben`, `Vorplatz`, `Pyramide`), from the operator's bracketed aside. A board can be read at one
 part (`#/stop/hauptbahnhof/vorplatz`).
 _Avoid_: level (not every part is one)
 

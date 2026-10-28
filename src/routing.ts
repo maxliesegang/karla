@@ -6,6 +6,7 @@
  * address instead of breaking it.
  */
 import { getLineFamilyId } from "./lib/line-families";
+import { network } from "./networks/network";
 import {
   formatLineSelection,
   isSelectedLine,
@@ -29,8 +30,8 @@ export type OtherExperimentMap = Exclude<ExperimentMap, "center">;
 export const ARE_OTHER_EXPERIMENT_MAPS_SHOWN = false;
 export type JourneyParent = "stop" | "line";
 
-export const DEFAULT_STOP_ID = "europaplatz";
-const DEFAULT_LINE_ID = "2";
+export const DEFAULT_STOP_ID = network.defaultStopId;
+const DEFAULT_LINE_ID = network.defaultLineId;
 
 /**
  * The line segment: one line or a bundle (`line/2`, `line/S1+S11`). A bundle is a view of several

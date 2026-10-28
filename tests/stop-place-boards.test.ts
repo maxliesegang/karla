@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   joinStopEventBoards,
   type Feed,
+  type FeedStopEventBoardOptions,
   type FeedStopEvent,
   type FeedStopEventBoard,
 } from "../src/data/feed.ts";
@@ -10,12 +11,12 @@ import { TriasTransitSource } from "../src/data/transit-source.ts";
 
 const SERVER_TIME = "2026-10-27T08:00:00.000Z";
 
-const stopEvent = (stopPointId: string, minute: number): FeedStopEvent => ({
+const stopEvent = (stopPointId: string, minute: number, lineId = "2"): FeedStopEvent => ({
   stopPointId,
   stopPointName: stopPointId,
   journeyRef: `${stopPointId}@${minute}`,
-  lineId: "2",
-  lineRef: "kvv:21002:E:H:s26",
+  lineId,
+  lineRef: `kvv:2100${lineId}:E:H:s26`,
   ptMode: "tram",
   destinationText: "Wolfartsweier",
   minutesUntilDeparture: minute,
@@ -65,5 +66,41 @@ test("a stop place's board reads each of its stop points and names the first", a
   assert.deepEqual(
     marktplatz.stopEvents.map(({ boardingStopPointId }) => boardingStopPointId),
     ["de:08212:1003", "de:08212:1011"],
+  );
+});
+
+test("a part's board is completed from its own stop point alone", async () => {
+  // Kaiserstraße runs line 1 often; line 2 calls only at the Pyramide, and needs topping up there.
+  const rowsByStopPoint: Record<string, FeedStopEvent[]> = {
+    "de:08212:1003": Array.from({ length: 20 }, (_, index) =>
+      stopEvent("de:08212:1003", index + 1, "1"),
+    ),
+    "de:08212:1011": [stopEvent("de:08212:1011", 5), stopEvent("de:08212:1011", 50)],
+  };
+  const asked: string[] = [];
+  const feed = {
+    fetchStopEventBoard: async (stopPointId: string, options: FeedStopEventBoardOptions = {}) => {
+      asked.push(`${stopPointId} ${options.lineIds?.join(",") ?? "all"}`);
+      const rows = rowsByStopPoint[stopPointId].filter(
+        ({ lineRef }) => !options.lineIds || options.lineIds.includes(lineRef!),
+      );
+      return { ...board(stopPointId, []), stopEvents: rows.slice(0, options.limit) };
+    },
+  } as unknown as Feed;
+  const source = new TriasTransitSource(feed);
+  const covered = { minimumStopEventsPerDirection: 2 };
+
+  const place = await source.getStopEventBoard("marktplatz", covered);
+  assert.ok(place.stopEvents.some(({ minutesUntilDeparture }) => minutesUntilDeparture === 50));
+  asked.length = 0;
+  const part = await source.getStopEventBoard("marktplatz", {
+    ...covered,
+    stopPointId: "de:08212:1003",
+  });
+
+  assert.deepEqual(asked, ["de:08212:1003 all"]);
+  assert.deepEqual(
+    [...new Set(part.stopEvents.map(({ boardingStopPointId }) => boardingStopPointId))],
+    ["de:08212:1003"],
   );
 });

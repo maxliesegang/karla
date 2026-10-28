@@ -20,6 +20,18 @@ export function deriveStopPlaces(
   homePlaceName: string,
   overrides: StopPlaceOverrides = {},
 ): Record<string, StopPlaceDefinition> {
+  const catalogIds = new Set(catalog.map(({ globalId }) => globalId));
+  const named = [
+    ...(overrides.joins ?? []).flat(),
+    ...(overrides.splits ?? []),
+    ...Object.keys(overrides.slugs ?? {}),
+    ...Object.keys(overrides.partNames ?? {}),
+  ];
+  assertNone(
+    named.filter((globalId) => !catalogIds.has(globalId)),
+    "Stop place overrides name stop points the catalog lacks",
+  );
+
   const splits = new Set(overrides.splits);
   const groups: CatalogStop[][] = [];
   for (const stop of catalog) {
@@ -69,14 +81,28 @@ export function deriveStopPlaces(
     };
     return [id, definition] as const;
   });
+  const ids = new Set(entries.map(([id]) => id));
+  assertNone(
+    Object.keys(overrides.formerNames ?? {}).filter((id) => !ids.has(id)),
+    "Former names are kept for stop places that no longer exist",
+  );
   return Object.fromEntries([...entries].sort(([a], [b]) => a.localeCompare(b)));
 }
 
-/** The operator's bracketed aside (`Marktplatz (Pyramide U)` → `Pyramide`); `U` alone is the tunnel. */
+/** A stale override would otherwise drop out unnoticed at the next refresh. */
+function assertNone(stale: readonly string[], message: string): void {
+  if (stale.length > 0) throw new Error(`${message}: ${stale.join(", ")}`);
+}
+
+/** The parts a name says only by its `(U)`, or by having none. */
+export const UPPER_PART_NAME = "Oben";
+export const LOWER_PART_NAME = "Unten";
+
+/** The operator's bracketed aside (`Marktplatz (Pyramide U)` → `Pyramide`). */
 function getPartName(name: string): string {
   const aside = /\(([^)]*)\)/.exec(name)?.[1].trim();
-  if (aside === undefined) return "Straße";
-  return aside.replace(/\s*\bU$/, "") || "Tunnel";
+  if (aside === undefined) return UPPER_PART_NAME;
+  return aside.replace(/\s*\bU$/, "") || LOWER_PART_NAME;
 }
 
 const isSamePlace = (a: CatalogStop, b: CatalogStop): boolean =>

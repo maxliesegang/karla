@@ -50,6 +50,28 @@ export const kvvNetwork: NetworkDefinition = {
   getLineColor: getKvvLineColor,
   /** S11 → S1, S51 → S5. S4 and S41 part north of the city, so it does not mean they run together. */
   getLineTrunkId: (lineId) => lineId.match(/^S\d/)?.[0],
+  defaultStopId: "europaplatz",
+  defaultLineId: "2",
+  suggestedStopIds: ["marktplatz", "europaplatz", "hauptbahnhof"],
+  /**
+   * Where tram-trains change system (Durlach, Rheinbergstraße; Albtalbahnhof is a Zentrum post) and
+   * bus hubs (`zentrum-stops.ts` has the measurement). What each alone sees, across six readings:
+   *
+   *     durlach-bahnhof    RE1 RE45 RE73, S3 S31 S32, 21 31, MX17a, NL12 NL13
+   *     rheinbergstrasse   S51, 74, 75
+   *     entenfang          2 60 62 70, NL15 NL16 NL17
+   *     zuendhuetle        1 24 44 47
+   *     turmberg           23 26
+   *
+   * Turmberg is marginal (stops seen 82% → 86%) and the first to drop.
+   */
+  reachObservationPostStopIds: [
+    "durlach-bahnhof",
+    "knielingen-rheinbergstrasse",
+    "entenfang",
+    "durlach-zuendhuetle",
+    "durlach-turmberg",
+  ],
   catalogSource: {
     stopIdPrefix: "de:08212:",
     bounds: { south: 48.93, north: 49.1, west: 8.27, east: 8.55 },
