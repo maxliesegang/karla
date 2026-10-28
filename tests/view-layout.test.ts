@@ -69,7 +69,7 @@ test("the ride sets the board aside as soon as its line resolves", () => {
   assert.equal(pending.hasStopEventBoard, false);
 });
 
-test("another trip of the same line is the same diagram, which glides rather than re-enters", () => {
+test("another journey of the same line is the same diagram, which glides rather than re-enters", () => {
   const before = layoutFor(`#/stop/marktplatz/line/2/journey/${JOURNEY}`);
   const after = layoutFor(`#/stop/marktplatz/line/2/journey/${OTHER_JOURNEY}`);
   assert.equal(before.primaryKey, after.primaryKey);
@@ -84,7 +84,7 @@ test("picking another line changes only the panel beside the board", () => {
   assert.equal(describePanelChange(before, after), "primary");
 });
 
-test("boarding a trip is a thing of its own, and leaving it comes back to the line", () => {
+test("boarding a journey is a thing of its own, and leaving it comes back to the line", () => {
   const line = layoutFor(`#/stop/marktplatz/line/2/journey/${JOURNEY}`);
   const ride = layoutFor(`#/journey/${JOURNEY}/from/marktplatz`, { stopId: "marktplatz" });
   assert.notEqual(line.primaryKey, ride.primaryKey);

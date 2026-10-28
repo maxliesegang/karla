@@ -3,13 +3,13 @@ import { readTriasProxyUrl } from "./trias-proxy";
 import { TriasClient } from "./trias-client";
 import { network as networkDefinition } from "../networks/network";
 import { isWithinScopeBounds } from "./network-scope";
-import { isNetworkRow } from "../lib/line-families";
+import { isNetworkRailRow } from "../lib/network-lines";
+import { isRailMode } from "../lib/pt-modes";
 import {
   fetchStopPlaceBoard,
   type FeedStopEventBoard,
   type FeedStopEventBoardOptions,
   type FeedStopEvent,
-  type FeedStopSearchResult,
   type Feed,
   type FeedTripInfo,
   type DatedJourneyRef,
@@ -193,13 +193,9 @@ export class TriasTransitSource implements TransitSource {
     const railLines = new Set(
       bases.flatMap((board) => [
         ...(board.servingLines ?? []).flatMap(({ lineId, ptMode }) =>
-          lineId && (ptMode === "tram" || ptMode === "lightRail") ? [lineId] : [],
+          lineId && isRailMode(ptMode) ? [lineId] : [],
         ),
-        ...board.stopEvents
-          .filter(
-            (row) => (row.ptMode === "tram" || row.ptMode === "lightRail") && isNetworkRow(row),
-          )
-          .map(({ lineId }) => lineId),
+        ...board.stopEvents.filter(isNetworkRailRow).map(({ lineId }) => lineId),
       ]),
     );
     const boards = (
@@ -209,14 +205,9 @@ export class TriasTransitSource implements TransitSource {
         ),
       )
     ).flat();
-    const rows = boards.flatMap((board) => board.stopEvents);
-    const rowsByDatedJourney = new Map<string, StopEvent>();
-    for (const row of rows) {
-      if (!this.datedJourneyReadings.findRow(row.id)) continue;
-      const key = this.datedJourneyReadings.findJourneyRecordKey(row.id);
-      const known = rowsByDatedJourney.get(key);
-      if (!known || isBetterDatedJourneyReading(row, known)) rowsByDatedJourney.set(key, row);
-    }
+    const rowsByDatedJourney = this.pickRowPerDatedJourney(
+      boards.flatMap((board) => board.stopEvents),
+    );
     await Promise.all(
       [...rowsByDatedJourney.values()]
         .filter(
@@ -354,21 +345,14 @@ export class TriasTransitSource implements TransitSource {
       throw error;
     });
     if (!matches) return local.slice(0, STOP_SEARCH_LIMIT);
-    const isNear = ({ latitude, longitude }: FeedStopSearchResult) =>
-      latitude !== undefined &&
-      longitude !== undefined &&
+    const located = matches.flatMap(({ latitude, longitude, ...match }) =>
+      latitude === undefined || longitude === undefined ? [] : [{ ...match, latitude, longitude }],
+    );
+    const isNear = ({ latitude, longitude }: { latitude: number; longitude: number }) =>
       isWithinScopeBounds(networkDefinition.scope, latitude, longitude);
-    const remote = [...matches.filter(isNear), ...matches.filter((match) => !isNear(match))]
-      .filter(({ latitude, longitude }) => latitude !== undefined && longitude !== undefined)
-      .map((match) =>
-        this.stops.register({
-          stopPointId: match.stopPointId,
-          name: match.name,
-          placeName: match.placeName,
-          latitude: match.latitude,
-          longitude: match.longitude,
-        }),
-      );
+    const remote = [...located.filter(isNear), ...located.filter((match) => !isNear(match))].map(
+      (match) => this.stops.register(match),
+    );
 
     const byId = new Map(local.map((stop) => [stop.id, stop]));
     for (const stop of remote) if (!byId.has(stop.id)) byId.set(stop.id, stop);
@@ -424,14 +408,7 @@ export class TriasTransitSource implements TransitSource {
     // One request per dated journey, not per row. Grouped by record key, since filtered rows carry
     // no calls.
     const rows = boards.flatMap((board) => board.stopEvents);
-    const rowByDatedJourneyRecordKey = new Map<string, StopEvent>();
-    for (const row of rows) {
-      if (!this.datedJourneyReadings.findRow(row.id)) continue;
-      const recordKey = this.datedJourneyReadings.findJourneyRecordKey(row.id);
-      const known = rowByDatedJourneyRecordKey.get(recordKey);
-      if (!known || isBetterDatedJourneyReading(row, known))
-        rowByDatedJourneyRecordKey.set(recordKey, row);
-    }
+    const rowByDatedJourneyRecordKey = this.pickRowPerDatedJourney(rows);
     const activeDatedJourneyRecordKeys = new Set(
       rows
         .filter((row) => row.minutesUntilDeparture <= DATED_JOURNEY_UNDER_WAY_MINUTES)
@@ -449,11 +426,23 @@ export class TriasTransitSource implements TransitSource {
     return boards.map((board) => this.publishBoard(board));
   }
 
+  /** The best-read row of each dated journey among these, by its record key. */
+  private pickRowPerDatedJourney(rows: readonly StopEvent[]): Map<string, StopEvent> {
+    const rowByRecordKey = new Map<string, StopEvent>();
+    for (const row of rows) {
+      if (!this.datedJourneyReadings.findRow(row.id)) continue;
+      const recordKey = this.datedJourneyReadings.findJourneyRecordKey(row.id);
+      const known = rowByRecordKey.get(recordKey);
+      if (!known || isBetterDatedJourneyReading(row, known)) rowByRecordKey.set(recordKey, row);
+    }
+    return rowByRecordKey;
+  }
+
   getLineRoute(rowId: string): Promise<readonly string[] | undefined> {
     const stopEvent = this.datedJourneyReadings.findRow(rowId)?.stopEvent;
     const journey = stopEvent && getDatedJourneyRef(stopEvent);
-    const lineRef = stopEvent?.lineRef;
-    if (!journey || !lineRef) return Promise.resolve(undefined);
+    if (!journey) return Promise.resolve(undefined);
+    const { lineRef } = stopEvent;
     // Every dated journey of a direction has the same route.
     const kept = this.lineRoutes.get(lineRef);
     if (kept) return Promise.resolve(kept);

@@ -103,7 +103,7 @@ function getDatedJourneyTermini(calls: readonly Call[]): {
  */
 export function getFarthestLineDatedJourneyTermini(
   lineId: string,
-  stopEvents: readonly Pick<StopEvent, "lineId" | "calls">[],
+  stopEvents: readonly Pick<StopEvent, "lineId" | "lineRef" | "calls">[],
 ): readonly string[] | undefined {
   const calls = findFarthestLineDatedJourneyCalls(lineId, stopEvents);
   if (!calls || calls.length < 2) return undefined;

@@ -2,7 +2,7 @@
 import type { StopEvent, DatedJourneyDiscoveryPost } from "../data/transit-types";
 import { statesDatedJourneyEnd } from "./calls";
 import { getDatedJourneyTimeline } from "./dated-journey-timeline";
-import { isRailStopEvent } from "./zentrum-schematic-plan";
+import { isNetworkRailRow } from "./network-lines";
 
 export const DATED_JOURNEY_DISCOVERY_APPROACH_MS = 10 * 60_000;
 const AREA_EXIT_GRACE_MS = 2 * 60_000;
@@ -17,7 +17,7 @@ export function getDatedJourneyDiscoveryPosts(
     posts.set(`${stopId}:${eventKind}`, { stopId, eventKind });
   };
   for (const datedJourney of datedJourneys) {
-    if (!isRailStopEvent(datedJourney) || datedJourney.status === "cancelled") continue;
+    if (!isNetworkRailRow(datedJourney) || datedJourney.status === "cancelled") continue;
     const calls = datedJourney.calls ?? [];
     for (const [index, call] of calls.entries()) {
       const stopId = call.stopPlaceId;

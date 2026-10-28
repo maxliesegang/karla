@@ -37,9 +37,9 @@ const lineStopIds = [
   "hauptbahnhof",
 ];
 
-function lineStopEvent(lineId: string, lineRef: string | undefined): StopEvent {
+function lineStopEvent(lineId: string, lineRef: string): StopEvent {
   return createStopEvent({
-    id: `${lineId}-${lineRef ?? "none"}`,
+    id: `${lineId}-${lineRef}`,
     lineId,
     ptMode: "tram",
     destinationText: "Ziel",
@@ -56,7 +56,7 @@ function journeyWithCalls(stopIds: readonly string[]): StopEvent {
   }) as StopEvent;
 }
 
-test("reads every known stop of a line, so no trip can hide between observations", () => {
+test("reads every known stop of a line, so no journey can hide between observations", () => {
   const observed = getLineObservationStopIds(lineStopIds, "hauptbahnhof");
 
   // The rider's own board is never asked for twice.
@@ -133,11 +133,7 @@ test("names both directions of a line, and nothing from the lines beside it", ()
   assert.deepEqual(getLineRefs("3", stopEvents), ["kvv:21003:E:H:s26", "kvv:21003:E:R:s26"]);
 });
 
-test("reads no line filter from departures that state no direction", () => {
-  assert.deepEqual(getLineRefs("3", [lineStopEvent("3", undefined)]), []);
-});
-
-test("reads the whole run a loaded trip describes, not just its core stretch", () => {
+test("reads the whole journey a loaded journey describes, not just its core stretch", () => {
   // Core stops are already seen by the posts; the outer thirds are where marks were missing.
   const journey = journeyWithCalls([
     "durlach",
@@ -155,7 +151,7 @@ test("reads the whole run a loaded trip describes, not just its core stretch", (
   );
 });
 
-test("combines branches and short workings instead of trusting one longest trip", () => {
+test("combines branches and short workings instead of trusting one longest journey", () => {
   const trunk = journeyWithCalls(["a", "b", "c", "d", "e"]);
   const branch = journeyWithCalls(["a", "b", "x", "y"]);
   const shortWorking = journeyWithCalls(["b", "c", "d"]);
@@ -179,15 +175,15 @@ test("line discovery is a stable fixed-point transition", () => {
   assert.equal(extendLineCallStopIds(expanded, [journeyWithCalls(["x", "y"])]), expanded);
 });
 
-test("falls back to the line's core stops until a trip carries its calls", () => {
+test("falls back to the line's core stops until a journey carries its calls", () => {
   assert.deepEqual(
     seedLineObservations(createLineSelection("3"), [line3], () => undefined).get("3")?.stopIds,
     ["kronenplatz", "europaplatz"],
   );
 });
 
-test("a line read before starts from what that reading learned, not from this hour's trips", () => {
-  // An outer stretch discovered once is read even when no running trip describes it.
+test("a line read before starts from what that reading learned, not from this hour's journeys", () => {
+  // An outer stretch discovered once is read even when no running journey describes it.
   const remembered = { stopIds: ["knielingen", "europaplatz"], lineRefs: [] };
 
   assert.deepEqual(

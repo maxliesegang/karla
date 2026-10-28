@@ -93,6 +93,20 @@ test("an override naming what the catalog no longer has fails the derivation", (
   );
 });
 
+test("two parts the name rule names alike fail the derivation until overridden", () => {
+  const catalog = [
+    stop("de:1:1", "Bahnhof", 49.0, 8.4),
+    stop("de:1:2", "Bahnhof", 49.0001, 8.4001),
+  ];
+  const joins = [["de:1:1", "de:1:2"]];
+  assert.throws(() => deriveStopPlaces(catalog, "Karlsruhe", { joins }), /bahnhof \(Oben, Oben\)/);
+  const places = deriveStopPlaces(catalog, "Karlsruhe", {
+    joins,
+    partNames: { "de:1:2": "Vorplatz" },
+  });
+  assert.deepEqual(places.bahnhof.parts, ["Oben", "Vorplatz"]);
+});
+
 test("a part is named by the operator's aside, a bare `U` being `Unten`", () => {
   const { marktplatz } = deriveStopPlaces(
     [

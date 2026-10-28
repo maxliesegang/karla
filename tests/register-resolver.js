@@ -1,7 +1,7 @@
 /**
  * Resolves the app's extensionless imports for the test runner.
  *
- * The source imports its own modules the way the bundler reads them — `./line-families`, with no
+ * The source imports its own modules the way the bundler reads them — `./network-lines`, with no
  * extension — and Node's ESM resolver requires one. Rather than spell extensions through the app
  * for the sake of its tests, or take on a test runner as a dependency, the missing `.ts` is added
  * back here: a relative specifier that resolves to nothing is retried once with the extension it

@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode, Ref } from "react";
-import { getJourneyEnds, getLineSign } from "../data/line-signs";
+import { getStopEventLineSign } from "../data/line-signs";
 import type {
   StopEvent,
   StopEventBoard,
@@ -41,7 +41,7 @@ import {
 } from "../lib/boarding-places";
 import { useStoredPreference } from "../hooks/stored-preference";
 import { appSettings } from "../lib/app-settings";
-import { useBoardingPlaceSections } from "../hooks/boarding-place-sections";
+import { useScrollSections } from "../hooks/scroll-sections";
 import { stopEventBoardOrder, type StopEventBoardOrder } from "../lib/stop-event-board-order";
 import { usePullToRefresh } from "../hooks/pull-to-refresh";
 import { BOARD_REFRESH_LABEL, PullToRefreshStrip } from "./PullToRefreshStrip";
@@ -405,7 +405,7 @@ export function StopEventBoardPanel({
   const isGroupedByBay = stopEventOrder === "platform";
   const isGroupedByLine = stopEventOrder === "line";
   // Live only in bay order, where the sections exist.
-  const boardingPlaceSections = useBoardingPlaceSections(stopEventListRef, {
+  const boardingPlaceSections = useScrollSections(stopEventListRef, {
     isEnabled: isGroupedByBay,
     isPageScrollport: isStacked,
   });
@@ -449,13 +449,7 @@ export function StopEventBoardPanel({
           ? findNextCompatibleStopEvent(stopEvents, stopEvent)
           : undefined
       }
-      line={getLineSign(
-        network.lines,
-        stopEvent.lineId,
-        stopEvent.ptMode,
-        stopEvent.lineRef,
-        getJourneyEnds(stopEvent),
-      )}
+      line={getStopEventLineSign(network.lines, stopEvent)}
       stopId={stop.id}
       partId={part?.id}
       partName={part ? undefined : findStopPointPart(stop.id, stopEvent.boardingStopPointId)?.name}
@@ -507,7 +501,7 @@ export function StopEventBoardPanel({
       {shownBoardingPlaces.length > 1 && (
         <BoardingPlaceBar
           places={shownBoardingPlaces}
-          activePlaceId={boardingPlaceSections.activePlaceId}
+          activePlaceId={boardingPlaceSections.activeSectionId}
           onJump={boardingPlaceSections.scrollToSection}
         />
       )}

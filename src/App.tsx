@@ -217,7 +217,7 @@ export default function App() {
 
   const { activeView, isLineInView, isRideInView } = layout;
 
-  // KVV red by default; a line in view lends its colour so bar, panel and badges read as one.
+  // The network's accent by default; a line in view lends its colour so bar, panel and badges read as one.
   const shellThemeStyle =
     isLineInView && selection.selectedLine
       ? ({

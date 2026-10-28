@@ -11,17 +11,17 @@ const call = (stopPlaceId: string, overrides: Partial<Call> = {}): Call => ({
   ...overrides,
 });
 
-/** The feed's mark for a run origin: timed out of, never into. */
+/** The feed's mark for a journey origin: timed out of, never into. */
 const datedJourneyStart = (stopPlaceId: string, bayText: string) =>
   call(stopPlaceId, { bayText, timetabledArrivalTime: undefined });
 
-/** The run end: timed into, never out of. */
+/** The journey end: timed into, never out of. */
 const datedJourneyEnd = (stopPlaceId: string, bayText: string) =>
   call(stopPlaceId, { bayText, timetabledDepartureTime: undefined });
 
-test("a run's origin and the platform it pulls forward to are one call", () => {
+test("a journey's origin and the platform it pulls forward to are one call", () => {
   // Hirtenweg as line 4 reports it: out of `Gleis 3` at 08:46 (no arrival, no boarding), then the
-  // public `Gleis 1` call at 08:47. One stop, keeping the public platform and time and the run
+  // public `Gleis 1` call at 08:47. One stop, keeping the public platform and time and the journey
   // start.
   const calls = [
     datedJourneyStart("hirtenweg", "Gleis 3"),
@@ -32,14 +32,14 @@ test("a run's origin and the platform it pulls forward to are one call", () => {
     { ...calls[1], timetabledArrivalTime: undefined },
     call("hauptfriedhof"),
   ]);
-  // The diagram reverses the trip.
+  // The diagram reverses the journey.
   assert.deepEqual(collapseTurnaroundCalls([...calls].reverse()), [
     { ...calls[1], timetabledArrivalTime: undefined },
   ]);
 });
 
-test("a turnaround keeps the passenger arrival and the feed's run-end mark", () => {
-  // At a run end the public call comes first; the fold keeps its arrival and the departure the row
+test("a turnaround keeps the passenger arrival and the feed's journey-end mark", () => {
+  // At a journey end the public call comes first; the fold keeps its arrival and the departure the row
   // counts down to.
   const publicArrival = call("rheinstetten", {
     bayText: "Gleis 1",
@@ -59,8 +59,8 @@ test("a turnaround keeps the passenger arrival and the feed's run-end mark", () 
   );
 });
 
-test("a run end the feed states twice keeps the arrival half and its deviation", () => {
-  // Both halves end runs: the fold keeps the later call and its arrival deviation.
+test("a journey end the feed states twice keeps the arrival half and its deviation", () => {
+  // Both halves end journeys: the fold keeps the later call and its arrival deviation.
   const kept = call("rheinstetten", {
     bayText: "Gleis 2",
     timetabledDepartureTime: undefined,
@@ -74,8 +74,8 @@ test("a run end the feed states twice keeps the arrival half and its deviation",
   assert.deepEqual(collapseTurnaroundCalls([earlier, kept]), [{ ...kept, delayMinutes: 2 }]);
 });
 
-test("a terminus reported at three platforms folds its run-end pair only", () => {
-  // Waidweg as line 3 reports a terminating run: loop entry (Gleis 1), the row's public Gleis 3,
+test("a terminus reported at three platforms folds its journey-end pair only", () => {
+  // Waidweg as line 3 reports a terminating journey: loop entry (Gleis 1), the row's public Gleis 3,
   // and the end track Gleis 2. The marked pair folds; the entry point stays.
   const publicCall = call("waidweg", {
     bayText: "Gleis 3",
@@ -95,7 +95,7 @@ test("a terminus reported at three platforms folds its run-end pair only", () =>
 });
 
 test("a stop a route really does reach twice keeps both of its calls", () => {
-  // Europaplatz's street platforms and Marktplatz's tunnels are real travel, not run boundaries.
+  // Europaplatz's street platforms and Marktplatz's tunnels are real travel, not journey boundaries.
   const calls = [
     call("karlstor"),
     call("europaplatz", { bayText: "Gleis 3" }),

@@ -1,8 +1,4 @@
-/**
- * Which line a row belongs to beyond its name. A name is unique only within one network (`S1` runs
- * in Karlsruhe and Stuttgart), and one line number may carry several names (DB's `ddb:90RE4` is
- * RE40 and RE45), so a row is of a line when both its name and its identity agree.
- */
+/** Which line a row belongs to: its name and its identity (pool and number) must both agree. */
 
 /** `vvs:20015` from `vvs:20015::H:j26`: the line ref's pool and line number, without direction. */
 export function getLineIdentity(lineRef: string | undefined): string | undefined {

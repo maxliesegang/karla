@@ -19,7 +19,6 @@ import {
   type LineBundleOffer,
 } from "../lib/line-bundles";
 import { isCurrentLineDiagramStop } from "../lib/line-diagram";
-import { isSameLineFamily } from "../lib/line-families";
 import { LineDiagramStopRow } from "./line-diagram/LineDiagramStopRow";
 import { LineDiagramVehicleLayer } from "./line-diagram/LineDiagramVehicleLayer";
 import { LineDiagramBranch } from "./line-diagram/LineDiagramBranch";
@@ -225,7 +224,7 @@ export function LineDiagramPanel({
               stopId,
               lineId: branch.lineId,
               addressId:
-                stopEvent && isSameLineFamily(stopEvent.lineId, branch.lineId)
+                stopEvent && stopEvent.lineId === branch.lineId
                   ? getStopEventAddressId(stopEvent)
                   : undefined,
             }),

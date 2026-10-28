@@ -40,9 +40,7 @@ export function findExpectedDepartureInstant(
   return Number.isFinite(timetabled) ? timetabled + (delayMinutes ?? 0) * 60_000 : undefined;
 }
 
-/**
- * The feed's clock truncated to the minute: KVV's own displays count whole minutes.
- */
+/** The feed's clock truncated to the minute, as stop displays count. */
 const truncateToFeedMinute = (feedNow: number): number => Math.floor(feedNow / 60_000) * 60_000;
 
 /** Seconds left until a prediction stated to the second; `undefined` for any other row. */

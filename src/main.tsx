@@ -1,7 +1,10 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import { network } from "./networks/network";
 import "./index.css";
+
+document.documentElement.style.setProperty("--network-accent", network.accentColor);
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

@@ -1,7 +1,7 @@
 import { findOtherLineColor } from "../lib/line-colors";
+import { isNetworkLineIdentity } from "../lib/network-lines";
 import { getLineIdentity, isSameLineIdentity } from "../lib/line-identity";
 import { network } from "../networks/network";
-import { isWithinScopePools } from "./network-scope";
 import type { TransitLine, PtMode, StopEvent } from "./transit-types";
 
 /** A mode's name in text; nothing is conveyed by colour alone. */
@@ -65,11 +65,14 @@ function getAccessibleTextColor(color: string): string {
   return "#000";
 }
 
+/** What a row says of its line: name, mode, ref, and where its journey starts and ends. */
+type LineSignRow = Pick<
+  StopEvent,
+  "lineId" | "ptMode" | "lineRef" | "originStopPointId" | "destinationStopPointId"
+>;
+
 /** Where a row's journey starts and ends, which tells other operators' lines of one name apart. */
-export const getJourneyEnds = ({
-  originStopPointId,
-  destinationStopPointId,
-}: Pick<StopEvent, "originStopPointId" | "destinationStopPointId">): string[] =>
+const getJourneyEnds = ({ originStopPointId, destinationStopPointId }: LineSignRow): string[] =>
   [originStopPointId, destinationStopPointId].filter((id): id is string => Boolean(id));
 
 const findLineColor = (
@@ -78,8 +81,7 @@ const findLineColor = (
   lineRef: string | undefined,
   journeyEnds: readonly string[],
 ): string | undefined =>
-  // A line named by an address alone is the network's until a row says otherwise.
-  lineRef === undefined || isWithinScopePools(network.scope, lineRef)
+  isNetworkLineIdentity(lineRef)
     ? network.getLineColor(lineId, mode)
     : findOtherLineColor(lineId, journeyEnds, {
         areas: network.operatorAreas,
@@ -126,3 +128,11 @@ export function getLineSign(
     ) ?? createLineSign(lineId, mode, lineRef, journeyEnds)
   );
 }
+
+export const createStopEventLineSign = (row: LineSignRow): TransitLine =>
+  createLineSign(row.lineId, row.ptMode, row.lineRef, getJourneyEnds(row));
+
+export const getStopEventLineSign = (
+  lines: readonly TransitLine[],
+  row: LineSignRow,
+): TransitLine => getLineSign(lines, row.lineId, row.ptMode, row.lineRef, getJourneyEnds(row));

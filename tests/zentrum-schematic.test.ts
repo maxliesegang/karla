@@ -66,7 +66,7 @@ const board = (...stopEvents: readonly StopEvent[]): StopEventBoard => ({
   stopEvents,
 });
 
-/** The runs a reading is built from, standing in for what `useLineDatedJourneyStopEvents` hands the view. */
+/** The journeys a reading is built from, standing in for what `useLineDatedJourneyStopEvents` hands the view. */
 const drawn = (boards: readonly StopEventBoard[]): StopEvent[] =>
   boards.flatMap(({ stopEvents }) => stopEvents);
 
@@ -145,7 +145,7 @@ test("crossing between the parts of one stop place draws no corridor, and breaks
   );
 });
 
-test("combines directions and repeated trips into one corridor line set", () => {
+test("combines directions and repeated journeys into one corridor line set", () => {
   const west = call("muehlburger-tor", "de:08212:39", "1a");
   const europa = call("europaplatz", "de:08212:37", "5");
   const reading = buildZentrumSchematicReading(
@@ -164,24 +164,24 @@ test("combines directions and repeated trips into one corridor line set", () => 
   assert.equal(reading.linePaths.filter(({ lineId }) => lineId === "2").length, 1);
 });
 
-test("one trip named twice in the drawn set is one trip, not two", () => {
-  // The same trip as a board row and as its retained reading must count once.
+test("one journey named twice in the drawn set is one journey, not two", () => {
+  // The same journey as a board row and as its retained reading must count once.
   const west = call("muehlburger-tor", "de:08212:39");
   const europa = call("europaplatz", "de:08212:37");
   const market = call("marktplatz", "de:08212:1003");
   const reading = buildZentrumSchematicReading([
     stopEvent("S5", [west, europa, market], {
       id: "row",
-      journeyRef: "trip-1",
-      datedJourneyId: "trip-1@a",
+      journeyRef: "journey-1",
+      datedJourneyId: "journey-1@a",
     }),
     stopEvent("S5", [west, europa, market], {
       id: "reading",
-      journeyRef: "trip-1",
-      datedJourneyId: "trip-1@a",
+      journeyRef: "journey-1",
+      datedJourneyId: "journey-1@a",
     }),
-    stopEvent("S5", [west, europa], { id: "short-1", journeyRef: "trip-2" }),
-    stopEvent("S5", [europa, west], { id: "short-2", journeyRef: "trip-3" }),
+    stopEvent("S5", [west, europa], { id: "short-1", journeyRef: "journey-2" }),
+    stopEvent("S5", [europa, west], { id: "short-2", journeyRef: "journey-3" }),
   ]);
 
   assert.deepEqual(
@@ -190,8 +190,8 @@ test("one trip named twice in the drawn set is one trip, not two", () => {
   );
 });
 
-test("a run the boards have stopped naming still states the corridors its mark rides", () => {
-  // A run between posts is on no board, but its line still draws.
+test("a journey the boards have stopped naming still states the corridors its mark rides", () => {
+  // A journey between posts is on no board, but its line still draws.
   const west = call("muehlburger-tor", "de:08212:39");
   const europa = call("europaplatz", "de:08212:37");
   const reading = buildZentrumSchematicReading([
@@ -205,7 +205,7 @@ test("a run the boards have stopped naming still states the corridors its mark r
 });
 
 test("a refresh that draws the same plan is handed the same plan, laid out once", () => {
-  // Layout is expensive; runs change every few seconds, corridors a few times a day.
+  // Layout is expensive; journeys change every few seconds, corridors a few times a day.
   const west = call("muehlburger-tor", "de:08212:39");
   const europa = call("europaplatz", "de:08212:37");
   const market = call("marktplatz", "de:08212:1003");
@@ -239,7 +239,7 @@ test("a refresh that draws the same plan is handed the same plan, laid out once"
   );
 });
 
-test("draws only the path used by the most timetable trips for each line", () => {
+test("draws only the path used by the most timetable journeys for each line", () => {
   const west = call("muehlburger-tor", "de:08212:39");
   const europa = call("europaplatz", "de:08212:37");
   const market = call("marktplatz", "de:08212:1003");
@@ -259,7 +259,7 @@ test("draws only the path used by the most timetable trips for each line", () =>
     reading.linePaths.map(({ lineId, nodes }) => [lineId, nodes.map(({ id }) => id)]),
     [["S5", ["muehlburger-tor", "europaplatz", "marktplatz", "kronenplatz"]]],
   );
-  // The less-used service is still observed, and drawn as a branch while its run is on the plan.
+  // The less-used service is still observed, and drawn as a branch while its journey is on the plan.
   assert.ok(
     reading.edges.some(
       ({ from, to, lineIds }) => [from.id, to.id].includes("karlstor") && lineIds.includes("S5"),
@@ -267,7 +267,7 @@ test("draws only the path used by the most timetable trips for each line", () =>
   );
 });
 
-test("draws a line's branch in its lane only while a run on it is on the plan", () => {
+test("draws a line's branch in its lane only while a journey on it is on the plan", () => {
   const timed = (stop: Call, time: string): Call => ({
     ...stop,
     timetabledArrivalTime: time,
@@ -309,7 +309,7 @@ test("draws a line's branch in its lane only while a run on it is on the plan", 
   assert.deepEqual(at("2026-09-04T12:03:00+02:00"), [branchId]);
   assert.deepEqual(at("2026-09-04T12:30:00+02:00"), []);
 
-  // Another run on the branch keeps the lanes as laid out.
+  // Another journey on the branch keeps the lanes as laid out.
   const again = read([
     ...datedJourneys,
     stopEvent("S5", [karlstor, europa, west], { id: "branch-2", journeyRef: "branch-2" }),
@@ -355,8 +355,8 @@ test("keeps a through line level while the lines around it change", () => {
     drawn([
       board(
         stopEvent("2", wholeCorridor),
-        stopEvent("1", wholeCorridor.slice(0, 2), { id: "1-trip" }),
-        stopEvent("3", wholeCorridor.slice(1), { id: "3-trip" }),
+        stopEvent("1", wholeCorridor.slice(0, 2), { id: "1-journey" }),
+        stopEvent("3", wholeCorridor.slice(1), { id: "3-journey" }),
       ),
     ]),
   );
@@ -446,7 +446,7 @@ test("parts a branch from its trunk where their observed patterns part", () => {
       board(
         stopEvent("S1", [west, europa, market], { id: "s1", journeyRef: "s1" }),
         stopEvent("S11", [west, europa, karlstor], { id: "s11", journeyRef: "s11" }),
-        stopEvent("2", [west, europa, market], { id: "2-trip", journeyRef: "2-trip" }),
+        stopEvent("2", [west, europa, market], { id: "2-journey", journeyRef: "2-journey" }),
       ),
     ]),
   );
@@ -485,19 +485,22 @@ test("keeps lines with a longer shared route adjacent through busy corridors", (
       board(
         stopEvent("1", [west, europa, market, kronen, durlach]),
         stopEvent("S2", [west, europa, market, kronen, durlach], {
-          id: "s2-trip",
-          journeyRef: "s2-trip",
+          id: "s2-journey",
+          journeyRef: "s2-journey",
         }),
-        stopEvent("2", [west, europa, market, ettlinger], { id: "2-trip", journeyRef: "2-trip" }),
-        stopEvent("3", [west, europa, karlstor], { id: "3-trip", journeyRef: "3-trip" }),
+        stopEvent("2", [west, europa, market, ettlinger], {
+          id: "2-journey",
+          journeyRef: "2-journey",
+        }),
+        stopEvent("3", [west, europa, karlstor], { id: "3-journey", journeyRef: "3-journey" }),
         stopEvent("4", [europa, karlstor, ettlinger, rueppurrer]),
         stopEvent("5", [europa, karlstor, ettlinger, rueppurrer], {
-          id: "5-trip",
-          journeyRef: "5-trip",
+          id: "5-journey",
+          journeyRef: "5-journey",
         }),
         stopEvent("6", [europa, karlstor, call("mathystrasse", "de:08212:62")], {
-          id: "6-trip",
-          journeyRef: "6-trip",
+          id: "6-journey",
+          journeyRef: "6-journey",
         }),
       ),
     ]),
@@ -581,12 +584,12 @@ test("lays neighbouring lanes exactly one lane width apart", () => {
     drawn([
       board(
         stopEvent("1", [west, europa, market]),
-        stopEvent("2", [west, europa, call("karlstor", "de:08212:61")], { id: "2-trip" }),
+        stopEvent("2", [west, europa, call("karlstor", "de:08212:61")], { id: "2-journey" }),
         stopEvent("3", [west, europa, market, call("kronenplatz", "de:08212:1002")], {
-          id: "3-trip",
+          id: "3-journey",
         }),
         stopEvent("4", [west, europa, market, call("ettlinger-tor", "de:08212:1012")], {
-          id: "4-trip",
+          id: "4-journey",
         }),
       ),
     ]),
@@ -633,12 +636,12 @@ test("hangs a narrower straight off the top of the band its through lines run in
         stopEvent(
           "2",
           calls(["muehlburger-tor", "europaplatz", "marktplatz", "kronenplatz", "durlacher-tor"]),
-          { id: "2-trip", journeyRef: "2-trip" },
+          { id: "2-journey", journeyRef: "2-journey" },
         ),
         ...["3", "4", "5", "6"].map((lineId) =>
           stopEvent(lineId, calls(["muehlburger-tor", "europaplatz", "karlstor"]), {
-            id: `${lineId}-trip`,
-            journeyRef: `${lineId}-trip`,
+            id: `${lineId}-journey`,
+            journeyRef: `${lineId}-journey`,
           }),
         ),
         ...["7", "8", "9", "10"].map((lineId) =>
@@ -646,8 +649,8 @@ test("hangs a narrower straight off the top of the band its through lines run in
             lineId,
             calls(["durlacher-tor", "kronenplatz", "marktplatz", "ettlinger-tor"]),
             {
-              id: `${lineId}-trip`,
-              journeyRef: `${lineId}-trip`,
+              id: `${lineId}-journey`,
+              journeyRef: `${lineId}-journey`,
             },
           ),
         ),
@@ -687,7 +690,7 @@ const corridorDatedJourneys = (lineCount: number) =>
   drawn([
     board(
       ...Array.from({ length: lineCount }, (_, index) =>
-        stopEvent(String(index + 1), crowdedCorridor(), { id: `${index + 1}-trip` }),
+        stopEvent(String(index + 1), crowdedCorridor(), { id: `${index + 1}-journey` }),
       ),
     ),
   ]);
@@ -762,7 +765,7 @@ test("does not reserve lanes for services that join later on a straight", () => 
   ];
   const reading = buildZentrumSchematicReading(
     drawn([
-      board(stopEvent("6", line6Calls), stopEvent("3", line6Calls.slice(3), { id: "3-trip" })),
+      board(stopEvent("6", line6Calls), stopEvent("3", line6Calls.slice(3), { id: "3-journey" })),
     ]),
   );
   const linePath = reading.linePaths.find(({ lineId }) => lineId === "6");
@@ -937,7 +940,7 @@ test("places a vehicle on the link its timings put it on, and keeps its directio
         delayMinutes: 0,
       },
     ],
-    { id: "portal-trip", datedJourneyId: "portal-trip", delayMinutes: 0 },
+    { id: "portal-journey", datedJourneyId: "portal-journey", delayMinutes: 0 },
   );
 
   const reading = buildZentrumSchematicReading(drawn([board(journey)]));
@@ -1047,7 +1050,7 @@ test("keeps line 5 on its arriving lane between Europaplatz platforms", () => {
   assert.equal(parked.angle, getZentrumSchematicVehiclePathPlacement(arriving.path, 1).angle);
 });
 
-test("keeps a vehicle standing before its Zentrum run starts", () => {
+test("keeps a vehicle standing before its Zentrum journey starts", () => {
   const calls = datedJourney([
     {
       ...call("kronenplatz", "de:08212:1002"),
@@ -1088,7 +1091,7 @@ test("keeps a vehicle standing before its Zentrum run starts", () => {
   assert.equal(vehicle?.y, vehicle?.from.y);
 });
 
-test("keeps a vehicle standing after its Zentrum run ends", () => {
+test("keeps a vehicle standing after its Zentrum journey ends", () => {
   const calls = datedJourney([
     {
       ...call("kronenplatz", "de:08212:1002"),

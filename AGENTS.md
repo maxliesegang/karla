@@ -33,7 +33,7 @@ GitHub Actions tests, builds and deploys `dist` on push to `main`; don't commit 
 | --- | --- |
 | [src/App.tsx](src/App.tsx) | the shell: picks a panel, hands views their data |
 | [src/routing.ts](src/routing.ts) | hash routes and path builders |
-| [src/selection.ts](src/selection.ts) | resolving the stop / line / trip address against live data |
+| [src/selection.ts](src/selection.ts) | resolving the stop / line / journey address against live data |
 | [src/selected-line.ts](src/selected-line.ts) | which line the address stands for, as a pure rule |
 | [src/view-layout.ts](src/view-layout.ts) | what an address means for the two panels |
 | [src/station-board.ts](src/station-board.ts) | the unattended board's `?display=` configuration |

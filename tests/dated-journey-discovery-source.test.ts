@@ -10,9 +10,9 @@ import type {
 } from "../src/data/feed.ts";
 import { TriasTransitSource } from "../src/data/transit-source.ts";
 
-test("tomorrow's reused S7 code never replaces or refreshes today's active run", async (t) => {
+test("tomorrow's reused S7 code never replaces or refreshes today's active journey", async (t) => {
   // Recorded 7 October 2026: today's departure at Gottesauer Platz, tomorrow's arrival at the
-  // Pyramide under the same journey code, and tomorrow's trip.
+  // Pyramide under the same journey code, and tomorrow's journey.
   const fixture: {
     today: FeedStopEventBoard;
     tomorrow: FeedStopEventBoard;
@@ -133,7 +133,7 @@ const board = (stopPointId: string, stopEvents: FeedStopEvent[]): FeedStopEventB
   stopEvents,
 });
 
-test("arrival discovery shares one trip read with departure discovery and never answers a passenger board", async (t) => {
+test("arrival discovery shares one journey read with departure discovery and never answers a passenger board", async (t) => {
   t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-10-05T12:00:00Z") });
   let journeyReads = 0;
   const eventKinds: (string | undefined)[] = [];
@@ -164,7 +164,7 @@ test("arrival discovery shares one trip read with departure discovery and never 
   assert.ok(eventKinds.includes("arrival"));
 });
 
-test("a crowded board discovers a rail direction known only from runs read elsewhere", async (t) => {
+test("a crowded board discovers a rail direction known only from journeys read elsewhere", async (t) => {
   t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-10-05T12:00:00Z") });
   const sparseDirection = "kvv:22304:E:H:s26";
   const s4Row: FeedStopEvent = {

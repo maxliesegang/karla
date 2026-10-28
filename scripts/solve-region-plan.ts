@@ -37,8 +37,8 @@ import {
   type RegionPlan,
   type RegionScaleName,
 } from "../src/lib/region-plan.ts";
+import { isNetworkRailRow } from "../src/lib/network-lines.ts";
 import {
-  isRailStopEvent,
   ZENTRUM_SCHEMATIC_GRID,
   ZENTRUM_SCHEMATIC_NODES,
 } from "../src/lib/zentrum-schematic-plan.ts";
@@ -111,7 +111,7 @@ async function observe(): Promise<GeoNetwork> {
           bay: stopEvent.bay ?? "",
           calls: registry.toCalls(stopEvent.calls ?? []),
         };
-        if (isRailStopEvent(row)) stopEvents.push(row);
+        if (isNetworkRailRow(row)) stopEvents.push(row);
       }
     } catch (error) {
       console.error(`! ${stopId} did not answer: ${(error as Error).message}`);

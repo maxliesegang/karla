@@ -50,7 +50,7 @@ test("another stop chain is not a move within anything", () => {
 });
 
 test("a note that was not on the diagram has not moved onto it", () => {
-  // A ride marks no stop; a stop off the drawn trip has no row.
+  // A ride marks no stop; a stop off the drawn journey has no row.
   assert.equal(describeCurrentStopMove(place(-1), place(2)), undefined);
   assert.equal(describeCurrentStopMove(place(2), place(-1)), undefined);
 });
@@ -58,7 +58,7 @@ test("a note that was not on the diagram has not moved onto it", () => {
 const { chooseLineDiagramDatedJourney, getCurrentStopIndex, isCurrentLineDiagramStop } =
   await import("../src/lib/line-diagram.ts");
 
-/** A line 2 trip, by its stops in travel order. */
+/** A line 2 journey, by its stops in travel order. */
 const journey = (id: string, destination: string, stopIds: readonly string[]) =>
   createStopEvent({
     id,
@@ -88,12 +88,12 @@ const chooseAt = (
     boardStopEvents: candidates,
   });
 
-test("walking along the line keeps the trip the line is already drawn from", () => {
-  // Holding the trip keeps the chain, so stepping along the line does not flip the diagram.
+test("walking along the line keeps the journey the line is already drawn from", () => {
+  // Holding the journey keeps the chain, so stepping along the line does not flip the diagram.
   assert.equal(chooseAt("c", OUTBOUND), OUTBOUND);
 });
 
-test("a stop the held trip does not call at is drawn afresh, pointing the same way", () => {
+test("a stop the held journey does not call at is drawn afresh, pointing the same way", () => {
   // Nothing to hold, but the last direction still stands.
   const chosen = chooseLineDiagramDatedJourney({
     lineId: "2",
@@ -105,11 +105,11 @@ test("a stop the held trip does not call at is drawn afresh, pointing the same w
     boardStopEvents: [],
   });
   assert.equal(chosen?.destinationText, "Wörth");
-  // The farthest-running trip that way, not a short working.
+  // The farthest-running journey that way, not a short working.
   assert.equal(chosen, OUTBOUND);
 });
 
-test("the trip the address names draws the line, held or not", () => {
+test("the journey the address names draws the line, held or not", () => {
   const chosen = chooseLineDiagramDatedJourney({
     lineId: "2",
     riderStopIds: ["c"],
@@ -135,7 +135,7 @@ test("a line opened with nothing held is pointed where the rider was last headin
   assert.equal(chosen, INBOUND);
 });
 
-test("a held trip of another line is not what this line is drawn from", () => {
+test("a held journey of another line is not what this line is drawn from", () => {
   const chosen = chooseAt("c", { ...OUTBOUND, lineId: "5" });
   assert.equal(chosen?.lineId, "2");
 });
@@ -173,7 +173,7 @@ test("the boarding stop point answers where the address names a stop the chain d
   assert.equal(getCurrentStopIndex(ROWS, "complex", "c"), 1);
 });
 
-test("a stop off the drawn trip is no row at all", () => {
+test("a stop off the drawn journey is no row at all", () => {
   assert.equal(getCurrentStopIndex(ROWS, "x", "y"), -1);
   assert.equal(getCurrentStopIndex(ROWS, "x", undefined), -1);
 });

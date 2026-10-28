@@ -17,7 +17,7 @@ const call = (stopPlaceId: string, minute: number, terminus = false): Call => ({
 });
 const datedJourney = (calls: readonly Call[]) => createStopEvent({ calls });
 
-test("the same one-sided map stop is a departure post for through runs and an arrival post for terminating runs", () => {
+test("the same one-sided map stop is a departure post for through journeys and an arrival post for terminating journeys", () => {
   const area = ["a", "b"];
   assert.deepEqual(
     getDatedJourneyDiscoveryPosts(area, [
@@ -34,7 +34,7 @@ test("the same one-sided map stop is a departure post for through runs and an ar
   );
 });
 
-test("all exits are covered when a run leaves and returns, including an internal short turn", () => {
+test("all exits are covered when a journey leaves and returns, including an internal short turn", () => {
   assert.deepEqual(
     getDatedJourneyDiscoveryPosts(
       ["a", "b", "c"],

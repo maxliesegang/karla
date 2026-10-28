@@ -22,7 +22,7 @@ const createStopEvent = (overrides: Partial<FeedStopEvent> = {}): FeedStopEvent 
     ...overrides,
   }) as FeedStopEvent;
 
-test("tells two trips apart when line, Steig, destination and scheduled minute are all the same", () => {
+test("tells two journeys apart when line, Steig, destination and scheduled minute are all the same", () => {
   const delayed = createStopEvent({
     delayMinutes: 3,
     estimatedDepartureTime: "2026-08-24T18:53:00.000Z",
@@ -38,7 +38,7 @@ test("tells two trips apart when line, Steig, destination and scheduled minute a
   );
 });
 
-test("keeps a trip's id across refreshes, whatever the feed reports about it now", () => {
+test("keeps a journey's id across refreshes, whatever the feed reports about it now", () => {
   const first = createStopEvent({ minutesUntilDeparture: 44 });
   const later = createStopEvent({ minutesUntilDeparture: 12, delayMinutes: 2, status: "diverted" });
 
@@ -48,7 +48,7 @@ test("keeps a trip's id across refreshes, whatever the feed reports about it now
   );
 });
 
-test("separates the same trip read at two stops, and two runs of a reused trip id", () => {
+test("separates the same journey read at two stops, and two journeys of a reused journey id", () => {
   const stopEvent = createStopEvent();
 
   assert.notEqual(
@@ -64,11 +64,11 @@ test("separates the same trip read at two stops, and two runs of a reused trip i
   );
 });
 
-test("falls back to what the departure looks like where the feed names no trip", () => {
-  const untripped = createStopEvent({ journeyRef: undefined });
+test("falls back to what the departure looks like where the feed names no journey", () => {
+  const unreferenced = createStopEvent({ journeyRef: undefined });
 
   assert.equal(
-    createStopEventId(untripped, "augartenstrasse"),
+    createStopEventId(unreferenced, "augartenstrasse"),
     "augartenstrasse-S8-2-Karlsruhe Tullastraße-2026-08-24T18:50:00.000Z",
   );
 });

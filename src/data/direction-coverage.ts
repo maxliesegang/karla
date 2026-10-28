@@ -107,7 +107,7 @@ export class DirectionCoverageCompleter {
       const coveredByDirection = new Map<string, number>();
       for (const stopEvent of collected.stopEventById.values()) {
         const lineRef = stopEvent.lineRef;
-        if (!lineRef || !isStopEventWithin(stopEvent, feedNow, feedNow + horizonMs)) continue;
+        if (!isStopEventWithin(stopEvent, feedNow, feedNow + horizonMs)) continue;
         coveredByDirection.set(lineRef, (coveredByDirection.get(lineRef) ?? 0) + 1);
       }
       return candidates.filter((lineRef) => (coveredByDirection.get(lineRef) ?? 0) < minimum);

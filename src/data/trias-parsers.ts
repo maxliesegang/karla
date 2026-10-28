@@ -200,7 +200,7 @@ const readErrorCodes = (response: XmlElement | undefined): string[] =>
     ),
   );
 
-/** Whole minutes between the two clock readings, as KVV's displays count them. */
+/** Whole minutes between the two clock readings, as stop displays count them. */
 const countClockMinutes = (from: number, until: number): number =>
   Math.max(0, Math.floor(until / 60_000) - Math.floor(from / 60_000));
 

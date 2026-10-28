@@ -80,6 +80,8 @@ export type NetworkDefinition = {
     /** Where it publishes the line colours, and under which licence. */
     openData: { url: string; licence: string };
   };
+  /** The operator's brand colour: the shell's accent where no line lends its own. */
+  accentColor: string;
   scope: NetworkScope;
   /** The municipality the network centres on, which the feed prefixes its stop names with. */
   home: { placeName: string; stopNamePrefix: RegExp };
@@ -100,6 +102,8 @@ export type NetworkDefinition = {
   otherLineColors: OtherLineColors;
   /** The trunk a branch's name is built on (S11 → S1), by the operator's numbering. */
   getLineTrunkId(lineId: string): string | undefined;
+  /** Its own lines in the order its signs list them. */
+  compareLineIds(a: string, b: string): number;
   /** Where an address naming no stop or no line lands. */
   defaultStopId: string;
   defaultLineId: string;

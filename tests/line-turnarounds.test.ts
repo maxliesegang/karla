@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { StopEvent, Call } from "../src/data/transit-types.ts";
-import { findTurnarounds } from "../src/lib/line-turnarounds.ts";
+import {
+  dropTurnedArrivals,
+  findTurnarounds,
+  getTurnaroundMarkerKey,
+} from "../src/lib/line-turnarounds.ts";
 import {
   buildLineDiagramStops,
   getLineDiagramVehicles,
@@ -196,7 +200,7 @@ test("pairs the arrivals in the order they come in rather than by the shortest s
   );
 });
 
-test("pairs on the published times, so a late run does not re-pair the terminus around it", () => {
+test("pairs on the published times, so a late journey does not re-pair the terminus around it", () => {
   // Five minutes late, the arrival lands after its departure's scheduled time; the pairing is by
   // plan and holds, only the drawn stand moves.
   const arriving = stopEvent("in-late", "2", [call("a", 0), call("b", 4), call("c", 8, 5)]);
@@ -249,7 +253,7 @@ test("draws a turnaround as one standing mark rather than an arrival beside a de
   assert.equal(
     vehicles[0].markerKey,
     approaching.markerKey,
-    "the arriving mark keeps its identity when the outbound run takes it over",
+    "the arriving mark keeps its identity when the outbound journey takes it over",
   );
   assert.equal(vehicles[0].phase, "beforeStart");
   assert.equal(vehicles[0].directionArrow, "↑");
@@ -264,7 +268,7 @@ test("draws a turnaround as one standing mark rather than an arrival beside a de
 
 test("stands a paired departure at its terminus for the whole of a long turnaround", () => {
   const arriving = stopEvent("in-long", "2", [call("a", 0), call("c", 8)]);
-  // Ten minutes standing: longer than a lone trip is drawn.
+  // Ten minutes standing: longer than a lone journey is drawn.
   const turning = stopEvent("out-long", "2", [call("c", 18), call("a", 26)]);
   const { standFromByDepartureKey } = findTurnarounds([arriving, turning]);
 
@@ -300,7 +304,7 @@ test("keeps the arriving mark when the departure it turns into cannot be drawn h
   assert.equal(vehicles[0].phase, "afterEnd");
 });
 
-test("never pairs at a stop where neither run actually ends", () => {
+test("never pairs at a stop where neither journey actually ends", () => {
   // Timed at both ends everywhere: C is passed through, not a terminus.
   const passing = (id: string, calls: readonly Call[]): StopEvent =>
     createStopEvent({
@@ -316,8 +320,8 @@ test("never pairs at a stop where neither run actually ends", () => {
   assert.equal(index.standFromByDepartureKey.size, 0);
 });
 
-test("never pairs a run that ends with one that carries on the same way", () => {
-  // A run leaving C outwards, over ground the arrival never covered, is not a turn.
+test("never pairs a journey that ends with one that carries on the same way", () => {
+  // A journey leaving C outwards, over ground the arrival never covered, is not a turn.
   const arriving = stopEvent("in-short", "2", [call("a", 0), call("b", 4), call("c", 8)]);
   const onwards = stopEvent("out-onwards", "2", [call("c", 12), call("d", 16), call("e", 20)]);
 
@@ -367,7 +371,7 @@ test("draws one mark where an arrival and a waiting departure share a terminus u
   assert.deepEqual(
     vehicles.map(({ stopEvent: { id }, phase }) => [id, phase]),
     [["in-unpaired", "afterEnd"]],
-    "the waiting mark stands down while a run is still ending at the same stop",
+    "the waiting mark stands down while a journey is still ending at the same stop",
   );
 });
 
@@ -396,9 +400,9 @@ test("draws no waiting mark at a terminus the vehicle has not reached yet", () =
   );
 });
 
-test("stands a lone waiting trip at its terminus for the whole of a long turn", () => {
+test("stands a lone waiting journey at its terminus for the whole of a long turn", () => {
   // Line 3 turns at Forststraße on eleven minutes. With one departure caught the headway is
-  // unknown, so no pairing; the outgoing trip's own lead covers the turn.
+  // unknown, so no pairing; the outgoing journey's own lead covers the turn.
   const arriving = stopEvent("in-long-turn", "3", [call("a", 0), call("b", 4), call("c", 8)]);
   const waiting = stopEvent("out-long-turn", "3", [call("c", 21), call("b", 25), call("a", 29)]);
 
@@ -419,4 +423,31 @@ test("stands a lone waiting trip at its terminus for the whole of a long turn", 
     [["out-long-turn", "beforeStart"]],
   );
   assert.equal(getVehicleRowCoordinate(vehicles[0]), terminusIndex);
+});
+
+test("both halves of a turn are drawn under the departure's key, other journeys under their own", () => {
+  const arriving = stopEvent("in", "2", [call("a", 0), call("b", 4), call("c", 8)]);
+  const turning = stopEvent("out", "2", [call("c", 12), call("b", 16), call("a", 20)]);
+  const unrelated = stopEvent("other", "5", [call("x", 0), call("y", 4)]);
+  const turnarounds = findTurnarounds([arriving, turning, unrelated]);
+
+  assert.equal(getTurnaroundMarkerKey(turnarounds, arriving), "out@today");
+  assert.equal(getTurnaroundMarkerKey(turnarounds, turning), "out@today");
+  assert.equal(getTurnaroundMarkerKey(turnarounds, unrelated), "other@today");
+});
+
+test("a finished arrival is dropped only once the departure it turns into is drawn", () => {
+  const arriving = stopEvent("in", "2", [call("a", 0), call("b", 4), call("c", 8)]);
+  const turning = stopEvent("out", "2", [call("c", 12), call("b", 16), call("a", 20)]);
+  const turnarounds = findTurnarounds([arriving, turning]);
+  const ended = { stopEvent: arriving, phase: "afterEnd" };
+  const waiting = { stopEvent: turning, phase: "beforeStart" };
+
+  assert.deepEqual(dropTurnedArrivals(turnarounds, [ended, waiting]), [waiting]);
+  assert.deepEqual(dropTurnedArrivals(turnarounds, [ended]), [ended]);
+  assert.deepEqual(
+    dropTurnedArrivals(turnarounds, [{ stopEvent: arriving, phase: "running" }, waiting]),
+    [{ stopEvent: arriving, phase: "running" }, waiting],
+    "a running arrival keeps its mark",
+  );
 });

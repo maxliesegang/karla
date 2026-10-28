@@ -3,8 +3,8 @@
  * hand. Direct rides only; the feed says nothing reliable about changes.
  */
 import type { StopEvent, Call } from "../data/transit-types";
-import { compareLineIds } from "./line-families";
 import { collapseTurnaroundCalls, getCallInstant } from "./calls";
+import { network } from "../networks/network";
 
 /** What "nearest" means for a reached stop: the soonest arrival, or the shortest ride. */
 export type TravelMeasure = "arrival" | "ride";
@@ -35,7 +35,7 @@ const compareTravelTimes = (
 ): number =>
   getMeasuredTime(left, measure) - getMeasuredTime(right, measure) ||
   left.arrivesAt - right.arrivesAt ||
-  compareLineIds(left.lineId, right.lineId);
+  network.compareLineIds(left.lineId, right.lineId);
 
 /**
  * The best direct ride to every stop the dated journeys reach after boarding at `originStopId`. A

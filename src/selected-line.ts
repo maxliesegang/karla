@@ -1,10 +1,10 @@
 /**
  * The line level of the selection, resolved against live data; pure, so testable without mounting.
  */
-import { getJourneyEnds, getLineSign } from "./data/line-signs";
+import { getLineSign, getStopEventLineSign } from "./data/line-signs";
 import type { StopEvent, StopEventBoard, TransitLine, TransitNetwork } from "./data/transit-types";
 import { getResolvedBundledLineIds } from "./lib/line-bundles";
-import { findLineForRoute, isNetworkRow, isSameLineFamily } from "./lib/line-families";
+import { isNetworkRow } from "./lib/network-lines";
 import { getLineIdentity } from "./lib/line-identity";
 import type { AppRoute } from "./routing";
 
@@ -24,18 +24,9 @@ export function findSelectedLine(
 
   // An address names the network's line; another operator's line of that name is not it.
   const lineStopEvent = route.lineId
-    ? stopEvents.find(
-        (stopEvent) => isSameLineFamily(stopEvent.lineId, route.lineId) && isNetworkRow(stopEvent),
-      )
+    ? stopEvents.find((stopEvent) => stopEvent.lineId === route.lineId && isNetworkRow(stopEvent))
     : ownStopEvent;
-  if (lineStopEvent)
-    return getLineSign(
-      network.lines,
-      lineStopEvent.lineId,
-      lineStopEvent.ptMode,
-      lineStopEvent.lineRef,
-      getJourneyEnds(lineStopEvent),
-    );
+  if (lineStopEvent) return getStopEventLineSign(network.lines, lineStopEvent);
 
   // A restored ride keeps its line with a neutral sign until its retained dated journey resolves.
   if (route.isRide && route.lineId) return getLineSign(network.lines, route.lineId, "other");
@@ -69,22 +60,12 @@ export function findBundledLines(
 ): readonly TransitLine[] {
   if (!selectedLine || bundledLineIds.length === 0) return EMPTY_LINES;
   return getResolvedBundledLineIds(bundledLineIds, stopEventBoard).flatMap((lineId) => {
-    if (isSameLineFamily(lineId, selectedLine.id)) return [];
-    const running = stopEventBoard?.stopEvents.find((stopEvent) =>
-      isSameLineFamily(stopEvent.lineId, lineId),
-    );
-    const observed = findLineForRoute(network.lines, lineId);
+    if (lineId === selectedLine.id) return [];
+    const running = stopEventBoard?.stopEvents.find((stopEvent) => stopEvent.lineId === lineId);
+    const observed = network.lines.find((line) => line.id === lineId);
     if (observed) return [observed];
     return running
-      ? [
-          getLineSign(
-            network.lines,
-            running.lineId,
-            running.ptMode,
-            running.lineRef,
-            getJourneyEnds(running),
-          ),
-        ]
+      ? [getStopEventLineSign(network.lines, running)]
       : [getLineSign(network.lines, lineId, "other")];
   });
 }

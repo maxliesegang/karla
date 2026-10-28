@@ -43,7 +43,7 @@ test("accumulates topology learned by separate view boards", () => {
   const store = new ObservedNetworkStore();
   store.rememberBoard(
     board("europaplatz", [
-      stopEvent("trip-1", "1", "Durlach", [
+      stopEvent("journey-1", "1", "Durlach", [
         call("Europaplatz", "europaplatz"),
         call("Marktplatz", "marktplatz"),
       ]),
@@ -51,7 +51,7 @@ test("accumulates topology learned by separate view boards", () => {
   );
   store.rememberBoard(
     board("hauptbahnhof", [
-      stopEvent("trip-2", "2", "Durlach", [
+      stopEvent("journey-2", "2", "Durlach", [
         call("Hauptbahnhof", "hauptbahnhof"),
         call("Marktplatz", "marktplatz"),
       ]),
@@ -68,12 +68,12 @@ test("accumulates topology learned by separate view boards", () => {
   assert.equal(store.getSnapshot().journeyCount, 2);
 });
 
-test("re-reading one timetable trip neither double-counts it nor emits a change", () => {
+test("re-reading one timetable journey neither double-counts it nor emits a change", () => {
   const store = new ObservedNetworkStore();
   const listeners: number[] = [];
   store.subscribe(() => listeners.push(store.getSnapshot().journeyCount));
   const reading = board("europaplatz", [
-    stopEvent("trip-1", "1", "Durlach", [
+    stopEvent("journey-1", "1", "Durlach", [
       call("Europaplatz", "europaplatz"),
       call("Marktplatz", "marktplatz"),
     ]),
@@ -86,11 +86,11 @@ test("re-reading one timetable trip neither double-counts it nor emits a change"
   assert.deepEqual(listeners, [1]);
 });
 
-test("keeps topology but not a run's timing fields", () => {
+test("keeps topology but not a journey's timing fields", () => {
   const store = new ObservedNetworkStore();
   store.rememberBoard(
     board("europaplatz", [
-      stopEvent("trip-1", "1", "Durlach", [
+      stopEvent("journey-1", "1", "Durlach", [
         {
           ...call("Europaplatz", "europaplatz"),
           timetabledDepartureTime: "2026-09-07T12:00:00+02:00",
@@ -101,14 +101,14 @@ test("keeps topology but not a run's timing fields", () => {
     ]),
   );
 
-  // The public snapshot exposes topology only; a later run reading cannot be recovered from it.
+  // The public snapshot exposes topology only; a later journey reading cannot be recovered from it.
   assert.deepEqual(
     store.getSnapshot().stops.map(({ id }) => id),
     ["europaplatz", "marktplatz"],
   );
 });
 
-test("excludes cancelled runs but accepts a diverted route", () => {
+test("excludes cancelled journeys but accepts a diverted route", () => {
   const store = new ObservedNetworkStore();
   store.rememberBoard(
     board("europaplatz", [
@@ -139,14 +139,14 @@ test("excludes cancelled runs but accepts a diverted route", () => {
   );
 });
 
-test("forgets a trip once it has run, so a line that stops running leaves", () => {
+test("forgets a journey once it has run, so a line that stops running leaves", () => {
   const store = new ObservedNetworkStore();
   const lastCallAt = Date.parse("2026-09-07T12:10:00+02:00");
   const listeners: number[] = [];
   store.subscribe(() => listeners.push(store.getSnapshot().journeyCount));
   store.rememberBoard(
     board("europaplatz", [
-      stopEvent("trip-1", "1", "Durlach", [
+      stopEvent("journey-1", "1", "Durlach", [
         call("Europaplatz", "europaplatz"),
         { ...call("Marktplatz", "marktplatz"), timetabledArrivalTime: "2026-09-07T12:10:00+02:00" },
       ]),

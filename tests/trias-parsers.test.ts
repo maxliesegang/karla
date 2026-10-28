@@ -218,7 +218,7 @@ test("a departure without a prediction is scheduled, not on time", () => {
   assert.equal(row.estimatedDepartureTime, undefined);
 });
 
-test("a cancelled trip says so", () => {
+test("a cancelled journey says so", () => {
   const [row] = parseTriasStopEvents(
     triasStopEvents(RESPONDED_AT, [
       triasStopEvent({ current: MARKTPLATZ, service: { cancelled: true } }),
@@ -402,7 +402,7 @@ const ROW_CALL: RowCallRef = {
   timetabledTime: "2026-10-17T21:02:30.000Z",
 };
 
-test("a trip marks the call its row was read at", () => {
+test("a journey marks the call its row was read at", () => {
   const journey = parseTriasTripInfo(
     triasTripInfo(RESPONDED_AT, { previous: [MARKTPLATZ, KRONENPLATZ], onward: [PFORZHEIM] }),
     JOURNEY,
@@ -420,7 +420,7 @@ test("a trip marks the call its row was read at", () => {
   assert.equal(journey.status, undefined);
 });
 
-test("a trip answered for another journey, or with an error code, was not found", () => {
+test("a journey answered for another journey, or with an error code, was not found", () => {
   assert.throws(
     () =>
       parseTriasTripInfo(

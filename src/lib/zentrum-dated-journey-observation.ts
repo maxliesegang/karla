@@ -1,6 +1,6 @@
 import type { StopEvent, StopEventBoard } from "../data/transit-types";
 import { getDistinctDatedJourneys } from "./journeys";
-import { isRailStopEvent } from "./zentrum-schematic-plan";
+import { isNetworkRailRow } from "./network-lines";
 
 /**
  * The vehicles the Zentrum's observation posts can place. Every line's, always: following a line
@@ -14,7 +14,7 @@ export type ZentrumDatedJourneyObservation = {
 };
 
 const isDrawableDatedJourney = (stopEvent: StopEvent): boolean =>
-  Boolean(stopEvent.calls?.length) && isRailStopEvent(stopEvent);
+  Boolean(stopEvent.calls?.length) && isNetworkRailRow(stopEvent);
 
 /** What the posts' current boards say is out on the Zentrum's corridors. */
 export function getZentrumDatedJourneyObservation(

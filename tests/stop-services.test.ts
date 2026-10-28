@@ -74,7 +74,7 @@ test("finds the following non-cancelled departure over the same observed route",
   );
 });
 
-test("names a whole line by the farthest observed run instead of the drawn short working", () => {
+test("names a whole line by the farthest observed journey instead of the drawn short working", () => {
   const short = stopEvent({
     id: "short",
     destinationText: "D",
@@ -90,7 +90,7 @@ test("names a whole line by the farthest observed run instead of the drawn short
     destinations: ["D", "C"],
   });
 
-  // Displayed destination-first (D, C, B), though the full run was observed the other way.
+  // Displayed destination-first (D, C, B), though the full journey was observed the other way.
   assert.deepEqual(getFarthestLineDatedJourney(line, [short, full], [...short.calls!].reverse()), {
     firstTerminus: "D",
     lastTerminus: "A",
@@ -98,7 +98,7 @@ test("names a whole line by the farthest observed run instead of the drawn short
   });
 });
 
-test("a run observed heading the diagram's own way comes back in the diagram's order", () => {
+test("a journey observed heading the diagram's own way comes back in the diagram's order", () => {
   const towardDiagram = stopEvent({
     id: "toward",
     destinationText: "D",
@@ -110,7 +110,7 @@ test("a run observed heading the diagram's own way comes back in the diagram's o
   });
   const drawn = calls("D", "C", "B");
 
-  // The farthest run ends at the diagram's top row, so its calls come back reversed.
+  // The farthest journey ends at the diagram's top row, so its calls come back reversed.
   assert.deepEqual(getFarthestLineDatedJourney(line, [towardDiagram], drawn), {
     firstTerminus: "D",
     lastTerminus: "A",
@@ -140,7 +140,7 @@ test("qualifies a bare terminus name with the district it belongs to", () => {
   });
 });
 
-test("falls back to the line's observed destinations until a complete run is in hand", () => {
+test("falls back to the line's observed destinations until a complete journey is in hand", () => {
   const line = createLine({
     id: "2",
     destinations: ["Durlach", "Knielingen Nord", "Rheinstetten"],
@@ -153,8 +153,8 @@ test("falls back to the line's observed destinations until a complete run is in 
   });
 });
 
-test("reads a line's extent off the farthest run observed for it", () => {
-  // Destinations follow the signs' short workings, naming less than the one whole run seen.
+test("reads a line's extent off the farthest journey observed for it", () => {
+  // Destinations follow the signs' short workings, naming less than the one whole journey seen.
   const short = stopEvent({
     id: "short",
     destinationText: "Rheinhafen über Kühler Krug",
@@ -183,7 +183,7 @@ test("reads a line's extent off the farthest run observed for it", () => {
   assert.deepEqual(getLineTermini(observedLine), ["Knielingen Nord", "Rheinhafen"]);
 });
 
-test("a run that turns on itself names one place and no extent", () => {
+test("a journey that turns on itself names one place and no extent", () => {
   const loop = stopEvent({
     id: "loop",
     destinationText: "Stupferich",
@@ -203,7 +203,7 @@ test("a run that turns on itself names one place and no extent", () => {
   );
 });
 
-test("no run observed far enough leaves the extent to the destinations", () => {
+test("no journey observed far enough leaves the extent to the destinations", () => {
   assert.equal(getFarthestLineDatedJourneyTermini("2", []), undefined);
 });
 

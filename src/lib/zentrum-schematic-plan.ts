@@ -3,9 +3,8 @@
  * of it is measured in. Authored, not observed; what runs over it is `zentrum-schematic.ts`.
  */
 import { kvvNetwork } from "../networks/kvv/kvv-network";
-import type { StopEvent } from "../data/transit-types";
 import { isZentrumStop } from "../data/zentrum-stops";
-import { getLineTrunkId, isNetworkRow } from "./line-families";
+import { getLineTrunkId } from "./network-lines";
 import type { BayRun } from "./bay-runs";
 
 /**
@@ -289,11 +288,6 @@ export const getZentrumSchematicRoutes = (
     ]),
   );
 };
-
-/** Only rail is drawn. */
-/** KVV's own trams and trains; other operators' rows are on boards only. */
-export const isRailStopEvent = (stopEvent: Pick<StopEvent, "ptMode" | "lineRef">): boolean =>
-  (stopEvent.ptMode === "tram" || stopEvent.ptMode === "lightRail") && isNetworkRow(stopEvent);
 
 /** The shared board address of a drawn boarding place. */
 export const getZentrumSchematicStopId = (nodeId: string): string => nodeId.split("@", 1)[0];

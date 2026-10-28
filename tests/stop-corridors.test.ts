@@ -64,7 +64,7 @@ test("keeps two detailed patterns separate even when their destination is the sa
 
   const corridors = groupsAt("europaplatz", [direct, branch], [direct, branch])[0].corridors;
   assert.equal(corridors.length, 2);
-  // Both end at Durlach, so the rows fall back to the stops the trips part at.
+  // Both end at Durlach, so the rows fall back to the stops the journeys part at.
   assert.deepEqual(
     corridors.map(({ directionLabel }) => directionLabel),
     ["Hauptbahnhof", "Marktplatz"],
@@ -95,7 +95,7 @@ test("a corridor matched only over its first link may not claim a shared route",
   assert.equal(corridor.hasObservedSharedRoute, false);
 });
 
-test("groups short workings with through trips over their shared outgoing corridor", () => {
+test("groups short workings with through journeys over their shared outgoing corridor", () => {
   const live = [
     stopEvent({
       id: "stadt",
@@ -176,7 +176,7 @@ test("groups short workings with through trips over their shared outgoing corrid
   assert.equal(southbound?.hasObservedSharedRoute, true);
 });
 
-test("colliding corridors are named by where their trips part, and the unread row keeps its headsign", () => {
+test("colliding corridors are named by where their journeys part, and the unread row keeps its headsign", () => {
   const live = [
     stopEvent({ id: "direct", destinationText: "Hauptbahnhof", journeyRef: "direct" }),
     stopEvent({ id: "branch", destinationText: "Hauptbahnhof", journeyRef: "branch" }),
@@ -239,7 +239,7 @@ test("matches an unseen headsign through the feed's unambiguous line direction",
   assert.equal(corridors.length, 2);
 });
 
-test("does not infer a direction when its observed trips leave by competing links", () => {
+test("does not infer a direction when its observed journeys leave by competing links", () => {
   const later = stopEvent({
     id: "later",
     lineRef: "same-direction",
@@ -388,7 +388,7 @@ test("names both ends where the short working turns back along the through route
   );
 });
 
-test("does not chain two ends the trips genuinely part for", () => {
+test("does not chain two ends the journeys genuinely part for", () => {
   const live = [
     stopEvent({ id: "west", lineId: "2", destinationText: "Knielingen Nord", journeyRef: "west" }),
     stopEvent({ id: "north", lineId: "2", destinationText: "Neureut Heide", journeyRef: "north" }),
@@ -533,7 +533,7 @@ test("a place another line serves is prominent though the route calls there once
         { stopName: "Stadt", stopPlaceId: "ettlingen-stadt", placeName: "Ettlingen" },
       ],
     }),
-    // A bus through Malsch, read at a post the trip never passes: connections count from anywhere.
+    // A bus through Malsch, read at a post the journey never passes: connections count from anywhere.
     stopEvent({
       id: "bus",
       lineId: "216",
@@ -696,7 +696,7 @@ test("states every end, and no way places, where the ends alone fill the row", (
   );
 });
 
-test("does not apply an observed corridor to a diverted live trip", () => {
+test("does not apply an observed corridor to a diverted live journey", () => {
   const diverted = stopEvent({
     id: "diverted",
     lineId: "S1",
@@ -714,7 +714,7 @@ test("does not apply an observed corridor to a diverted live trip", () => {
   assert.equal(corridor.hasObservedTopology, false);
 });
 
-test("groups exceptional short and through trips by their own observed corridor", () => {
+test("groups exceptional short and through journeys by their own observed corridor", () => {
   const short = stopEvent({
     id: "daxlanden",
     lineId: "3",
@@ -815,7 +815,7 @@ test("does not reuse an ambiguous exceptional pattern", () => {
   const corridor = groupsAt("europaplatz", [later], [direct, branch])[0].corridors[0];
   assert.equal(corridor.hasObservedTopology, false);
 });
-test("keeps grouping a trip after the board that showed its route has been refreshed away", () => {
+test("keeps grouping a journey after the board that showed its route has been refreshed away", () => {
   const stadt = stopEvent({
     id: "stadt",
     lineId: "S1",
@@ -842,7 +842,7 @@ test("keeps grouping a trip after the board that showed its route has been refre
   assert.equal(corridor.directionLabel, "Ostendorfplatz");
 });
 
-test("a route learned once covers a later trip the detailed boards never reached", () => {
+test("a route learned once covers a later journey the detailed boards never reached", () => {
   const learned = updateStopCorridorPatterns(null, "europaplatz", [
     stopEvent({
       id: "read",
@@ -857,7 +857,7 @@ test("a route learned once covers a later trip the detailed boards never reached
   assert.equal(corridor.hasObservedTopology, true);
 });
 
-test("one oddly reported run does not withdraw the route the line is known to take", () => {
+test("one oddly reported journey does not withdraw the route the line is known to take", () => {
   const usual = Array.from({ length: 6 }, (_, index) =>
     stopEvent({
       id: `usual-${index}`,
@@ -881,7 +881,7 @@ test("one oddly reported run does not withdraw the route the line is known to ta
   assert.ok(corridors[0].id.endsWith("observed:marktplatz"));
 });
 
-test("counts trips rather than readings, so one board re-read cannot outvote the others", () => {
+test("counts journeys rather than readings, so one board re-read cannot outvote the others", () => {
   const branch = stopEvent({
     id: "branch",
     destinationText: "Durlach",
@@ -895,21 +895,21 @@ test("counts trips rather than readings, so one board re-read cannot outvote the
     calls: calls("Europaplatz", "Marktplatz", "Durlach"),
   });
 
-  // The same two trips four times over, as a 90-second board delivers them.
+  // The same two journeys four times over, as a 90-second board delivers them.
   let patterns = updateStopCorridorPatterns(null, "europaplatz", [branch, direct]);
   for (let reading = 0; reading < 3; reading += 1) {
     patterns = updateStopCorridorPatterns(patterns, "europaplatz", [branch, branch, direct]);
   }
   const later = stopEvent({ id: "later", destinationText: "Durlach", journeyRef: "later" });
 
-  // One route each, so neither speaks for an unknown trip.
+  // One route each, so neither speaks for an unknown journey.
   assert.equal(
     getStopServiceCorridorLineGroups([later], patterns)[0].corridors[0].hasObservedTopology,
     false,
   );
 });
 
-test("trips whose route is unknown share the row their headsign names", () => {
+test("journeys whose route is unknown share the row their headsign names", () => {
   const unread = [
     stopEvent({ id: "first", destinationText: "Durlach Turmberg", journeyRef: "first" }),
     stopEvent({ id: "second", destinationText: "Durlach Turmberg", journeyRef: "second" }),
@@ -922,7 +922,7 @@ test("trips whose route is unknown share the row their headsign names", () => {
   assert.equal(corridors[0].hasObservedTopology, false);
 });
 
-test("exceptional trips describe themselves but do not teach later trips", () => {
+test("exceptional journeys describe themselves but do not teach later journeys", () => {
   const route = calls("Europaplatz", "Hauptbahnhof", "Rheinstetten");
   const patterns = updateStopCorridorPatterns(null, "europaplatz", [
     stopEvent({
@@ -975,8 +975,8 @@ test("a refresh that taught nothing is not a change, and another stop starts ove
   assert.equal(elsewhere.byJourneyKey.size, 0);
 });
 
-test("two boards disagreeing about one trip still settle on a single reading", () => {
-  // Two boards disagree about this trip's calls; repeated readings must reach a fixed point instead
+test("two boards disagreeing about one journey still settle on a single reading", () => {
+  // Two boards disagree about this journey's calls; repeated readings must reach a fixed point instead
   // of overwriting each other forever.
   const ownReading = stopEvent({
     id: "own",
@@ -1034,18 +1034,18 @@ test("reuses route indexes when a reading only learns the board's place", () => 
   assert.equal(withPlace.byLineDestination, patterns.byLineDestination);
 });
 
-test("forgets the runs that passed longest ago rather than growing without end", () => {
+test("forgets the journeys that passed longest ago rather than growing without end", () => {
   const observations = Array.from({ length: 5 }, (_, index) =>
     stopEvent({
-      id: `trip-${index}`,
+      id: `journey-${index}`,
       destinationText: "Durlach",
-      journeyRef: `trip-${index}`,
+      journeyRef: `journey-${index}`,
       calls: calls("Europaplatz", "Marktplatz", "Durlach"),
     }),
   );
   const patterns = updateStopCorridorPatterns(null, "europaplatz", observations, 3);
 
-  assert.deepEqual([...patterns.byJourneyKey.keys()], ["trip-2", "trip-3", "trip-4"]);
+  assert.deepEqual([...patterns.byJourneyKey.keys()], ["journey-2", "journey-3", "journey-4"]);
   // The line's pattern survives trimming.
   const later = stopEvent({ id: "later", destinationText: "Durlach", journeyRef: "later" });
   assert.equal(
@@ -1054,8 +1054,8 @@ test("forgets the runs that passed longest ago rather than growing without end",
   );
 });
 
-test("a trip that turns back is not parted from the service that runs on through it", () => {
-  // A terminating trip is reported twice at its terminus (Gottesauer Platz: `Reitschulschlag >
+test("a journey that turns back is not parted from the service that runs on through it", () => {
+  // A terminating journey is reported twice at its terminus (Gottesauer Platz: `Reitschulschlag >
   // Reitschulschlag` vs `Reitschulschlag > Büchig`); both calls stay, and it is still recognised as
   // the through route's short working.
   const live = [

@@ -26,7 +26,7 @@ test("position, area membership and retirement carry the same sparse delay", () 
   );
 });
 
-test("an untimed final call never turns an earlier timed call into a run end", () => {
+test("an untimed final call never turns an earlier timed call into a journey end", () => {
   assert.equal(
     findFinalCallInstant([
       { stopName: "first", timetabledDepartureTime: "2026-10-07T12:00:00Z" },

@@ -1,10 +1,10 @@
 /**
- * Which boarding place's section the scroll is in, read against one line (the section's
- * scroll-margin) so the marked button, stuck heading and landed jump agree.
+ * Which section of a list the scroll is in, read against one line (the section's scroll-margin) so
+ * the marked button, stuck heading and landed jump agree.
  */
 
-/** One rendered section: its place id and top edge. */
-export type BoardingPlaceSectionReading = {
+/** One rendered section: its id and top edge. */
+export type ScrollSectionReading = {
   id: string;
   /** In the reading line's coordinates. */
   top: number;
@@ -13,11 +13,9 @@ export type BoardingPlaceSectionReading = {
 /** Sub-pixel slack, so arriving counts as arrived. */
 const ARRIVAL_SLACK_PX = 1;
 
-/**
- * The place being read: the lowest section that has reached the line; `undefined` if none has.
- */
-export function findBoardingPlaceIdInView(
-  readings: readonly BoardingPlaceSectionReading[],
+/** The section being read: the lowest that has reached the line; `undefined` if none has. */
+export function findSectionIdInView(
+  readings: readonly ScrollSectionReading[],
   readingLine: number,
 ): string | undefined {
   let inViewId: string | undefined;

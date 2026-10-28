@@ -104,7 +104,7 @@ const journeyReply = () =>
 
 const JOURNEY = { journeyRef: "kvv:22305:E:R:s26:1762", operatingDayRef: "2026-10-17" };
 
-test("a trip is asked for by journey and operating day", async () => {
+test("a journey is asked for by journey and operating day", async () => {
   const proxy = createProxy(journeyReply);
   const client = createClient(proxy.fetchFn);
 
@@ -124,7 +124,7 @@ test("a trip is asked for by journey and operating day", async () => {
   );
 });
 
-test("a line route is the calls of the run it is addressed through", async () => {
+test("a line route is the calls of the journey it is addressed through", async () => {
   const client = createClient(createProxy(journeyReply).fetchFn);
   const route = await client.fetchLineRoute(JOURNEY);
   assert.deepEqual(
@@ -133,7 +133,7 @@ test("a line route is the calls of the run it is addressed through", async () =>
   );
 });
 
-test("a run's reading and its route asked at once share one trip request", async () => {
+test("a journey's reading and its route asked at once share one journey request", async () => {
   const proxy = createProxy(journeyReply);
   const client = createClient(proxy.fetchFn);
 

@@ -12,7 +12,7 @@ import { createStopEvent } from "./support/fixtures.ts";
 const observedAt = Date.parse("2026-08-23T16:00:00Z");
 const stopEvent: StopEvent = createStopEvent({
   id: "departure",
-  journeyRef: "trip",
+  journeyRef: "journey",
   lineId: "2",
   ptMode: "tram",
   destinationText: "Durlach",
@@ -50,17 +50,17 @@ test("restores the same active ride until its final call grace period", () => {
   const expiry = getActiveRideExpiry(stopEvent, observedAt);
   assert.equal(expiry, Date.parse("2026-08-23T17:33:00Z"));
 
-  rememberActiveRideObservation("trip", stopEvent, observedAt);
-  assert.equal(findActiveRideObservation("trip", observedAt + 1)?.stopEvent.id, stopEvent.id);
+  rememberActiveRideObservation("journey", stopEvent, observedAt);
+  assert.equal(findActiveRideObservation("journey", observedAt + 1)?.stopEvent.id, stopEvent.id);
   assert.equal(findActiveRideObservation("other", observedAt + 1), null);
 });
 
 test("drops expired and explicitly ended rides", () => {
   const expiry = getActiveRideExpiry(stopEvent, observedAt);
-  rememberActiveRideObservation("trip", stopEvent, observedAt);
-  assert.equal(findActiveRideObservation("trip", expiry + 1), null);
+  rememberActiveRideObservation("journey", stopEvent, observedAt);
+  assert.equal(findActiveRideObservation("journey", expiry + 1), null);
 
-  rememberActiveRideObservation("trip", stopEvent, observedAt);
-  forgetActiveRideObservation("trip");
-  assert.equal(findActiveRideObservation("trip", observedAt + 1), null);
+  rememberActiveRideObservation("journey", stopEvent, observedAt);
+  forgetActiveRideObservation("journey");
+  assert.equal(findActiveRideObservation("journey", observedAt + 1), null);
 });

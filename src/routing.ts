@@ -5,8 +5,9 @@
  * above and drops back to it on its own, so a departed journey or a stopped line narrows the
  * address instead of breaking it.
  */
-import { getLineFamilyId, isNetworkRow } from "./lib/line-families";
+import { isNetworkRow } from "./lib/network-lines";
 import { network } from "./networks/network";
+import { getDatedJourneyId, isOperatingDayRef, parseDatedJourneyId } from "./data/feed";
 import {
   formatLineSelection,
   isSelectedLine,
@@ -37,14 +38,11 @@ const DEFAULT_LINE_ID = network.defaultLineId;
  * The line segment: one line or a bundle (`line/2`, `line/S1+S11`). A bundle is a view of several
  * lines, never a line of its own.
  */
-const parseLineSegment = (segment: string) => parseLineSelection(segment);
-
 function getLinePathSegment(lineId: string, bundledLineIds: readonly string[] = []): string {
-  const primary = getLineFamilyId(lineId);
   return formatLineSelection({
-    lineId: primary,
+    lineId,
     // A line does not appear twice in the address.
-    bundledLineIds: bundledLineIds.filter((id) => getLineFamilyId(id) !== primary),
+    bundledLineIds: bundledLineIds.filter((id) => id !== lineId),
   });
 }
 
@@ -120,14 +118,11 @@ function decodePathSegment(segment: string | undefined): string {
 const encodePathSegment = (segment: string): string =>
   encodeURIComponent(segment).replaceAll("%3A", ":");
 
-const OPERATING_DAY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-
 /** `journey/:journeyRef/:operatingDayRef`; a row without a dated journey has its id alone. */
 function formatJourneyPath(addressId: string): string {
-  const separator = addressId.lastIndexOf("@");
-  const day = addressId.slice(separator + 1);
-  return separator > 0 && OPERATING_DAY_PATTERN.test(day)
-    ? `/journey/${encodePathSegment(addressId.slice(0, separator))}/${day}`
+  const journey = parseDatedJourneyId(addressId);
+  return journey
+    ? `/journey/${encodePathSegment(journey.journeyRef)}/${journey.operatingDayRef}`
     : `/journey/${encodePathSegment(addressId)}`;
 }
 
@@ -137,9 +132,9 @@ function parseJourneySegments(segments: readonly string[]): {
   length: number;
 } {
   const journeyRef = decodePathSegment(segments[0]);
-  const day = segments[1];
-  return day && OPERATING_DAY_PATTERN.test(day)
-    ? { addressId: `${journeyRef}@${day}`, length: 2 }
+  const operatingDayRef = segments[1];
+  return operatingDayRef && isOperatingDayRef(operatingDayRef)
+    ? { addressId: getDatedJourneyId({ journeyRef, operatingDayRef }), length: 2 }
     : { addressId: journeyRef, length: 1 };
 }
 
@@ -169,7 +164,7 @@ function parseStopRoute(segments: readonly string[]): AppRoute {
     view: "stop",
     stopId,
     partId,
-    ...parseLineSegment(rest[0] || DEFAULT_LINE_ID),
+    ...parseLineSelection(rest[0] || DEFAULT_LINE_ID),
     addressId: isJourney ? parseJourneySegments(rest.slice(2)).addressId : undefined,
     journeyParent: isJourney ? "line" : undefined,
   };
@@ -224,7 +219,7 @@ export function parseRoute(hash: string): AppRoute {
         ...defaultRoute,
         view: "stop",
         stopId: "",
-        ...parseLineSegment(rest[0] || DEFAULT_LINE_ID),
+        ...parseLineSelection(rest[0] || DEFAULT_LINE_ID),
       };
     case "journey": {
       // A ride: the journey alone, optionally with `/from/:stopId` and `/to/:stopId`.

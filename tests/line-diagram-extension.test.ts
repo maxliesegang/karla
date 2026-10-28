@@ -7,15 +7,15 @@ import { extendLineDiagramCalls } from "../src/lib/line-diagram.ts";
 const calls = (...stopIds: string[]): Call[] =>
   stopIds.map((stopPlaceId) => ({ stopName: stopPlaceId.toUpperCase(), stopPlaceId }));
 
-test("a short working is drawn out to the run observed farthest, past both of its ends", () => {
-  // The drawn trip keeps its rows; the farther run adds what lies beyond.
+test("a short working is drawn out to the journey observed farthest, past both of its ends", () => {
+  // The drawn journey keeps its rows; the farther journey adds what lies beyond.
   assert.deepEqual(extendLineDiagramCalls(calls("c", "b"), calls("d", "c", "b", "a")), [
     ...calls("d", "c", "b", "a"),
   ]);
 });
 
-test("stops the drawn trip skipped but the run calls at are read in between", () => {
-  // A stop only the farthest run serves belongs on the whole-line view.
+test("stops the drawn journey skipped but the journey calls at are read in between", () => {
+  // A stop only the farthest journey serves belongs on the whole-line view.
   assert.deepEqual(extendLineDiagramCalls(calls("d", "x", "b"), calls("d", "c", "b", "a")), [
     ...calls("d", "c", "x", "b", "a"),
   ]);
@@ -28,14 +28,14 @@ test("a drawn-only stop keeps its place beside the drawn calls around it", () =>
   ]);
 });
 
-test("a drawn chain the run never reaches is left exactly as it was", () => {
+test("a drawn chain the journey never reaches is left exactly as it was", () => {
   // Chains sharing nothing are not joined.
   assert.deepEqual(extendLineDiagramCalls(calls("x", "y"), calls("d", "c", "b", "a")), [
     ...calls("x", "y"),
   ]);
 });
 
-test("a drawn chain is never narrowed by the run it is extended with", () => {
+test("a drawn chain is never narrowed by the journey it is extended with", () => {
   // A working passing its own stop twice keeps both passes.
   assert.deepEqual(extendLineDiagramCalls(calls("a", "b", "c", "b", "a"), calls("a", "b", "c")), [
     ...calls("a", "b", "c", "b", "a"),
@@ -102,11 +102,11 @@ test("a repeated stop read from the opposite direction lines up place by place",
   ]);
 });
 
-test("without a run observed far enough there is nothing to extend with", () => {
+test("without a journey observed far enough there is nothing to extend with", () => {
   assert.deepEqual(extendLineDiagramCalls(calls("c", "b"), undefined), [...calls("c", "b")]);
   assert.deepEqual(extendLineDiagramCalls(calls("c", "b"), []), [...calls("c", "b")]);
 });
 
-test("an empty drawn chain has nothing for the run to be read around", () => {
+test("an empty drawn chain has nothing for the journey to be read around", () => {
   assert.deepEqual(extendLineDiagramCalls([], calls("d", "c", "b", "a")), []);
 });

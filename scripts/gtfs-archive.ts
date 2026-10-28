@@ -14,18 +14,28 @@ export async function downloadGtfsArchive(url: string, archivePath: string): Pro
   throw new Error(`GTFS archive ${url}: no feed_version`);
 }
 
+type Fields = (string | undefined)[];
+
 /** One archive member's rows, as the named columns in the order asked for. */
-export async function* readTable(
+export const readTable = (
   archivePath: string,
   member: string,
   columns: readonly string[],
-): AsyncGenerator<(string | undefined)[]> {
+): AsyncGenerator<Fields> =>
+  selectColumns(readArchiveMember(archivePath, member), columns, `GTFS ${member}`);
+
+/** A table's rows after its header, as the named columns in the order asked for. */
+export async function* selectColumns(
+  rows: AsyncIterable<Fields> | Iterable<Fields>,
+  columns: readonly string[],
+  source: string,
+): AsyncGenerator<Fields> {
   let indexes: number[] | undefined;
-  for await (const fields of readArchiveMember(archivePath, member)) {
+  for await (const fields of rows) {
     if (!indexes) {
       indexes = columns.map((column) => fields.indexOf(column));
       const missing = columns.filter((_, index) => indexes?.[index] === -1);
-      if (missing.length > 0) throw new Error(`GTFS ${member}: no ${missing.join(", ")}`);
+      if (missing.length > 0) throw new Error(`${source}: no ${missing.join(", ")}`);
       continue;
     }
     yield indexes.map((index) => fields[index]);
@@ -33,10 +43,7 @@ export async function* readTable(
 }
 
 /** One archive member streamed via `unzip -p` as quoted CSV. */
-async function* readArchiveMember(
-  archivePath: string,
-  member: string,
-): AsyncGenerator<(string | undefined)[]> {
+async function* readArchiveMember(archivePath: string, member: string): AsyncGenerator<Fields> {
   const unzip = spawn("unzip", ["-p", archivePath, member], { stdio: ["ignore", "pipe", "pipe"] });
   const failure = new Promise<never>((_, reject) => {
     unzip.on("error", (error: Error) => reject(new Error(`unzip ${member}: ${error.message}`)));
@@ -59,8 +66,8 @@ async function* readArchiveMember(
 }
 
 /** A CSV row's fields; quotes escape by doubling. */
-export function readFields(line: string): (string | undefined)[] {
-  const fields: (string | undefined)[] = [];
+export function readFields(line: string): Fields {
+  const fields: Fields = [];
   let index = 0;
   while (index <= line.length) {
     if (line[index] === '"') {

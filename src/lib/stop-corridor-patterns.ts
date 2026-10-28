@@ -1,6 +1,5 @@
 import type { StopEvent, Call } from "../data/transit-types";
 import { isExceptionalOperationNote } from "../data/operational-exceptions";
-import { getLineFamilyId } from "./line-families";
 import { getBaseName } from "./stop-naming";
 import type { PlaceLineFamilies, PlaceSighting } from "./stop-corridor-way";
 import {
@@ -26,10 +25,9 @@ function followsPublishedRoute(stopEvent: StopEvent): boolean {
 const getJourneyKey = (stopEvent: StopEvent) => stopEvent.journeyRef ?? stopEvent.id;
 
 const getLineDestinationKey = (stopEvent: StopEvent) =>
-  `${getLineFamilyId(stopEvent.lineId)}|${stopEvent.destinationText}`;
+  `${stopEvent.lineId}|${stopEvent.destinationText}`;
 
-const getLineDirectionKey = (stopEvent: StopEvent) =>
-  stopEvent.lineRef ? `${getLineFamilyId(stopEvent.lineId)}|${stopEvent.lineRef}` : undefined;
+const getLineDirectionKey = (stopEvent: StopEvent) => `${stopEvent.lineId}|${stopEvent.lineRef}`;
 
 /** Keeps different operating exceptions from borrowing each other's temporary route. */
 const getExceptionalLineDestinationKey = (stopEvent: StopEvent) =>
@@ -116,7 +114,7 @@ export function updateStopCorridorPatterns(
   for (const stopEvent of topologyStopEvents) {
     // Any reading with calls teaches which lines serve which places; idempotent, for the fixed
     // point.
-    const lineFamilyId = getLineFamilyId(stopEvent.lineId);
+    const lineFamilyId = stopEvent.lineId;
     for (const call of stopEvent.calls ?? []) {
       const placeName = call.placeName && getBaseName(call.placeName);
       if (placeName) placeLineFamilies.learn(placeName, lineFamilyId, call);

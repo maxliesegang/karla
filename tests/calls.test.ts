@@ -42,8 +42,8 @@ test("keeps a second published call at the current physical stop", () => {
   assert.deepEqual(getCallsAfterStop(stopEvent, "hauptfriedhof"), calls.slice(1));
 });
 
-test("reads past the row's own stop where the run was read at another stop", () => {
-  // A run is merged into every stop's row, so a Tivoli row can carry Poststraße's current-stop
+test("reads past the row's own stop where the journey was read at another stop", () => {
+  // A journey is merged into every stop's row, so a Tivoli row can carry Poststraße's current-stop
   // marker.
   const calls: Call[] = [
     { stopName: "Werderstraße", stopPlaceId: "werderstrasse" },
@@ -75,7 +75,7 @@ test("states the via stops past the row's own stop, not past another stop's mark
 });
 
 test("reads the diagram's home place at the rider's stop, not at another stop's marker", () => {
-  // Forststraße's board read this run last; the rider is at Tivoli.
+  // Forststraße's board read this journey last; the rider is at Tivoli.
   const calls: Call[] = [
     {
       stopName: "Forststraße",
@@ -99,7 +99,7 @@ const row = (id: string, stopName: string): StopEvent =>
     calls: [{ stopName, isThisCall: true }],
   }) as StopEvent;
 
-test("completes a row with the run read for it and keeps the row's own facts", () => {
+test("completes a row with the journey read for it and keeps the row's own facts", () => {
   const reading = {
     ...row("b", "Karlstor"),
     calls: [
@@ -111,7 +111,7 @@ test("completes a row with the run read for it and keeps the row's own facts", (
   const merged = mergeDatedJourneyReading(row("b", "Karlstor"), reading);
 
   assert.equal(merged.calls?.length, 2);
-  // The stop row stays the departure; the run adds only its sequence.
+  // The stop row stays the departure; the journey adds only its sequence.
   assert.equal(merged.destinationText, "Hochstetten");
 });
 
@@ -121,7 +121,7 @@ test("a row stands when no reading has arrived", () => {
   assert.equal(mergeDatedJourneyReading(stopRow, undefined), stopRow);
 });
 
-test("an addressed run takes its calls only from its own reading, never a board's", () => {
+test("an addressed journey takes its calls only from its own reading, never a board's", () => {
   const boardCalls: Call[] = [
     { stopName: "Karlstor", isThisCall: true, delayMinutes: 2 },
     { stopName: "Europaplatz", timetabledDepartureTime: "2026-09-05T10:04:00", delayMinutes: 2 },
@@ -172,7 +172,7 @@ test("calls kept from the row are dated by the row that read them", () => {
     ],
     readAt: { rowReadAt: 1_000_000, sequenceReadAt: 1_000_000 },
   });
-  // The same run on a line board, two minutes later, without a sequence.
+  // The same journey on a line board, two minutes later, without a sequence.
   const callLess: StopEvent = createStopEvent({
     ...row,
     id: "other",

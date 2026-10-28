@@ -20,7 +20,7 @@ import {
   createLineSelectionOf,
   isSelectedLine,
 } from "../src/lib/line-bundles.ts";
-import { compareLines, getLineTrunkId } from "../src/lib/line-families.ts";
+import { compareLines, getLineTrunkId } from "../src/lib/network-lines.ts";
 import { getObservedTransitLines } from "../src/lib/observed-network.ts";
 import { getLineIdentity, isRowOfLine, isSameLine } from "../src/lib/line-identity.ts";
 import {

@@ -8,7 +8,7 @@ import { createStopEvent } from "./support/fixtures.ts";
 const S5 = "kvv:22305:E:R:s26";
 const LINE_2 = "kvv:21002:E:H:s26";
 
-test("a run's direction serves every stop it calls at, until the TTL passes unseen", (t) => {
+test("a journey's direction serves every stop it calls at, until the TTL passes unseen", (t) => {
   t.mock.timers.enable({ apis: ["Date"], now: 0 });
   const directions = new ServingDirections();
   directions.remember([
@@ -54,10 +54,10 @@ function createFeed(boards: Record<string, Partial<FeedStopEventBoard>>) {
   } as unknown as Feed;
 }
 
-test("a stop's board names the directions observed runs serve it by", async () => {
+test("a stop's board names the directions observed journeys serve it by", async () => {
   const source = new TriasTransitSource(
     createFeed({
-      // Europaplatz's board, with each run's calls.
+      // Europaplatz's board, with each journey's calls.
       "de:08212:37": {
         stopEvents: [
           {

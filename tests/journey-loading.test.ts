@@ -27,7 +27,7 @@ import { createStopEvent } from "./support/fixtures.ts";
 const operatingDayRef = "2026-08-26";
 const S4_LINE_REF = "kvv:22304:E:H:s26";
 
-/** The S4's run 888 as its trip request answers it: cancelled, Durlacher Tor then Kronenplatz. */
+/** The S4's journey 888 as its journey request answers it: cancelled, Durlacher Tor then Kronenplatz. */
 const journey: FeedTripInfo = {
   serverTime: "2026-08-26T05:30:45.000Z",
   status: "cancelled",
@@ -54,7 +54,7 @@ const journey: FeedTripInfo = {
   ],
 };
 
-/** The run as read for a row: its call there is the row's own. */
+/** The journey as read for a row: its call there is the row's own. */
 const readJourney = (rowStopPointId = "de:08212:1001"): FeedTripInfo => ({
   ...journey,
   calls: journey.calls.map((call) => ({
@@ -74,6 +74,7 @@ test("both levels of one place answer as that place, whichever platform the row 
           stopPointId: "de:08212:71",
           stopPointName: "Ettlinger Tor/Staatstheater",
           lineId: "5",
+          lineRef: "kvv:5",
           ptMode: "tram",
           destinationText: "Europaplatz",
           minutesUntilDeparture: 2,
@@ -97,6 +98,7 @@ test("both levels of one place answer as that place, whichever platform the row 
 test("a scheduled-only S4 can be placed from its call times without claiming predictions", () => {
   const stopEvent = createStopEvent({
     lineId: "S4",
+    lineRef: "kvv:S4",
     status: "scheduled",
     calls: readJourney().calls.map((call) => ({ ...call, stopPlaceId: call.stopPointId })),
   });
@@ -109,13 +111,14 @@ test("a scheduled-only S4 can be placed from its call times without claiming pre
   assert.equal(placement?.toStopId, "de:08212:1002");
 });
 
-test("TransitSource merges one trip into the latest stop row and caches its sequence", async (t) => {
+test("TransitSource merges one journey into the latest stop row and caches its sequence", async (t) => {
   t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-08-26T05:29:45.000Z") });
   const rawStopEvent: FeedStopEvent = {
     stopPointId: "de:08212:1001",
     stopPointName: "Durlacher Tor/KIT-Campus Süd (U)",
-    journeyRef: "de:kvv:00S04_:.trip",
+    journeyRef: "de:kvv:00S04_:.journey",
     lineId: "S4",
+    lineRef: "kvv:S4",
     ptMode: "lightRail",
     destinationText: "Karlsruhe Albtalbahnhof",
     minutesUntilDeparture: 1,
@@ -147,7 +150,7 @@ test("TransitSource merges one trip into the latest stop row and caches its sequ
   const first = await source.getDatedJourney(rowId);
   const second = await source.getDatedJourney(rowId);
 
-  assert.deepEqual(requests, [{ journeyRef: "de:kvv:00S04_:.trip", operatingDayRef }]);
+  assert.deepEqual(requests, [{ journeyRef: "de:kvv:00S04_:.journey", operatingDayRef }]);
   assert.equal(first?.bay, "1(U)");
   assert.equal(first?.destinationText, "Karlsruhe Albtalbahnhof");
   assert.equal(first?.status, "cancelled");
@@ -166,8 +169,8 @@ test("TransitSource merges one trip into the latest stop row and caches its sequ
   assert.equal(source.resolveBoard(cachedBoard), cachedBoard);
 });
 
-test("a detailed board keeps its own calls as observation, never as the run's reading", async (t) => {
-  // Before the run's last call, or the network would have dropped the trip.
+test("a detailed board keeps its own calls as observation, never as the journey's reading", async (t) => {
+  // Before the journey's last call, or the network would have dropped the journey.
   t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-08-26T05:29:45.000Z") });
   const source = createBoardSource({
     "de:08212:1001": [createRememberedStopEvent(0, "2026-08-26T05:35:00.000Z")],
@@ -185,7 +188,7 @@ test("a detailed board keeps its own calls as observation, never as the run's re
   );
 });
 
-test("a trip nobody selected is re-read on its own terms, not on the board's", async (t) => {
+test("a journey nobody selected is re-read on its own terms, not on the board's", async (t) => {
   t.mock.timers.enable({ apis: ["Date"] });
   const rawJourney = readJourney();
   let datedJourneyRequests = 0;
@@ -198,8 +201,9 @@ test("a trip nobody selected is re-read on its own terms, not on the board's", a
         {
           stopPointId: "de:08212:1001",
           stopPointName: "Durlacher Tor/KIT-Campus Süd (U)",
-          journeyRef: "de:kvv:00S04_:.trip",
+          journeyRef: "de:kvv:00S04_:.journey",
           lineId: "S4",
+          lineRef: "kvv:S4",
           ptMode: "lightRail",
           destinationText: "Karlsruhe Albtalbahnhof",
           minutesUntilDeparture: 1,
@@ -218,7 +222,7 @@ test("a trip nobody selected is re-read on its own terms, not on the board's", a
   const source = new TriasTransitSource(client);
   const rowId = (await source.getStopEventBoard("durlacher-tor")).stopEvents[0].id;
 
-  // An unchosen run sits out a board refresh; the chosen one does not.
+  // An unchosen journey sits out a board refresh; the chosen one does not.
   await source.getDatedJourney(rowId, 90_000);
   t.mock.timers.tick(30_000);
   await source.getDatedJourney(rowId, 90_000);
@@ -229,7 +233,7 @@ test("a trip nobody selected is re-read on its own terms, not on the board's", a
   assert.equal(datedJourneyRequests, 2);
 });
 
-test("a requested run teaches the network its route as soon as it lands", async (t) => {
+test("a requested journey teaches the network its route as soon as it lands", async (t) => {
   t.mock.timers.enable({ apis: ["Date"] });
   const client = {
     fetchStopEventBoard: async (stopPointId: string): Promise<FeedStopEventBoard> => ({
@@ -240,8 +244,9 @@ test("a requested run teaches the network its route as soon as it lands", async 
         {
           stopPointId: "de:08212:1001",
           stopPointName: "Durlacher Tor/KIT-Campus Süd (U)",
-          journeyRef: "de:kvv:00S04_:.trip",
+          journeyRef: "de:kvv:00S04_:.journey",
           lineId: "S4",
+          lineRef: "kvv:S4",
           ptMode: "lightRail",
           destinationText: "Karlsruhe Albtalbahnhof",
           minutesUntilDeparture: 1,
@@ -252,7 +257,7 @@ test("a requested run teaches the network its route as soon as it lands", async 
         },
       ],
     }),
-    // The fixture trip is cancelled, and a cancelled run teaches nothing.
+    // The fixture journey is cancelled, and a cancelled journey teaches nothing.
     fetchTripInfo: async (): Promise<FeedTripInfo> => ({
       ...readJourney(),
       status: undefined,
@@ -260,7 +265,7 @@ test("a requested run teaches the network its route as soon as it lands", async 
   } as unknown as Feed;
   const source = new TriasTransitSource(client);
   const rowId = (await source.getStopEventBoard("durlacher-tor")).stopEvents[0].id;
-  // A plain row names the run but says nothing of its route.
+  // A plain row names the journey but says nothing of its route.
   assert.equal(source.getObservedNetwork().journeyCount, 0);
 
   await source.getDatedJourney(rowId);
@@ -280,8 +285,9 @@ function createRememberedStopEvent(
   return {
     stopPointId: "de:08212:1001",
     stopPointName: "Durlacher Tor/KIT-Campus Süd (U)",
-    journeyRef: `de:kvv:trip:${index}`,
+    journeyRef: `de:kvv:journey:${index}`,
     lineId: "S4",
+    lineRef: "kvv:S4",
     ptMode: "lightRail",
     destinationText: "Karlsruhe Albtalbahnhof",
     minutesUntilDeparture: 1,
@@ -304,7 +310,7 @@ function createBoardSource(boardsByStopPointId: Record<string, FeedStopEvent[]>)
       stopEvents: boardsByStopPointId[stopPointId] ?? [],
     }),
     fetchTripInfo: async (): Promise<FeedTripInfo> => {
-      throw new Error("no trip should be requested");
+      throw new Error("no journey should be requested");
     },
   } as unknown as Feed;
   return new TriasTransitSource(client);
@@ -326,8 +332,9 @@ test("a reading answered from memory is dated when it was taken, not when it was
         {
           stopPointId: "de:08212:1001",
           stopPointName: "Durlacher Tor/KIT-Campus Süd (U)",
-          journeyRef: "de:kvv:00S04_:.trip",
+          journeyRef: "de:kvv:00S04_:.journey",
           lineId: "S4",
+          lineRef: "kvv:S4",
           ptMode: "lightRail",
           destinationText: "Karlsruhe Albtalbahnhof",
           minutesUntilDeparture: 1,
@@ -356,12 +363,12 @@ test("a reading answered from memory is dated when it was taken, not when it was
   assert.equal((await source.getDatedJourney(rowId, 90_000))?.readAt?.sequenceReadAt, Date.now());
 });
 
-test("board churn spends the cap on finished runs before the vehicles still out", async (t) => {
+test("board churn spends the cap on finished journeys before the vehicles still out", async (t) => {
   t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-08-26T05:30:00.000Z") });
   const stillRunning = "2026-08-26T06:30:00.000Z";
   const alreadyOver = "2026-08-26T05:00:00.000Z";
 
-  // Exactly the cap; the finished run sits between unfinished ones, so neither age nor order picks
+  // Exactly the cap; the finished journey sits between unfinished ones, so neither age nor order picks
   // it.
   const filling = [
     createRememberedStopEvent(0, stillRunning),
@@ -381,7 +388,7 @@ test("board churn spends the cap on finished runs before the vehicles still out"
   assert.notEqual(oldestRunningId, finishedId);
   assert.ok(source.findDatedJourney(finishedId));
 
-  // One over the cap: one run must go.
+  // One over the cap: one journey must go.
   await source.getStopEventBoard("kronenplatz");
 
   assert.equal(source.findDatedJourney(finishedId), undefined);
@@ -411,7 +418,7 @@ test("the cap is a bound, not a preference: all-running churn still evicts the o
  * A two-level place is one stop: the Europaplatz board is asked for the street point, but the S1
  * calls at the tunnel point, which must resolve to `europaplatz` too.
  */
-test("a trip calling at a place's other level resolves to that place", async () => {
+test("a journey calling at a place's other level resolves to that place", async () => {
   const rawJourney: FeedTripInfo = {
     serverTime: "2026-08-26T05:30:45.000Z",
     calls: [
@@ -445,8 +452,9 @@ test("a trip calling at a place's other level resolves to that place", async () 
         {
           stopPointId: "de:08212:1004",
           stopPointName: "Europaplatz (U)",
-          journeyRef: "de:kvv:00S01_:.trip",
+          journeyRef: "de:kvv:00S01_:.journey",
           lineId: "S1",
+          lineRef: "kvv:S1",
           ptMode: "lightRail",
           destinationText: "Hochstetten",
           minutesUntilDeparture: 1,
@@ -471,15 +479,15 @@ test("a trip calling at a place's other level resolves to that place", async () 
   );
 });
 
-test("a line's stops are read as rows, and each trip's calls are fetched once for all of them", async () => {
-  // A run listed at every stop it will call at is read once, and every board's row completed from
+test("a line's stops are read as rows, and each journey's calls are fetched once for all of them", async () => {
+  // A journey listed at every stop it will call at is read once, and every board's row completed from
   // it.
   const datedJourneyRequests: DatedJourneyRef[] = [];
   const boardRequests: { stopId: string; lineIds?: readonly string[] }[] = [];
   const runningJourney = (stopPointId: string, minute: number): FeedStopEvent => ({
     stopPointId,
     stopPointName: stopPointId,
-    journeyRef: "de:kvv:00S04_:.trip",
+    journeyRef: "de:kvv:00S04_:.journey",
     lineId: "S4",
     lineRef: "kvv:22304:E:H:s26",
     ptMode: "tram",
@@ -500,7 +508,7 @@ test("a line's stops are read as rows, and each trip's calls are fetched once fo
         stopPointId,
         stopName: stopPointId,
         serverTime: "2026-08-26T07:29:45",
-        // One run, seen from three stops.
+        // One journey, seen from three stops.
         stopEvents: [runningJourney(stopPointId, 2)],
       };
     },
@@ -518,7 +526,7 @@ test("a line's stops are read as rows, and each trip's calls are fetched once fo
     lineRefs: ["kvv:22304:E:H:s26"],
   });
 
-  // Three boards, one trip read.
+  // Three boards, one journey read.
   assert.equal(boardRequests.length, 3);
   assert.equal(datedJourneyRequests.length, 1);
   // Filtered boards skip the mode macros, which would return every row's sequence.
@@ -535,15 +543,15 @@ test("a line's stops are read as rows, and each trip's calls are fetched once fo
     boards.map((board) => board.stopEvents[0].datedJourneyId),
     Array(3).fill(boards[0].stopEvents[0].datedJourneyId),
   );
-  // The same object a view reading the run by id gets; views memoize on identity.
+  // The same object a view reading the journey by id gets; views memoize on identity.
   for (const board of boards) {
     const row = board.stopEvents[0];
     assert.equal(source.findDatedJourney(row.id), row);
   }
 });
 
-test("a line's runs are re-read at their own tolerance, apart from the boards that name them", async (t) => {
-  // Runs revise about every 35 s, so a line asks its runs for a fresher tolerance than its boards.
+test("a line's journeys are re-read at their own tolerance, apart from the boards that name them", async (t) => {
+  // Journeys revise about every 35 s, so a line asks its journeys for a fresher tolerance than its boards.
   t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-08-26T07:29:45.000Z") });
   const rawJourney = readJourney();
   let datedJourneyRequests = 0;
@@ -559,7 +567,7 @@ test("a line's runs are re-read at their own tolerance, apart from the boards th
           {
             stopPointId,
             stopPointName: stopPointId,
-            journeyRef: "de:kvv:00S04_:.trip",
+            journeyRef: "de:kvv:00S04_:.journey",
             lineId: "S4",
             lineRef: "kvv:22304:E:H:s26",
             ptMode: "tram",
@@ -589,7 +597,7 @@ test("a line's runs are re-read at their own tolerance, apart from the boards th
   assert.equal(boardRequests, 1);
   assert.equal(datedJourneyRequests, 1);
 
-  // A minute on, the boards are within tolerance; the runs are not.
+  // A minute on, the boards are within tolerance; the journeys are not.
   t.mock.timers.tick(60_000);
   await source.getLineStopEventBoards(["karlstor"], {
     lineRefs,
@@ -599,14 +607,14 @@ test("a line's runs are re-read at their own tolerance, apart from the boards th
   assert.equal(boardRequests, 1);
   assert.equal(datedJourneyRequests, 2);
 
-  // Unnamed, the runs' tolerance follows the boards'.
+  // Unnamed, the journeys' tolerance follows the boards'.
   t.mock.timers.tick(60_000);
   await source.getLineStopEventBoards(["karlstor"], { lineRefs, maxAgeMs: 90_000 });
   assert.equal(boardRequests, 2);
   assert.equal(datedJourneyRequests, 2);
 });
 
-test("a trip whose sequence cannot be read still keeps the row it was found on", async () => {
+test("a journey whose sequence cannot be read still keeps the row it was found on", async () => {
   // A failed read keeps the row; the next round asks again.
   const client = {
     fetchStopEventBoard: async (stopPointId: string): Promise<FeedStopEventBoard> => ({
@@ -617,7 +625,7 @@ test("a trip whose sequence cannot be read still keeps the row it was found on",
         {
           stopPointId,
           stopPointName: stopPointId,
-          journeyRef: "de:kvv:00S04_:.trip",
+          journeyRef: "de:kvv:00S04_:.journey",
           lineId: "S4",
           lineRef: "kvv:22304:E:H:s26",
           ptMode: "tram",
@@ -643,7 +651,7 @@ test("a trip whose sequence cannot be read still keeps the row it was found on",
   assert.equal(boards[0].stopEvents[0].calls, undefined);
 });
 
-test("a failed run refresh retains its prediction and a scheduled recovery clears the failure", async (t) => {
+test("a failed journey refresh retains its prediction and a scheduled recovery clears the failure", async (t) => {
   const start = Date.parse("2026-08-26T05:29:45Z");
   t.mock.timers.enable({ apis: ["Date"], now: start });
   const client = {} as Feed;
@@ -657,6 +665,7 @@ test("a failed run refresh retains its prediction and a scheduled recovery clear
         stopPointName: "Durlacher Tor",
         journeyRef: "refresh-recovery",
         lineId: "S4",
+        lineRef: "kvv:S4",
         ptMode: "lightRail",
         destinationText: "Kronenplatz",
         minutesUntilDeparture: 1,
@@ -695,8 +704,8 @@ test("a failed run refresh retains its prediction and a scheduled recovery clear
   assert.ok(recovered?.calls?.every((call) => call.delayMinutes === undefined));
 });
 
-test("a line's reading asks for the calls of the runs out on it, not of tomorrow's departures", async () => {
-  // A run whose nearest call is hours away has not set out; its sequence is not read.
+test("a line's reading asks for the calls of the journeys out on it, not of tomorrow's departures", async () => {
+  // A journey whose nearest call is hours away has not set out; its sequence is not read.
   const datedJourneyRequests: DatedJourneyRef[] = [];
   const datedJourney = (journeyRef: string, minutesUntilDeparture: number): FeedStopEvent =>
     ({
@@ -718,7 +727,7 @@ test("a line's reading asks for the calls of the runs out on it, not of tomorrow
       stopName: stopPointId,
       serverTime: "2026-08-26T07:29:45",
       stopEvents: [
-        datedJourney("de:kvv:00S04_:.trip", 4),
+        datedJourney("de:kvv:00S04_:.journey", 4),
         datedJourney("de:kvv:00S04_:.tomorrow", 220),
       ],
     }),
@@ -744,14 +753,14 @@ test("a line's reading asks for the calls of the runs out on it, not of tomorrow
   assert.equal(notYetOut.destinationText, "Hochstetten");
 });
 
-test("a run is read once for all its stops, however far along it the rows are", async () => {
+test("a journey is read once for all its stops, however far along it the rows are", async () => {
   // The nearest row decides: one vehicle, minutes from one stop, an hour from another.
   const datedJourneyRequests: DatedJourneyRef[] = [];
   const row = (stopPointId: string, minutesUntilDeparture: number): FeedStopEvent =>
     ({
       stopPointId,
       stopPointName: stopPointId,
-      journeyRef: "de:kvv:00S04_:.trip",
+      journeyRef: "de:kvv:00S04_:.journey",
       lineId: "S4",
       lineRef: "kvv:22304:E:H:s26",
       ptMode: "tram",
@@ -852,10 +861,10 @@ test("line boards keep each journey's own record", async () => {
 });
 
 /**
- * The four run lifetimes nest. A cache outliving the store serves rows that are no longer runs; a
+ * The four journey lifetimes nest. A cache outliving the store serves rows that are no longer journeys; a
  * mark outliving the store's grace is drawn from a record `findDatedJourney` cannot answer.
  */
-test("a run's four lifetimes nest, innermost first", () => {
+test("a journey's four lifetimes nest, innermost first", () => {
   assert.ok(DEFAULT_BOARD_MAX_AGE_MS < DATED_JOURNEY_MARK_RETENTION_GRACE_MS);
   assert.ok(DATED_JOURNEY_MARK_RETENTION_GRACE_MS < DATED_JOURNEY_ENDED_GRACE_MS);
   assert.ok(DATED_JOURNEY_ENDED_GRACE_MS < DATED_JOURNEY_READING_MAX_AGE_MS);
@@ -863,7 +872,7 @@ test("a run's four lifetimes nest, innermost first", () => {
 
 /**
  * A cached board is not re-parsed, so its rows are only remembered when fetched; if the cache
- * outlived the store, every stop would ask for the same run again.
+ * outlived the store, every stop would ask for the same journey again.
  */
 test("a board can never be served from cache after its rows have been forgotten", async (t) => {
   t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-08-26T05:29:45.000Z") });
@@ -881,7 +890,7 @@ test("a board can never be served from cache after its rows have been forgotten"
       };
     },
     fetchTripInfo: async (): Promise<FeedTripInfo> => {
-      throw new Error("no trip should be requested");
+      throw new Error("no journey should be requested");
     },
   } as unknown as Feed;
   const source = new TriasTransitSource(client);
@@ -890,7 +899,7 @@ test("a board can never be served from cache after its rows have been forgotten"
   assert.equal(boardFetches, 1);
   assert.ok(source.findDatedJourney(row.id));
 
-  // Past the run's end plus grace: the next write sweeps it.
+  // Past the journey's end plus grace: the next write sweeps it.
   t.mock.timers.tick(
     Date.parse("2026-08-26T05:35:00.000Z") - Date.now() + DATED_JOURNEY_ENDED_GRACE_MS + 1,
   );

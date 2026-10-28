@@ -33,7 +33,7 @@ const network: TransitNetwork = {
   lines: [],
 };
 
-test("moves continuously across every visible row when an observed trip skips a call", () => {
+test("moves continuously across every visible row when an observed journey skips a call", () => {
   const diagramStops = buildLineDiagramStops(network, [call("a", 0), call("b", 1), call("c", 2)]);
   const stopEvent: StopEvent = createFixture({
     id: "diagram-skipped-call",
@@ -213,7 +213,7 @@ test("keeps inconsistent joined-portion positions separate", () => {
 });
 
 test("draws both published platform calls at the same stop", () => {
-  // A turning trip at its last stop: into the arrival platform, out of the departure one, same
+  // A turning journey at its last stop: into the arrival platform, out of the departure one, same
   // stop.
   const calls = [call("a", 0), call("b", 2), call("c", 4), call("c", 6)];
   const diagramStops = buildLineDiagramStops(network, calls);
@@ -259,7 +259,7 @@ test("draws both published platform calls at the same stop", () => {
 });
 
 test("reads a three-call terminus as the two calls the route keeps", () => {
-  // Waidweg as line 3 reports a terminating run: loop entry, public platform, end track, all one
+  // Waidweg as line 3 reports a terminating journey: loop entry, public platform, end track, all one
   // stop. The feed's turnaround pair folds; the two calls a rider reads remain, each naming its
   // platform.
   const calls = [
@@ -302,9 +302,9 @@ test("a stop the route reaches twice names the platforms both directions use the
 
   const expected = [undefined, ["Gleis 5", "Gleis 6"], ["Gleis 3", "Gleis 4"], undefined];
   assert.deepEqual(baysOf([opposite, shortSameWay]), expected);
-  // Either way round, a run is read the diagram's way up.
+  // Either way round, a journey is read the diagram's way up.
   assert.deepEqual(baysOf([[...opposite].reverse()]), expected);
-  // Without other runs, the drawn trip's own platform.
+  // Without other journeys, the drawn journey's own platform.
   assert.deepEqual(baysOf([]), [undefined, ["Gleis 5"], ["Gleis 3"], undefined]);
 });
 
@@ -319,8 +319,8 @@ test("a chain names its own coordinates, and a row speaks for every mark behind 
   assert.equal(getLineDiagramCoordinateKey("2", diagramStops), "2:a>b");
 
   const stopEvent: StopEvent = createFixture({
-    id: "trip",
-    journeyRef: "trip",
+    id: "journey",
+    journeyRef: "journey",
     lineId: "2",
     ptMode: "tram",
     destinationText: "C",
@@ -354,7 +354,7 @@ test("a chain names its own coordinates, and a row speaks for every mark behind 
   assert.equal(countLineDiagramVehicles([[both], [vehicle]]), 3);
 });
 
-test("carries every trip's own destination on its mark, joined portions included", () => {
+test("carries every journey's own destination on its mark, joined portions included", () => {
   const diagramStops = buildLineDiagramStops(network, [
     call("a", 0),
     call("b", 1),
@@ -448,7 +448,7 @@ test("hides the turnaround stands with the line's other vehicles, but never the 
     timetabledDepartureTime: new Date(start + 2 * 60_000).toISOString(),
     calls: datedJourney([call("a", 2), call("b", 4), call("c", 6)]),
   });
-  // The next run out of the terminus, standing for its turn.
+  // The next journey out of the terminus, standing for its turn.
   const turning: StopEvent = createFixture({
     ...mine,
     id: "shown-turning",
@@ -469,7 +469,7 @@ test("hides the turnaround stands with the line's other vehicles, but never the 
     ],
   );
 
-  // Hiding other runs hides the turnaround stand, but not the rider's own run's stand.
+  // Hiding other journeys hides the turnaround stand, but not the rider's own journey's stand.
   assert.deepEqual(
     getShownLineDiagramVehicles(placements, false).map(({ stopEvent }) => stopEvent.journeyRef),
     ["shown-mine"],
@@ -479,7 +479,7 @@ test("hides the turnaround stands with the line's other vehicles, but never the 
     ["shown-mine", "shown-turning"],
   );
 
-  // Without a followed trip, hiding others clears every stand.
+  // Without a followed journey, hiding others clears every stand.
   const unaccompanied = getLineDiagramVehicles(
     diagramStops,
     [mine, turning],

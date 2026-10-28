@@ -47,17 +47,9 @@ export function isZentrumStop(stopId: string | undefined): boolean {
 }
 
 /**
- * The observation posts, in two tiers on two cadences: these Zentrum posts feed the list a rider
- * sees; the network's reach posts (`reachObservationPostStopIds`) describe the slower rest. Chosen
- * by measurement at six service patterns (Mon 08:00, 12:00, 17:00, Sat 18:00, Sun 11:00, Sun 03:00),
- * on the worst-case share of the network's stop-and-line pairs seen:
- *
- *     worst-case share of the network seen   stop*line   stops   lines
- *     the five Zentrum posts                     51%      57%     48%
- *     with the reach posts (nine)                81%      82%     78%
- *
- * The nine also see 85% of the Zentrum's own pairs against 65%. A fifth Zentrum post (Kronenplatz,
- * Ettlinger Tor) added nothing at the worst reading.
+ * The posts that feed the list a rider sees; the network's reach posts describe the slower rest.
+ * Measured worst case across six service patterns: 51% of stop-line pairs seen, 81% with the reach
+ * posts; a fifth Zentrum post added nothing.
  */
 export const ZENTRUM_OBSERVATION_POST_STOP_IDS = [
   "europaplatz",

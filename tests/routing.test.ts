@@ -55,7 +55,7 @@ test("two lines read over the stretch they share are one address, and stay two l
     getSelectionPath({ stopId: "hochstetten", lineId: "S1", bundledLineIds: ["S11"] }),
     "/stop/hochstetten/line/S1+S11",
   );
-  // A trip pinned in the bundle keeps it; unpinning returns to it.
+  // A journey pinned in the bundle keeps it; unpinning returns to it.
   assert.equal(
     getSelectionPath({
       stopId: "hochstetten",
@@ -79,10 +79,12 @@ test("two lines read over the stretch they share are one address, and stay two l
 
 test("a row tapped inside a bundle stays inside it, and any other row leaves it", () => {
   const row = (lineId: string) =>
-    ({ id: "row", datedJourneyId: JOURNEY, lineId }) as Parameters<typeof getStopEventOpenPath>[0];
+    ({ id: "row", datedJourneyId: JOURNEY, lineId, lineRef: `kvv:${lineId}` }) as Parameters<
+      typeof getStopEventOpenPath
+    >[0];
   const selection = { lineId: "S1", bundledLineIds: ["S11"] };
 
-  // The sibling's row keeps the lines; only the trip changes.
+  // The sibling's row keeps the lines; only the journey changes.
   assert.equal(
     getStopEventOpenPath(row("S11"), "hochstetten", false, selection),
     `/stop/hochstetten/line/S1+S11/journey/${JOURNEY_PATH}`,
@@ -103,7 +105,7 @@ test("a row tapped inside a bundle stays inside it, and any other row leaves it"
   );
 });
 
-test("a trip opened from a plain stop board steps back to that board", () => {
+test("a journey opened from a plain stop board steps back to that board", () => {
   const row = { id: "row", datedJourneyId: JOURNEY, lineId: "S11" } as Parameters<
     typeof getStopEventOpenPath
   >[0];
@@ -160,7 +162,7 @@ test("the lines ride along with the stop they belong to, not an address of their
 
 test("a line diagram places itself, so no address it is read at starts at the top", () => {
   const journeyRoute = parseRoute("#/stop/augartenstrasse/line/S11/journey/kvv:22311:E:H:s26:161");
-  // Selecting a trip is not a move; the diagram aims at its vehicle.
+  // Selecting a journey is not a move; the diagram aims at its vehicle.
   assert.equal(getViewStartKey(journeyRoute), null);
   // Nor is stepping along the line.
   assert.equal(getViewStartKey(parseRoute("#/stop/augartenstrasse/line/S11")), null);
@@ -258,7 +260,7 @@ test("a ride steps back to where it was begun, not to a stop the vehicle is runn
     }),
     `/stop/europaplatz/line/S11/journey/${JOURNEY_PATH}`,
   );
-  // Pressed twice, it reaches the trip's stop.
+  // Pressed twice, it reaches the journey's stop.
   assert.equal(
     getParentSelectionPath({
       view: "stop",

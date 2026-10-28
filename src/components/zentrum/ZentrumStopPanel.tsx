@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { createLineSign, getJourneyEnds } from "../../data/line-signs";
+import { createStopEventLineSign } from "../../data/line-signs";
 import type { StopEventBoard } from "../../data/transit-types";
 import {
   type CountdownReading,
@@ -16,7 +16,7 @@ import {
 import { formatBayText } from "../../lib/bay-naming";
 import type { ZentrumReachableStop, ZentrumStopReading } from "../../lib/zentrum-stop-view";
 import { getZentrumRidePresentation } from "../../lib/zentrum-presentation";
-import { isRailStopEvent } from "../../lib/zentrum-schematic-plan";
+import { isNetworkRailRow } from "../../lib/network-lines";
 import { getStopEventOpenPath, navigateTo, routePaths } from "../../routing";
 import { DepartureCountdown } from "../DepartureCountdown";
 import { DepartureTime } from "../DepartureTime";
@@ -131,14 +131,9 @@ export function ZentrumStopPanel({
                 >
                   <LineBadge
                     line={
-                      isRailStopEvent(stopEvent)
+                      isNetworkRailRow(stopEvent)
                         ? getSign(stopEvent.lineId)
-                        : createLineSign(
-                            stopEvent.lineId,
-                            stopEvent.ptMode,
-                            stopEvent.lineRef,
-                            getJourneyEnds(stopEvent),
-                          )
+                        : createStopEventLineSign(stopEvent)
                     }
                   />
                   <span className="departure-countdown">

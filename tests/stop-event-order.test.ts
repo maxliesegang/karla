@@ -45,7 +45,7 @@ test("leaves an unmonitored departure on its schedule", () => {
   assert.equal(getExpectedDepartureInstant(unmonitored), BASE + 7 * 60_000);
 });
 
-test("applies no deviation to a cancelled trip, which is expected nowhere", () => {
+test("applies no deviation to a cancelled journey, which is expected nowhere", () => {
   const cancelled = createStopEvent("cancelled", "1", 4, { status: "cancelled", delayMinutes: 9 });
 
   assert.equal(getExpectedDepartureInstant(cancelled), BASE + 4 * 60_000);
@@ -94,7 +94,7 @@ test("gathers a board by Steig, in platform order, keeping each group in departu
   );
 });
 
-test("puts trips the feed named no Steig for last, since that group is nowhere to walk to", () => {
+test("puts journeys the feed named no Steig for last, since that group is nowhere to walk to", () => {
   const board = [
     createStopEvent("unplaced", "1", 2, { bay: "" }),
     createStopEvent("placed", "2", 3, { bay: "3" }),

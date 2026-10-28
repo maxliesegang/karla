@@ -46,7 +46,7 @@ test("ends in no known area, or no source for the name, leave the line uncoloure
   assert.equal(findOtherLineColor("RB99", ["de:08221:1160"], sources), undefined);
 });
 
-test("the network's own operator run under another pool keeps the network's colour", () => {
+test("the network's own operator's line under another pool keeps the network's colour", () => {
   assert.equal(findOtherLineColor("S52", ["de:08212:89", "de:08215:1"], sources), "#f39b9a");
 });
 

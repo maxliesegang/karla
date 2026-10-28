@@ -1,7 +1,7 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { StopEvent, BayKind } from "../data/transit-types";
 import { classNames } from "../lib/class-names";
-import { isNetworkLineIdentity } from "../lib/line-families";
+import { isNetworkLineIdentity } from "../lib/network-lines";
 import {
   getVehicleAccessLabel,
   getStopEventAccessibilityLabel,
@@ -382,6 +382,8 @@ function LineGroup({
   columns: number;
   renderChip: (stopEvent: StopEvent, note: CorridorStopEventNote, isLead: boolean) => ReactNode;
 }) {
+  // The band's line colour, mixed toward the ink in CSS.
+  const headingStyle = { "--line-color": group.line.color } as CSSProperties;
   return (
     <section className="departure-board-line-group" aria-label={`Linie ${group.line.id}`}>
       <h2>
@@ -391,8 +393,7 @@ function LineGroup({
             className="stop-line-group-heading"
             onClick={() => navigateTo(routePaths.line(group.line.id, stopId, [], partId))}
             aria-label={`Linie ${group.line.id}, Linienverlauf öffnen`}
-            // The band's line colour, mixed toward the ink in CSS.
-            style={{ "--line-color": group.line.color } as CSSProperties}
+            style={headingStyle}
           >
             <LineBadge line={group.line} size="sm" />
             <span>Linienverlauf</span>
@@ -400,10 +401,7 @@ function LineGroup({
           </button>
         ) : (
           // Another operator's line has no line page here.
-          <span
-            className="stop-line-group-heading is-static"
-            style={{ "--line-color": group.line.color } as CSSProperties}
-          >
+          <span className="stop-line-group-heading is-static" style={headingStyle}>
             <LineBadge line={group.line} size="sm" />
           </span>
         )}

@@ -7,7 +7,7 @@ import { createStopEvent } from "./support/fixtures.ts";
 
 const { act } = await import("react");
 
-test("failed and slow runs cannot delay healthy runs, including after the run set changes", async (t) => {
+test("failed and slow journeys cannot delay healthy journeys, including after the journey set changes", async (t) => {
   let now = 0;
   t.mock.method(Date, "now", () => now);
   let nextId = 0;

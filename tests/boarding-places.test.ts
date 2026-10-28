@@ -43,6 +43,7 @@ function stopEvent(code: string, calls?: readonly Call[]): StopEvent {
   return {
     id: `d${stopEventCount}`,
     lineId: "4",
+    lineRef: "kvv:4",
     ptMode: "tram",
     destinationText: "Oberreut",
     minutesUntilDeparture: 5,
@@ -61,7 +62,7 @@ function stopEvent(code: string, calls?: readonly Call[]): StopEvent {
 const placesOf = (stopEvents: readonly StopEvent[]) =>
   getStopBoardingPlaces(updateStopBoardingObservations(null, "europaplatz", stopEvents));
 
-/** Onward calls of a tram stopping at both street platforms in turn, as trip 1374 does. */
+/** Onward calls of a tram stopping at both street platforms in turn, as journey 1374 does. */
 const streetDoubleCall = [call("3"), call("5"), { stopName: "Mühlburger Tor", stopPlaceId: "mt" }];
 
 test("a stop nothing has been observed to part is one place", () => {
@@ -75,7 +76,7 @@ test("a stop nothing has been observed to part is one place", () => {
   assert.deepEqual(places[0].bays, ["3", "4"]);
 });
 
-test("a trip calling at two platforms in turn parts them, whatever the codes suggest", () => {
+test("a journey calling at two platforms in turn parts them, whatever the codes suggest", () => {
   // Europaplatz's street platforms are two places 110 m apart, shown only by line 4 leaving `Gleis
   // 3` at 08:58 and `Gleis 5` at 08:59; eastbound, `Gleis 6` then `Gleis 4`.
   const places = placesOf([
@@ -160,7 +161,7 @@ test("a stop that is one place reads exactly as it always did", () => {
   );
 });
 
-test("a direction says which place it leaves from only where all of its trips agree", () => {
+test("a direction says which place it leaves from only where all of its journeys agree", () => {
   const stopEvents = [
     stopEvent("3", streetDoubleCall),
     stopEvent("4"),
@@ -199,7 +200,7 @@ test("a vehicle turning round is not two places, from whichever end it is read",
       calls,
     });
 
-  // The reading whose row is the second call: the first states no arrival, a run origin.
+  // The reading whose row is the second call: the first states no arrival, a journey origin.
   const fromD = [
     bay("A", { timetabledArrivalTime: undefined }),
     bay("D", { isThisCall: true, timetabledArrivalTime: undefined }),

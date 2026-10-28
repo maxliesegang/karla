@@ -1,5 +1,5 @@
 import type { StopEvent, StopEventBoard, Call } from "./transit-types";
-import { isNetworkRow } from "../lib/line-families";
+import { isNetworkRow } from "../lib/network-lines";
 import {
   buildObservedNetworkFromJourneys,
   type ObservedNetwork,
@@ -31,7 +31,7 @@ const toTopology = (stopEvent: StopEvent): ObservedJourneyTopology | undefined =
         id: stopEvent.id,
         ...(stopEvent.journeyRef ? { journeyRef: stopEvent.journeyRef } : {}),
         lineId: stopEvent.lineId,
-        ...(stopEvent.lineRef ? { lineRef: stopEvent.lineRef } : {}),
+        lineRef: stopEvent.lineRef,
         ptMode: stopEvent.ptMode,
         destinationText: stopEvent.destinationText,
         calls: stopEvent.calls.map(toTopologyCall),

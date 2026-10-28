@@ -70,7 +70,7 @@ test("a stop place's board reads each of its stop points and names the first", a
 });
 
 test("a part's board is completed from its own stop point alone", async () => {
-  // Kaiserstraße runs line 1 often; line 2 calls only at the Pyramide, and needs topping up there.
+  // Kaiserstraße journeys line 1 often; line 2 calls only at the Pyramide, and needs topping up there.
   const rowsByStopPoint: Record<string, FeedStopEvent[]> = {
     "de:08212:1003": Array.from({ length: 20 }, (_, index) =>
       stopEvent("de:08212:1003", index + 1, "1"),

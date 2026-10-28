@@ -11,10 +11,11 @@ import {
   type TravelMeasure,
 } from "./direct-travel-times";
 import { createSchematicBoardingReading } from "./schematic-boarding-places";
-import { compareLineIds } from "./line-families";
+import { isNetworkRailRow } from "./network-lines";
 import { isSameDatedJourney } from "./journeys";
 import type { ZentrumSchematicVehicle } from "./zentrum-schematic";
-import { getZentrumSchematicStopId, getEdgeKey, isRailStopEvent } from "./zentrum-schematic-plan";
+import { getZentrumSchematicStopId, getEdgeKey } from "./zentrum-schematic-plan";
+import { network } from "../networks/network";
 
 /** A stretch of a mark's path, lit from the mark to `end`. */
 export type ZentrumSchematicLitStretch = {
@@ -85,7 +86,8 @@ export function getZentrumStopEvents(
   }
   const next = [...nextByWay.values()].sort(
     (left, right) =>
-      left.departsAt - right.departsAt || compareLineIds(left.vehicle.lineId, right.vehicle.lineId),
+      left.departsAt - right.departsAt ||
+      network.compareLineIds(left.vehicle.lineId, right.vehicle.lineId),
   );
   return {
     stopEvents: next.map(({ vehicle, call, departsAt, isAtStop }) => ({
@@ -244,7 +246,7 @@ export function getZentrumTravelTimes(
   travelTimesByNodeId: ReadonlyMap<string, ZentrumTravelTime>;
   overlay: ZentrumSchematicOverlay;
 } {
-  const railDatedJourneys = stopEvents.filter(isRailStopEvent);
+  const railDatedJourneys = stopEvents.filter(isNetworkRailRow);
   const { resolveNodeId } = createSchematicBoardingReading(railDatedJourneys);
   const times = getDirectTravelTimes(
     railDatedJourneys,
@@ -295,7 +297,7 @@ export function getZentrumDirectRides(
   destinationNodeId: string,
   feedNow: number,
 ): ZentrumTravelTime[] {
-  const railDatedJourneys = stopEvents.filter(isRailStopEvent);
+  const railDatedJourneys = stopEvents.filter(isNetworkRailRow);
   const { resolveNodeId } = createSchematicBoardingReading(railDatedJourneys);
   const getNodeId = (call: Call) =>
     call.stopPlaceId === originNodeId ? originNodeId : resolveNodeId(call);

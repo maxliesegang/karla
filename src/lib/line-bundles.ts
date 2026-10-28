@@ -1,5 +1,5 @@
 import type { StopEvent, StopEventBoard, PtMode, Call, TransitLine } from "../data/transit-types";
-import { compareLines, getLineFamilyId, isSameLineFamily } from "./line-families";
+import { compareLines } from "./network-lines";
 import { getLineIdentity, isRowOfLine, type LineNaming } from "./line-identity";
 import { findStopCorridorPattern, type StopCorridorPatterns } from "./stop-corridor-patterns";
 import {
@@ -12,7 +12,7 @@ import {
 /**
  * Reading two lines as one along the stretch they share (S1 and S11 from Hochstetten). A bundle is
  * a rider-chosen view of a corridor at one stop, drawn only as far as the lines were observed
- * together; line identity stays per line (`line-families.ts`).
+ * together; line identity stays per line (`line-identity.ts`).
  */
 export type LineSelection = {
   /** The line the address names, which draws the diagram and gives the colour. */
@@ -85,10 +85,8 @@ export function getResolvedBundledLineIds(
 
   return bundledLineIds.filter(
     (lineId) =>
-      stopEventBoard.servingLines?.some(
-        (servingLine) => servingLine.lineId && isSameLineFamily(servingLine.lineId, lineId),
-      ) ||
-      stopEventBoard.stopEvents.some((stopEvent) => isSameLineFamily(stopEvent.lineId, lineId)),
+      stopEventBoard.servingLines?.some((servingLine) => servingLine.lineId === lineId) ||
+      stopEventBoard.stopEvents.some((stopEvent) => stopEvent.lineId === lineId),
   );
 }
 
@@ -96,10 +94,10 @@ export function getResolvedBundledLineIds(
 export function parseLineSelection(segment: string): LineSelection {
   const [lineId = "", ...rest] = segment
     .split(LINE_BUNDLE_SEPARATOR)
-    .map((id) => getLineFamilyId(id.trim()))
+    .map((id) => id.trim())
     .filter(Boolean);
   const bundledLineIds = [...new Set(rest)]
-    .filter((id) => !isSameLineFamily(id, lineId))
+    .filter((id) => id !== lineId)
     .slice(0, MAX_BUNDLED_LINES);
   return { lineId, bundledLineIds };
 }
@@ -210,7 +208,7 @@ function collectObservedLineRoutes(
     const match = findStopCorridorPattern(patterns, stopEvent);
     if (!match?.hasFullRoute || match.calls.length === 0) continue;
 
-    const lineId = getLineFamilyId(stopEvent.lineId);
+    const lineId = stopEvent.lineId;
     const sequenceKey = getCallSequenceKey(match.calls);
     const seen = seenSequences.get(lineId) ?? new Set<string>();
     if (seen.has(sequenceKey)) continue;
@@ -248,12 +246,12 @@ export function findLineBundleOffers({
 }): readonly LineBundleOffer[] {
   if (!lineId) return [];
   const byLine = collectObservedLineRoutes(stopEvents, patterns, lineId, identity);
-  const primary = byLine.get(getLineFamilyId(lineId));
+  const primary = byLine.get(lineId);
   if (!primary) return [];
 
   const offers: LineBundleOffer[] = [];
   for (const [candidateId, candidate] of byLine) {
-    if (isSameLineFamily(candidateId, lineId)) continue;
+    if (candidateId === lineId) continue;
     if (candidate.ptMode !== primary.ptMode) continue;
 
     // Each pairing of the two lines' routes (short workings, through services, directions) is a

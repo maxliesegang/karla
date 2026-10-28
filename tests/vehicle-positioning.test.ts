@@ -172,7 +172,7 @@ test("a reading a link ahead is caught up by travelling, not placed", () => {
 });
 
 test("a mark that has left slows to reach the next stop when a later departure says", () => {
-  // Drawn well down its first link; the re-read run says it has not left. It neither backs into
+  // Drawn well down its first link; the re-read journey says it has not left. It neither backs into
   // the stop nor stops mid-link: it goes on at an even, slower pace and reaches B on time.
   const calls = [call("a", 0), call("b", 2), call("c", 4)];
   const drawn = getSmoothJourneyPlacement(
@@ -208,7 +208,7 @@ test("a mark that has left slows to reach the next stop when a later departure s
 });
 
 test("a mark only edged out of a stop goes back to it when the departure is re-stated later", () => {
-  // Drawn just past A; the re-read run says it has not left. Waiting there would read as a tram
+  // Drawn just past A; the re-read journey says it has not left. Waiting there would read as a tram
   // stuck outside the stop, so the mark is put back, within a correctable distance.
   const calls = [call("a", 0), call("b", 2), call("c", 4)];
   const drawn = getSmoothJourneyPlacement(
@@ -274,7 +274,7 @@ test("a backward revision re-times the link instead of moving the mark back", ()
 });
 
 test("a delay that keeps growing bends the pace instead of dragging the mark back", () => {
-  // Every refresh restates the run a minute later; the mark must hold its ground rather than
+  // Every refresh restates the journey a minute later; the mark must hold its ground rather than
   // retreat after a receding target.
   const journeyRef = "position-growing-delay";
   let shown = getSmoothJourneyPlacement(
@@ -355,7 +355,7 @@ test("holds its ground when a fresher board states an earlier feed clock", () =>
 
 test("stays on its own link when the observed sequence is re-cut around it", () => {
   const seen = stopEvent("position-recut", [call("a", 0), call("b", 2), call("c", 4)]);
-  // The same trip from a board further back: indexes shift by one.
+  // The same journey from a board further back: indexes shift by one.
   const extended = stopEvent("position-recut", [
     call("z", -2),
     call("a", 0),
@@ -408,7 +408,7 @@ test("a delay switching between two minutes is drawn halfway, until it holds or 
   assert.equal(steady(3, 320), 3);
 });
 
-test("a run whose delay switches back is placed to arrive halfway between the two minutes", () => {
+test("a journey whose delay switches back is placed to arrive halfway between the two minutes", () => {
   const delayed = (minutes: number) =>
     stopEvent("position-flapping", [call("a", 0), call("b", 1, minutes), call("c", 3, minutes)]);
   const arrivalAt = (minutes: number, seconds: number) =>
@@ -462,7 +462,7 @@ test("a stand longer than a minute, or stated to the second, keeps its arrival",
 });
 
 test("carries the last stated deviation across the calls the feed does not monitor", () => {
-  // Four minutes late where monitored, unstated after; read as on time, the run would read as over.
+  // Four minutes late where monitored, unstated after; read as on time, the journey would read as over.
   const journey = stopEvent("position-unmonitored", [
     call("a", 0, 4),
     call("b", 2, 4),
@@ -504,7 +504,7 @@ test("keeps the two ends of a call apart: a late arrival is not a late departure
   assert.ok(away && away.progress > 0);
 });
 
-test("stands a monitored trip at the terminus it is due out of, once its turnaround is nearly over", () => {
+test("stands a monitored journey at the terminus it is due out of, once its turnaround is nearly over", () => {
   const journey = stopEvent(
     "position-before-start",
     datedJourney([call("a", 0), call("b", 2), call("c", 4)]),
@@ -531,7 +531,7 @@ test("stands a monitored trip at the terminus it is due out of, once its turnaro
 });
 
 test("a waiting mark stays at its terminus while the sequence around it is re-timed", () => {
-  // A run that has not begun stays at its first stop even when a re-timing (a deviation carried
+  // A journey that has not begun stays at its first stop even when a re-timing (a deviation carried
   // back from four calls on) arrives; re-planning would send it down the first link early.
   const plain = (callAtStop: Call): Call => ({ ...callAtStop, delayMinutes: undefined });
   const reading = (delayMinutes: number) =>
@@ -569,7 +569,7 @@ test("a waiting mark stays at its terminus while the sequence around it is re-ti
   assert.ok(leaving && leaving.progress > 0.16 && leaving.progress < 0.18);
 });
 
-test("draws no waiting mark for a run the feed is not watching", () => {
+test("draws no waiting mark for a journey the feed is not watching", () => {
   // Nothing monitored: a timetable line, not evidence of a vehicle at the terminus.
   const journey = {
     ...stopEvent(
@@ -585,7 +585,7 @@ test("draws no waiting mark for a run the feed is not watching", () => {
   assert.equal(getSmoothJourneyPlacement(motions, journey, start - 2 * 60_000), null);
 });
 
-test("keeps a finished trip standing at its final call before letting the mark go", () => {
+test("keeps a finished journey standing at its final call before letting the mark go", () => {
   const calls = datedJourney([call("a", 0), call("b", 2), call("c", 4)]);
 
   assert.deepEqual(
@@ -615,8 +615,8 @@ test("keeps a finished trip standing at its final call before letting the mark g
   );
 });
 
-test("draws no stand at either end of a reading that stops short of the run", () => {
-  // Every call timed at both ends: the feed states no run end, so neither end may carry a stand.
+test("draws no stand at either end of a reading that stops short of the journey", () => {
+  // Every call timed at both ends: the feed states no journey end, so neither end may carry a stand.
   const cut = stopEvent("position-cut-sequence", [call("a", 0), call("b", 2), call("c", 4)]);
 
   assert.equal(getSmoothJourneyPlacement(motions, cut, start - 4 * 60_000), null);
@@ -655,8 +655,8 @@ test("a later origin stand does not relocate a departed marker backward", () => 
   assert.ok(running && standing && standing.progress >= running.progress);
 });
 
-test("a revision that re-times a run's origin does not un-start a run the mark has left", () => {
-  // A deviation stated ahead is carried back to the origin, but the run has begun: the mark keeps
+test("a revision that re-times a journey's origin does not un-start a journey the mark has left", () => {
+  // A deviation stated ahead is carried back to the origin, but the journey has begun: the mark keeps
   // its ground and re-times its link, not hauled back to the start.
   const calls = datedJourney([
     call("a", 0),
@@ -847,8 +847,8 @@ test("a stand read behind the mark is a re-timing, not a vehicle reversing", () 
   assert.ok(held && held.progress >= running.progress);
 });
 
-test("lets a finished run go, however often the diagram asks for it", () => {
-  // A finished run drops its mark, however often the diagram asks.
+test("lets a finished journey go, however often the diagram asks for it", () => {
+  // A finished journey drops its mark, however often the diagram asks.
   const journey = stopEvent(
     "position-finished",
     datedJourney([call("a", 0), call("b", 5), call("c", 10)]),
@@ -894,7 +894,7 @@ test("a mark held over readings that place nothing is not held for ever", () => 
   }
 });
 
-test("a trip that cannot be placed for a moment keeps the ground the mark stood on", () => {
+test("a journey that cannot be placed for a moment keeps the ground the mark stood on", () => {
   // A reading with nothing placeable must not make the mark forget its position.
   const calls = [call("a", 0), call("b", 2), call("c", 4), call("d", 6)];
   const journey = stopEvent("position-gap", calls);
@@ -921,9 +921,9 @@ test("a trip that cannot be placed for a moment keeps the ground the mark stood 
   assert.ok(onward && getCallDistance(onward) > 2);
 });
 
-test("a board row never re-times its run: every view places one run in one place", () => {
+test("a board row never re-times its journey: every view places one journey in one place", () => {
   // Rows from different boards disagree on stop, prediction and clocks; placement reads only the
-  // run's calls, so every view puts the vehicle in one place.
+  // journey's calls, so every view puts the vehicle in one place.
   const calls = [call("a", 0), call("b", 2, 1), call("c", 4, 1)];
   const bare = stopEvent("position-one-reading", calls);
   const rows: StopEvent[] = [

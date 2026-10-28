@@ -10,11 +10,7 @@ import { homeLineColors, otherLineColors } from "./generated/line-colors";
 import { kvvOperatorAreas } from "./operator-areas";
 import { kvvStopPlaceOverrides } from "./stop-place-overrides";
 
-/**
- * KVV's own lines in its tariff area (Karlsruhe, Rastatt, Baden-Baden, Pforzheim, Enzkreis,
- * Südpfalz). Other pools sharing KVV's modes stay out: DB's S-Bahn Rhein-Neckar (`ddb:`) and rail
- * replacement (`rab:`). Measured 5 September 2026.
- */
+/** KVV's own pool, and its tariff area (Karlsruhe to the Südpfalz and Enzkreis). */
 const scope: NetworkScope = {
   pools: new Set(["kvv"]),
   bounds: {
@@ -29,6 +25,21 @@ const scope: NetworkScope = {
   },
 };
 
+/** S11 → S1, S51 → S5. S4 and S41 part north of the city, so it does not mean they run together. */
+const getLineTrunkId = (lineId: string): string | undefined => lineId.match(/^S\d/)?.[0];
+
+/** Trams first, then by number, branches beside their trunk (S1, S11, S12, S2). */
+function compareLineIds(a: string, b: string): number {
+  const rank = (id: string) => (id.startsWith("S") ? 1 : 0);
+  if (rank(a) !== rank(b)) return rank(a) - rank(b);
+  const number = (id: string) => Number.parseInt(id.replace(/^\D+/, ""), 10) || 0;
+  if (a.startsWith("S") && b.startsWith("S")) {
+    const trunk = (id: string) => Number.parseInt(getLineTrunkId(id)?.slice(1) ?? "0", 10);
+    return trunk(a) - trunk(b) || number(a) - number(b) || a.localeCompare(b);
+  }
+  return number(a) - number(b) || a.localeCompare(b);
+}
+
 export const kvvNetwork: NetworkDefinition = {
   id: "kvv",
   operator: {
@@ -38,6 +49,7 @@ export const kvvNetwork: NetworkDefinition = {
     fullGenitive: "des Karlsruher Verkehrsverbunds (KVV)",
     openData: { url: "https://www.kvv.de/fahrplan/fahrplaene/open-data.html", licence: "CC0" },
   },
+  accentColor: "#c9161c",
   scope,
   /** The feed names Karlsruhe's stops `KA Marktplatz` or `Karlsruhe Marktplatz`. */
   home: { placeName: "Karlsruhe", stopNamePrefix: /^(?:KA|Karlsruhe) (?=\S)/ },
@@ -52,22 +64,14 @@ export const kvvNetwork: NetworkDefinition = {
     (mode && homeLineColors[`${lineId}|${mode}`]) || homeLineColors[lineId],
   operatorAreas: kvvOperatorAreas,
   otherLineColors,
-  /** S11 → S1, S51 → S5. S4 and S41 part north of the city, so it does not mean they run together. */
-  getLineTrunkId: (lineId) => lineId.match(/^S\d/)?.[0],
+  getLineTrunkId,
+  compareLineIds,
   defaultStopId: "europaplatz",
   defaultLineId: "2",
   suggestedStopIds: ["marktplatz", "europaplatz", "hauptbahnhof"],
   /**
-   * Where tram-trains change system (Durlach, Rheinbergstraße; Albtalbahnhof is a Zentrum post) and
-   * bus hubs (`zentrum-stops.ts` has the measurement). What each alone sees, across six readings:
-   *
-   *     durlach-bahnhof    RE1 RE45 RE73, S3 S31 S32, 21 31, MX17a, NL12 NL13
-   *     rheinbergstrasse   S51, 74, 75
-   *     entenfang          2 60 62 70, NL15 NL16 NL17
-   *     zuendhuetle        1 24 44 47
-   *     turmberg           23 26
-   *
-   * Turmberg is marginal (stops seen 82% → 86%) and the first to drop.
+   * Where tram-trains change system, and bus hubs (`zentrum-stops.ts` has the measurement). Turmberg
+   * is marginal (stops seen 82% → 86%) and the first to drop.
    */
   reachObservationPostStopIds: [
     "durlach-bahnhof",

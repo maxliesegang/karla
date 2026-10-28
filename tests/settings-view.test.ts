@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import { network } from "../src/networks/network.ts";
 import "./support/register-tsx.ts";
 import "./support/render-hook.ts";
 
@@ -15,8 +16,14 @@ test("settings state the operator's terms and credit the timetable data", async 
   const about = container.querySelector(".settings-about")?.textContent ?? "";
   assert.match(about, /kein offizielles Angebot des Karlsruher Verkehrsverbunds \(KVV\)/);
   assert.match(about, /Der KVV haftet\s+nicht für die Inhalte/);
-  assert.match(about, /Fahrplanauskunft des KVV, Linienfarben aus seinen Open Data \(CC0\)\./);
+  assert.match(
+    about,
+    /Fahrplanauskunft des KVV, seine Linienfarben aus seinen Open Data \(CC0\)\./,
+  );
+  assert.match(about, /anderer Verkehrsunternehmen: Träwelling line-colors \(CC0 1\.0\)\./);
   assert.match(about, /NVBW, Datenlizenz Deutschland – Namensnennung 2\.0\./);
+  const datasetLink = container.querySelector(`a[href="${network.catalogSource.gtfs.url}"]`);
+  assert.equal(datasetLink?.textContent, "NVBW");
   assert.equal(container.querySelector("img"), null);
 
   await act(async () => root.unmount());

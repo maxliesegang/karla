@@ -1,4 +1,8 @@
-import { getCallShiftMs, getDatedJourneyTimeline } from "./dated-journey-timeline";
+import {
+  getCallShiftMs,
+  getDatedJourneyTimeline,
+  getTimetabledCallInstant,
+} from "./dated-journey-timeline";
 import { withoutDatedJourneyCalls } from "./journeys";
 import type {
   StopEvent,
@@ -256,13 +260,10 @@ export function getCallInstant(
   end: "arrival" | "departure" = "departure",
 ): number | undefined {
   if (!call) return undefined;
-  const timetabled =
-    end === "arrival"
-      ? (call.timetabledArrivalTime ?? call.timetabledDepartureTime)
-      : (call.timetabledDepartureTime ?? call.timetabledArrivalTime);
-  const timetabledInstant = timetabled ? Date.parse(timetabled) : Number.NaN;
-  if (!Number.isFinite(timetabledInstant)) return undefined;
-  return timetabledInstant + (getCallShiftMs(call, end) ?? 0);
+  const timetabledInstant = getTimetabledCallInstant(call, end);
+  return timetabledInstant === undefined
+    ? undefined
+    : timetabledInstant + (getCallShiftMs(call, end) ?? 0);
 }
 
 /** The calls ahead of the board this departure was read from. */

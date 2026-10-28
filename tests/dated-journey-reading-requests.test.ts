@@ -19,7 +19,7 @@ const linePlan = (selectedRowId?: string): DatedJourneyReadingPlan => ({
 const findTolerance = (requests: DatedJourneyReadingRequest[], rowId: string) =>
   requests.find((request) => request.rowId === rowId)?.maxAgeMs;
 
-test("a line reads every run on the line's own tolerance where the rider chose none", () => {
+test("a line reads every journey on the line's own tolerance where the rider chose none", () => {
   const requests = getDatedJourneyReadingRequests(linePlan());
   assert.deepEqual(
     requests.map(({ maxAgeMs }) => maxAgeMs),
@@ -28,25 +28,25 @@ test("a line reads every run on the line's own tolerance where the rider chose n
 });
 
 /**
- * The chosen run's tolerance is its own; collapsing to the tightest would re-read every run on the
+ * The chosen journey's tolerance is its own; collapsing to the tightest would re-read every journey on the
  * board cadence.
  */
-test("the run a rider chose is read faster without dragging the rest of the line with it", () => {
+test("the journey a rider chose is read faster without dragging the rest of the line with it", () => {
   const requests = getDatedJourneyReadingRequests(linePlan("stop-a-3002"));
   assert.equal(findTolerance(requests, "stop-a-3002"), BOARD_REFRESH_MS);
   assert.equal(findTolerance(requests, "stop-a-3001"), LINE_MAX_AGE_MS);
   assert.equal(findTolerance(requests, "stop-a-3003"), LINE_MAX_AGE_MS);
 });
 
-test("the runs are read in the order the plan names them", () => {
+test("the journeys are read in the order the plan names them", () => {
   assert.deepEqual(
     getDatedJourneyReadingRequests(linePlan("stop-a-3002")).map(({ rowId }) => rowId),
     ["stop-a-3001", "stop-a-3002", "stop-a-3003"],
   );
 });
 
-/** A view's first read looks past every tolerance the plan states, the chosen run's included. */
-test("an entry read asks the source for a fresh answer for every run", () => {
+/** A view's first read looks past every tolerance the plan states, the chosen journey's included. */
+test("an entry read asks the source for a fresh answer for every journey", () => {
   const requests = getDatedJourneyReadingRequests(linePlan("stop-a-3002"), true);
   assert.deepEqual(
     requests.map(({ maxAgeMs }) => maxAgeMs),
@@ -64,7 +64,7 @@ test("a partial dated journey reading failure remains a failed batch", async () 
   assert.deepEqual(result.failedRowIds, ["stop-a-3002"]);
 });
 
-test("a rejected run read does not swallow the other answers", async () => {
+test("a rejected journey read does not swallow the other answers", async () => {
   const result = await readDatedJourneyBatch(
     getDatedJourneyReadingRequests(linePlan()),
     async (rowId) => {

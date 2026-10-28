@@ -14,7 +14,7 @@ import { join } from "node:path";
 import { squashLineName } from "../src/lib/line-colors.ts";
 import type { PtMode } from "../src/data/transit-types.ts";
 import { network } from "../src/networks/network.ts";
-import { downloadGtfsArchive, readFields, readTable } from "./gtfs-archive.ts";
+import { downloadGtfsArchive, readFields, readTable, selectColumns } from "./gtfs-archive.ts";
 
 const { gtfs, community } = network.lineColorSource;
 const outputPath = new URL(
@@ -82,26 +82,19 @@ async function readHomeColors(archivePath: string): Promise<Record<string, strin
 async function readOtherColors(): Promise<Record<string, [string, number][]>> {
   const response = await fetch(community.url);
   if (!response.ok) throw new Error(`Community colours: HTTP ${response.status}`);
-  const [header, ...rows] = (await response.text())
+  const lines = (await response.text())
     .split(/\r?\n/)
     .filter(Boolean)
     .map((line) => readFields(line));
-  const column = (name: string) => {
-    const index = header.indexOf(name);
-    if (index === -1) throw new Error(`Community colours: no ${name}`);
-    return index;
-  };
-  const [operatorColumn, nameColumn, colorColumn] = [
-    column("shortOperatorName"),
-    column("lineName"),
-    column("backgroundColor"),
-  ];
+  const rows = selectColumns(
+    lines,
+    ["shortOperatorName", "lineName", "backgroundColor"],
+    "Community colours",
+  );
 
   const colors: Record<string, [string, number][]> = {};
-  for (const row of rows) {
-    const operator = row[operatorColumn] ?? "";
-    const name = row[nameColumn];
-    const color = row[colorColumn]?.toLowerCase();
+  for await (const [operator = "", name, backgroundColor] of rows) {
+    const color = backgroundColor?.toLowerCase();
     const areaIndex = network.operatorAreas.findIndex(({ operators }) =>
       operators.some((prefix) => operator.startsWith(prefix)),
     );

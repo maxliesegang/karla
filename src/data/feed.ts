@@ -56,7 +56,7 @@ export type FeedStopEvent = {
   publishedJourneyNumber?: string;
   lineId: string;
   /** Opaque identity for this line and operating direction (`kvv:21005:E:R:s26`). */
-  lineRef?: string;
+  lineRef: string;
   ptMode: PtMode;
   destinationText: string;
   /** TRIAS's `OriginStopPointRef` and `DestinationStopPointRef`, as DHIDs. */
@@ -98,6 +98,20 @@ export type FeedStopSearchResult = {
 /** A dated journey's id: its journey, which repeats daily, on its operating day. */
 export const getDatedJourneyId = ({ journeyRef, operatingDayRef }: DatedJourneyRef): string =>
   `${journeyRef}@${operatingDayRef}`;
+
+const OPERATING_DAY_REF_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
+/** An `OperatingDayRef` as TRIAS states it: `YYYY-MM-DD`. */
+export const isOperatingDayRef = (value: string): boolean => OPERATING_DAY_REF_PATTERN.test(value);
+
+/** `getDatedJourneyId` read back; none for an id that names no operating day. */
+export function parseDatedJourneyId(id: string): DatedJourneyRef | undefined {
+  const separator = id.lastIndexOf("@");
+  const operatingDayRef = id.slice(separator + 1);
+  return separator > 0 && isOperatingDayRef(operatingDayRef)
+    ? { journeyRef: id.slice(0, separator), operatingDayRef }
+    : undefined;
+}
 
 const getExpectedInstant = (stopEvent: FeedStopEvent): number =>
   findExpectedDepartureInstant(

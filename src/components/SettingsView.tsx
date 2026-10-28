@@ -6,6 +6,7 @@ import { network } from "../networks/network";
 
 const { operator } = network;
 const { gtfs } = network.catalogSource;
+const { community } = network.lineColorSource;
 
 /** One setting: label, a line of description, the control on the right. */
 function SettingsRow({
@@ -132,7 +133,7 @@ export function SettingsView() {
         </p>
         <p>
           Abfahrten und Haltestellen stammen aus der elektronischen Fahrplanauskunft{" "}
-          {operator.genitive}, Linienfarben aus seinen{" "}
+          {operator.genitive}, seine Linienfarben aus seinen{" "}
           <a href={operator.openData.url} target="_blank" rel="noreferrer">
             Open Data
           </a>{" "}
@@ -140,7 +141,18 @@ export function SettingsView() {
           jederzeit beschränken, ändern oder einstellen.
         </p>
         <p>
-          Fahrplandaten für Linien, Steige und Haltestellen: {gtfs.publisher},{" "}
+          Linienfarben anderer Verkehrsunternehmen:{" "}
+          <a href={community.url} target="_blank" rel="noreferrer">
+            {community.publisher}
+          </a>{" "}
+          ({community.licence}).
+        </p>
+        <p>
+          Fahrplandaten für Linien, Steige und Haltestellen:{" "}
+          <a href={gtfs.url} target="_blank" rel="noreferrer">
+            {gtfs.publisher}
+          </a>
+          ,{" "}
           <a href={gtfs.licenceUrl} target="_blank" rel="noreferrer">
             {gtfs.licence}
           </a>

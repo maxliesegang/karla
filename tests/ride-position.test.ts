@@ -139,7 +139,7 @@ test("falls back to the timetable when the fix cannot be placed", () => {
   );
 });
 
-test("a position cannot restart a ride the trip has already finished", () => {
+test("a position cannot restart a ride the journey has already finished", () => {
   const finished = getRideProgress(calls, Date.parse("2026-08-29T10:30:00Z"), {
     fix: {
       latitude: 49.0075,

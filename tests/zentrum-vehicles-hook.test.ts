@@ -14,7 +14,7 @@ const flush = () =>
     for (let index = 0; index < 32; index += 1) await Promise.resolve();
   });
 
-/** The app's source discovers `runs` on `board` and reads them through `source`. */
+/** The app's source discovers `journeys` on `board` and reads them through `source`. */
 const serveDiscovery = (
   t: TestContext,
   source: TriasTransitSource,
@@ -40,7 +40,7 @@ const serveDiscovery = (
   );
 };
 
-test("a discovered Zentrum run is placed from its own reads, never its board's calls", async (t) => {
+test("a discovered Zentrum journey is placed from its own reads, never its board's calls", async (t) => {
   const start = Date.parse("2026-10-07T13:20:00Z");
   let now = start;
   t.mock.method(Date, "now", () => now);
@@ -70,8 +70,9 @@ test("a discovered Zentrum run is placed from its own reads, never its board's c
   const stopEvent: FeedStopEvent = {
     stopPointId: "de:08212:1004",
     stopPointName: "Europaplatz (U)",
-    journeyRef: "test-trip",
+    journeyRef: "test-journey",
     lineId: "S2",
+    lineRef: "kvv:S2",
     ptMode: "tram",
     destinationText: "Spöck",
     minutesUntilDeparture: 0,
@@ -122,7 +123,7 @@ test("a discovered Zentrum run is placed from its own reads, never its board's c
   }
 });
 
-test("a run still far from the plan is left off it but kept for travel times", async (t) => {
+test("a journey still far from the plan is left off it but kept for travel times", async (t) => {
   const start = Date.parse("2026-10-07T13:20:00Z");
   t.mock.method(Date, "now", () => start);
   const call = createCall(start);
@@ -142,8 +143,9 @@ test("a run still far from the plan is left off it but kept for travel times", a
       {
         stopPointId: "de:08212:7",
         stopPointName: "Tullastraße/Alter Schlachthof",
-        journeyRef: "test-trip",
+        journeyRef: "test-journey",
         lineId: "S5",
+        lineRef: "kvv:S5",
         ptMode: "tram",
         destinationText: "Rheinbergstraße",
         minutesUntilDeparture: 15,

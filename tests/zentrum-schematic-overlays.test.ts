@@ -38,7 +38,7 @@ const timedCall = (stopPlaceId: string, minute: number): Call => ({
   delayMinutes: 0,
 });
 
-/** One run along the Kaiserstraße, calling at each stop at the minute given beside it. */
+/** One journey along the Kaiserstraße, calling at each stop at the minute given beside it. */
 const datedJourney = (
   id: string,
   lineId: string,
@@ -136,7 +136,7 @@ test("offers only the next tram of a line toward one destination", () => {
   assert.equal(stopEvents[0]?.departsAt, instant(4));
 });
 
-/** The row a stop's own board states for a run, as the board at that stop publishes it. */
+/** The row a stop's own board states for a journey, as the board at that stop publishes it. */
 const boardRow = (stopEvent: StopEvent, stopPlaceId: string, minute: number): StopEvent => ({
   ...stopEvent,
   boardingStopPlaceId: stopPlaceId,

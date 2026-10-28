@@ -114,8 +114,6 @@ name; one asked for by identity is only rows of that name and identity. Within `
 unique: S-Bahn Stuttgart's S3 and S-Bahn Rhein-Neckar's S3 are both `ddb:920S3`.
 _Avoid_: line key
 
-**Line family**: lines that share a number (S1 and S11). It says nothing about shared track.
-
 **Line bundle**: two lines read together over a stretch they share, as chosen by the rider in the URL
 (`line/S1+S11`). They are never merged automatically.
 
@@ -137,9 +135,9 @@ URL.
 **Experiment page**: a place to try experimental maps, including the Zentrum plan.
 
 **Geographic map**: the experiment page's `geo` map. Stops stand where the feed locates them,
-linked in the order observed runs call them, out to the runs' ends. Places are named by the feed's
-`placeName`. Like the region plan, it draws only **daily lines**: those the timetable runs on every
-day of the week (`npm run refresh:stops` lists the others).
+linked in the order observed journeys call them, out to the journeys' ends. Places are named by the
+feed's `placeName`. Like the region plan, it draws only **daily lines**: those the timetable runs on
+every day of the week (`npm run refresh:stops` lists the others).
 
 **Region plan**: the experiment page's `region` map. An octilinear plan of the observed network,
 solved offline: in Karlsruhe only junctions and ends, every other place once per branch. Stops it
@@ -158,15 +156,15 @@ _Avoid_: experiments (the page contains experimental maps; these choices configu
 **Schematic plan**: the authored drawing of that area (nodes, edges, lanes), solved offline and never
 read live.
 
-**Corridor**: a connection between two stops observed in runs. A junction may split it into
+**Corridor**: a connection between two stops observed in journeys. A junction may split it into
 several drawing edges; travel times and vehicle progress still measure the corridor stop to stop.
 
 **Drawn track** (`trackId`): one lane in the schematic. Lines with the same trunk and colour share
 a drawn track; their passenger-facing line identities remain separate.
 
 **Junction**: a bend between stops, where a corridor from a stop with a platform run (Albtalbahnhof)
-turns square into the street it serves. Drawn without a mark; corridors stay stop to stop for runs,
-lighting and travel times.
+turns square into the street it serves. Drawn without a mark; corridors stay stop to stop for
+journeys, lighting and travel times.
 
 ## Boundary
 

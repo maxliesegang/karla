@@ -12,7 +12,6 @@ import {
 } from "./hooks/dated-journey-reading-loader";
 import { mergeAddressedDatedJourney } from "./lib/calls";
 import { findBestDatedJourneyReading } from "./lib/journeys";
-import { findLineForRoute } from "./lib/line-families";
 import { createLineSelectionOf, type LineSelection } from "./lib/line-bundles";
 import type {
   StopEvent,
@@ -104,7 +103,7 @@ export function useSelectionChain(
   network: TransitNetwork,
   observationBoards: readonly StopEventBoard[] = [],
 ): ResolvedSelectionChain {
-  const observedLine = findLineForRoute(network.lines, route.lineId);
+  const observedLine = network.lines.find((line) => line.id === route.lineId);
   const addressedStopId = route.stopId || observedLine?.zentrumCalls[0] || DEFAULT_STOP_ID;
   // Retry by bumping the nonce, so the last result stays visible meanwhile.
   const [stopReloadNonce, setStopReloadNonce] = useState(0);

@@ -25,7 +25,7 @@ const { normalizeBay } = await import("../src/station-board.ts");
 
 const createStopEvent = (overrides: Partial<StopEvent> = {}): StopEvent =>
   createFixture({
-    id: "trip",
+    id: "journey",
     lineId: "S1",
     ptMode: "lightRail",
     destinationText: "Bad Herrenalb",

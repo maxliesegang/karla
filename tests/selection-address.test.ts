@@ -5,8 +5,8 @@ import { isAddressOutstanding } from "../src/routing.ts";
 
 const JOURNEY = "kvv:22302:E:H:s26:946";
 
-test("a trip that has left the rider's stop is not dropped while its line is still being read", () => {
-  // The trip departed this stop half an hour ago, so the stop's own board is read and has no row
+test("a journey that has left the rider's stop is not dropped while its line is still being read", () => {
+  // The journey departed this stop half an hour ago, so the stop's own board is read and has no row
   // for it. The boards along the line have it — and have not answered yet.
   assert.equal(
     isAddressOutstanding({
@@ -19,7 +19,7 @@ test("a trip that has left the rider's stop is not dropped while its line is sti
   );
 });
 
-test("a trip nothing has named once every reading answered is dropped", () => {
+test("a journey nothing has named once every reading answered is dropped", () => {
   assert.equal(
     isAddressOutstanding({
       addressId: JOURNEY,
@@ -31,7 +31,7 @@ test("a trip nothing has named once every reading answered is dropped", () => {
   );
 });
 
-test("nothing is outstanding once the trip itself is in hand", () => {
+test("nothing is outstanding once the journey itself is in hand", () => {
   // Resolved from the line's boards while they are still being re-read: the answer is already here.
   assert.equal(
     isAddressOutstanding({
@@ -44,7 +44,7 @@ test("nothing is outstanding once the trip itself is in hand", () => {
   );
 });
 
-test("an address naming no trip waits for nothing", () => {
+test("an address naming no journey waits for nothing", () => {
   assert.equal(
     isAddressOutstanding({
       addressId: undefined,
@@ -56,7 +56,7 @@ test("an address naming no trip waits for nothing", () => {
   );
 });
 
-test("a trip is never dropped before this stop's own board has been read", () => {
+test("a journey is never dropped before this stop's own board has been read", () => {
   assert.equal(
     isAddressOutstanding({
       addressId: JOURNEY,

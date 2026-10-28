@@ -4,7 +4,7 @@
  * its dated journeys pass. TRIAS states no serving lines.
  */
 import type { StopEvent, ServingLine } from "./transit-types";
-import { isNetworkRow } from "../lib/line-families";
+import { isNetworkRow } from "../lib/network-lines";
 
 /**
  * How long one observed dated journey keeps a direction serving a stop: past an hourly line's gap.
@@ -19,7 +19,7 @@ export class ServingDirections {
       const { lineRef, lineId, ptMode, status } = stopEvent;
       // A cancelled dated journey does not call where it was timetabled to. Only the network's own
       // lines are served, so other operators' directions cost no coverage reads.
-      if (!lineRef || !isNetworkRow(stopEvent) || status === "cancelled") continue;
+      if (!isNetworkRow(stopEvent) || status === "cancelled") continue;
       const line: ServingLine = { lineId, lineRef, ptMode };
       const stopIds = new Set([
         stopEvent.boardingStopPlaceId,

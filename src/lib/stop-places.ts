@@ -33,22 +33,20 @@ export function deriveStopPlaces(
   );
 
   const splits = new Set(overrides.splits);
-  const groups: CatalogStop[][] = [];
+  let groups: CatalogStop[][] = [];
   for (const stop of catalog) {
-    const joining = splits.has(stop.globalId)
-      ? []
-      : groups.filter((group) =>
-          group.some((other) => isSamePlace(other, stop) && !splits.has(other.globalId)),
-        );
-    for (const group of joining) groups.splice(groups.indexOf(group), 1);
-    groups.push([...joining.flat(), stop]);
+    const isSplit = splits.has(stop.globalId);
+    groups = joinGroups(
+      groups,
+      (group) =>
+        !isSplit && group.some((other) => isSamePlace(other, stop) && !splits.has(other.globalId)),
+      [stop],
+    );
   }
   for (const stopPointIds of overrides.joins ?? []) {
-    const joined = groups.filter((group) =>
+    groups = joinGroups(groups, (group) =>
       group.some(({ globalId }) => stopPointIds.includes(globalId)),
     );
-    for (const group of joined) groups.splice(groups.indexOf(group), 1);
-    groups.push(joined.flat());
   }
 
   const places = groups.map((group) => {
@@ -81,12 +79,33 @@ export function deriveStopPlaces(
     };
     return [id, definition] as const;
   });
+  assertNone(
+    entries.flatMap(([id, { parts = [] }]) =>
+      new Set(parts).size < parts.length ? [`${id} (${parts.join(", ")})`] : [],
+    ),
+    "Parts share a name; give them partNames",
+  );
   const ids = new Set(entries.map(([id]) => id));
   assertNone(
     Object.keys(overrides.formerNames ?? {}).filter((id) => !ids.has(id)),
     "Former names are kept for stop places that no longer exist",
   );
   return Object.fromEntries([...entries].sort(([a], [b]) => a.localeCompare(b)));
+}
+
+/** The groups `isJoined` picks, and `added`, as one group after the rest. */
+function joinGroups<T>(
+  groups: readonly T[][],
+  isJoined: (group: readonly T[]) => boolean,
+  added: readonly T[] = [],
+): T[][] {
+  const kept: T[][] = [];
+  const joined: T[] = [];
+  for (const group of groups) {
+    if (isJoined(group)) joined.push(...group);
+    else kept.push(group);
+  }
+  return [...kept, [...joined, ...added]];
 }
 
 /** A stale override would otherwise drop out unnoticed at the next refresh. */

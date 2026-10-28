@@ -83,7 +83,7 @@ export type StopEvent = {
   publishedJourneyNumber?: string;
   lineId: LineId;
   /** Opaque feed identity for the line's operating direction, stable across its headsigns. */
-  lineRef?: string;
+  lineRef: string;
   ptMode: PtMode;
   destinationText: string;
   /** The journey's first and last stop points (DHIDs), which tell other operators' lines apart. */

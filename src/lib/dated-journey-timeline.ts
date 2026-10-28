@@ -3,16 +3,22 @@ import type { Call } from "../data/transit-types";
 export type TimedDatedJourneyCall = { call: Call; arrival: number; departure: number };
 type CallEnd = "arrival" | "departure";
 
-function getOwnShiftMs(call: Call, end: CallEnd): number | undefined {
-  const timetabled = Date.parse(
-    (end === "arrival"
+/** The published instant at a call, without deviation; either end stands in for the other. */
+export function getTimetabledCallInstant(call: Call, end: CallEnd): number | undefined {
+  const published =
+    end === "arrival"
       ? (call.timetabledArrivalTime ?? call.timetabledDepartureTime)
-      : (call.timetabledDepartureTime ?? call.timetabledArrivalTime)) ?? "",
-  );
+      : (call.timetabledDepartureTime ?? call.timetabledArrivalTime);
+  const instant = published ? Date.parse(published) : Number.NaN;
+  return Number.isFinite(instant) ? instant : undefined;
+}
+
+function getOwnShiftMs(call: Call, end: CallEnd): number | undefined {
+  const timetabled = getTimetabledCallInstant(call, end);
   const estimated = Date.parse(
     (end === "arrival" ? call.estimatedArrivalTime : call.estimatedDepartureTime) ?? "",
   );
-  if (Number.isFinite(estimated) && Number.isFinite(timetabled)) return estimated - timetabled;
+  if (Number.isFinite(estimated) && timetabled !== undefined) return estimated - timetabled;
   const minutes = end === "arrival" ? call.arrivalDelayMinutes : call.delayMinutes;
   return minutes === undefined ? undefined : minutes * 60_000;
 }
@@ -27,9 +33,9 @@ export const getCallShiftMs = (call: Call, end: CallEnd): number | undefined =>
 /** Missing deviations inherit the nearest stated one; expected calls never run backwards. */
 export function getDatedJourneyTimeline(calls: readonly Call[]): TimedDatedJourneyCall[] {
   const timetabled = calls.flatMap((call) => {
-    const arrival = Date.parse(call.timetabledArrivalTime ?? call.timetabledDepartureTime ?? "");
-    const departure = Date.parse(call.timetabledDepartureTime ?? call.timetabledArrivalTime ?? "");
-    if (!Number.isFinite(arrival) || !Number.isFinite(departure)) return [];
+    const arrival = getTimetabledCallInstant(call, "arrival");
+    const departure = getTimetabledCallInstant(call, "departure");
+    if (arrival === undefined || departure === undefined) return [];
     const arrivalShift = getCallShiftMs(call, "arrival");
     const departureShift = getCallShiftMs(call, "departure");
     return [{ call, arrival, departure, arrivalShift, departureShift }];

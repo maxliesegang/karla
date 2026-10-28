@@ -18,8 +18,8 @@ export const createCall =
   };
 
 /**
- * A whole run as the feed publishes it: no arrival at its first stop, no departure at its last.
- * Only such a reading may stand at its ends; build cut-short readings without `run`.
+ * A whole journey as the feed publishes it: no arrival at its first stop, no departure at its last.
+ * Only such a reading may stand at its ends; build cut-short readings without `datedJourney`.
  */
 export const datedJourney = (calls: readonly Call[]): Call[] =>
   calls.map((call, index) => ({

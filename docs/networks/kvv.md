@@ -6,8 +6,9 @@ the Zentrum plan and the region plan exist only for it.
 
 ## Scope
 
-- Pool `kvv:` only. DB's S-Bahn Rhein-Neckar (`ddb:`) and rail replacement (`rab:`) share KVV's
-  modes and stay out.
+- Pool `kvv:` is KVV's own: observed, numbered, coloured from KVV's GTFS, given line pages. DB's
+  S-Bahn Rhein-Neckar (`ddb:`), rail replacement (`rab:`) and other pools show on boards as other
+  operators' lines.
 - Stop search keeps stops inside 48.55–49.28 N, 7.75–8.90 E: Renchen, Lingenfeld, Dahn and
   Mühlacker in; the Ortenau, Speyer, Pirmasens and Stuttgart out.
 - The feed prefixes Karlsruhe's stop names with `KA ` or `Karlsruhe `.
@@ -22,18 +23,19 @@ stop points:
 
 | Place | Parts |
 | --- | --- |
-| Europaplatz | Straße `de:08212:37` (tram and bus bays), Tunnel `de:08212:1004` |
+| Europaplatz | Oben `de:08212:37` (tram and bus bays), Unten `de:08212:1004` |
 | Marktplatz | Kaiserstraße `de:08212:1003`, Pyramide `de:08212:1011` |
 | Hauptbahnhof | Vorplatz `de:08212:89`, Bahnhof `de:08212:90` |
 | Durlach Bahnhof | Bahnhof `de:08212:802`, Straßenbahn `de:08212:801` |
 
-Kronenplatz, Durlacher Tor, Ettlinger Tor and Kongresszentrum each join a Tunnel and a Straße.
+Kronenplatz, Durlacher Tor, Ettlinger Tor and Kongresszentrum each join an Unten (`(U)`) and an
+Oben.
 [`stop-place-overrides.ts`](../../src/networks/kvv/stop-place-overrides.ts) joins Durlach's two
 (named `Bahnhof` and `Karlsruhe-Durlach`), names the stations' parts, and keeps Rüppurrer Tor's
 former name, Mendelssohnplatz.
 
-The Hauptbahnhof station part shows only `kvv:` rows; DB's regional trains are `ddb:` and out of
-scope.
+The Hauptbahnhof station part shows DB's regional trains (`ddb:`) as other operators' lines beside
+KVV's.
 
 Height is in no source. Europaplatz's `Gleis 3` and `Gleis 5` are 107 m apart, while `Gleis 5` is
 3 m from the tunnel's `Gleis 1(U)`, so distance cannot decide boarding places; they are read from

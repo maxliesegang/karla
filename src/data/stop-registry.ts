@@ -109,7 +109,7 @@ export class StopRegistry {
   toCalls(calls: readonly FeedCall[]): Call[] {
     return calls.map(({ stopPointId, ...journeyStop }) => {
       const stopPlaceId = stopPointId
-        ? this.resolveCallStopPlaceId(stopPointId, journeyStop)
+        ? this.findCallStopPlaceId(stopPointId, journeyStop)
         : createStopSlug(journeyStop.stopName);
       return {
         ...journeyStop,
@@ -142,33 +142,15 @@ export class StopRegistry {
       : { latitude: stop.latitude, longitude: stop.longitude };
   }
 
-  /**
-   * The stop place for a journey call, registering it with its position; fills in a position missing
-   * from a search-registered stop.
-   */
-  private resolveCallStopPlaceId(
+  /** A call's stop place: the network's, else one registered with, or located by, the call. */
+  private findCallStopPlaceId(
     stopPointId: string,
-    journeyStop: Omit<FeedCall, "stopPointId">,
+    { stopName, placeName, latitude, longitude }: Omit<FeedCall, "stopPointId">,
   ): string {
-    const knownId = this.findStopPlaceId(stopPointId);
-    if (!knownId) {
-      return this.register({
-        stopPointId,
-        name: journeyStop.stopName,
-        placeName: journeyStop.placeName,
-        latitude: journeyStop.latitude,
-        longitude: journeyStop.longitude,
-      }).id;
-    }
-
-    const known = this.dynamicStops.get(knownId);
-    if (known && known.latitude === undefined && journeyStop.latitude !== undefined) {
-      this.dynamicStops.set(knownId, {
-        ...known,
-        latitude: journeyStop.latitude,
-        longitude: journeyStop.longitude,
-      });
-    }
-    return knownId;
+    const authoredId = stopPlaceIdByStopPointId.get(stopPointId);
+    return (
+      authoredId ??
+      this.register({ stopPointId, name: stopName, placeName, latitude, longitude }).id
+    );
   }
 }

@@ -286,7 +286,7 @@ test("gives each bend to the edge between the places it falls between, so every 
       const [dx, dy] = [Math.abs(point.x - way[index].x), Math.abs(point.y - way[index].y)];
       assert.ok(
         dx < 0.05 || dy < 0.05 || Math.abs(dx - dy) < 0.05,
-        `${from}–${to} leg ${index} runs ${dx},${dy}`,
+        `${from}–${to} leg ${index} journeys ${dx},${dy}`,
       );
     }
   }

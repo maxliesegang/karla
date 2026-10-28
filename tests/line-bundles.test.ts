@@ -42,13 +42,13 @@ const calls = (...stopNames: string[]): Call[] =>
 /** Both lines out of Hochstetten: together to Busenbach, apart after. */
 const TRUNK = ["hochstetten", "linkenheim", "eggenstein", "neureut", "busenbach"];
 const s1 = stopEvent({
-  id: "s1-trip",
+  id: "s1-journey",
   lineId: "S1",
   destinationText: "Bad Herrenalb",
   calls: calls(...TRUNK, "etzenrot", "bad herrenalb"),
 });
 const s11 = stopEvent({
-  id: "s11-trip",
+  id: "s11-journey",
   lineId: "S11",
   destinationText: "Ittersbach",
   calls: calls(...TRUNK, "langensteinbach", "ittersbach"),
@@ -75,7 +75,7 @@ test("offers a sibling line observed running the same corridor out of this stop"
 
 /**
  * Keeps a stretch out of each end of the stop: at Ettlingen Neuwiesenreben S1 and S11 share 39
- * calls north and six south, and the southbound trip must still get its offer.
+ * calls north and six south, and the southbound journey must still get its offer.
  */
 test("keeps the stretch out of each end of a stop, not the longer of the two", () => {
   const between = (id: string, lineId: string, ...stopNames: string[]): StopEvent =>
@@ -113,7 +113,7 @@ test("keeps the stretch out of each end of a stop, not the longer of the two", (
 test("does not offer a line that only leaves the stop the same way", () => {
   // One shared link, then apart.
   const s2 = stopEvent({
-    id: "s2-trip",
+    id: "s2-journey",
     lineId: "S2",
     destinationText: "Spöck",
     calls: calls("hochstetten", "linkenheim", "blankenloch", "spöck"),
@@ -131,7 +131,7 @@ test("does not offer a line that only leaves the stop the same way", () => {
 
 test("does not offer a line of another mode over the same corridor", () => {
   const bus = stopEvent({
-    id: "bus-trip",
+    id: "bus-journey",
     lineId: "123",
     ptMode: "bus",
     destinationText: "Busenbach",
@@ -379,7 +379,7 @@ test("keeps the lines apart where a chain does not call at the rider's stop", ()
   );
 });
 
-test("draws the sibling trip that runs with this one farthest, not the opposite direction", () => {
+test("draws the sibling journey that runs with this one farthest, not the opposite direction", () => {
   const s11Back = stopEvent({
     id: "s11-back",
     lineId: "S11",

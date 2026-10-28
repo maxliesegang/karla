@@ -22,7 +22,7 @@ import { createStopEvent } from "./support/fixtures.ts";
 
 const operatingDayRef = "2026-09-04";
 
-/** A line route as the feed answers it: the run's calls, none marked as the board's own. */
+/** A line route as the feed answers it: the journey's calls, none marked as the board's own. */
 const route: FeedCall[] = [
   {
     stopName: "Durlacher Tor/KIT-Campus Süd (U)",
@@ -40,7 +40,7 @@ function lineRow(overrides: Partial<FeedStopEvent> = {}): FeedStopEvent {
   return {
     stopPointId: "de:08212:1001",
     stopPointName: "Durlacher Tor/KIT-Campus Süd (U)",
-    journeyRef: "de:kvv:00003_:.trip",
+    journeyRef: "de:kvv:00003_:.journey",
     lineId: "3",
     lineRef: "kvv:21003:E:R:s26",
     ptMode: "tram",
@@ -76,7 +76,7 @@ test("TransitSource reads one route per line-direction and keeps it for the sess
   // The second row of the same direction is a second way of asking the same question.
   const again = await source.getLineRoute(board.stopEvents[1].id);
 
-  assert.deepEqual(requests, [{ journeyRef: "de:kvv:00003_:.trip", operatingDayRef }]);
+  assert.deepEqual(requests, [{ journeyRef: "de:kvv:00003_:.journey", operatingDayRef }]);
   // Provider ids, resolved to the local stops the app requests boards with.
   assert.deepEqual(stopIds, ["durlacher-tor", "kronenplatz"]);
   assert.deepEqual(again, stopIds);

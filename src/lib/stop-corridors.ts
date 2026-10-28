@@ -1,6 +1,6 @@
 import type { StopEvent, TransitLine, Call } from "../data/transit-types";
-import { createLineSign, getJourneyEnds } from "../data/line-signs";
-import { compareLines, getLineFamilyId, isNetworkLineIdentity } from "./line-families";
+import { createStopEventLineSign } from "../data/line-signs";
+import { compareLines, isNetworkLineIdentity } from "./network-lines";
 import { getLineIdentity } from "./line-identity";
 import { findStopCorridorPattern, type StopCorridorPatterns } from "./stop-corridor-patterns";
 import {
@@ -143,7 +143,7 @@ export function getStopServiceCorridorLineGroups(
   >();
 
   for (const stopEvent of stopEvents) {
-    const lineId = getLineFamilyId(stopEvent.lineId);
+    const lineId = stopEvent.lineId;
     // Another operator's line of the network's line's name is its own group.
     const identity = getLineIdentity(stopEvent.lineRef);
     const groupId = isNetworkLineIdentity(identity) ? lineId : `${lineId}@${identity}`;
@@ -157,12 +157,7 @@ export function getStopServiceCorridorLineGroups(
       : `unknown:${stopEvent.destinationText}`;
     const group = groups.get(groupId) ?? {
       line: {
-        ...createLineSign(
-          stopEvent.lineId,
-          stopEvent.ptMode,
-          stopEvent.lineRef,
-          getJourneyEnds(stopEvent),
-        ),
+        ...createStopEventLineSign(stopEvent),
         id: lineId,
         name: lineId,
         destinations: [],

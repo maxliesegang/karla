@@ -23,7 +23,12 @@ import {
   type DatedJourneySegmentTrajectory,
 } from "./vehicle-positioning";
 import { getDistinctDatedJourneys, getDatedJourneyMarkKey, isSameDatedJourney } from "./journeys";
-import { findTurnarounds, type TurnaroundIndex } from "./line-turnarounds";
+import {
+  dropTurnedArrivals,
+  findTurnarounds,
+  getTurnaroundMarkerKey,
+  type TurnaroundIndex,
+} from "./line-turnarounds";
 import { getVehiclePositionSourceLabel } from "./vehicle-position-presentation";
 
 export type LineDiagramStop = {
@@ -313,13 +318,6 @@ function placeVehicles(
   turnarounds: TurnaroundIndex,
   feedNow: number,
 ): PlacedLineDiagramVehicle[] {
-  // A turn is two journeys drawn as one vehicle: both halves are keyed by the outgoing dated
-  // journey, so React keeps the element across the handover.
-  const turningKeyByMarkKey = new Map<string, string>();
-  for (const [arrivalKey, departureKey] of turnarounds.turningDepartureKeyByArrivalKey) {
-    turningKeyByMarkKey.set(arrivalKey, departureKey);
-    turningKeyByMarkKey.set(departureKey, departureKey);
-  }
   const placed: PlacedLineDiagramVehicle[] = [];
   for (const candidate of [...datedJourneyStopEvents].sort(
     createSoonestPassageComparator(feedNow),
@@ -337,9 +335,7 @@ function placeVehicles(
     const { fromIndex, toIndex } = link;
     placed.push({
       stopEvent: candidate,
-      markerKey:
-        turningKeyByMarkKey.get(getDatedJourneyMarkKey(candidate)) ??
-        getDatedJourneyMarkKey(candidate),
+      markerKey: getTurnaroundMarkerKey(turnarounds, candidate),
       fromIndex,
       toIndex,
       progress: placement.progress,
@@ -375,13 +371,7 @@ function arbitrateBays(
   feedNow: number,
   showWaitingVehicles: boolean,
 ): PlacedLineDiagramVehicle[] {
-  const placedKeys = new Set(placed.map(({ stopEvent }) => getDatedJourneyMarkKey(stopEvent)));
-  const afterTurnarounds = placed.filter(({ stopEvent, phase }) => {
-    const turningKey = turnarounds.turningDepartureKeyByArrivalKey.get(
-      getDatedJourneyMarkKey(stopEvent),
-    );
-    return !(phase === "afterEnd" && turningKey !== undefined && placedKeys.has(turningKey));
-  });
+  const afterTurnarounds = dropTurnedArrivals(turnarounds, placed);
   if (!showWaitingVehicles) {
     return afterTurnarounds.filter(({ phase }) => phase !== "beforeStart");
   }

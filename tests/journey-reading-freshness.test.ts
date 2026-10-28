@@ -24,9 +24,9 @@ const callsWithDelay = (delayMinutes: number): Call[] => [
 
 const stopEvent = (calls?: Call[]): StopEvent =>
   createStopEvent({
-    id: "trip-at-durlacher-tor",
-    journeyRef: "trip",
-    datedJourneyId: "trip@2026-08-29T21:30:00Z",
+    id: "journey-at-durlacher-tor",
+    journeyRef: "journey",
+    datedJourneyId: "journey@2026-08-29T21:30:00Z",
     lineId: "1",
     ptMode: "tram",
     destinationText: "Durlach",
@@ -56,13 +56,13 @@ const board = (receivedAt: number, stopEvents: StopEvent[]): StopEventBoard => (
   })),
 });
 
-/** How the address finds its trip on a board; `routing.ts` spells the real one. */
+/** How the address finds its journey on a board; `routing.ts` spells the real one. */
 const findJourney = (stopEvents: readonly StopEvent[]) =>
-  stopEvents.find((candidate) => candidate.journeyRef === "trip");
+  stopEvents.find((candidate) => candidate.journeyRef === "journey");
 
 const readDelay = (reading: StopEvent | undefined) => reading?.calls?.[0]?.delayMinutes;
 
-test("two whole sequences of one trip are separated by the age of the board, not by array order", () => {
+test("two whole sequences of one journey are separated by the age of the board, not by array order", () => {
   // The observation posts are read every twenty minutes and carry complete sequences, so they tie
   // with the thirty-second reading on length and used to win on being listed first.
   const observation = board(readAt - 20 * 60_000, [stopEvent(callsWithDelay(1))]);
@@ -79,7 +79,7 @@ test("the reading is dated by the board it was found on, which is what the ride 
   assert.equal(reading && getStopEventReadInstant(reading), readAt - 20 * 60_000);
 });
 
-test("a fresher row carrying no sequence never displaces one that carries the trip", () => {
+test("a fresher row carrying no sequence never displaces one that carries the journey", () => {
   // A plain board states no calls at all: it is the newer reading and completes nothing.
   const plain = board(readAt, [stopEvent()]);
   const detailed = board(readAt - 90_000, [stopEvent(callsWithDelay(4))]);
@@ -88,7 +88,7 @@ test("a fresher row carrying no sequence never displaces one that carries the tr
   assert.equal(readDelay(findBestDatedJourneyReading([detailed, plain], findJourney)), 4);
 });
 
-test("boards read at the same instant fall back to whichever saw more of the trip", () => {
+test("boards read at the same instant fall back to whichever saw more of the journey", () => {
   const partial = board(readAt, [stopEvent(callsWithDelay(4).slice(0, 1))]);
   const whole = board(readAt, [stopEvent(callsWithDelay(4))]);
 
@@ -96,6 +96,6 @@ test("boards read at the same instant fall back to whichever saw more of the tri
   assert.equal(findBestDatedJourneyReading([whole, partial], findJourney)?.calls?.length, 2);
 });
 
-test("a trip no board carries has no reading to date", () => {
+test("a journey no board carries has no reading to date", () => {
   assert.equal(findBestDatedJourneyReading([board(readAt, [])], findJourney), undefined);
 });

@@ -14,7 +14,6 @@ import {
   type LineBundleChain,
   type LineBundleOffer,
 } from "../../lib/line-bundles";
-import { isSameLineFamily } from "../../lib/line-families";
 import type { TurnaroundIndex } from "../../lib/line-turnarounds";
 import type { DatedJourneyMotions } from "../../lib/vehicle-positioning";
 import {
@@ -116,7 +115,7 @@ function getObservedLineBundleTrunk({
 }) {
   const chains = bundledLineIds.flatMap((bundledLineId) => {
     const candidates = candidateStopEvents.flatMap((candidate) =>
-      isSameLineFamily(candidate.lineId, bundledLineId) && candidate.calls?.length
+      candidate.lineId === bundledLineId && candidate.calls?.length
         ? [
             {
               lineId: bundledLineId,

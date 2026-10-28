@@ -21,8 +21,13 @@ import {
 import { toLocalMeters } from "./geo";
 import { getOctilinearDirections } from "./bay-runs";
 import { createSchematicBoardingReading } from "./schematic-boarding-places";
-import { compareLineIds } from "./line-families";
-import { findTurnarounds, type TurnaroundIndex } from "./line-turnarounds";
+import { isNetworkRailRow } from "./network-lines";
+import {
+  dropTurnedArrivals,
+  findTurnarounds,
+  getTurnaroundMarkerKey,
+  type TurnaroundIndex,
+} from "./line-turnarounds";
 import {
   type SchematicPoint,
   type ZentrumSchematicBoardingPlace,
@@ -37,7 +42,6 @@ import {
   getTrackOffset,
   getZentrumSchematicRoutes,
   getZentrumSchematicTrackWidth,
-  isRailStopEvent,
   BAY_RUN_VECTORS,
   ZENTRUM_SCHEMATIC_GRID,
   orientCorridorRun,
@@ -61,6 +65,7 @@ import {
   getZentrumSchematicStopMarks,
   type ZentrumSchematicStopMark,
 } from "./zentrum-schematic-stops";
+import { network } from "../networks/network";
 
 export type ZentrumSchematicVehicle = {
   id: string;
@@ -325,7 +330,7 @@ const observeZentrumSchematic = (
   >();
 
   const drawnStopEvents = getDistinctTimetableJourneys(drawnVehicles).filter(
-    (stopEvent) => stopEvent.status !== "cancelled" && isRailStopEvent(stopEvent),
+    (stopEvent) => stopEvent.status !== "cancelled" && isNetworkRailRow(stopEvent),
   );
 
   const boarding = createSchematicBoardingReading(drawnStopEvents);
@@ -547,7 +552,7 @@ const layOutZentrumSchematic = (
     corridors,
     linePaths,
     branchPaths,
-    lineIds: [...new Set(edges.flatMap((edge) => edge.lineIds))].sort(compareLineIds),
+    lineIds: [...new Set(edges.flatMap((edge) => edge.lineIds))].sort(network.compareLineIds),
     lineIdsByNodeId,
     boardingPlacesByNodeId,
   };
@@ -820,15 +825,9 @@ const getZentrumSchematicPlacedDatedJourneys = (
   const trackIdByLineId = new Map(
     reading.linePaths.map(({ lineId, trackId }) => [lineId, trackId]),
   );
-  const turningKeyByMarkKey = new Map<string, string>();
-  for (const [arrivalKey, departureKey] of turnarounds.turningDepartureKeyByArrivalKey) {
-    turningKeyByMarkKey.set(arrivalKey, departureKey);
-    turningKeyByMarkKey.set(departureKey, departureKey);
-  }
-
   const placedDatedJourneys: ZentrumSchematicPlacedDatedJourney[] = [];
   for (const stopEvent of stopEvents) {
-    if (!isRailStopEvent(stopEvent)) continue;
+    if (!isNetworkRailRow(stopEvent)) continue;
     const standFrom = turnarounds.standFromByDepartureKey.get(getDatedJourneyMarkKey(stopEvent));
     const placement = getDatedJourneyPlacement(motions, stopEvent, feedNow, standFrom);
     if (!placement) continue;
@@ -944,9 +943,7 @@ const getZentrumSchematicPlacedDatedJourneys = (
         break;
       }
     }
-    const markerKey =
-      turningKeyByMarkKey.get(getDatedJourneyMarkKey(stopEvent)) ??
-      getDatedJourneyMarkKey(stopEvent);
+    const markerKey = getTurnaroundMarkerKey(turnarounds, stopEvent);
     placedDatedJourneys.push({
       stopEvent,
       trackId: trackIdByLineId.get(stopEvent.lineId),
@@ -970,15 +967,7 @@ const getZentrumSchematicPlacedDatedJourneys = (
     });
   }
 
-  const placedKeys = new Set(
-    placedDatedJourneys.map(({ stopEvent }) => getDatedJourneyMarkKey(stopEvent)),
-  );
-  const afterTurnarounds = placedDatedJourneys.filter(({ stopEvent, phase }) => {
-    const turningKey = turnarounds.turningDepartureKeyByArrivalKey.get(
-      getDatedJourneyMarkKey(stopEvent),
-    );
-    return !(phase === "afterEnd" && turningKey !== undefined && placedKeys.has(turningKey));
-  });
+  const afterTurnarounds = dropTurnedArrivals(turnarounds, placedDatedJourneys);
   const arrivingTurnKeys = new Set(
     afterTurnarounds.flatMap(({ stopEvent, phase }) => {
       const turningKey = turnarounds.turningDepartureKeyByArrivalKey.get(

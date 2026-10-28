@@ -12,13 +12,13 @@ test("reads boarding from the feed's own hints, negation first", () => {
   assert.equal(readVehicleAccess(hints("Nicht barrierefreies Fahrzeug, WLAN")), "notStepFree");
 });
 
-test("a trip the feed says nothing about is unstated, never a vehicle with steps", () => {
+test("a journey the feed says nothing about is unstated, never a vehicle with steps", () => {
   assert.equal(readVehicleAccess(hints("Bordrestaurant")), undefined);
   assert.equal(readVehicleAccess([]), undefined);
   assert.equal(readVehicleAccess(hints()), undefined);
 });
 
-test("keeps the hints about how the trip is running and drops the equipment list", () => {
+test("keeps the hints about how the journey is running and drops the equipment list", () => {
   assert.equal(
     readOperatingNote(
       hints("Verspätung eines vorausfahrenden Zuges", "Stufenloses Fahrzeug, WLAN"),

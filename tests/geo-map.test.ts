@@ -54,7 +54,7 @@ const GROETZINGEN: CallSpec = {
   position: [49.0061, 8.4928],
 };
 
-test("draws each stop where the feed locates it, linked to the stops its runs call next", () => {
+test("draws each stop where the feed locates it, linked to the stops its journeys call next", () => {
   const read = createGeoNetworkReader();
 
   const network = read([
@@ -80,7 +80,7 @@ test("draws each stop where the feed locates it, linked to the stops its runs ca
   );
 });
 
-test("places a stop its runs leave unlocated from elsewhere, or links across it", () => {
+test("places a stop its journeys leave unlocated from elsewhere, or links across it", () => {
   const unlocatedKronenplatz = { ...KRONENPLATZ, position: undefined };
   const read = createGeoNetworkReader((stop) =>
     stop.stopPlaceId === "kronenplatz" ? { latitude: 49.0093, longitude: 8.411 } : undefined,
@@ -98,7 +98,7 @@ test("places a stop its runs leave unlocated from elsewhere, or links across it"
   );
 });
 
-test("keeps what it has drawn after the run that showed it is gone", () => {
+test("keeps what it has drawn after the journey that showed it is gone", () => {
   const read = createGeoNetworkReader();
   read([datedJourney("a", "S5", [MARKTPLATZ, KRONENPLATZ, DURLACH])]);
 

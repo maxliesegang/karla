@@ -195,7 +195,7 @@ test("a place seen with one platform still runs the way the timetable's pair doe
   const west = call("West", 49.0105, 8.3745);
   const gottesauerPlatz = call("Gottesauer Platz", 49.0076, 8.4244, "gottesauer-platz");
   const east = call("East", 49.0045, 8.4409);
-  // Their trips run on west-north-west and east-north-east: alone, they would read as level.
+  // Their journeys run on west-north-west and east-north-east: alone, they would read as level.
   const runOf = (stopId: string, datedJourneys: StopEvent[]) =>
     [...createSchematicBoardingReading(datedJourneys).nodesById.values()].find(
       (node) => node.stopId === stopId,
@@ -249,7 +249,7 @@ test("a line leaving the plan runs on as a stub the way it really goes", () => {
       .map(({ x, y }) => [x, y]);
 
   assert.deepEqual(stubsOf([karlstor, europaplatz, north]), [[374, 132]]);
-  // A run that only turns or ends just outside goes no further.
+  // A journey that only turns or ends just outside goes no further.
   assert.deepEqual(stubsOf([karlstor, europaplatz, turning]), []);
 });
 

@@ -1,8 +1,4 @@
-/**
- * A network's own part of the feed: the data pools of its lines, which are observed, numbered and
- * coloured as its own, and its area, whose stops a search lists first. Boards keep every pool's rows
- * (docs/trias-api.md).
- */
+/** A network's own part of the feed: its lines' pools, and the area whose stops a search lists first. */
 
 export type Bounds = { south: number; north: number; west: number; east: number };
 

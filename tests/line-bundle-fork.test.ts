@@ -72,7 +72,7 @@ const placedOn = (calls: readonly Call[], vehicles: readonly StopEvent[], feedNo
 test("a vehicle still on the shared stretch stands on the trunk and on no leg", () => {
   assert.ok(trunk);
   const [aheadS1, aheadS11] = trunk.branches;
-  const s1 = journey("s1-run", "S1", s1Calls);
+  const s1 = journey("s1-journey", "S1", s1Calls);
   // Nine minutes in: between Neureut and Busenbach, on the trunk.
   const feedNow = start + 9 * 60_000;
 
@@ -84,7 +84,7 @@ test("a vehicle still on the shared stretch stands on the trunk and on no leg", 
 test("a vehicle past the junction stands on its own leg and leaves the trunk", () => {
   assert.ok(trunk);
   const [aheadS1, aheadS11] = trunk.branches;
-  const s1 = journey("s1-run", "S1", s1Calls);
+  const s1 = journey("s1-journey", "S1", s1Calls);
   // Fifteen minutes in: past Busenbach, on the S1 leg.
   const feedNow = start + 15 * 60_000;
 
@@ -106,8 +106,8 @@ test("each leg is drawn from the junction, so its first link has both its ends",
 });
 
 /**
- * Offers must match the diagram: shown only where the drawn trip runs the observed corridor. Not
- * gated on a sibling trip being loaded, since none is until the sibling is added.
+ * Offers must match the diagram: shown only where the drawn journey runs the observed corridor. Not
+ * gated on a sibling journey being loaded, since none is until the sibling is added.
  */
 const sharedAhead = [call("neureut", 6), call("busenbach", 12), call("etzenrot", 18)];
 const offerOf = (lineId: string, sharedRoutes = [sharedAhead]) => ({ lineId, sharedRoutes });
@@ -122,7 +122,7 @@ const drawableOffers = (drawnCalls: readonly Call[], offers = [offerOf("S11")]) 
 const drawableLineIds = (...args: Parameters<typeof drawableOffers>) =>
   drawableOffers(...args).map(({ lineId }) => lineId);
 
-test("offers a sibling on the corridor's evidence alone, with none of its trips in hand", () => {
+test("offers a sibling on the corridor's evidence alone, with none of its journeys in hand", () => {
   assert.deepEqual(drawableLineIds(s1Calls), ["S11"]);
 });
 
@@ -131,18 +131,18 @@ test("drops an offer whose corridor lies the other way out of the stop", () => {
   assert.deepEqual(drawableLineIds(backwards), []);
 });
 
-test("drops an offer the drawn trip leaves before the shared stretch is one", () => {
+test("drops an offer the drawn journey leaves before the shared stretch is one", () => {
   const shortWorking = [call("hochstetten", 0), call("neureut", 6), call("langensteinbach", 12)];
   assert.deepEqual(drawableLineIds(shortWorking), []);
 });
 
 /**
  * A corridor runs both ways out of a stop: at Ettlingen Neuwiesenreben S1 and S11 share a long
- * stretch north and a short one south, and a southbound trip must still get its offer.
+ * stretch north and a short one south, and a southbound journey must still get its offer.
  */
 const sharedBehind = [call("neureut", 6), call("hochstetten", 12), call("langensteinbach", 18)];
 
-test("offers the sibling on the stretch the drawn trip runs along, not the stop's longest", () => {
+test("offers the sibling on the stretch the drawn journey runs along, not the stop's longest", () => {
   const bothWays = offerOf("S11", [sharedBehind, sharedAhead]);
   const southbound = [call("hochstetten", 0), ...sharedAhead];
 
@@ -155,8 +155,8 @@ test("offers the sibling on the stretch the drawn trip runs along, not the stop'
   );
 });
 
-test("promises only as far as the drawn trip confirms the corridor", () => {
-  // Observed together to Langensteinbach, but this trip turns off at Etzenrot.
+test("promises only as far as the drawn journey confirms the corridor", () => {
+  // Observed together to Langensteinbach, but this journey turns off at Etzenrot.
   const runsOn = offerOf("S11", [[...sharedAhead, call("langensteinbach", 24)]]);
   const drawn = [call("hochstetten", 0), ...sharedAhead];
 
@@ -167,10 +167,10 @@ test("promises only as far as the drawn trip confirms the corridor", () => {
 });
 
 /**
- * The drawn trip is read out of the rider's stop both ways, so an offer can cover the stretch
+ * The drawn journey is read out of the rider's stop both ways, so an offer can cover the stretch
  * behind.
  */
-test("offers the sibling over the shared stretch the drawn trip came along", () => {
+test("offers the sibling over the shared stretch the drawn journey came along", () => {
   const underway = [
     ...[...sharedAhead].reverse(),
     call("hochstetten", 12),
@@ -183,8 +183,8 @@ test("offers the sibling over the shared stretch the drawn trip came along", () 
   );
 });
 
-test("promises only as far as the drawn trip came along the corridor", () => {
-  // This trip started at Busenbach: behind the stop it confirms one call short of the corridor.
+test("promises only as far as the drawn journey came along the corridor", () => {
+  // This journey started at Busenbach: behind the stop it confirms one call short of the corridor.
   const startedShort = [
     call("busenbach", 0),
     call("neureut", 6),

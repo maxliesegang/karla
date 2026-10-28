@@ -13,8 +13,8 @@ const journey = (
   status: StopEvent["status"] = "realtime",
 ): StopEvent =>
   createStopEvent({
-    id: "hint-trip",
-    journeyRef: "hint-trip",
+    id: "hint-journey",
+    journeyRef: "hint-journey",
     lineId: "2",
     ptMode: "tram",
     destinationText: "C",
@@ -28,14 +28,14 @@ const journey = (
 
 const calls = [call("a", 0), call("b", 1), call("c", 2)];
 
-test("says nothing while the trip is drawn on the line", () => {
+test("says nothing while the journey is drawn on the line", () => {
   assert.equal(getDatedJourneyPositionHint(journey(calls), true, start + 60_000), undefined);
   assert.equal(getDatedJourneyPositionHint(undefined, false, start), undefined);
   // Nothing has been drawn to be missing from: the diagram states that emptiness itself.
   assert.equal(getDatedJourneyPositionHint(journey([call("a", 0)]), false, start), undefined);
 });
 
-test("names the start of a run that has not begun, with the deviation in the time", () => {
+test("names the start of a journey that has not begun, with the deviation in the time", () => {
   assert.equal(
     getDatedJourneyPositionHint(journey(calls), false, start - 5 * 60_000),
     "Noch nicht unterwegs · Start 14:00 ab A",
@@ -50,14 +50,14 @@ test("names the start of a run that has not begun, with the deviation in the tim
   );
 });
 
-test("states where a finished run ended rather than leaving the diagram unexplained", () => {
+test("states where a finished journey ended rather than leaving the diagram unexplained", () => {
   assert.equal(
     getDatedJourneyPositionHint(journey(calls), false, start + 9 * 60_000),
     "Fahrt beendet · 14:02 C",
   );
 });
 
-test("claims no position for a cancelled trip or a run it cannot place", () => {
+test("claims no position for a cancelled journey or a journey it cannot place", () => {
   assert.equal(
     getDatedJourneyPositionHint(journey(calls, "cancelled"), false, start - 60_000),
     "Entfällt · keine Position auf der Linie",

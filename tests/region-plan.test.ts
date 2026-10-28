@@ -91,7 +91,7 @@ test("draws each other place once per branch, named by the place", () => {
   assert.equal(findRegionNodeId(plan, "untermuehl"), findRegionNodeId(plan, "durlach-bf"));
 });
 
-test("links nodes in the order the runs pass them, with the lines between", () => {
+test("links nodes in the order the journeys pass them, with the lines between", () => {
   const plan = deriveRegionPlan(city, "Karlsruhe");
   const durlach = findRegionNodeId(plan, "durlach-bf") ?? "";
   const groetzingen = findRegionNodeId(plan, "groetzingen") ?? "";
@@ -241,7 +241,7 @@ test("names two branches' nodes of one place by their stops, so no two nodes sha
   );
 });
 
-test("an edge two runs of the network both reduce to carries the lines of both", () => {
+test("an edge two journeys of the network both reduce to carries the lines of both", () => {
   // Lines 1 and 2 leave Entenfang by different streets the plan passes, and meet again at Yorckstraße.
   const parallel = network(
     [

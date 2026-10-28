@@ -51,7 +51,7 @@ const board = (
     : { stopId, receivedAt, dataStatus, errorMessage: "unavailable", stopEvents: rows };
 };
 
-test("reads runs from every supplied live board, including an opened stop", () => {
+test("reads journeys from every supplied live board, including an opened stop", () => {
   const observation = getZentrumDatedJourneyObservation([
     board("europaplatz", 10, [stopEvent("a")]),
     board("durlacher-tor", 10, [stopEvent("b")]),
@@ -65,7 +65,7 @@ test("reads runs from every supplied live board, including an opened stop", () =
   );
 });
 
-test("only what the plan can draw: a run with calls, on rails", () => {
+test("only what the plan can draw: a journey with calls, on rails", () => {
   const observation = getZentrumDatedJourneyObservation([
     board("europaplatz", 10, [
       stopEvent("rail"),
@@ -81,7 +81,7 @@ test("only what the plan can draw: a run with calls, on rails", () => {
 });
 
 test("one vehicle read at two posts is one mark, stamped with the board its row came off", () => {
-  const shared = { journeyRef: "one-run", lineId: "S1" };
+  const shared = { journeyRef: "one-journey", lineId: "S1" };
   const observation = getZentrumDatedJourneyObservation([
     board("europaplatz", 10, [stopEvent("early", shared)]),
     board("karlstor", 40, [stopEvent("late", shared)]),

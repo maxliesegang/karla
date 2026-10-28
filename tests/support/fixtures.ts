@@ -1,9 +1,10 @@
 import type { StopEvent, TransitLine } from "../../src/data/transit-types.ts";
 
-/** A departure with every required field, for tests to override. */
+/** A departure with every required field, for tests to override; its line ref follows its name. */
 export const createStopEvent = (overrides: Partial<StopEvent> = {}): StopEvent => ({
   id: "departure",
   lineId: "2",
+  lineRef: `kvv:${overrides.lineId ?? "2"}`,
   ptMode: "tram",
   destinationText: "Durlach",
   minutesUntilDeparture: 0,

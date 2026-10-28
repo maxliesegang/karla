@@ -11,7 +11,7 @@ import {
   type MapDrawing,
   placeGeoLabels,
 } from "./geo-map";
-import { compareLineIds } from "./line-families";
+import { network } from "../networks/network";
 
 /** Lit lanes on one link stand this many pixels apart. */
 export const EXPERIMENT_MAP_LANE_PITCH = 3.5;
@@ -45,7 +45,9 @@ const getLitLineIdsByLinkId = (
       byLink.set(id, (byLink.get(id) ?? new Set()).add(lineId));
     }
   }
-  return new Map([...byLink].map(([id, lineIds]) => [id, [...lineIds].sort(compareLineIds)]));
+  return new Map(
+    [...byLink].map(([id, lineIds]) => [id, [...lineIds].sort(network.compareLineIds)]),
+  );
 };
 
 /** Each stop's two neighbours' bearing, in degrees, where it has exactly two. */

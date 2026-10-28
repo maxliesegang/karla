@@ -1,9 +1,9 @@
 import type { StopEvent, StopEventBoard, TransitLine, PtMode, Call } from "../data/transit-types";
 import { createLineSign } from "../data/line-signs";
-import { compareLineIds, getLineFamilyId } from "./line-families";
 import { isZentrumStop } from "../data/zentrum-stops";
 import { getFarthestLineDatedJourneyTermini } from "./stop-services";
 import { addOnce, getDistinctByFrequency } from "./collections";
+import { network as homeNetwork } from "../networks/network";
 
 /**
  * The network as the live feed shows it: journeys read at a few boards spell out which stops have
@@ -146,7 +146,7 @@ export function buildObservedNetworkFromJourneys(
  * Observed lines as views expect them: official sign or neutral, and the ends seen, at the farthest
  * dated journey where known. A line not running is not offered.
  */
-type ObservedLineFamily = {
+type ObservedLineSign = {
   sign: TransitLine;
   destinations: string[];
   zentrumCalls: string[];
@@ -154,40 +154,39 @@ type ObservedLineFamily = {
 };
 
 export function getObservedTransitLines(network: ObservedNetwork): TransitLine[] {
-  const familyById = new Map<string, ObservedLineFamily>();
+  const lineById = new Map<string, ObservedLineSign>();
 
-  const getFamily = (lineId: string, ptMode: PtMode, lineRef?: string): ObservedLineFamily => {
-    const familyId = getLineFamilyId(lineId);
-    const existing = familyById.get(familyId);
+  const getLine = (lineId: string, ptMode: PtMode, lineRef?: string): ObservedLineSign => {
+    const existing = lineById.get(lineId);
     if (existing) return existing;
-    const sign = { ...createLineSign(lineId, ptMode, lineRef), id: familyId, name: familyId };
-    const created: ObservedLineFamily = { sign, destinations: [], zentrumCalls: [] };
-    familyById.set(familyId, created);
+    const sign = { ...createLineSign(lineId, ptMode, lineRef), name: lineId };
+    const created: ObservedLineSign = { sign, destinations: [], zentrumCalls: [] };
+    lineById.set(lineId, created);
     return created;
   };
 
   for (const observed of network.lines) {
-    const family = getFamily(observed.id, observed.ptMode, observed.lineRef);
-    for (const destination of observed.destinations) addOnce(family.destinations, destination);
-    // The family's first observation stands; merged raw lines are not one extent.
-    if (!family.farthestDatedJourneyTermini)
-      family.farthestDatedJourneyTermini = observed.farthestDatedJourneyTermini;
+    const line = getLine(observed.id, observed.ptMode, observed.lineRef);
+    for (const destination of observed.destinations) addOnce(line.destinations, destination);
+    // The first observation stands; merged raw lines are not one extent.
+    if (!line.farthestDatedJourneyTermini)
+      line.farthestDatedJourneyTermini = observed.farthestDatedJourneyTermini;
   }
 
   // One pass over stops, which already list their lines.
   for (const stop of network.stops) {
     for (const lineId of stop.lineIds) {
-      const family = familyById.get(getLineFamilyId(lineId));
-      if (family) addOnce(family.zentrumCalls, stop.id);
+      const line = lineById.get(lineId);
+      if (line) addOnce(line.zentrumCalls, stop.id);
     }
   }
 
-  return [...familyById.values()]
+  return [...lineById.values()]
     .map(({ sign, destinations, zentrumCalls, farthestDatedJourneyTermini }) => ({
       ...sign,
       destinations,
       zentrumCalls,
       ...(farthestDatedJourneyTermini ? { farthestDatedJourneyTermini } : {}),
     }))
-    .sort((a, b) => compareLineIds(a.id, b.id));
+    .sort((a, b) => homeNetwork.compareLineIds(a.id, b.id));
 }

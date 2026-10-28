@@ -1,5 +1,4 @@
 import type { StopEvent, ServingLine, TransitLine } from "../data/transit-types";
-import { getLineFamilyId } from "./line-families";
 import { isRowOfLine, isSameLineIdentity } from "./line-identity";
 import { addOnce, toSortedIds } from "./collections";
 import { getLineSelectionIds, getSelectedLineIdentity, type LineSelection } from "./line-bundles";
@@ -86,10 +85,10 @@ export function getLineRouteRequests(
     for (const board of boards) {
       for (const stopEvent of board.stopEvents) {
         const { lineRef, id: rowId } = stopEvent;
-        if (!lineRef || !rowId || requestByLineRef.has(lineRef)) continue;
+        if (!rowId || requestByLineRef.has(lineRef)) continue;
         if (!isRowOfLine(stopEvent, lineId, identity)) continue;
         requestByLineRef.set(lineRef, {
-          lineId: getLineFamilyId(lineId),
+          lineId,
           lineRef,
           rowId,
         });
@@ -123,10 +122,21 @@ export function extendLineObservationRoutes(
   selection: LineSelection,
   routeStopIdsByLineId: ReadonlyMap<string, readonly string[]>,
 ): LineObservations {
+  return mapSelectedLineObservations(known, selection, (observation, lineId) =>
+    extendLineObservationRoute(observation, routeStopIdsByLineId.get(lineId) ?? []),
+  );
+}
+
+/** Each selected line's observation passed through `extend`; the same map where nothing changed. */
+function mapSelectedLineObservations(
+  known: LineObservations,
+  selection: LineSelection,
+  extend: (observation: LineObservation, lineId: string) => LineObservation,
+): LineObservations {
   let extended: Map<string, LineObservation> | undefined;
-  for (const lineId of getLineSelectionIds(selection).map(getLineFamilyId)) {
+  for (const lineId of getLineSelectionIds(selection)) {
     const observation = known.get(lineId) ?? EMPTY_LINE_OBSERVATION;
-    const next = extendLineObservationRoute(observation, routeStopIdsByLineId.get(lineId) ?? []);
+    const next = extend(observation, lineId);
     if (next === observation && known.has(lineId)) continue;
     extended ??= new Map(known);
     extended.set(lineId, next);
@@ -160,7 +170,7 @@ export function getLineRefs(
 ): string[] {
   return toSortedIds(
     stopEvents.flatMap((stopEvent) =>
-      stopEvent.lineRef && isRowOfLine(stopEvent, lineId, identity) ? [stopEvent.lineRef] : [],
+      isRowOfLine(stopEvent, lineId, identity) ? [stopEvent.lineRef] : [],
     ),
   );
 }
@@ -201,7 +211,7 @@ export function getLineFilterLineRefs(
 ): readonly string[] {
   const lineIds = getLineSelectionIds(selection);
   if (lineIds.length === 0) return [];
-  const observed = lineIds.map((lineId) => observations.get(getLineFamilyId(lineId)));
+  const observed = lineIds.map((lineId) => observations.get(lineId));
   if (!observed.every((observation) => observation && hasBothLineDirections(observation)))
     return [];
   // Pooled across lines, so a bundle still costs one request per stop.
@@ -215,7 +225,7 @@ export function getLineObservationsStopIds(
 ): readonly string[] {
   const stopIds: string[] = [];
   for (const lineId of getLineSelectionIds(selection)) {
-    for (const stopId of observations.get(getLineFamilyId(lineId))?.stopIds ?? []) {
+    for (const stopId of observations.get(lineId)?.stopIds ?? []) {
       addOnce(stopIds, stopId);
     }
   }
@@ -267,16 +277,9 @@ export function extendLineObservations(
   selection: LineSelection,
   boards: readonly LineObservationBoard[],
 ): LineObservations {
-  let extended: Map<string, LineObservation> | undefined;
-  for (const lineId of getLineSelectionIds(selection).map(getLineFamilyId)) {
-    const observation = known.get(lineId) ?? EMPTY_LINE_OBSERVATION;
-    const identity = getSelectedLineIdentity(selection, lineId);
-    const next = extendLineObservation(observation, lineId, boards, identity);
-    if (next === observation && known.has(lineId)) continue;
-    extended ??= new Map(known);
-    extended.set(lineId, next);
-  }
-  return extended ?? known;
+  return mapSelectedLineObservations(known, selection, (observation, lineId) =>
+    extendLineObservation(observation, lineId, boards, getSelectedLineIdentity(selection, lineId)),
+  );
 }
 
 /**
@@ -289,7 +292,7 @@ export function seedLineObservations(
   recall: (lineId: string, identity?: string) => LineObservation | undefined,
 ): LineObservations {
   const seeded = new Map<string, LineObservation>();
-  for (const lineId of getLineSelectionIds(selection).map(getLineFamilyId)) {
+  for (const lineId of getLineSelectionIds(selection)) {
     const identity = getSelectedLineIdentity(selection, lineId);
     const remembered = recall(lineId, identity);
     if (remembered) {

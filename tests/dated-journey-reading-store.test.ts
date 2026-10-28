@@ -26,14 +26,14 @@ const stamp = (stopEvent: StopEvent, readAt: number): StopEvent =>
     readAt: { rowReadAt: readAt, sequenceReadAt: readAt },
   });
 
-/** A run read on its own: its calls and when. */
+/** A journey read on its own: its calls and when. */
 const sequence = (journeyCalls: readonly Call[], readAt: number): DatedJourneyCalls => ({
   calls: journeyCalls,
   status: "realtime",
   readAt,
 });
 
-/** The run this row is a stop of, requested and answered with these calls. */
+/** The journey this row is a stop of, requested and answered with these calls. */
 const read = (
   store: DatedJourneyReadingStore,
   rowId: string,
@@ -41,9 +41,9 @@ const read = (
   at: number,
 ) => store.rememberSequence(store.findJourneyRecordKey(rowId), sequence(journeyCalls, at), at);
 
-/** A row of `provider-trip` on 2026-09-06, unless the overrides name another dated journey. */
+/** A row of `provider-journey` on 2026-09-06, unless the overrides name another dated journey. */
 const stopEvent = (id: string, stopId: string, overrides: Partial<StopEvent> = {}): StopEvent => {
-  const journeyRef = "journeyRef" in overrides ? overrides.journeyRef : "provider-trip";
+  const journeyRef = "journeyRef" in overrides ? overrides.journeyRef : "provider-journey";
   const operatingDayRef = overrides.operatingDayRef ?? "2026-09-06";
   return createStopEvent({
     id,
@@ -64,7 +64,7 @@ const stopEvent = (id: string, stopId: string, overrides: Partial<StopEvent> = {
 
 const DATED_JOURNEY_ENDS_AT = Date.parse("2026-09-06T10:05:00.000Z");
 
-test("a board's embedded calls never become the run's reading; a requested sequence does", () => {
+test("a board's embedded calls never become the journey's reading; a requested sequence does", () => {
   const store = new DatedJourneyReadingStore();
   store.rememberRow(stamp(stopEvent("row", "a", { calls: calls(1) }), 100), 100);
   assert.equal(store.findSequence("row"), undefined);
@@ -85,7 +85,7 @@ test("a board's embedded calls never become the run's reading; a requested seque
   store.rememberRow(stamp(stopEvent("row", "a", { calls: calls(2) }), 400), 400);
   assert.equal(store.findSequence("row")?.calls[0]?.delayMinutes, 4);
 
-  // The run's calls are held once by the record, not per row.
+  // The journey's calls are held once by the record, not per row.
   assert.equal(store.findRow("row")?.stopEvent.calls, undefined);
   assert.equal(store.findDatedJourney("row")?.calls?.[0]?.delayMinutes, 4);
 });
@@ -95,16 +95,16 @@ test("an answer whose record is gone is reported as one, not swallowed", () => {
   store.rememberRow(stamp(stopEvent("row", "a"), 100), 100);
   const requestKey = store.findJourneyRecordKey("row");
 
-  // A reading landing after the sweep removed its run must report failure, so the caller keeps
+  // A reading landing after the sweep removed its journey must report failure, so the caller keeps
   // asking.
   const wellAfter = 100 + 5 * 60 * 60_000;
   store.rememberRow(stamp(stopEvent("other", "b", { journeyRef: "9" }), wellAfter), wellAfter);
 
-  assert.equal(store.findRow("row"), undefined, "the run was retired meanwhile");
+  assert.equal(store.findRow("row"), undefined, "the journey was retired meanwhile");
   assert.equal(store.rememberSequence(requestKey, sequence(calls(1), wellAfter), wellAfter), false);
 });
 
-test("shares one complete reading between stop rows of the same run", () => {
+test("shares one complete reading between stop rows of the same journey", () => {
   const store = new DatedJourneyReadingStore();
   const first = stopEvent("row-a", "a");
   const second = stopEvent("row-b", "b", { timetabledDepartureTime: "2026-09-06T10:05:00.000Z" });
@@ -157,20 +157,20 @@ test("refresh failures are shared by every row and cleared only by a newer seque
   assert.equal(store.findDatedJourney("row-a")?.readAt?.sequenceRefreshFailedAt, undefined);
 });
 
-test("one run is one record from its first row, with no sequence needed to say so", () => {
+test("one journey is one record from its first row, with no sequence needed to say so", () => {
   const store = new DatedJourneyReadingStore();
   // Line-filtered rows carry no calls; the journey alone names the dated journey.
   const plain = (id: string, stopId: string, at: string) =>
-    stopEvent(id, stopId, { datedJourneyId: "provider-trip", timetabledDepartureTime: at });
+    stopEvent(id, stopId, { datedJourneyId: "provider-journey", timetabledDepartureTime: at });
   store.rememberRow(stamp(plain("row-a", "a", "2026-09-06T10:00:00.000Z"), 100), 100);
   store.rememberRow(stamp(plain("row-b", "b", "2026-09-06T10:05:00.000Z"), 110), 110);
 
   assert.equal(store.findJourneyRecordKey("row-a"), store.findJourneyRecordKey("row-b"));
 });
 
-test("a run crossing midnight is one record at the stops on either side of it", () => {
+test("a journey crossing midnight is one record at the stops on either side of it", () => {
   const store = new DatedJourneyReadingStore();
-  // Both stops state the run's operating day, not the calendar day.
+  // Both stops state the journey's operating day, not the calendar day.
   const before = stopEvent("before", "o", { timetabledDepartureTime: "2026-09-06T23:50:00.000Z" });
   const datedJourneyCalls: Call[] = [
     { stopName: "O", stopPlaceId: "o", timetabledDepartureTime: "2026-09-06T23:50:00.000Z" },
@@ -193,7 +193,7 @@ test("the same journey on the next operating day is a record of its own", () => 
   const now = Date.parse("2026-09-06T09:55:00.000Z");
   store.rememberRow(stamp(stopEvent("today", "a"), now), now);
   read(store, "today", calls(0), now);
-  // Tomorrow's row is already on a board while today's run is still out.
+  // Tomorrow's row is already on a board while today's journey is still out.
   const next = stopEvent("tomorrow", "a", {
     operatingDayRef: "2026-09-07",
     timetabledDepartureTime: "2026-09-07T10:00:00.000Z",
@@ -210,7 +210,7 @@ test("the same journey on the next operating day is a record of its own", () => 
   );
 });
 
-test("a run still being read is never retired, however far behind its last call is", () => {
+test("a journey still being read is never retired, however far behind its last call is", () => {
   const store = new DatedJourneyReadingStore();
   const wellAfterTheDatedJourney = DATED_JOURNEY_ENDS_AT + 6 * 60 * 60_000;
   // A vehicle standing at its final stop is still on boards, so its record is kept.
@@ -224,7 +224,7 @@ test("a run still being read is never retired, however far behind its last call 
   assert.ok(store.findSequence("row"));
 });
 
-test("spends the cap on runs that are over before the vehicles still out", () => {
+test("spends the cap on journeys that are over before the vehicles still out", () => {
   const store = new DatedJourneyReadingStore(2);
   const now = Date.parse("2026-09-06T10:01:00.000Z");
   const endingAt = (id: string, arrival: string, code: string) => {
@@ -240,7 +240,7 @@ test("spends the cap on runs that are over before the vehicles still out", () =>
     );
   };
 
-  // The finished run sits between running ones, so neither age nor order picks it.
+  // The finished journey sits between running ones, so neither age nor order picks it.
   endingAt("running", "2026-09-06T11:00:00.000Z", "1");
   endingAt("finished", "2026-09-06T10:00:00.000Z", "2");
   endingAt("new", "2026-09-06T11:00:00.000Z", "3");
@@ -261,7 +261,7 @@ test("keeps the fuller sequence when two readings of one instant disagree in len
   assert.equal(store.findSequence("row")?.calls.length, 3);
 });
 
-test("a sequence lands on the run it was asked for, whatever the boards did meanwhile", () => {
+test("a sequence lands on the journey it was asked for, whatever the boards did meanwhile", () => {
   const store = new DatedJourneyReadingStore();
   store.rememberRow(stamp(stopEvent("row-a", "a"), 100), 100);
   const requestKey = store.findJourneyRecordKey("row-a");
@@ -312,7 +312,7 @@ test("answers every view with one reading, and the same object until something i
 
 test("one record holds a bounded number of rows, oldest read first out", () => {
   const store = new DatedJourneyReadingStore();
-  // One run read at more stops than any run has: the per-record row cap bounds it.
+  // One journey read at more stops than any journey has: the per-record row cap bounds it.
   for (let index = 0; index < 80; index += 1) {
     const at = 100 + index;
     store.rememberRow(stamp(stopEvent(`row-${index}`, "a"), at), at);
@@ -350,7 +350,7 @@ test("tells subscribers once for the batch a board arrives in", async () => {
   assert.equal(notifications, 1, "an unsubscribed view is not told");
 });
 
-test("notifies only subscribers whose runs changed", async () => {
+test("notifies only subscribers whose journeys changed", async () => {
   const store = new DatedJourneyReadingStore();
   let firstNotifications = 0;
   let secondNotifications = 0;
@@ -368,18 +368,18 @@ test("notifies only subscribers whose runs changed", async () => {
   assert.equal(secondNotifications, 0);
 });
 
-test("a sequence refresh makes its run most recent for capacity eviction", () => {
+test("a sequence refresh makes its journey most recent for capacity eviction", () => {
   const store = new DatedJourneyReadingStore(2);
   store.rememberRow(stamp(stopEvent("first", "a"), 100), 100);
   store.rememberRow(stamp(stopEvent("second", "b", { journeyRef: "second" }), 110), 110);
   store.rememberSequence(store.findJourneyRecordKey("first"), sequence(calls(1), 120), 120);
   store.rememberRow(stamp(stopEvent("third", "c", { journeyRef: "third" }), 130), 130);
 
-  assert.ok(store.findRow("first"), "the freshly requested run remains");
-  assert.equal(store.findRow("second"), undefined, "the least recently written run leaves");
+  assert.ok(store.findRow("first"), "the freshly requested journey remains");
+  assert.equal(store.findRow("second"), undefined, "the least recently written journey leaves");
 });
 
-test("learns a farther run end from a reading that does not replace the current sequence", () => {
+test("learns a farther journey end from a reading that does not replace the current sequence", () => {
   const store = new DatedJourneyReadingStore();
   const laterEnd = "2026-09-06T11:00:00.000Z";
   store.rememberRow(stamp(stopEvent("row", "a"), 100), 100);

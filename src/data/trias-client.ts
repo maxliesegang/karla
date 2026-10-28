@@ -1,7 +1,4 @@
-/**
- * Reads KVV's TRIAS interface through KARLA's proxy (`proxy/README.md`), which holds the requestor
- * ref and caches each reply briefly.
- */
+/** Reads the TRIAS interface through KARLA's proxy (`proxy/README.md`). */
 import {
   getDatedJourneyId,
   joinStopEventBoards,

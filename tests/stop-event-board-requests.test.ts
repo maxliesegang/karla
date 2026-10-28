@@ -109,7 +109,7 @@ function stopEvent(
 }
 
 /**
- * `feed`, whose runs read at Karlstor also call at Mühlburger Tor under `lineRefs`: TRIAS boards state
+ * `feed`, whose journeys read at Karlstor also call at Mühlburger Tor under `lineRefs`: TRIAS boards state
  * no serving lines, so reading Karlstor is how the source learns what serves Mühlburger Tor.
  */
 function servedBy(feed: Feed, lineRefs: readonly string[]): Feed {
@@ -381,7 +381,7 @@ test("a reader that will accept nothing stale is answered from the feed", async 
   assert.equal(requests.length, 2);
 });
 
-test("only a view that draws the trips pays for the calling sequences", async () => {
+test("only a view that draws the journeys pays for the calling sequences", async () => {
   const { source, requests } = createRecordingSource();
 
   // A plain board is read without calls.
@@ -390,7 +390,7 @@ test("only a view that draws the trips pays for the calling sequences", async ()
     { stopPointId: requests[0].stopPointId, includeCalls: false, limit: STOP_ROW_LIMIT },
   ]);
 
-  // Opening a line wants the whole trip.
+  // Opening a line wants the whole journey.
   await source.getStopEventBoard(STOP_ID, { includeCalls: true });
   assert.equal(requests.length, 2);
   assert.equal(requests[1].includeCalls, true);
@@ -492,7 +492,7 @@ test("a filtered board does not shrink what the stop is known to serve", async (
   assert.ok(supplemented.includes(directionC), "directionC must still be supplemented");
 });
 
-/** One run under two trip ids, as the monitor and its filtered completion answer it. */
+/** One journey under two journey ids, as the monitor and its filtered completion answer it. */
 const datedJourneyReading = (
   journeyRef: string,
   timetabledDepartureTime: string,
@@ -504,8 +504,8 @@ const datedJourneyReading = (
   ...(delayMinutes === undefined ? {} : { delayMinutes }),
 });
 
-test("one run read twice is one row, and it is the row carrying the prediction", async () => {
-  // The monitor returns the same S5 twice (trip ids differing by a segment, one train number).
+test("one journey read twice is one row, and it is the row carrying the prediction", async () => {
+  // The monitor returns the same S5 twice (journey ids differing by a segment, one train number).
   const client = {
     fetchStopEventBoard: async (): Promise<FeedStopEventBoard> => ({
       stopPointId: "provider-stop",
@@ -545,8 +545,8 @@ test("one run read twice is one row, and it is the row carrying the prediction",
   );
 });
 
-test("a completion may not state a run the live board already carries", async () => {
-  // The filtered pass's own trip id for an already stated run must not double the row.
+test("a completion may not state a journey the live board already carries", async () => {
+  // The filtered pass's own journey id for an already stated journey must not double the row.
   const baseRow = datedJourneyReading(
     "de:kvv:00S05_:.kvv-22-305-E.7.T0.1604.s26",
     "2026-08-26T10:05:00.000Z",

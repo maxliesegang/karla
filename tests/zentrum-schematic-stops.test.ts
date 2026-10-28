@@ -44,8 +44,8 @@ let journeyNumber = 0;
 const stopEvent = (lineId: string, calls: readonly Call[]): StopEvent => {
   journeyNumber += 1;
   return createStopEvent({
-    id: `trip-${journeyNumber}`,
-    journeyRef: `trip-${journeyNumber}`,
+    id: `journey-${journeyNumber}`,
+    journeyRef: `journey-${journeyNumber}`,
     lineId,
     ptMode: "tram",
     destinationText: "Testziel",
@@ -382,7 +382,7 @@ test("leaves a barely used platform out of a stop's places", () => {
   assert.equal(markAt(reading, "karlstor").links.length, 0);
 });
 
-/* The Zentrum boards' calling patterns, with trip counts. */
+/* The Zentrum boards' calling patterns, with journey counts. */
 type LiveCall = [string, string, string, number | null, number | null];
 const readLiveJourneys = (fileName: string) =>
   (
@@ -408,11 +408,11 @@ const readLiveJourneys = (fileName: string) =>
       ptMode: mode,
     })),
   );
-/* 3 October 2026, all day; and the runs drawn early on 5 October 2026. */
+/* 3 October 2026, all day; and the journeys drawn early on 5 October 2026. */
 const liveJourneys = readLiveJourneys("zentrum-live-journeys.json");
 const morningDatedJourneys = readLiveJourneys("zentrum-live-dated-journeys-morning.json");
 
-test("reads the places a rider walks between off a day's trips", () => {
+test("reads the places a rider walks between off a day's journeys", () => {
   const reading = buildZentrumSchematicReading(liveJourneys);
 
   assert.deepEqual([...reading.boardingPlacesByNodeId.keys()].sort(), [

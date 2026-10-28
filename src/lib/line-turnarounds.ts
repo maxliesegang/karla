@@ -1,5 +1,4 @@
 import type { StopEvent, Call } from "../data/transit-types";
-import { getLineFamilyId } from "./line-families";
 import { getLineIdentity, isSameLine } from "./line-identity";
 import {
   getCallKey,
@@ -7,6 +6,7 @@ import {
   statesDatedJourneyEnd,
   statesDatedJourneyStart,
 } from "./calls";
+import { getTimetabledCallInstant } from "./dated-journey-timeline";
 import { getDatedJourneyMarkKey } from "./journeys";
 
 /**
@@ -90,16 +90,6 @@ type DatedJourneyEnd = {
   route: Set<string>;
 };
 
-/** The published time at a call, without deviation. */
-function getTimetabledCallInstant(call: Call, end: "arrival" | "departure"): number | undefined {
-  const published =
-    end === "arrival"
-      ? (call.timetabledArrivalTime ?? call.timetabledDepartureTime)
-      : (call.timetabledDepartureTime ?? call.timetabledArrivalTime);
-  const instant = published ? Date.parse(published) : Number.NaN;
-  return Number.isFinite(instant) ? instant : undefined;
-}
-
 /** Run ends and starts, only where the feed states them and the chain is timed. */
 function findDatedJourneyEnds(stopEvents: readonly StopEvent[]): {
   arrivals: DatedJourneyEnd[];
@@ -150,7 +140,7 @@ function findDatedJourneyEnds(stopEvents: readonly StopEvent[]): {
  * five-minute services.
  */
 const getTurnaroundGroupKey = (end: DatedJourneyEnd): string =>
-  `${getLineFamilyId(end.stopEvent.lineId)}|${getLineIdentity(end.stopEvent.lineRef) ?? ""}@${getCallKey(end.call)}`;
+  `${end.stopEvent.lineId}|${getLineIdentity(end.stopEvent.lineRef) ?? ""}@${getCallKey(end.call)}`;
 
 /**
  * The line's headway at a terminus, as the smallest gap between its published departures: a missed
@@ -228,4 +218,28 @@ export function findTurnarounds(stopEvents: readonly StopEvent[]): TurnaroundInd
     standFromByDepartureKey.set(soonest.key, arrival.instant);
   }
   return { turningDepartureKeyByArrivalKey, standFromByDepartureKey };
+}
+
+/**
+ * The key a view draws a dated journey's mark under. A turn is two journeys drawn as one vehicle:
+ * both halves take the departure's key, so the element is kept across the handover.
+ */
+export function getTurnaroundMarkerKey(turnarounds: TurnaroundIndex, stopEvent: StopEvent): string {
+  const key = getDatedJourneyMarkKey(stopEvent);
+  return turnarounds.turningDepartureKeyByArrivalKey.get(key) ?? key;
+}
+
+/** Drops each finished arrival whose turning departure is drawn. */
+export function dropTurnedArrivals<Placed extends { stopEvent: StopEvent; phase: string }>(
+  turnarounds: TurnaroundIndex,
+  placed: readonly Placed[],
+): Placed[] {
+  const placedKeys = new Set(placed.map(({ stopEvent }) => getDatedJourneyMarkKey(stopEvent)));
+  return placed.filter(({ stopEvent, phase }) => {
+    if (phase !== "afterEnd") return true;
+    const turningKey = turnarounds.turningDepartureKeyByArrivalKey.get(
+      getDatedJourneyMarkKey(stopEvent),
+    );
+    return turningKey === undefined || !placedKeys.has(turningKey);
+  });
 }

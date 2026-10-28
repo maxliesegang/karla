@@ -7,7 +7,7 @@ import { createStopEvent } from "./support/fixtures.ts";
 const start = Date.parse("2026-10-08T12:00:00Z");
 const minute = 60_000;
 
-/** A run calling at each stop a minute apart, on the platforms given (`stop@platform`). */
+/** A journey calling at each stop a minute apart, on the platforms given (`stop@platform`). */
 const createDatedJourney = (stops: readonly string[], startMinute = 0): StopEvent =>
   createStopEvent({
     calls: stops.map((stop, index) => {

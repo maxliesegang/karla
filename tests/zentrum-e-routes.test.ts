@@ -47,7 +47,7 @@ const expectedStopsByJourneyCode: Record<string, readonly string[]> = {
 };
 
 for (const datedJourney of fixture.datedJourneys) {
-  test(`draws the observed E run ${datedJourney.journeyCode} continuously through Philipp-Reis-Straße`, () => {
+  test(`draws the observed E journey ${datedJourney.journeyCode} continuously through Philipp-Reis-Straße`, () => {
     const stops = new StopRegistry(transitNetwork.stops);
     const calls = stops.toCalls(datedJourney.calls);
     const reading = buildZentrumSchematicReading([
@@ -77,7 +77,7 @@ for (const datedJourney of fixture.datedJourneys) {
     assert.ok(!reading.linePaths[0].nodes.some(({ id }) => id.startsWith("exit:")));
   });
 
-  test(`draws E run ${datedJourney.journeyCode} west–east through Philipp-Reis-Straße's platforms`, () => {
+  test(`draws E journey ${datedJourney.journeyCode} west–east through Philipp-Reis-Straße's platforms`, () => {
     const stops = new StopRegistry(transitNetwork.stops);
     const reading = buildZentrumSchematicReading([
       createStopEvent({

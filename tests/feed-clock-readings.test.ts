@@ -15,7 +15,7 @@ import { triasStopEvent, triasStopEvents } from "./support/trias.ts";
 
 const createStopEvent = (overrides: Partial<StopEvent> = {}): StopEvent =>
   createFixture({
-    id: "trip-1",
+    id: "journey-1",
     lineId: "1",
     ptMode: "tram",
     destinationText: "Durlach Turmberg",
@@ -60,7 +60,7 @@ test("the published time is the feed's own prediction, not the schedule plus its
   assert.equal(getCountdownMinutes(stopEvent, Date.parse("2026-08-30T17:27:24+02:00")), 6);
 });
 
-test("a trip the feed made no prediction for still reads as unmonitored rather than punctual", () => {
+test("a journey the feed made no prediction for still reads as unmonitored rather than punctual", () => {
   const stopEvent = createStopEvent({ delayMinutes: undefined });
   const reading = getDepartureTimeReading(stopEvent);
 
@@ -69,7 +69,7 @@ test("a trip the feed made no prediction for still reads as unmonitored rather t
   assert.equal(getStopEventStatusLabel(stopEvent), "nach Fahrplan");
 });
 
-test("a cancelled trip is moved by neither the prediction nor the delay", () => {
+test("a cancelled journey is moved by neither the prediction nor the delay", () => {
   const reading = getDepartureTimeReading(
     createStopEvent({
       status: "cancelled",

@@ -8,21 +8,11 @@ import type {
 import { navigateTo, routePaths } from "../routing";
 import { LineBadge } from "./LineBadge";
 import { ObservationEmptyState } from "./ObservationEmptyState";
-import { getGroupedLines } from "../lib/line-families";
+import { PT_MODE_ORDER } from "../lib/pt-modes";
 import { LineTermini, getLineTerminiLabel } from "./LineTermini";
 import { SegmentedControl, type SegmentedControlItem } from "./SegmentedControl";
-import { useNetworkBandNavigation } from "../hooks/network-band-navigation";
+import { useScrollSections } from "../hooks/scroll-sections";
 import { network as networkDefinition } from "../networks/network";
-
-/** Group order: trams, Stadtbahn, trains, then buses. */
-const NETWORK_GROUP_ORDER: readonly PtMode[] = [
-  "tram",
-  "lightRail",
-  "regionalRail",
-  "longDistanceRail",
-  "bus",
-  "other",
-];
 
 const networkGroupLabels: Record<PtMode, string> = {
   tram: "Straßenbahn",
@@ -44,7 +34,7 @@ function groupLinesByPtMode(lines: readonly TransitLine[]): readonly NetworkLine
     groupLines.push(line);
     linesByMode.set(mode, groupLines);
   }
-  return NETWORK_GROUP_ORDER.filter((mode) => linesByMode.has(mode)).map((ptMode) => ({
+  return PT_MODE_ORDER.filter((mode) => linesByMode.has(mode)).map((ptMode) => ({
     ptMode,
     lines: linesByMode.get(ptMode)!,
   }));
@@ -66,10 +56,10 @@ export function NetworkView({
   coverage: StopEventBoardCoverage;
   isStacked: boolean;
 }) {
-  const groups = groupLinesByPtMode(getGroupedLines(network.lines));
+  const groups = groupLinesByPtMode(network.lines);
   // The mode bands as navigation, not a filter.
   const linesRef = useRef<HTMLDivElement>(null);
-  const { activeBandId, getBandRef, scrollToBand } = useNetworkBandNavigation(linesRef, {
+  const { activeSectionId, getSectionRef, scrollToSection } = useScrollSections(linesRef, {
     isEnabled: groups.length > 1,
     isPageScrollport: isStacked,
   });
@@ -89,10 +79,11 @@ export function NetworkView({
         <SegmentedControl
           className="network-band-navigation"
           isNavigation
-          value={activeBandId ?? groups[0].ptMode}
+          // Above the first band's heading, the first band is read.
+          value={activeSectionId ?? groups[0].ptMode}
           items={bandItems}
           ariaLabel="Verkehrsmittel"
-          onValueChange={scrollToBand}
+          onValueChange={scrollToSection}
         />
       )}
       {groups.length === 0 ? (
@@ -103,7 +94,7 @@ export function NetworkView({
             <section
               className="network-line-group"
               key={group.ptMode}
-              ref={getBandRef(group.ptMode)}
+              ref={getSectionRef(group.ptMode)}
             >
               {/* The count shows the group is the whole mode. */}
               <h2 className="network-group-heading">

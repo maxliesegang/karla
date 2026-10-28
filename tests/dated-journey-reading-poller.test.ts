@@ -6,7 +6,7 @@ import {
   DatedJourneyReadingPoller,
 } from "../src/hooks/dated-journey-reading-poller.ts";
 
-test("a run is re-read once just before a checkpoint departure, then keeps its cadence", async (t) => {
+test("a journey is re-read once just before a checkpoint departure, then keeps its cadence", async (t) => {
   let now = 0;
   t.mock.method(Date, "now", () => now);
   let nextId = 0;
@@ -40,7 +40,7 @@ test("a run is re-read once just before a checkpoint departure, then keeps its c
     false,
   );
   try {
-    poller.update([{ rowId: "run", maxAgeMs: 30_000 }]);
+    poller.update([{ rowId: "journey", maxAgeMs: 30_000 }]);
     await flush();
     // Entry, the staggered refresh, then one cadence read; the clock stops on the last.
     while (reads.length < 3) await advance([...timers.values()][0].at);
@@ -49,7 +49,7 @@ test("a run is re-read once just before a checkpoint departure, then keeps its c
 
     // A departure 25 s after the last read: its window opens before the next cadence read.
     const departure = lastRead + 25_000;
-    poller.setCheckpoints(new Map([["run", [departure]]]));
+    poller.setCheckpoints(new Map([["journey", [departure]]]));
     await advance(lastRead + 60_000);
     const after = reads.filter((read) => read.at > lastRead);
     assert.deepEqual(after[0], { at: departure - CHECKPOINT_LEAD_MS, maxAgeMs: 0 });
@@ -75,10 +75,10 @@ test("a read already inside a checkpoint's window answers it", async (t) => {
     false,
   );
   try {
-    poller.update([{ rowId: "run", maxAgeMs: 30_000 }]);
+    poller.update([{ rowId: "journey", maxAgeMs: 30_000 }]);
     await Promise.resolve();
     now = 5_000;
-    poller.setCheckpoints(new Map([["run", [10_000]]]));
+    poller.setCheckpoints(new Map([["journey", [10_000]]]));
     assert.deepEqual(reads, [0]);
   } finally {
     poller.stop();

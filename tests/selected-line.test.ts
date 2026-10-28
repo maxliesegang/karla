@@ -20,8 +20,8 @@ const row = (lineId: string, ptMode: StopEvent["ptMode"]) =>
 const liveBoard = (stopEvents: readonly StopEvent[]) =>
   ({ dataStatus: "live", stopEvents }) as unknown as StopEventBoard;
 
-test("a trip opened from a stop board keeps its line once it has left that stop", () => {
-  // The rider's board no longer lists the trip: it departed. It is still running along the line,
+test("a journey opened from a stop board keeps its line once it has left that stop", () => {
+  // The rider's board no longer lists the journey: it departed. It is still running along the line,
   // and the line is what keeps the readings that find it there going.
   const route = parseRoute(`#/stop/marktplatz/journey/${JOURNEY}`);
   const stopEvents = [row("S2", "lightRail"), row("2", "tram")];
@@ -39,7 +39,7 @@ test("a trip opened from a stop board keeps its line once it has left that stop"
   assert.equal(line?.ptMode, "lightRail");
 });
 
-test("the line a departed trip names holds even when no other run of it calls here", () => {
+test("the line a departed journey names holds even when no other journey of it calls here", () => {
   const route = parseRoute(`#/stop/marktplatz/journey/${JOURNEY}`);
 
   const line = findSelectedLine(route, networkWithS2, [], liveBoard([]), undefined, undefined);
@@ -47,7 +47,7 @@ test("the line a departed trip names holds even when no other run of it calls he
   assert.equal(line?.id, "S2");
 });
 
-test("a trip of another pool's line of the same name is not that line", () => {
+test("a journey of another pool's line of the same name is not that line", () => {
   const route = parseRoute("#/stop/marktplatz/journey/ddb:920S2:C:R:j26:12");
 
   const line = findSelectedLine(route, networkWithS2, [], liveBoard([]), undefined, undefined);
@@ -55,7 +55,7 @@ test("a trip of another pool's line of the same name is not that line", () => {
   assert.equal(line, undefined);
 });
 
-test("without a trip the bare stop names no line", () => {
+test("without a journey the bare stop names no line", () => {
   const route = parseRoute("#/stop/marktplatz");
 
   assert.equal(

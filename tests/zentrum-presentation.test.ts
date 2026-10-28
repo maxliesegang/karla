@@ -34,7 +34,7 @@ const board = (stopId: string, minute: number): StopEventBoard => ({
   stopEvents: [],
 });
 
-test("vehicle labels distinguish a stand, travel, and the end of a run", () => {
+test("vehicle labels distinguish a stand, travel, and the end of a journey", () => {
   const vehicle = {
     from: { id: "europaplatz", label: "Europaplatz", x: 0, y: 0 },
     to: { id: "marktplatz", label: "Marktplatz", x: 100, y: 0 },
@@ -83,7 +83,7 @@ test("an unmonitored arrival stays a timetable estimate even with a predicted de
 test("a direct ride retains its last boarding call in a stop place, never another stop's platform", () => {
   const stopEvent = createStopEvent({
     id: "origin-reading",
-    journeyRef: "run-2",
+    journeyRef: "journey-2",
     lineId: "2",
     bay: "9",
     boardingStopPlaceId: "kronenplatz",
@@ -124,7 +124,7 @@ test("a direct ride retains its last boarding call in a stop place, never anothe
   assert.equal(getZentrumBoardingBayText({ stopName: "Unbekannt" }), "Ohne Steigangabe");
 });
 
-test("every run's direct ride between two stops is listed, soonest departure first", () => {
+test("every journey's direct ride between two stops is listed, soonest departure first", () => {
   const ride = (id: string, lineId: string, leaves: number, arrives: number) =>
     createStopEvent({
       id,

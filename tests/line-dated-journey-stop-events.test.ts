@@ -13,7 +13,7 @@ import { createCall } from "./support/calls.ts";
 import { createStopEvent } from "./support/fixtures.ts";
 
 const start = Date.parse("2026-08-23T12:00:00Z");
-/** The source's side: followed runs are fetched by id when drawn. */
+/** The source's side: followed journeys are fetched by id when drawn. */
 const known = new Map<string, StopEvent>();
 const findDatedJourney = (rowId: string) => known.get(rowId);
 const call = createCall(start);
@@ -44,7 +44,7 @@ function stopEvent(
   return built;
 }
 
-test("keeps a run after its observation board stops listing it", () => {
+test("keeps a journey after its observation board stops listing it", () => {
   const datedJourney = stopEvent("retained", [call("a", 0), call("b", 5), call("c", 10)]);
   const observations = updateFollowedDatedJourneys(
     [],
@@ -61,7 +61,7 @@ test("keeps a run after its observation board stops listing it", () => {
   );
 });
 
-test("expires a retained run after its delayed final call and grace period", () => {
+test("expires a retained journey after its delayed final call and grace period", () => {
   const datedJourney = stopEvent("expired", [call("a", 0), call("b", 10, 3)]);
   const observations = updateFollowedDatedJourneys(
     [],
@@ -94,7 +94,7 @@ test("a current cancellation removes the retained vehicle", () => {
   );
 });
 
-test("a followed run is drawn from the reading the source has now, not the one that named it", () => {
+test("a followed journey is drawn from the reading the source has now, not the one that named it", () => {
   const original = stopEvent("updated", [call("a", 0), call("b", 10)]);
   const followed = updateFollowedDatedJourneys([], [original], start + 60_000, findDatedJourney);
   // No board lists it, but it has been re-read since.
@@ -110,7 +110,7 @@ test("a followed run is drawn from the reading the source has now, not the one t
   );
 });
 
-test("a followed run is recognised under the identity its reading states now", () => {
+test("a followed journey is recognised under the identity its reading states now", () => {
   const original = stopEvent("drift", [call("a", 0), call("b", 10)]);
   const followed = updateFollowedDatedJourneys([], [original], start + 60_000, findDatedJourney);
   // Re-read with a refined dated id and listed under another row: matched by its draw-time key, so
@@ -133,7 +133,7 @@ test("a listed row the store no longer holds never brings its board's calls", ()
   assert.equal(drawn.calls, undefined);
 });
 
-test("one run followed under two row ids is still drawn once", () => {
+test("one journey followed under two row ids is still drawn once", () => {
   const datedJourney = stopEvent("row-a", [call("a", 0), call("b", 10)]);
   known.set("row-b", { ...datedJourney, id: "row-b", boardingStopPlaceId: "b" });
 
@@ -150,10 +150,10 @@ test("one run followed under two row ids is still drawn once", () => {
   );
 });
 
-test("a followed run whose reading says cancelled is not drawn", () => {
-  const running = stopEvent("run", [call("a", 0), call("b", 10)]);
+test("a followed journey whose reading says cancelled is not drawn", () => {
+  const running = stopEvent("journey", [call("a", 0), call("b", 10)]);
   const followed = updateFollowedDatedJourneys([], [running], start + 60_000, findDatedJourney);
-  known.set("run", { ...running, status: "cancelled" });
+  known.set("journey", { ...running, status: "cancelled" });
 
   assert.equal(
     getLineDatedJourneyStopEvents(followed, [], start + 90_000, findDatedJourney).length,
@@ -189,8 +189,8 @@ test("bounds retained vehicle observations", () => {
   );
 });
 
-test("stamps each run with the age of the board it came from, not the freshest one in hand", () => {
-  // The core observation and line boards arrive minutes apart; each run is placed from its own read
+test("stamps each journey with the age of the board it came from, not the freshest one in hand", () => {
+  // The core observation and line boards arrive minutes apart; each journey is placed from its own read
   // time.
   const fresh = stopEvent("fresh", [call("a", 0), call("b", 5), call("c", 10)], "realtime", start);
   const stale = stopEvent(
@@ -214,7 +214,7 @@ test("stamps each run with the age of the board it came from, not the freshest o
   assert.equal(observedById.get("stale"), start - 5 * 60_000);
 });
 
-test("a single instant still stamps every run in a batch read off one board", () => {
+test("a single instant still stamps every journey in a batch read off one board", () => {
   const first = stopEvent("first", [call("a", 0), call("b", 5)]);
   const second = stopEvent("second", [call("a", 2), call("b", 7)]);
 
@@ -228,7 +228,7 @@ test("a single instant still stamps every run in a batch read off one board", ()
   assert.deepEqual([...new Set(observations.map(({ observedAt }) => observedAt))], [start]);
 });
 
-test("a set followed is equal to itself until a run is named or ends", () => {
+test("a set followed is equal to itself until a journey is named or ends", () => {
   const datedJourney = stopEvent("same", [call("a", 0), call("b", 10)]);
   const followed = updateFollowedDatedJourneys(
     [],
@@ -247,7 +247,7 @@ test("a set followed is equal to itself until a run is named or ends", () => {
   );
 });
 
-test("a run is first drawn only from calls read recently; a drawn run keeps its last reading", () => {
+test("a journey is first drawn only from calls read recently; a drawn journey keeps its last reading", () => {
   const calls = [call("a", 0), call("b", 2)];
   const old = stopEvent(
     "placeable-old",
@@ -258,7 +258,7 @@ test("a run is first drawn only from calls read recently; a drawn run keeps its 
   const fresh = stopEvent("placeable-fresh", calls, "realtime", start - 5_000);
   const undated = { ...stopEvent("placeable-undated", calls), readAt: undefined };
 
-  // A cached board's calls wait for the run's own re-read.
+  // A cached board's calls wait for the journey's own re-read.
   assert.deepEqual(
     selectPlaceableDatedJourneys([old, fresh, undated], start, new Set()).map(({ id }) => id),
     ["placeable-fresh", "placeable-undated"],
