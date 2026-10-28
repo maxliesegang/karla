@@ -5,7 +5,7 @@
 import { kvvNetwork } from "../networks/kvv/kvv-network";
 import type { StopEvent } from "../data/transit-types";
 import { isZentrumStop } from "../data/zentrum-stops";
-import { getLineTrunkId } from "./line-families";
+import { getLineTrunkId, isNetworkRow } from "./line-families";
 import type { BayRun } from "./bay-runs";
 
 /**
@@ -291,8 +291,9 @@ export const getZentrumSchematicRoutes = (
 };
 
 /** Only rail is drawn. */
-export const isRailStopEvent = ({ ptMode }: Pick<StopEvent, "ptMode">): boolean =>
-  ptMode === "tram" || ptMode === "lightRail";
+/** KVV's own trams and trains; other operators' rows are on boards only. */
+export const isRailStopEvent = (stopEvent: Pick<StopEvent, "ptMode" | "lineRef">): boolean =>
+  (stopEvent.ptMode === "tram" || stopEvent.ptMode === "lightRail") && isNetworkRow(stopEvent);
 
 /** The shared board address of a drawn boarding place. */
 export const getZentrumSchematicStopId = (nodeId: string): string => nodeId.split("@", 1)[0];

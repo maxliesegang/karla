@@ -97,8 +97,10 @@ Failed reads retain the last complete reading and its age. Verified behaviour is
 
 A build reads one network, chosen by `VITE_NETWORK` (default and only: `kvv`). What the app knows
 about it beyond the feed lives in `src/networks/<id>/` ([`docs/networks/kvv.md`](docs/networks/kvv.md)):
-the pools whose lines boards keep, the area stop search keeps, line colours, and the stop catalog
-`npm run refresh:stops` writes from TRIAS and NVBW's GTFS. Stop places are derived from the
+its own pools and area, line colours (`npm run refresh:line-colors`, also for other operators'
+lines on its boards), and the stop catalog `npm run refresh:stops` writes from TRIAS and NVBW's
+GTFS. Boards show every operator's departures; only the network's own lines are observed and have
+line pages. Stop places are derived from the
 catalog (`src/lib/stop-places.ts`): stop points of one name before its bracket, in one district,
 within 250 m, are one place. What that rule misses is in the network's `stop-place-overrides.ts`;
 `npm run refresh:stop-places` writes the result. The Zentrum

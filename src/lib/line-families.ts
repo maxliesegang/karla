@@ -1,6 +1,6 @@
 import { isWithinScopePools } from "../data/network-scope";
 import { network } from "../networks/network";
-import type { TransitLine } from "../data/transit-types";
+import type { PtMode, TransitLine } from "../data/transit-types";
 
 /**
  * Passenger-facing line identity. S1 and S11 keep their own signs, departures, notices and
@@ -25,9 +25,16 @@ export function findLineForRoute(
   return lines.find((line) => isSameLineFamily(line.id, requestedId));
 }
 
-/** The network's own line, or one named by an address alone; its numbering applies only to these. */
-const isNetworkLineIdentity = (identity: string | undefined): boolean =>
+/**
+ * The network's own line, or one named by an address alone: its numbering, line pages and observation
+ * apply only to these. Other operators' lines show on boards.
+ */
+export const isNetworkLineIdentity = (identity: string | undefined): boolean =>
   identity === undefined || isWithinScopePools(network.scope, identity);
+
+/** A row of the network's own lines; a row stating no ref counts as one. */
+export const isNetworkRow = ({ lineRef }: { lineRef?: string }): boolean =>
+  isNetworkLineIdentity(lineRef);
 
 /** The trunk a branch's name is built on (S11 → S1); none for another network's line. */
 export const getLineTrunkId = (lineId: string, identity?: string): string | undefined =>
@@ -50,14 +57,28 @@ export function compareLineIds(a: string, b: string): number {
 
 const compareNaturally = new Intl.Collator("de", { numeric: true }).compare;
 
-/** The network's own lines in its order, then other networks' lines by name. */
-export function compareLines(
-  a: Pick<TransitLine, "id" | "identity">,
-  b: Pick<TransitLine, "id" | "identity">,
-): number {
+const MODE_ORDER: readonly PtMode[] = [
+  "tram",
+  "lightRail",
+  "regionalRail",
+  "longDistanceRail",
+  "bus",
+  "other",
+];
+const getModeRank = (mode: PtMode | undefined): number =>
+  mode ? MODE_ORDER.indexOf(mode) : MODE_ORDER.length;
+
+type ComparedLine = Pick<TransitLine, "id" | "identity"> & { ptMode?: PtMode };
+
+/** The network's own lines in its order, then other networks' lines by mode and name. */
+export function compareLines(a: ComparedLine, b: ComparedLine): number {
   const isOwnA = isNetworkLineIdentity(a.identity);
   const isOwnB = isNetworkLineIdentity(b.identity);
   if (isOwnA && isOwnB) return compareLineIds(a.id, b.id);
   if (isOwnA !== isOwnB) return isOwnA ? -1 : 1;
-  return compareNaturally(a.id, b.id) || (a.identity ?? "").localeCompare(b.identity ?? "");
+  return (
+    getModeRank(a.ptMode) - getModeRank(b.ptMode) ||
+    compareNaturally(a.id, b.id) ||
+    (a.identity ?? "").localeCompare(b.identity ?? "")
+  );
 }

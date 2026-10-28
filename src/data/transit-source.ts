@@ -1,13 +1,15 @@
 import { transitNetwork } from "./transit-network";
 import { readTriasProxyUrl } from "./trias-proxy";
 import { TriasClient } from "./trias-client";
-import { network } from "../networks/network";
+import { network as networkDefinition } from "../networks/network";
 import { isWithinScopeBounds } from "./network-scope";
+import { isNetworkRow } from "../lib/line-families";
 import {
   fetchStopPlaceBoard,
   type FeedStopEventBoard,
   type FeedStopEventBoardOptions,
   type FeedStopEvent,
+  type FeedStopSearchResult,
   type Feed,
   type FeedTripInfo,
   type DatedJourneyRef,
@@ -72,7 +74,7 @@ export interface TransitSource {
   ): Promise<DatedJourneyDiscoveryReading>;
   /** Stop places and lines, as views address them. */
   getNetwork(): TransitNetwork;
-  /** Resolves both local core-network stops and any stop exposed by the KVV network. */
+  /** Resolves the network's stop places, and a feed stop by its dynamic id. */
   resolveStop(stopId: string): Promise<StopPlace | undefined>;
   /**
    * `resolveStop` without the wait, for stops the session has already met, so a view need not
@@ -144,7 +146,6 @@ export function createFeed(environment = import.meta.env ?? {}): Feed {
   return new TriasClient({ proxyUrl: readTriasProxyUrl(environment) });
 }
 
-/** Core-network stops are local data; every other stop is resolved from KVV on request. */
 /** The dated journey a row can request, where it names both halves. */
 const getDatedJourneyRef = ({
   journeyRef,
@@ -195,7 +196,9 @@ export class TriasTransitSource implements TransitSource {
           lineId && (ptMode === "tram" || ptMode === "lightRail") ? [lineId] : [],
         ),
         ...board.stopEvents
-          .filter(({ ptMode }) => ptMode === "tram" || ptMode === "lightRail")
+          .filter(
+            (row) => (row.ptMode === "tram" || row.ptMode === "lightRail") && isNetworkRow(row),
+          )
           .map(({ lineId }) => lineId),
       ]),
     );
@@ -331,8 +334,8 @@ export class TriasTransitSource implements TransitSource {
   }
 
   /**
-   * Stops matching a query, local first (no request), then provider matches inside the network
-   * area. Matches are registered so their ids resolve later.
+   * Stops matching a query: local first (no request), then provider matches, those inside the
+   * network's area before those beyond. Matches are registered so their ids resolve later.
    */
   async searchStops(query: string): Promise<readonly StopPlace[]> {
     const trimmed = query.trim();
@@ -351,10 +354,13 @@ export class TriasTransitSource implements TransitSource {
       throw error;
     });
     if (!matches) return local.slice(0, STOP_SEARCH_LIMIT);
-    const remote = matches.flatMap((match) => {
-      if (match.latitude === undefined || match.longitude === undefined) return [];
-      if (!isWithinScopeBounds(network.scope, match.latitude, match.longitude)) return [];
-      return [
+    const isNear = ({ latitude, longitude }: FeedStopSearchResult) =>
+      latitude !== undefined &&
+      longitude !== undefined &&
+      isWithinScopeBounds(networkDefinition.scope, latitude, longitude);
+    const remote = [...matches.filter(isNear), ...matches.filter((match) => !isNear(match))]
+      .filter(({ latitude, longitude }) => latitude !== undefined && longitude !== undefined)
+      .map((match) =>
         this.stops.register({
           stopPointId: match.stopPointId,
           name: match.name,
@@ -362,8 +368,7 @@ export class TriasTransitSource implements TransitSource {
           latitude: match.latitude,
           longitude: match.longitude,
         }),
-      ];
-    });
+      );
 
     const byId = new Map(local.map((stop) => [stop.id, stop]));
     for (const stop of remote) if (!byId.has(stop.id)) byId.set(stop.id, stop);
@@ -536,7 +541,7 @@ export class TriasTransitSource implements TransitSource {
     if (this.stops.findStopPoints(stopId).length === 0)
       return unavailableStopEventBoard(
         stopId,
-        `Haltestelle konnte im ${network.operator.name}-Netz nicht aufgelöst werden`,
+        `Haltestelle konnte im ${networkDefinition.operator.name}-Netz nicht aufgelöst werden`,
       );
 
     try {
@@ -583,11 +588,6 @@ export class TriasTransitSource implements TransitSource {
       );
     }
   }
-
-  /**
-   * What the feed states the stop serves, and what dated journeys read this session were seen to
-   * serve.
-   */
 
   /** The stop's board completed for sparse directions (`direction-coverage.ts`). */
   private async fetchDirectionCoveredBoard(
@@ -683,6 +683,8 @@ export class TriasTransitSource implements TransitSource {
       lineRef: stopEvent.lineRef,
       ptMode: stopEvent.ptMode,
       destinationText: stopEvent.destinationText,
+      originStopPointId: stopEvent.originStopPointId,
+      destinationStopPointId: stopEvent.destinationStopPointId,
       minutesUntilDeparture: stopEvent.minutesUntilDeparture,
       delayMinutes: stopEvent.delayMinutes,
       bay: stopEvent.bay,

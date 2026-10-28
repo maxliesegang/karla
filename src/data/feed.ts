@@ -59,6 +59,9 @@ export type FeedStopEvent = {
   lineRef?: string;
   ptMode: PtMode;
   destinationText: string;
+  /** TRIAS's `OriginStopPointRef` and `DestinationStopPointRef`, as DHIDs. */
+  originStopPointId?: string;
+  destinationStopPointId?: string;
   minutesUntilDeparture: number;
   delayMinutes?: number;
   bay: string;

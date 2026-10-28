@@ -1,6 +1,7 @@
 /**
- * A network's reach in the feed: which data pools' lines a board keeps, and where a found stop may
- * stand. The feed answers far beyond it (all of Baden-Württemberg; docs/trias-api.md).
+ * A network's own part of the feed: the data pools of its lines, which are observed, numbered and
+ * coloured as its own, and its area, whose stops a search lists first. Boards keep every pool's rows
+ * (docs/trias-api.md).
  */
 
 export type Bounds = { south: number; north: number; west: number; east: number };

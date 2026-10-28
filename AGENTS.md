@@ -17,6 +17,7 @@ npm run format         # biome format --write . — the formatter is the style a
 npm test               # tests and build must pass before handing off a change
 npm run refresh:stops  # regenerates src/networks/<id>/generated from TRIAS and GTFS
 npm run refresh:stop-places  # rewrites the stop places after their overrides change
+npm run refresh:line-colors  # regenerates line colours: the network's GTFS, other operators' from Träwelling
 npm run solve:zentrum  # measures the Zentrum plan against the feed, and solves for a truer one
 npm run solve:region   # derives the region plan's nodes from the feed and solves its layout
 npm run probe:*        # live feed measurements behind the timing constants
@@ -55,7 +56,8 @@ These describe outcomes, not implementations. If a simpler design meets them, pr
 - **Views never touch the provider.** Fetching, id resolution and merging live behind
   `TransitSource`.
 - **Generic code names no network.** What is true of one network (its pools, area, stop place
-  overrides, colours, numbering) lives in its `NetworkDefinition`; code reads it through `network`.
+  overrides, colours, neighbouring operators' areas, numbering, default and suggested stops,
+  observation posts) lives in its `NetworkDefinition`; code reads it through `network`.
   The Zentrum and region plan are KVV's and import it directly.
 - **Stops are DHIDs; stop places are derived.** A stop place's stop points are stop-level DHIDs
   (`de:08212:1003`), grouped from the catalog by name and distance; only what that rule misses is

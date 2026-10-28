@@ -48,7 +48,7 @@ test("base and lit routes keep KVV colors, with fine edges only on pale lines", 
     );
     assert.match(markup, /network-track-outline[^>]*stroke="#ffcc00"/);
     assert.match(markup, /network-track-color[^>]*data-pale="true"[^>]*stroke="#ffcc00"/);
-    assert.match(markup, /network-track-color[^>]*stroke="#0073df"/);
+    assert.match(markup, /network-track-color[^>]*stroke="#0069b9"/);
     assert.equal((markup.match(/class="zentrum-schematic-network-track-gap"/g) ?? []).length, 2);
   }
 });
@@ -102,7 +102,7 @@ test("a turn is painted above later straight routes only around its bend", () =>
     const colors = [
       ...markup.matchAll(/class="zentrum-schematic-network-track-color"[^>]*stroke="([^"]+)"/g),
     ].map((match) => match[1]);
-    assert.deepEqual(colors, ["#0073df", "#ff0000", "#0073df"]);
+    assert.deepEqual(colors, ["#0069b9", "#e30613", "#0069b9"]);
     assert.equal((markup.match(/clip-path="url\(/g) ?? []).length, 1);
     assert.match(markup, /clip-path="url\(#[^)]+\)"><path[^>]*network-track-gap[^>]*mask="url\(/);
     assert.doesNotMatch(render(lit, new Set(["1"])), /clip-path="url\(/);
@@ -193,7 +193,7 @@ test("north-south routes cross above the east-west band at Durlacher Tor in eith
         const colors = [
           ...markup.matchAll(/class="zentrum-schematic-network-track-color"[^>]*stroke="([^"]+)"/g),
         ].map((match) => match[1]);
-        assert.deepEqual(colors, ["#806600", "#ffcc00", "#ff0000", "#806600", "#ffcc00"]);
+        assert.deepEqual(colors, ["#966c29", "#ffcc00", "#e30613", "#966c29", "#ffcc00"]);
       }
     }
   }

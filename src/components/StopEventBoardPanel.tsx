@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import type { CSSProperties, ReactNode, Ref } from "react";
-import { getLineSign } from "../data/line-signs";
+import { getJourneyEnds, getLineSign } from "../data/line-signs";
 import type {
   StopEvent,
   StopEventBoard,
@@ -449,7 +449,13 @@ export function StopEventBoardPanel({
           ? findNextCompatibleStopEvent(stopEvents, stopEvent)
           : undefined
       }
-      line={getLineSign(network.lines, stopEvent.lineId, stopEvent.ptMode, stopEvent.lineRef)}
+      line={getLineSign(
+        network.lines,
+        stopEvent.lineId,
+        stopEvent.ptMode,
+        stopEvent.lineRef,
+        getJourneyEnds(stopEvent),
+      )}
       stopId={stop.id}
       partId={part?.id}
       partName={part ? undefined : findStopPointPart(stop.id, stopEvent.boardingStopPointId)?.name}

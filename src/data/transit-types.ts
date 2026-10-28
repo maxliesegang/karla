@@ -1,7 +1,7 @@
 /** The rider-facing sign (`S1`); open, since boards carry every line calling. Not the `lineRef`. */
 export type LineId = string;
 
-export type PtMode = "tram" | "lightRail" | "bus" | "other";
+export type PtMode = "tram" | "lightRail" | "regionalRail" | "longDistanceRail" | "bus" | "other";
 
 /**
  * The boarding place's kind as the feed words it: `Gleis` or `Bstg.`. Not inferable from the mode
@@ -86,6 +86,9 @@ export type StopEvent = {
   lineRef?: string;
   ptMode: PtMode;
   destinationText: string;
+  /** The journey's first and last stop points (DHIDs), which tell other operators' lines apart. */
+  originStopPointId?: string;
+  destinationStopPointId?: string;
   /**
    * The feed's countdown when the board was read. Views count from the schedule instead
    * (`lib/feed-clock.ts`) and fall back to this only without a schedule.

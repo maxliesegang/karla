@@ -56,4 +56,5 @@ jobs:
       - name: Check the deployed proxy
         run: |
           curl -fsS 'https://karla.app.liesegang.info/api/stop-events.php?stop=de:08212:37&rows=1' | grep -q '<trias:StopEventResult>'
+          curl -fsS 'https://karla.app.liesegang.info/api/stop-events.php?stop=de:08111:6115&rows=1&lines=ddb:920S1:D:H:j26' | grep -q '<trias:Trias'
           test "$(curl -s -o /dev/null -w '%{http_code}' https://karla.app.liesegang.info/lib/trias.php)" = 403

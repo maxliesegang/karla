@@ -1,10 +1,10 @@
 /**
  * The line level of the selection, resolved against live data; pure, so testable without mounting.
  */
-import { getLineSign } from "./data/line-signs";
+import { getJourneyEnds, getLineSign } from "./data/line-signs";
 import type { StopEvent, StopEventBoard, TransitLine, TransitNetwork } from "./data/transit-types";
 import { getResolvedBundledLineIds } from "./lib/line-bundles";
-import { findLineForRoute, isSameLineFamily } from "./lib/line-families";
+import { findLineForRoute, isNetworkRow, isSameLineFamily } from "./lib/line-families";
 import { getLineIdentity } from "./lib/line-identity";
 import type { AppRoute } from "./routing";
 
@@ -22,8 +22,11 @@ export function findSelectedLine(
 ): TransitLine | undefined {
   if (observedLine) return observedLine;
 
+  // An address names the network's line; another operator's line of that name is not it.
   const lineStopEvent = route.lineId
-    ? stopEvents.find((stopEvent) => isSameLineFamily(stopEvent.lineId, route.lineId))
+    ? stopEvents.find(
+        (stopEvent) => isSameLineFamily(stopEvent.lineId, route.lineId) && isNetworkRow(stopEvent),
+      )
     : ownStopEvent;
   if (lineStopEvent)
     return getLineSign(
@@ -31,6 +34,7 @@ export function findSelectedLine(
       lineStopEvent.lineId,
       lineStopEvent.ptMode,
       lineStopEvent.lineRef,
+      getJourneyEnds(lineStopEvent),
     );
 
   // A restored ride keeps its line with a neutral sign until its retained dated journey resolves.
@@ -72,7 +76,15 @@ export function findBundledLines(
     const observed = findLineForRoute(network.lines, lineId);
     if (observed) return [observed];
     return running
-      ? [getLineSign(network.lines, running.lineId, running.ptMode, running.lineRef)]
+      ? [
+          getLineSign(
+            network.lines,
+            running.lineId,
+            running.ptMode,
+            running.lineRef,
+            getJourneyEnds(running),
+          ),
+        ]
       : [getLineSign(network.lines, lineId, "other")];
   });
 }

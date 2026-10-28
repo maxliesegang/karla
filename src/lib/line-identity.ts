@@ -26,6 +26,6 @@ export const isSameLineIdentity = (
 export const isRowOfLine = (row: LineNaming, lineId: string, identity?: string): boolean =>
   row.lineId === lineId && isSameLineIdentity(getLineIdentity(row.lineRef), identity);
 
-/** Two rows of one line. */
+/** Two rows of one line: a row without a ref is of no line one with a ref is, either way round. */
 export const isSameLine = (a: LineNaming, b: LineNaming): boolean =>
-  isRowOfLine(a, b.lineId, getLineIdentity(b.lineRef));
+  a.lineId === b.lineId && getLineIdentity(a.lineRef) === getLineIdentity(b.lineRef);

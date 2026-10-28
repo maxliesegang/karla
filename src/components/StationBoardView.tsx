@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { getLineSign } from "../data/line-signs";
+import { getJourneyEnds, getLineSign } from "../data/line-signs";
 import type { StopEvent, StopEventBoard, StopPlace, TransitNetwork } from "../data/transit-types";
 import {
   formatClockTime,
@@ -46,7 +46,13 @@ function StationBoardRow({
   stationBoardConfig: StationBoardConfig;
   feedNow: number;
 }) {
-  const line = getLineSign(network.lines, stopEvent.lineId, stopEvent.ptMode, stopEvent.lineRef);
+  const line = getLineSign(
+    network.lines,
+    stopEvent.lineId,
+    stopEvent.ptMode,
+    stopEvent.lineRef,
+    getJourneyEnds(stopEvent),
+  );
   const reading = getCountdownReading(stopEvent, feedNow);
   const timeReading = getDepartureTimeReading(stopEvent);
   // An operating note outranks the route; neither is ever truncated away.

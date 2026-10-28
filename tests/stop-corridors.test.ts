@@ -1177,3 +1177,45 @@ test("reads the board's place at its own stop, not at another stop's marker on a
 
   assert.equal(patterns.boardPlaceName, "Karlsruhe");
 });
+
+test("another operator's line of a KVV line's name is its own group, after KVV's lines", () => {
+  const kvvS4 = stopEvent({
+    id: "kvv-s4",
+    lineId: "S4",
+    ptMode: "lightRail",
+    lineRef: "kvv:22304:E:H:s26",
+    destinationText: "Heilbronn",
+  });
+  const rhineNeckarS4 = stopEvent({
+    id: "ddb-s4",
+    lineId: "S4",
+    ptMode: "lightRail",
+    lineRef: "ddb:920S4:H:H",
+    destinationText: "Germersheim",
+  });
+  const ice = stopEvent({
+    id: "ice",
+    lineId: "ICE 377",
+    ptMode: "longDistanceRail",
+    lineRef: "ddb:98012::R",
+    destinationText: "Interlaken West",
+  });
+  const re = stopEvent({
+    id: "re",
+    lineId: "RE45",
+    ptMode: "regionalRail",
+    lineRef: "ddb:90RE4:5:H",
+    destinationText: "Heilbronn",
+  });
+
+  const groups = groupsAt("bruchsal", [ice, rhineNeckarS4, re, kvvS4]);
+  assert.deepEqual(
+    groups.map(({ id, line }) => [id, line.id]),
+    [
+      ["S4", "S4"],
+      ["S4@ddb:920S4", "S4"],
+      ["RE45@ddb:90RE4", "RE45"],
+      ["ICE 377@ddb:98012", "ICE 377"],
+    ],
+  );
+});

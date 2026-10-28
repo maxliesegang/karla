@@ -14,13 +14,22 @@ import { SegmentedControl, type SegmentedControlItem } from "./SegmentedControl"
 import { useNetworkBandNavigation } from "../hooks/network-band-navigation";
 import { network as networkDefinition } from "../networks/network";
 
-/** Group order: trams, Stadtbahn, then buses. */
-const NETWORK_GROUP_ORDER: readonly PtMode[] = ["tram", "lightRail", "bus", "other"];
+/** Group order: trams, Stadtbahn, trains, then buses. */
+const NETWORK_GROUP_ORDER: readonly PtMode[] = [
+  "tram",
+  "lightRail",
+  "regionalRail",
+  "longDistanceRail",
+  "bus",
+  "other",
+];
 
 const networkGroupLabels: Record<PtMode, string> = {
   tram: "Straßenbahn",
   bus: "Bus",
   lightRail: "Stadtbahn",
+  regionalRail: "Regionalzüge",
+  longDistanceRail: "Fernzüge",
   other: "Weitere Linien",
 };
 

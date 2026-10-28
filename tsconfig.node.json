@@ -41,6 +41,7 @@
     "src/data/zentrum-stops.ts",
     "src/data/line-signs.ts",
     "src/lib/line-families.ts",
+    "src/lib/line-colors.ts",
     "src/lib/line-identity.ts",
     "src/lib/stop-slug.ts",
     "src/lib/stop-places.ts",

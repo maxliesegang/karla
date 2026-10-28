@@ -77,7 +77,7 @@ test("a link naming a stop without its digest does not resolve", async () => {
   assert.equal(await source.resolveStop("bahnhof"), undefined);
 });
 
-test("the search answers with local matches first and keeps only in-area provider matches", async () => {
+test("the search answers with local matches, then provider matches in the area, then beyond", async () => {
   const source = new TriasTransitSource(
     clientWith([
       {
@@ -116,10 +116,17 @@ test("the search answers with local matches first and keeps only in-area provide
       latitude: 49.020297,
       longitude: 8.35073,
     },
+    {
+      id: results[2].id,
+      name: "Zum Mühlberg",
+      placeName: "Rotenburg a. d. Fulda",
+      latitude: 50.9954,
+      longitude: 9.7398,
+    },
   ]);
 });
 
-test("a search for what only the provider knows outside the area answers nothing", async () => {
+test("a search finds stops beyond the network's area", async () => {
   const source = new TriasTransitSource(
     clientWith([
       {
@@ -133,7 +140,10 @@ test("a search for what only the provider knows outside the area answers nothing
     network,
   );
 
-  assert.deepEqual(await source.searchStops("schloss"), []);
+  assert.deepEqual(
+    (await source.searchStops("schloss")).map(({ name, placeName }) => [name, placeName]),
+    [["Schloss", "Ravensburg"]],
+  );
 });
 
 test("a provider read that failed still answers with the local matches", async () => {

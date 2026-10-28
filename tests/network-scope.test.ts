@@ -7,10 +7,13 @@ import {
 } from "../src/data/line-observation-memory.ts";
 import { createLineSign, getLineSign } from "../src/data/line-signs.ts";
 import { parseTriasStopEvents } from "../src/data/trias-parsers.ts";
-import { isWithinScopePools, type NetworkScope } from "../src/data/network-scope.ts";
+import { isWithinScopePools } from "../src/data/network-scope.ts";
 import { network } from "../src/networks/network.ts";
 import { kvvNetwork } from "../src/networks/kvv/kvv-network.ts";
 import { StopRegistry } from "../src/data/stop-registry.ts";
+import { ObservedNetworkStore } from "../src/data/observed-network-store.ts";
+import { findSelectedLine } from "../src/selected-line.ts";
+import { getStopEventOpenPath, type AppRoute } from "../src/routing.ts";
 import type { StopEvent } from "../src/data/transit-types.ts";
 import {
   createLineSelection,
@@ -34,26 +37,19 @@ import { createLine, createStopEvent } from "./support/fixtures.ts";
 const VVS_BOARD = readFileSync(new URL("./support/trias-board-vvs.xml", import.meta.url), "utf8");
 const FRB_BOARD = readFileSync(new URL("./support/trias-board-frb.xml", import.meta.url), "utf8");
 
-/** A wider network, as a later build might read it. */
-const WIDER_SCOPE: NetworkScope = {
-  pools: new Set(["kvv", "vvs", "frb"]),
-  bounds: { south: 47.5, north: 49.8, west: 7.5, east: 10.5 },
-};
-
 /** A board as the source would hand it to the views, its calls resolved to local stops. */
-function readBoard(xml: string, stopPointId: string, scope: NetworkScope): StopEvent[] {
+function readBoard(xml: string, stopPointId: string): StopEvent[] {
   const registry = new StopRegistry([]);
-  return parseTriasStopEvents(xml, stopPointId, "departure", scope).stopEvents.map(
-    (stopEvent, index) =>
-      createStopEvent({
-        id: `${stopEvent.journeyRef}-${index}`,
-        journeyRef: stopEvent.journeyRef,
-        lineId: stopEvent.lineId,
-        lineRef: stopEvent.lineRef,
-        ptMode: stopEvent.ptMode,
-        destinationText: stopEvent.destinationText,
-        calls: stopEvent.calls && registry.toCalls(stopEvent.calls),
-      }),
+  return parseTriasStopEvents(xml, stopPointId).stopEvents.map((stopEvent, index) =>
+    createStopEvent({
+      id: `${stopEvent.journeyRef}-${index}`,
+      journeyRef: stopEvent.journeyRef,
+      lineId: stopEvent.lineId,
+      lineRef: stopEvent.lineRef,
+      ptMode: stopEvent.ptMode,
+      destinationText: stopEvent.destinationText,
+      calls: stopEvent.calls && registry.toCalls(stopEvent.calls),
+    }),
   );
 }
 
@@ -66,11 +62,8 @@ test("the build reads KVV's network", () => {
   assert.equal(isWithinScopePools(kvvNetwork.scope, undefined), false);
 });
 
-test("another network's board is empty in KVV's scope and read in a scope that holds its pool", () => {
-  assert.deepEqual(parseTriasStopEvents(VVS_BOARD, "de:08111:6112").stopEvents, []);
-  assert.deepEqual(parseTriasStopEvents(FRB_BOARD, "de:08311:6508").stopEvents, []);
-
-  const vvs = parseTriasStopEvents(VVS_BOARD, "de:08111:6112", "departure", WIDER_SCOPE);
+test("a board keeps every pool's rows", () => {
+  const vvs = parseTriasStopEvents(VVS_BOARD, "de:08111:6112");
   assert.deepEqual(
     vvs.stopEvents.map(({ lineId, lineRef, ptMode }) => [lineId, lineRef, ptMode]),
     [
@@ -81,7 +74,7 @@ test("another network's board is empty in KVV's scope and read in a scope that h
   );
 
   // Freiburg states its times to the second.
-  const frb = parseTriasStopEvents(FRB_BOARD, "de:08311:6508", "departure", WIDER_SCOPE);
+  const frb = parseTriasStopEvents(FRB_BOARD, "de:08311:6508");
   assert.deepEqual(
     frb.stopEvents.map(({ lineId, lineRef, timetabledDepartureTime }) => [
       lineId,
@@ -118,6 +111,8 @@ test("one name in two networks is two lines; one number with two names is two li
     ),
     false,
   );
+  assert.equal(isSameLine(kvvS1, { lineId: "S1" }), isSameLine({ lineId: "S1" }, kvvS1));
+  assert.equal(isSameLine({ lineId: "S1" }, kvvS1), false);
   // An address names the line alone, so any row of that name answers it; a row without a ref is
   // no row of a line asked for by identity.
   assert.equal(isRowOfLine(kvvS1, "S1"), true);
@@ -177,7 +172,7 @@ test("KVV's numbering orders KVV's lines; other networks' lines follow by name",
 });
 
 test("a line outside the Zentrum is crawled from the rider's board alone", () => {
-  const board = readBoard(VVS_BOARD, "de:08111:6112", WIDER_SCOPE);
+  const board = readBoard(VVS_BOARD, "de:08111:6112");
   const u15 = createLineSign("U15", "lightRail", board[0].lineRef);
   const selection = createLineSelectionOf(u15);
 
@@ -201,7 +196,7 @@ test("a line outside the Zentrum is crawled from the rider's board alone", () =>
 });
 
 test("the crawl of KVV's line learns nothing from another network's line of that name", () => {
-  const frb = readBoard(FRB_BOARD, "de:08311:6508", WIDER_SCOPE);
+  const frb = readBoard(FRB_BOARD, "de:08311:6508");
   const kvvRow = createStopEvent({
     id: "kvv-4",
     lineId: "4",
@@ -245,9 +240,53 @@ test("an observed line carries its identity, so a selection of it is resolved", 
     journeyCount: 1,
   });
   assert.equal(line.identity, "kvv:22301");
-  assert.equal(line.color, "#00b875");
+  assert.equal(line.color, "#00975f");
   assert.equal(
     isSelectedLine(createLineSelectionOf(line), { lineId: "S1", lineRef: "ddb:920S1:C:H" }),
     false,
+  );
+});
+
+test("only the network's own lines are observed", () => {
+  const store = new ObservedNetworkStore();
+  const calls = [
+    { stopName: "Bruchsal", stopPlaceId: "bruchsal", isThisCall: true },
+    { stopName: "Graben-Neudorf", stopPlaceId: "graben-neudorf" },
+  ];
+  store.rememberJourneys([
+    createStopEvent({ id: "kvv", lineId: "S31", lineRef: "kvv:22331:E:R:s26", calls }),
+    createStopEvent({ id: "ddb", lineId: "S3", lineRef: "ddb:920S3:D:R", calls }),
+  ]);
+  assert.deepEqual(
+    store.getSnapshot().lines.map(({ id }) => id),
+    ["S31"],
+  );
+});
+
+test("an address names the network's line, not another operator's line of that name", () => {
+  const kvvS4 = createStopEvent({
+    id: "kvv",
+    lineId: "S4",
+    ptMode: "lightRail",
+    lineRef: "kvv:22304:E:H:s26",
+  });
+  const otherS4 = createStopEvent({
+    id: "ddb",
+    lineId: "S4",
+    ptMode: "lightRail",
+    lineRef: "ddb:920S4:H:H",
+  });
+  const line = findSelectedLine(
+    { lineId: "S4" } as AppRoute,
+    { stops: [], lines: [] },
+    [otherS4, kvvS4],
+    null,
+    undefined,
+    undefined,
+  );
+  assert.equal(line?.identity, "kvv:22304");
+  assert.equal(
+    getStopEventOpenPath(otherS4, "bruchsal", true),
+    getStopEventOpenPath(otherS4, "bruchsal", false),
   );
 });

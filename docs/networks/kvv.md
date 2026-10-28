@@ -57,7 +57,17 @@ stops and must not be shown as a frequency. Journeys via a depot track (`E` and 
 
 ## Line colours
 
-[`line-colors.ts`](../../src/networks/kvv/line-colors.ts) holds `route_color` from KVV's own GTFS
-(`https://projekte.kvv-efa.de/GTFS/google_transit.zip`, CC0), which the statewide feed lacks. `E`
-needs its mode: VBK's tram red or AVG's rail green. KVV's open-data page asks for a signed usage
-agreement by email.
+`npm run refresh:line-colors` writes [`generated/line-colors.ts`](../../src/networks/kvv/generated/line-colors.ts):
+
+- KVV's lines: `route_color` from KVV's own GTFS
+  (`https://projekte.kvv-efa.de/GTFS/google_transit.zip`, CC0), which the statewide feed lacks. `E`
+  needs its mode: VBK's tram red or AVG's rail green. KVV's open-data page asks for a signed usage
+  agreement by email. Feed version 20261027 changed the whole palette (tram 1 `#ff0000` →
+  `#e30613`).
+- Other operators' lines: Träwelling's `line-colors.csv` (CC0, community-kept, by operator and line
+  name), kept to the operators of [`operator-areas.ts`](../../src/networks/kvv/operator-areas.ts).
+  A row's journey ends pick the operator: the area holding most ends outside Karlsruhe, a named
+  district counting over a whole state. Ties and unknown areas stay neutral. Not covered on
+  28 October 2026: RE40, RE45, RB41, RB44; RB51 is ambiguous.
+
+VRN's GTFS `route_color` is a placeholder (every bus `0000FF`, rail empty); VVS's was unreachable.

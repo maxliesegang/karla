@@ -21,8 +21,8 @@ test("the center map keeps the usual signs for other lines", () => {
     { id: "NEW", ptMode: "bus" },
   ];
   const getSign = createZentrumLineSignReader(lines);
-  assert.equal(getSign("1").color, "#ff0000");
-  assert.equal(getSign("S1").color, "#00b875");
+  assert.equal(getSign("1").color, "#e30613");
+  assert.equal(getSign("S1").color, "#00975f");
   assert.equal(getSign("NEW").color, "#6b6257");
   assert.equal(getSign("UNKNOWN").color, "#59635f");
 });

@@ -1,6 +1,7 @@
 import type { StopEvent, TransitLine, Call } from "../data/transit-types";
-import { createLineSign } from "../data/line-signs";
-import { compareLines, getLineFamilyId } from "./line-families";
+import { createLineSign, getJourneyEnds } from "../data/line-signs";
+import { compareLines, getLineFamilyId, isNetworkLineIdentity } from "./line-families";
+import { getLineIdentity } from "./line-identity";
 import { findStopCorridorPattern, type StopCorridorPatterns } from "./stop-corridor-patterns";
 import {
   getCallDirectionLabel,
@@ -143,6 +144,9 @@ export function getStopServiceCorridorLineGroups(
 
   for (const stopEvent of stopEvents) {
     const lineId = getLineFamilyId(stopEvent.lineId);
+    // Another operator's line of the network's line's name is its own group.
+    const identity = getLineIdentity(stopEvent.lineRef);
+    const groupId = isNetworkLineIdentity(identity) ? lineId : `${lineId}@${identity}`;
     const match = findStopCorridorPattern(patterns, stopEvent);
     const firstObservedStop = match
       ? findFirstCallBeyondStop(match.calls, patterns.stopId)
@@ -151,9 +155,14 @@ export function getStopServiceCorridorLineGroups(
     const corridorId = firstObservedStop
       ? `observed:${getCallKey(firstObservedStop)}`
       : `unknown:${stopEvent.destinationText}`;
-    const group = groups.get(lineId) ?? {
+    const group = groups.get(groupId) ?? {
       line: {
-        ...createLineSign(stopEvent.lineId, stopEvent.ptMode, stopEvent.lineRef),
+        ...createLineSign(
+          stopEvent.lineId,
+          stopEvent.ptMode,
+          stopEvent.lineRef,
+          getJourneyEnds(stopEvent),
+        ),
         id: lineId,
         name: lineId,
         destinations: [],
@@ -173,7 +182,7 @@ export function getStopServiceCorridorLineGroups(
       corridor.fullRoutes += 1;
     }
     group.corridors.set(corridorId, corridor);
-    groups.set(lineId, group);
+    groups.set(groupId, group);
   }
 
   return [...groups]
@@ -182,7 +191,7 @@ export function getStopServiceCorridorLineGroups(
         nameStopCorridor(`${id}:${corridorId}`, draft, {
           boardPlaceName,
           lineFamiliesByPlace,
-          lineFamilyId: id,
+          lineFamilyId: group.line.id,
         }),
       );
       return {

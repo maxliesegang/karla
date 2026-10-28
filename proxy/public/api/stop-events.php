@@ -13,8 +13,8 @@ $rows = (int) param('rows', '/^([1-9]|[1-5]\d|60)$/', '20');
 $calls = param('calls', '/^[01]$/', '0') === '1' ? 'true' : 'false';
 $kind = param('kind', '/^(departure|arrival)$/', 'departure');
 // Pool, line number, variant, then direction and timetable: kvv:21005:E:R:s26, vvs:20015::H:j26,
-// ddb:920S6:C:R, sbg:67642:0:H.
-$lineRef = '[a-z]{2,5}:[A-Za-z0-9]{1,8}:[A-Za-z0-9]{0,2}(:[HR](:[a-z]\d{2})?)?';
+// ddb:920S6:C:R, sbg:67642:0:H, bus:01A00:0:H:f6c.
+$lineRef = '[a-z]{2,5}:[A-Za-z0-9]{1,8}:[A-Za-z0-9]{0,2}(:[HR](:[a-z0-9]{3})?)?';
 $lines = param('lines', "/^($lineRef(,$lineRef){0,15})?$/", '');
 
 // Without an explicit `Exclude`, the provider treats the listed lines as excluded.

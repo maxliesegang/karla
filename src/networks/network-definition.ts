@@ -50,6 +50,22 @@ export type CatalogStop = {
   callCount: number;
 };
 
+/**
+ * Where one operator family's lines run: its operator names in the community colours (`vrn-`), and
+ * the districts (`de:08222`) or whole states (`de:08`) its journeys start and end in.
+ */
+export type OperatorArea = {
+  operators: readonly string[];
+  districts: readonly string[];
+  /** The network's own operators, whose lines take the network's colours. */
+  isHome?: boolean;
+};
+
+/** Other operators' colours by line name without spaces (`RE1`): each with its `OperatorArea` index. */
+export type OtherLineColors = Readonly<
+  Record<string, readonly (readonly [color: string, areaIndex: number])[]>
+>;
+
 export type NetworkDefinition = {
   /** Its folder under `src/networks/` and its `VITE_NETWORK` value. */
   id: string;
@@ -79,6 +95,9 @@ export type NetworkDefinition = {
   nonDailyLineIds: ReadonlySet<string>;
   /** The operator's colour for a line; some names need the mode. */
   getLineColor(lineId: string, mode?: PtMode): string | undefined;
+  /** Operator families around the network, for telling other operators' lines of one name apart. */
+  operatorAreas: readonly OperatorArea[];
+  otherLineColors: OtherLineColors;
   /** The trunk a branch's name is built on (S11 → S1), by the operator's numbering. */
   getLineTrunkId(lineId: string): string | undefined;
   /** Where an address naming no stop or no line lands. */
@@ -94,5 +113,10 @@ export type NetworkDefinition = {
     stopIdPrefix: string;
     bounds: Bounds;
     gtfs: { url: string; publisher: string; licence: string; licenceUrl: string };
+  };
+  /** What `npm run refresh:line-colors` reads: the operator's own GTFS, and community colours. */
+  lineColorSource: {
+    gtfs: { url: string; publisher: string; licence: string };
+    community: { url: string; publisher: string; licence: string };
   };
 };

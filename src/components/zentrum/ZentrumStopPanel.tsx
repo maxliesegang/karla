@@ -1,5 +1,5 @@
 import type { CSSProperties } from "react";
-import { createLineSign } from "../../data/line-signs";
+import { createLineSign, getJourneyEnds } from "../../data/line-signs";
 import type { StopEventBoard } from "../../data/transit-types";
 import {
   type CountdownReading,
@@ -133,7 +133,12 @@ export function ZentrumStopPanel({
                     line={
                       isRailStopEvent(stopEvent)
                         ? getSign(stopEvent.lineId)
-                        : createLineSign(stopEvent.lineId, stopEvent.ptMode)
+                        : createLineSign(
+                            stopEvent.lineId,
+                            stopEvent.ptMode,
+                            stopEvent.lineRef,
+                            getJourneyEnds(stopEvent),
+                          )
                     }
                   />
                   <span className="departure-countdown">

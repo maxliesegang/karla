@@ -5,7 +5,7 @@
  * above and drops back to it on its own, so a departed journey or a stopped line narrows the
  * address instead of breaking it.
  */
-import { getLineFamilyId } from "./lib/line-families";
+import { getLineFamilyId, isNetworkRow } from "./lib/line-families";
 import { network } from "./networks/network";
 import {
   formatLineSelection,
@@ -421,7 +421,9 @@ export function getStopEventOpenPath(
     selection && isSelectedLine(selection, stopEvent)
       ? selection
       : { lineId: stopEvent.lineId, bundledLineIds: [] };
-  if (isPinned) return routePaths.line(lineId, stopId, bundledLineIds, partId);
+  // Another operator's line has no line page.
+  if (isPinned && isNetworkRow(stopEvent))
+    return routePaths.line(lineId, stopId, bundledLineIds, partId);
   const addressId = getStopEventAddressId(stopEvent);
   return selection
     ? routePaths.journey(addressId, lineId, stopId, bundledLineIds, partId)

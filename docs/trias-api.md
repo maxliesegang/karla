@@ -32,13 +32,24 @@ directly (`scripts/trias-direct.ts`).
 - Calls state `ServiceArrival` and `ServiceDeparture` separately, so dwell times are visible.
 - `EstimatedTime` is absent where a call has no prediction. Its presence is not always realtime:
   `ddb:` trains state it even for tomorrow, and `din:` and `frb:` often state it equal to the
-  timetable.
+  timetable (`frb:` 67 of 68 within three hours, 28 October 2026). `kvv:` and `vrn:` state none
+  more than three hours ahead.
+- `PtMode` is `rail` from KVV's S-Bahn to the ICE; `RailSubmode` tells them apart:
+  `suburbanRailway`, `replacementRailService`, `local` and `regionalRail` (RE, RB),
+  `highSpeedRail`, `interregionalRail` and `international` (ICE, IC, EC).
+- A long-distance `PublishedLineName` may be the line (`12`) or the train with its name
+  (`ICE 266 Baden-Kurier`); `Extension` states `TransportTypeName` (`InterCityExpress`) and the
+  train number.
+- `Service` states the journey's `OriginStopPointRef` and `DestinationStopPointRef`.
+- `OperatorRef` is the NVBW GTFS `agency_id` (`ddb:GA` ↔ `ddb-GA`, Arverio); `ddb:00` is all of
+  DB, S-Bahn Stuttgart and S-Bahn Rhein-Neckar alike.
+- No reply states a line colour.
 - `Attribute` carries vehicle notes (`Niederflurwagen`); `Deviation` marks a diverted journey;
   `EstimatedBay` a changed bay; `Extension` the train category and number.
 - Elements are namespaced `trias:` and `siri:`; text values sit in `<Text>` + `<Language>` pairs.
 - Stop names may carry the municipality as a prefix (`KA Marktplatz (Kaiserstraße U)`).
 - A journey's layover is timed through, not ended and restarted.
-- Response times were 50–250 ms for boards and trips, 0.3–5 s for location searches.
+- Response times were 50–250 ms for boards and trip info, 0.3–5 s for location searches.
 
 ## Identities
 
@@ -112,12 +123,17 @@ proxy, and `src/data/trias-parsers.ts` decodes them into the feed model (`src/da
 - A stop is its stop-level DHID (`toStopPointId`). A stop place's board reads each of its stop
   points and joins them (`fetchStopPlaceBoard`); the joined board ends where a full board's rows ran
   out. A part's board reads its stop point alone.
-- Only the network's pools are read (`NetworkScope`); demand-responsive buses are not.
+- Every pool's rows are read; demand-responsive buses are not. Only the network's pools
+  (`NetworkScope`) are observed, credited to serving directions and completed by coverage reads.
+- Rail is `lightRail` (S-Bahn, rail replacement), `regionalRail` or `longDistanceRail` by its
+  submode. A long-distance train is named by category and number (`ICE 377`, `readTrainName`).
 - `JourneyRef` is the journey; split at its last colon, it gives the line ref. A dated journey is
   its `JourneyRef` on its `OperatingDayRef`, which is all a `TripInfoRequest` needs; the asking
   row's own call is found by stop point and timetabled time.
-- `EstimatedTime` is the prediction; its absence means "nach Fahrplan". Delays are the predictions'
-  rounded minutes; times stay to the second.
+- `EstimatedTime` is the prediction; its absence means "nach Fahrplan". An `EstimatedTime` more
+  than three hours ahead is not one, nor one equal to the timetable in `frb:` or `din:`. Delays are
+  the predictions' rounded minutes; times stay to the second, and only `kvv:` and `frb:`
+  predictions count as stated to the second.
 - The network's municipality prefix (`KA `) is removed and the place set to it; other names are
   kept.
 - `Age` from the proxy advances `ResponseTimestamp`, the feed clock.

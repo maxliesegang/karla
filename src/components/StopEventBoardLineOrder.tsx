@@ -1,6 +1,7 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { StopEvent, BayKind } from "../data/transit-types";
 import { classNames } from "../lib/class-names";
+import { isNetworkLineIdentity } from "../lib/line-families";
 import {
   getVehicleAccessLabel,
   getStopEventAccessibilityLabel,
@@ -382,26 +383,36 @@ function LineGroup({
   renderChip: (stopEvent: StopEvent, note: CorridorStopEventNote, isLead: boolean) => ReactNode;
 }) {
   return (
-    <section className="departure-board-line-group" aria-label={`Linie ${group.id}`}>
+    <section className="departure-board-line-group" aria-label={`Linie ${group.line.id}`}>
       <h2>
-        <button
-          type="button"
-          className="stop-line-group-heading"
-          onClick={() => navigateTo(routePaths.line(group.line.id, stopId, [], partId))}
-          aria-label={`Linie ${group.line.id}, Linienverlauf öffnen`}
-          // The band's line colour, mixed toward the ink in CSS.
-          style={{ "--line-color": group.line.color } as CSSProperties}
-        >
-          <LineBadge line={group.line} size="sm" />
-          <span>Linienverlauf</span>
-          <b aria-hidden="true">›</b>
-        </button>
+        {isNetworkLineIdentity(group.line.identity) ? (
+          <button
+            type="button"
+            className="stop-line-group-heading"
+            onClick={() => navigateTo(routePaths.line(group.line.id, stopId, [], partId))}
+            aria-label={`Linie ${group.line.id}, Linienverlauf öffnen`}
+            // The band's line colour, mixed toward the ink in CSS.
+            style={{ "--line-color": group.line.color } as CSSProperties}
+          >
+            <LineBadge line={group.line} size="sm" />
+            <span>Linienverlauf</span>
+            <b aria-hidden="true">›</b>
+          </button>
+        ) : (
+          // Another operator's line has no line page here.
+          <span
+            className="stop-line-group-heading is-static"
+            style={{ "--line-color": group.line.color } as CSSProperties}
+          >
+            <LineBadge line={group.line} size="sm" />
+          </span>
+        )}
       </h2>
       {group.corridors.map((corridor) => (
         <CorridorGroup
           key={corridor.id}
           corridor={corridor}
-          lineId={group.id}
+          lineId={group.line.id}
           boardingPlaces={boardingPlaces}
           columns={columns}
           renderChip={renderChip}

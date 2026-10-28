@@ -6,7 +6,8 @@ import { bayRunByKey } from "./generated/bay-runs";
 import { nonDailyLineIds } from "./generated/line-days";
 import { findCatalogStop, stopCatalog } from "./generated/stop-catalog";
 import { stopPlaces } from "./generated/stop-places";
-import { getKvvLineColor } from "./line-colors";
+import { homeLineColors, otherLineColors } from "./generated/line-colors";
+import { kvvOperatorAreas } from "./operator-areas";
 import { kvvStopPlaceOverrides } from "./stop-place-overrides";
 
 /**
@@ -47,7 +48,10 @@ export const kvvNetwork: NetworkDefinition = {
   bayPositionByKey,
   bayRunByKey,
   nonDailyLineIds,
-  getLineColor: getKvvLineColor,
+  getLineColor: (lineId, mode) =>
+    (mode && homeLineColors[`${lineId}|${mode}`]) || homeLineColors[lineId],
+  operatorAreas: kvvOperatorAreas,
+  otherLineColors,
   /** S11 → S1, S51 → S5. S4 and S41 part north of the city, so it does not mean they run together. */
   getLineTrunkId: (lineId) => lineId.match(/^S\d/)?.[0],
   defaultStopId: "europaplatz",
@@ -80,6 +84,18 @@ export const kvvNetwork: NetworkDefinition = {
       publisher: "NVBW",
       licence: "Datenlizenz Deutschland – Namensnennung 2.0",
       licenceUrl: "https://www.govdata.de/dl-de/by-2-0",
+    },
+  },
+  lineColorSource: {
+    gtfs: {
+      url: "https://projekte.kvv-efa.de/GTFS/google_transit.zip",
+      publisher: "KVV",
+      licence: "CC0 1.0",
+    },
+    community: {
+      url: "https://raw.githubusercontent.com/Traewelling/line-colors/main/line-colors.csv",
+      publisher: "Träwelling line-colors",
+      licence: "CC0 1.0",
     },
   },
 };

@@ -5,6 +5,7 @@ import {
   parseNoticeDetails,
   parseBayKind,
   readOperatingNote,
+  readTrainName,
   readVehicleAccess,
   splitDestination,
 } from "./feed-conventions";
@@ -19,7 +20,7 @@ import {
   type RowCallRef,
 } from "./feed";
 import { network } from "../networks/network";
-import { isWithinScopePools, type NetworkScope } from "./network-scope";
+import { getRefPool } from "./network-scope";
 import type { StopEventStatus, BayKind, PtMode } from "./transit-types";
 import {
   child,
@@ -58,13 +59,35 @@ export function readBay(label: string | undefined): { code?: string; kind?: BayK
   return kind ? { code, kind } : { code: label };
 }
 
+/** Pools that state the timetable as `EstimatedTime` where they have no prediction. */
+const TIMETABLE_ECHO_POOLS = new Set(["frb", "din"]);
+/** Pools that state times to the second; the others state whole minutes. */
+const SECOND_PRECISION_POOLS = new Set(["kvv", "frb"]);
+/** Farther ahead, a stated `EstimatedTime` is the plan (`ddb:` states one for tomorrow). */
+const PREDICTION_HORIZON_MS = 3 * 3_600_000;
+
+/** The journey's pool and the feed's clock, which decide whether an `EstimatedTime` predicts. */
+type PredictionContext = { pool?: string; serverNow: number };
+
+const isPrediction = (
+  { pool, serverNow }: PredictionContext,
+  timetabled: number,
+  estimated: number,
+) =>
+  timetabled - serverNow <= PREDICTION_HORIZON_MS &&
+  !(pool && TIMETABLE_ECHO_POOLS.has(pool) && estimated === timetabled);
+
 type ServiceTime = { timetabled: string; estimated?: string; delayMinutes?: number };
 
-function readServiceTime(element: XmlElement | undefined): ServiceTime | undefined {
+function readServiceTime(
+  element: XmlElement | undefined,
+  context: PredictionContext,
+): ServiceTime | undefined {
   const timetabled = Date.parse(textAt(element, "TimetabledTime") ?? "");
   if (!Number.isFinite(timetabled)) return undefined;
   const estimated = Date.parse(textAt(element, "EstimatedTime") ?? "");
-  if (!Number.isFinite(estimated)) return { timetabled: new Date(timetabled).toISOString() };
+  if (!Number.isFinite(estimated) || !isPrediction(context, timetabled, estimated))
+    return { timetabled: new Date(timetabled).toISOString() };
   return {
     timetabled: new Date(timetabled).toISOString(),
     estimated: new Date(estimated).toISOString(),
@@ -73,14 +96,18 @@ function readServiceTime(element: XmlElement | undefined): ServiceTime | undefin
 }
 
 /** A call, from a board's `CallAtStop` or a journey's bare call element. */
-function parseCall(element: XmlElement | undefined, isThisCall: boolean): FeedCall | null {
+function parseCall(
+  element: XmlElement | undefined,
+  isThisCall: boolean,
+  context: PredictionContext,
+): FeedCall | null {
   const call = child(element, "CallAtStop") ?? element;
   const name = textAt(call, "StopPointName", "Text");
   if (!call || !name) return null;
   const ref = textAt(call, "StopPointRef");
   const bayText = textAt(call, "EstimatedBay", "Text") ?? textAt(call, "PlannedBay", "Text");
-  const arrival = readServiceTime(child(call, "ServiceArrival"));
-  const departure = readServiceTime(child(call, "ServiceDeparture"));
+  const arrival = readServiceTime(child(call, "ServiceArrival"), context);
+  const departure = readServiceTime(child(call, "ServiceDeparture"), context);
   const delayMinutes = departure?.delayMinutes ?? arrival?.delayMinutes;
   return {
     ...readStopName(name),
@@ -98,11 +125,23 @@ function parseCall(element: XmlElement | undefined, isThisCall: boolean): FeedCa
   };
 }
 
-/** The local network's modes; demand-responsive buses are not read. */
+const LONG_DISTANCE_RAIL_SUBMODES = new Set([
+  "highSpeedRail",
+  "interregionalRail",
+  "international",
+]);
+const REGIONAL_RAIL_SUBMODES = new Set(["local", "regionalRail"]);
+
+/** The rider's modes; demand-responsive buses are not read. S-Bahn and rail replacement stay `lightRail`. */
 function parsePtMode(mode: XmlElement | undefined): PtMode | undefined {
   const ptMode = textAt(mode, "PtMode");
   if (ptMode === "tram") return "tram";
-  if (ptMode === "rail" || ptMode === "urbanRail" || ptMode === "metro") return "lightRail";
+  if (ptMode === "rail") {
+    const submode = textAt(mode, "RailSubmode") ?? "";
+    if (LONG_DISTANCE_RAIL_SUBMODES.has(submode)) return "longDistanceRail";
+    return REGIONAL_RAIL_SUBMODES.has(submode) ? "regionalRail" : "lightRail";
+  }
+  if (ptMode === "urbanRail" || ptMode === "metro") return "lightRail";
   if (ptMode === "bus" && textAt(mode, "BusSubmode") !== "demandAndResponseBus") return "bus";
   return undefined;
 }
@@ -169,22 +208,33 @@ function parseStopEvent(
   event: XmlElement,
   eventKind: "departure" | "arrival",
   serverNow: number,
-  scope: NetworkScope,
 ): FeedStopEvent | null {
   const service = child(event, "Service");
   const section = child(service, "ServiceSection");
   const journeyRef = textAt(service, "JourneyRef");
   const lineRef = journeyRef && readLineRef(journeyRef);
-  const lineId = textAt(section, "PublishedLineName", "Text");
+  const publishedLineName = textAt(section, "PublishedLineName", "Text");
   const destinationText = textAt(service, "DestinationText", "Text");
   const ptMode = parsePtMode(child(section, "Mode"));
-  if (!journeyRef || !lineRef || !lineId || !destinationText || !ptMode) return null;
-  if (!isWithinScopePools(scope, journeyRef)) return null;
+  if (!journeyRef || !lineRef || !publishedLineName || !destinationText || !ptMode) return null;
+  const publishedJourneyNumber = textAt(event, "Extension", "PublishedJourneyNumber", "Text");
+  const lineId =
+    ptMode === "longDistanceRail"
+      ? readTrainName(
+          publishedLineName,
+          textAt(event, "Extension", "TransportTypeName", "Text"),
+          publishedJourneyNumber,
+        )
+      : publishedLineName;
+  const pool = getRefPool(journeyRef);
+  const context = { pool, serverNow };
 
-  const thisCall = parseCall(child(event, "ThisCall"), true);
+  const thisCall = parseCall(child(event, "ThisCall"), true, context);
   if (!thisCall?.stopPointId) return null;
-  const before = childrenNamed(event, "PreviousCall").map((call) => parseCall(call, false));
-  const after = childrenNamed(event, "OnwardCall").map((call) => parseCall(call, false));
+  const before = childrenNamed(event, "PreviousCall").map((call) =>
+    parseCall(call, false, context),
+  );
+  const after = childrenNamed(event, "OnwardCall").map((call) => parseCall(call, false, context));
   const calls =
     before.length + after.length > 0
       ? [...before, thisCall, ...after].filter((call): call is FeedCall => call !== null)
@@ -208,6 +258,8 @@ function parseStopEvent(
   );
   const [destination, destinationNote] = splitDestination(destinationText);
   const bay = readBay(thisCall.bayText);
+  const origin = textAt(service, "OriginStopPointRef");
+  const end = textAt(service, "DestinationStopPointRef");
 
   return {
     stopPointId: thisCall.stopPointId,
@@ -216,11 +268,13 @@ function parseStopEvent(
     ...(operatingDayRef
       ? { operatingDayRef, datedJourneyId: getDatedJourneyId({ journeyRef, operatingDayRef }) }
       : {}),
-    publishedJourneyNumber: textAt(event, "Extension", "PublishedJourneyNumber", "Text"),
+    publishedJourneyNumber,
     lineId,
     lineRef,
     ptMode,
     destinationText: destination,
+    ...(origin ? { originStopPointId: toStopPointId(origin) } : {}),
+    ...(end ? { destinationStopPointId: toStopPointId(end) } : {}),
     minutesUntilDeparture: countClockMinutes(serverNow, expected),
     delayMinutes: estimatedDepartureTime ? Math.round((expected - timetabled) / 60_000) : undefined,
     bay: bay.code ?? "",
@@ -228,7 +282,9 @@ function parseStopEvent(
     status: parseStatus(service, estimatedDepartureTime !== undefined),
     timetabledDepartureTime,
     estimatedDepartureTime,
-    ...(estimatedDepartureTime ? { isEstimatedToTheSecond: true } : {}),
+    ...(estimatedDepartureTime && pool && SECOND_PRECISION_POOLS.has(pool)
+      ? { isEstimatedToTheSecond: true }
+      : {}),
     serviceNote: joinServiceNotes(destinationNote, readOperatingNote(remarks)),
     vehicleAccess: readVehicleAccess(remarks),
     calls,
@@ -243,7 +299,6 @@ export function parseTriasStopEvents(
   xml: string,
   stopPointId: string,
   eventKind: "departure" | "arrival" = "departure",
-  scope: NetworkScope = network.scope,
 ): FeedStopEventBoard {
   const description = `Abfahrtstafel ${stopPointId}`;
   const { serverTime, response } = readDelivery(xml, description, "StopEventResponse");
@@ -257,7 +312,7 @@ export function parseTriasStopEvents(
   const serverNow = Date.parse(serverTime);
   const stopEvents = childrenNamed(response, "StopEventResult")
     .map((result) => child(result, "StopEvent"))
-    .flatMap((event) => (event ? (parseStopEvent(event, eventKind, serverNow, scope) ?? []) : []));
+    .flatMap((event) => (event ? (parseStopEvent(event, eventKind, serverNow) ?? []) : []));
   return {
     stopPointId,
     stopName: stopEvents[0]?.stopPointName ?? "",
@@ -367,10 +422,11 @@ export function parseTriasTripInfo(
     throw new TriasError(`${description}: nicht gefunden`);
   }
 
+  const context = { pool: getRefPool(journey.journeyRef), serverNow: Date.parse(serverTime) };
   const calls = [
     ...childrenNamed(result, "PreviousCall"),
     ...childrenNamed(result, "OnwardCall"),
-  ].flatMap((element) => parseCall(element, false) ?? []);
+  ].flatMap((element) => parseCall(element, false, context) ?? []);
   if (calls.length === 0) throw new TriasError(`${description}: keine Halte`);
   const rowCallIndex = rowCall ? findRowCallIndex(calls, rowCall) : -1;
   if (rowCallIndex >= 0) calls[rowCallIndex].isThisCall = true;

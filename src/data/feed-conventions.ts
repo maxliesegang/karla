@@ -1,4 +1,4 @@
-/** How KVV words its data in the feed. */
+/** How the feed words its data. */
 import { EXCEPTIONAL_OPERATION_WORDS } from "./operational-exceptions";
 import type { BayKind, VehicleAccess } from "./transit-types";
 
@@ -137,4 +137,33 @@ function decodeHtmlEntities(text: string): string {
     }
     return HTML_ENTITIES[entity] ?? match;
   });
+}
+
+/** Train categories by the feed's `TransportTypeName`. */
+const TRAIN_CATEGORY_BY_TYPE: Readonly<Record<string, string>> = {
+  InterCityExpress: "ICE",
+  InterCity: "IC",
+  EuroCity: "EC",
+  "EuroCity-Express": "ECE",
+  EuroNight: "EN",
+  Nightjet: "NJ",
+  Railjet: "RJ",
+  TGV: "TGV",
+  "TGV Duplex": "TGV",
+  FlixTrain: "FLX",
+};
+
+/**
+ * A long-distance train by category and number (`ICE 377`). The published name may be the line
+ * (`12`) or carry the train's name (`ICE 266 Baden-Kurier`).
+ */
+export function readTrainName(
+  publishedLineName: string,
+  transportTypeName: string | undefined,
+  journeyNumber: string | undefined,
+): string {
+  const category =
+    (transportTypeName && TRAIN_CATEGORY_BY_TYPE[transportTypeName]) ??
+    /^([A-Z]+)\s/.exec(publishedLineName)?.[1];
+  return category && journeyNumber ? `${category} ${journeyNumber}` : publishedLineName;
 }

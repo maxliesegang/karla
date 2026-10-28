@@ -1,4 +1,5 @@
 import type { StopEvent, StopEventBoard, Call } from "./transit-types";
+import { isNetworkRow } from "../lib/line-families";
 import {
   buildObservedNetworkFromJourneys,
   type ObservedNetwork,
@@ -76,6 +77,8 @@ export class ObservedNetworkStore {
   rememberJourneys(stopEvents: readonly StopEvent[], now = Date.now()): void {
     let changed = false;
     for (const stopEvent of stopEvents) {
+      // The network is its own lines; other operators' rows show on boards only.
+      if (!isNetworkRow(stopEvent)) continue;
       const topology = toTopology(stopEvent);
       if (!topology) continue;
       const key = getTopologyKey(topology);

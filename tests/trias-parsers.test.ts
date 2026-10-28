@@ -228,10 +228,17 @@ test("a cancelled trip says so", () => {
   assert.equal(row.status, "cancelled");
 });
 
-test("only the local network's lines are read", () => {
+test("a board keeps every pool's rows; demand-responsive buses are not read", () => {
   const board = parseTriasStopEvents(
     triasStopEvents(RESPONDED_AT, [
-      triasStopEvent({ current: MARKTPLATZ, service: { journeyRef: "ddb:90T01::H:j26:194" } }),
+      triasStopEvent({
+        current: MARKTPLATZ,
+        service: {
+          journeyRef: "ddb:90T01::H:j26:194",
+          lineName: "RE 1",
+          submode: "<trias:RailSubmode>local</trias:RailSubmode>",
+        },
+      }),
       triasStopEvent({
         current: MARKTPLATZ,
         service: {
@@ -253,8 +260,98 @@ test("only the local network's lines are read", () => {
   );
   assert.deepEqual(
     board.stopEvents.map(({ lineId, ptMode }) => [lineId, ptMode]),
-    [["2", "tram"]],
+    [
+      ["RE 1", "regionalRail"],
+      ["2", "tram"],
+    ],
   );
+});
+
+test("rail splits by submode: S-Bahn and replacement stay light rail", () => {
+  const modeOf = (submode: string) =>
+    parseTriasStopEvents(
+      triasStopEvents(RESPONDED_AT, [
+        triasStopEvent({
+          current: MARKTPLATZ,
+          service: { submode: `<trias:RailSubmode>${submode}</trias:RailSubmode>` },
+        }),
+      ]),
+      "de:08212:1003",
+    ).stopEvents[0].ptMode;
+  assert.equal(modeOf("suburbanRailway"), "lightRail");
+  assert.equal(modeOf("replacementRailService"), "lightRail");
+  assert.equal(modeOf("local"), "regionalRail");
+  assert.equal(modeOf("regionalRail"), "regionalRail");
+  assert.equal(modeOf("highSpeedRail"), "longDistanceRail");
+  assert.equal(modeOf("interregionalRail"), "longDistanceRail");
+});
+
+test("a long-distance train is named by category and number", () => {
+  const nameOf = (lineName: string, transportType: string, journeyNumber: string) =>
+    parseTriasStopEvents(
+      triasStopEvents(RESPONDED_AT, [
+        triasStopEvent({
+          current: MARKTPLATZ,
+          service: {
+            journeyRef: "ddb:98012::R:j26:138",
+            lineName,
+            submode: "<trias:RailSubmode>highSpeedRail</trias:RailSubmode>",
+          },
+          transportType,
+          journeyNumber,
+        }),
+      ]),
+      "de:08212:90",
+    ).stopEvents[0].lineId;
+  assert.equal(nameOf("12", "InterCityExpress", "377"), "ICE 377");
+  assert.equal(nameOf("ICE 266 Baden-Kurier", "Baden-Kurier", "266"), "ICE 266");
+  assert.equal(nameOf("TGD 9530", "TGV Duplex", "9530"), "TGV 9530");
+});
+
+test("a row states where its journey starts and ends, as stop points", () => {
+  const [row] = parseTriasStopEvents(
+    triasStopEvents(RESPONDED_AT, [
+      triasStopEvent({
+        current: MARKTPLATZ,
+        service: {
+          journeyRef: "ddb:920S3:D:R:j26:530",
+          origin: "de:07334:1714:1:1",
+          end: "de:08221:1160:2:2",
+        },
+      }),
+    ]),
+    "de:08212:90",
+  ).stopEvents;
+  assert.equal(row.originStopPointId, "de:07334:1714");
+  assert.equal(row.destinationStopPointId, "de:08221:1160");
+});
+
+test("an estimate counts as a prediction only where the pool predicts", () => {
+  const read = (journeyRef: string, departure: { timetabled: string; estimated: string }) =>
+    parseTriasStopEvents(
+      triasStopEvents(RESPONDED_AT, [
+        triasStopEvent({ current: { ...MARKTPLATZ, departure }, service: { journeyRef } }),
+      ]),
+      "de:08212:1003",
+    ).stopEvents[0];
+
+  const soon = { timetabled: "2026-10-17T21:30:00Z", estimated: "2026-10-17T21:32:00Z" };
+  const kvv = read("kvv:22305:E:R:s26:1762", soon);
+  assert.equal(kvv.status, "realtime");
+  assert.equal(kvv.isEstimatedToTheSecond, true);
+  // Whole minutes outside the pools that state seconds.
+  const ddb = read("ddb:920S3:D:R:j26:530", soon);
+  assert.equal(ddb.delayMinutes, 2);
+  assert.equal(ddb.isEstimatedToTheSecond, undefined);
+
+  // `ddb:` states an estimate for tomorrow: the plan, not a prediction.
+  const tomorrow = { timetabled: "2026-10-18T07:00:00Z", estimated: "2026-10-18T07:00:00Z" };
+  assert.equal(read("ddb:920S3:D:R:j26:530", tomorrow).status, "scheduled");
+  // `frb:` restates the timetable where it predicts nothing.
+  const echo = { timetabled: "2026-10-17T21:30:00Z", estimated: "2026-10-17T21:30:00Z" };
+  assert.equal(read("frb:11004:I:H:j26:1", echo).status, "scheduled");
+  assert.equal(read("frb:11004:I:H:j26:1", soon).status, "realtime");
+  assert.equal(read("kvv:22305:E:R:s26:1762", echo).status, "realtime");
 });
 
 test("an arrival board times its rows by the arrival", () => {

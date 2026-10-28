@@ -34,6 +34,9 @@ export type TriasService = {
   destination?: string;
   attributes?: string[];
   cancelled?: boolean;
+  /** The journey's first and last stop points. */
+  origin?: string;
+  end?: string;
 };
 
 export const triasService = ({
@@ -45,15 +48,19 @@ export const triasService = ({
   destination = "Pforzheim Hauptbahnhof",
   attributes = ["Stufenloses Fahrzeug, WLAN"],
   cancelled = false,
+  origin,
+  end,
 }: TriasService = {}) =>
   `<trias:Service><trias:OperatingDayRef>${operatingDay}</trias:OperatingDayRef><trias:JourneyRef>${journeyRef}</trias:JourneyRef><trias:ServiceSection><trias:LineRef>${journeyRef.split(":").slice(0, 4).join(":")}</trias:LineRef><trias:DirectionRef>inward</trias:DirectionRef><trias:Mode><trias:PtMode>${ptMode}</trias:PtMode>${submode}</trias:Mode><trias:PublishedLineName>${text(lineName)}</trias:PublishedLineName></trias:ServiceSection>${attributes
     .map(
       (attribute) =>
         `<trias:Attribute><trias:Text>${text(attribute)}</trias:Text><trias:Code>41</trias:Code></trias:Attribute>`,
     )
-    .join(
-      "",
-    )}${cancelled ? "<trias:Cancelled>true</trias:Cancelled>" : ""}<trias:DestinationText>${text(destination)}</trias:DestinationText></trias:Service>`;
+    .join("")}${cancelled ? "<trias:Cancelled>true</trias:Cancelled>" : ""}${
+    origin ? `<trias:OriginStopPointRef>${origin}</trias:OriginStopPointRef>` : ""
+  }${
+    end ? `<trias:DestinationStopPointRef>${end}</trias:DestinationStopPointRef>` : ""
+  }<trias:DestinationText>${text(destination)}</trias:DestinationText></trias:Service>`;
 
 export type TriasStopEvent = {
   previous?: TriasCall[];
@@ -61,6 +68,7 @@ export type TriasStopEvent = {
   onward?: TriasCall[];
   service?: TriasService;
   journeyNumber?: string;
+  transportType?: string;
 };
 
 export const triasStopEvent = ({
@@ -69,6 +77,7 @@ export const triasStopEvent = ({
   onward = [],
   service,
   journeyNumber,
+  transportType,
 }: TriasStopEvent) =>
   `<trias:StopEventResult><trias:ResultId>ID-1</trias:ResultId><trias:StopEvent>${previous
     .map(
@@ -83,8 +92,16 @@ export const triasStopEvent = ({
         `<trias:OnwardCall><trias:CallAtStop>${triasCall(call)}</trias:CallAtStop></trias:OnwardCall>`,
     )
     .join("")}${triasService(service)}${
-    journeyNumber
-      ? `<trias:Extension><trias:PublishedJourneyNumber><trias:Text xml:lang="de">${journeyNumber}</trias:Text></trias:PublishedJourneyNumber></trias:Extension>`
+    journeyNumber || transportType
+      ? `<trias:Extension>${
+          transportType
+            ? `<trias:TransportTypeName><trias:Text xml:lang="de">${transportType}</trias:Text></trias:TransportTypeName>`
+            : ""
+        }${
+          journeyNumber
+            ? `<trias:PublishedJourneyNumber><trias:Text xml:lang="de">${journeyNumber}</trias:Text></trias:PublishedJourneyNumber>`
+            : ""
+        }</trias:Extension>`
       : ""
   }</trias:StopEvent></trias:StopEventResult>`;
 
