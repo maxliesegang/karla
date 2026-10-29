@@ -144,6 +144,7 @@ export default function App() {
     selection: {
       stopId: selection.stopId,
       lineId: selection.selectedLine?.id,
+      lineIdentity: selection.selectedLine?.identity,
       addressId: selection.selectedStopEvent && getStopEventAddressId(selection.selectedStopEvent),
       hasSelectedStopEvent: Boolean(selection.selectedStopEvent),
       isRide: selection.isRide,
@@ -398,6 +399,7 @@ export default function App() {
                             stopId: selection.stopId,
                             partId: selection.stopPlacePart?.id,
                             lineId: selection.selectedLine?.id,
+                            lineIdentity: selection.selectedLine?.identity,
                             bundledLineIds,
                             addressId: route.addressId,
                             journeyParent: route.journeyParent,
@@ -439,6 +441,7 @@ export default function App() {
                       stopId: selection.stopId,
                       partId,
                       lineId: selection.selectedLine?.id,
+                      lineIdentity: selection.selectedLine?.identity,
                       bundledLineIds: selection.lineSelection.bundledLineIds,
                       addressId: route.addressId,
                       journeyParent: route.journeyParent,

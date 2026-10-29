@@ -8,6 +8,7 @@ import type {
 } from "../src/data/transit-types.ts";
 import { parseRoute } from "../src/routing.ts";
 import { findBundledLines, findSelectedLine } from "../src/selected-line.ts";
+import { createStopEvent } from "./support/fixtures.ts";
 
 const JOURNEY = "kvv:22302:E:H:s26:946";
 const network = { lines: [] } as unknown as TransitNetwork;
@@ -53,6 +54,37 @@ test("a journey of another pool's line of the same name is not that line", () =>
   const line = findSelectedLine(route, networkWithS2, [], liveBoard([]), undefined, undefined);
 
   assert.equal(line, undefined);
+});
+
+test("a line address's journey of another pool's line of that name is that pool's line", () => {
+  const route = parseRoute("#/stop/stuttgart/line/S2/journey/ddb:920S2:C:R:j26:12");
+  const ownStopEvent = createStopEvent({
+    id: "ddb:920S2:C:R:j26:12",
+    lineId: "S2",
+    lineRef: "ddb:920S2:C:R:j26",
+    ptMode: "regionalRail",
+  });
+
+  const line = findSelectedLine(
+    route,
+    networkWithS2,
+    [ownStopEvent],
+    liveBoard([ownStopEvent]),
+    S2,
+    ownStopEvent,
+  );
+
+  assert.equal(line?.id, "S2");
+  assert.equal(line?.identity, "ddb:920S2");
+});
+
+test("a line address's journey of another pool keeps that pool's line once it has left the stop", () => {
+  const route = parseRoute("#/stop/stuttgart/line/S2/journey/ddb:920S2:C:R:j26:12");
+
+  const line = findSelectedLine(route, networkWithS2, [], liveBoard([]), S2, undefined);
+
+  assert.equal(line?.id, "S2");
+  assert.equal(line?.identity, "ddb:920S2");
 });
 
 test("without a journey the bare stop names no line", () => {

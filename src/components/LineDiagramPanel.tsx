@@ -185,12 +185,13 @@ export function LineDiagramPanel({
                 getSelectionPath({
                   stopId,
                   lineId: line.id,
+                  lineIdentity: line.identity,
                   bundledLineIds: (bundledLines ?? []).map(({ id }) => id),
                   addressId: stopEvent && getStopEventAddressId(stopEvent),
                 }),
               ),
           },
-    [bundledLines, stopEvent, isRide, line.id, onToggleAlighting],
+    [bundledLines, stopEvent, isRide, line.id, line.identity, onToggleAlighting],
   );
   // One leg; past the junction its vehicles are this line's alone.
   const renderBranch = (branch: LineBundleBranch, index: number) => {
@@ -223,6 +224,7 @@ export function LineDiagramPanel({
             getSelectionPath({
               stopId,
               lineId: branch.lineId,
+              lineIdentity: branchLine.identity,
               addressId:
                 stopEvent && stopEvent.lineId === branch.lineId
                   ? getStopEventAddressId(stopEvent)
@@ -279,6 +281,8 @@ export function LineDiagramPanel({
                           line.id,
                           stop.id,
                           (bundledLines ?? []).map(({ id }) => id),
+                          undefined,
+                          line.identity,
                         ),
                       )
                   : undefined

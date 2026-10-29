@@ -1,5 +1,5 @@
 import type { StopEvent, StopEventBoard, PtMode, Call, TransitLine } from "../data/transit-types";
-import { compareLines } from "./network-lines";
+import { compareLines, isNetworkLineIdentity } from "./network-lines";
 import { getLineIdentity, isRowOfLine, type LineNaming } from "./line-identity";
 import { findStopCorridorPattern, type StopCorridorPatterns } from "./stop-corridor-patterns";
 import {
@@ -90,20 +90,39 @@ export function getResolvedBundledLineIds(
   );
 }
 
-/** A line path segment. Duplicate or empty ids are dropped, since the segment is hand-editable. */
+/** Before another operator's line identity in a line segment (`S1@ddb:920S1`). */
+const LINE_IDENTITY_SEPARATOR = "@";
+const LINE_IDENTITY_PATTERN = /^[a-z]+:[A-Za-z0-9]+$/;
+
+/**
+ * A line path segment. Duplicate or empty ids are dropped, since the segment is hand-editable. Only
+ * the addressed line carries an identity; siblings are the network's.
+ */
 export function parseLineSelection(segment: string): LineSelection {
-  const [lineId = "", ...rest] = segment
+  const [primary = "", ...rest] = segment
     .split(LINE_BUNDLE_SEPARATOR)
     .map((id) => id.trim())
     .filter(Boolean);
+  const [lineId = "", identity] = primary.split(LINE_IDENTITY_SEPARATOR);
   const bundledLineIds = [...new Set(rest)]
-    .filter((id) => id !== lineId)
+    .filter((id) => id !== lineId && !id.includes(LINE_IDENTITY_SEPARATOR))
     .slice(0, MAX_BUNDLED_LINES);
-  return { lineId, bundledLineIds };
+  return createLineSelection(
+    lineId,
+    bundledLineIds,
+    identity && LINE_IDENTITY_PATTERN.test(identity) ? new Map([[lineId, identity]]) : undefined,
+  );
 }
 
-export const formatLineSelection = (selection: LineSelection): string =>
-  getLineSelectionIds(selection).join(LINE_BUNDLE_SEPARATOR);
+/** The network's lines go by name alone; another operator's line adds its identity. */
+export function formatLineSelection(selection: LineSelection): string {
+  if (!selection.lineId) return "";
+  const identity = getSelectedLineIdentity(selection, selection.lineId);
+  const primary = isNetworkLineIdentity(identity)
+    ? selection.lineId
+    : `${selection.lineId}${LINE_IDENTITY_SEPARATOR}${identity}`;
+  return [primary, ...selection.bundledLineIds].join(LINE_BUNDLE_SEPARATOR);
+}
 
 /** A sibling worth offering, and the stretches the offer could cover. */
 export type LineBundleOffer = {

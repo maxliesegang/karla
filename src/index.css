@@ -4836,11 +4836,6 @@ button.line-diagram-bundle-option:focus-visible {
   background: color-mix(in srgb, var(--heading-tint) 15%, var(--surface));
   transition-duration: 0s;
 }
-/* Another operator's line: a label, not a way anywhere. */
-.stop-line-group-heading.is-static {
-  cursor: default;
-  background: transparent;
-}
 
 /* ---------- Network ----------
    The line index, read in the modes the network is made of: a band per mode, the rows of that

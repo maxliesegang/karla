@@ -77,6 +77,29 @@ test("two lines read over the stretch they share are one address, and stay two l
   );
 });
 
+test("another operator's journey steps back to its own line, and the address keeps its identity", () => {
+  const route = parseRoute(
+    "#/stop/stuttgart/line/S1@ddb:920S1/journey/ddb:920S1:D:H:j26:522/2026-10-29",
+  );
+  assert.equal(route.lineId, "S1");
+  assert.equal(route.lineIdentity, "ddb:920S1");
+  assert.equal(
+    getParentSelectionPath({
+      view: "stop",
+      stopId: "stuttgart",
+      lineId: "S1",
+      lineIdentity: "ddb:920S1",
+      addressId: route.addressId,
+    }),
+    "/stop/stuttgart/line/S1@ddb:920S1",
+  );
+  // The network's own lines keep their short address.
+  assert.equal(
+    routePaths.line("S1", "stuttgart", [], undefined, "kvv:22301"),
+    "/stop/stuttgart/line/S1",
+  );
+});
+
 test("a row tapped inside a bundle stays inside it, and any other row leaves it", () => {
   const row = (lineId: string) =>
     ({ id: "row", datedJourneyId: JOURNEY, lineId, lineRef: `kvv:${lineId}` }) as Parameters<

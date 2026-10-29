@@ -35,6 +35,8 @@ export type ResolvedViewSelection = {
   stopId: string;
   /** The line resolving at the stop, which makes a stop view a line view. */
   lineId: string | undefined;
+  /** That line's identity; only another operator's line shows it in the address. */
+  lineIdentity?: string;
   /** The resolved dated journey's address. */
   addressId: string | undefined;
   hasSelectedStopEvent: boolean;
@@ -160,6 +162,7 @@ function getBackPath(
     view: route.view,
     stopId: selection.stopId,
     lineId: selection.lineId,
+    lineIdentity: selection.lineIdentity,
     addressId: selection.addressId,
     journeyParent: route.journeyParent,
     isRide: isRideInView,

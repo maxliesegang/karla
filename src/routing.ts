@@ -5,11 +5,13 @@
  * above and drops back to it on its own, so a departed journey or a stopped line narrows the
  * address instead of breaking it.
  */
-import { isNetworkRow } from "./lib/network-lines";
+import { getLineIdentity } from "./lib/line-identity";
 import { network } from "./networks/network";
 import { getDatedJourneyId, isOperatingDayRef, parseDatedJourneyId } from "./data/feed";
 import {
+  createLineSelection,
   formatLineSelection,
+  getSelectedLineIdentity,
   isSelectedLine,
   parseLineSelection,
   type LineSelection,
@@ -38,12 +40,32 @@ const DEFAULT_LINE_ID = network.defaultLineId;
  * The line segment: one line or a bundle (`line/2`, `line/S1+S11`). A bundle is a view of several
  * lines, never a line of its own.
  */
-function getLinePathSegment(lineId: string, bundledLineIds: readonly string[] = []): string {
-  return formatLineSelection({
-    lineId,
-    // A line does not appear twice in the address.
-    bundledLineIds: bundledLineIds.filter((id) => id !== lineId),
-  });
+function getLinePathSegment(
+  lineId: string,
+  bundledLineIds: readonly string[] = [],
+  lineIdentity?: string,
+): string {
+  return formatLineSelection(
+    createLineSelection(
+      lineId,
+      // A line does not appear twice in the address.
+      bundledLineIds.filter((id) => id !== lineId),
+      lineIdentity ? new Map([[lineId, lineIdentity]]) : undefined,
+    ),
+  );
+}
+
+/** A line segment as the route holds it: the addressed line's identity beside its name. */
+function parseLineRoute(
+  segment: string,
+): Pick<AppRoute, "lineId" | "bundledLineIds" | "lineIdentity"> {
+  const selection = parseLineSelection(segment);
+  const lineIdentity = getSelectedLineIdentity(selection, selection.lineId);
+  return {
+    lineId: selection.lineId,
+    bundledLineIds: selection.bundledLineIds,
+    ...(lineIdentity ? { lineIdentity } : {}),
+  };
 }
 
 /**
@@ -57,6 +79,8 @@ export type AppRoute = {
   partId: string;
   /** Line selected at the stop; empty when the stop alone is in view. */
   lineId: string;
+  /** Another operator's line's identity (`line/S1@ddb:920S1`); the network's lines go by name. */
+  lineIdentity?: string;
   /** Sibling lines the rider chose to read with it (`line/S1+S11`). */
   bundledLineIds: readonly string[];
   /**
@@ -164,7 +188,7 @@ function parseStopRoute(segments: readonly string[]): AppRoute {
     view: "stop",
     stopId,
     partId,
-    ...parseLineSelection(rest[0] || DEFAULT_LINE_ID),
+    ...parseLineRoute(rest[0] || DEFAULT_LINE_ID),
     addressId: isJourney ? parseJourneySegments(rest.slice(2)).addressId : undefined,
     journeyParent: isJourney ? "line" : undefined,
   };
@@ -219,7 +243,7 @@ export function parseRoute(hash: string): AppRoute {
         ...defaultRoute,
         view: "stop",
         stopId: "",
-        ...parseLineSelection(rest[0] || DEFAULT_LINE_ID),
+        ...parseLineRoute(rest[0] || DEFAULT_LINE_ID),
       };
     case "journey": {
       // A ride: the journey alone, optionally with `/from/:stopId` and `/to/:stopId`.
@@ -282,8 +306,9 @@ export const routePaths = {
     stopId?: string,
     bundledLineIds: readonly string[] = [],
     partId?: string,
+    lineIdentity?: string,
   ) => {
-    const id = getLinePathSegment(lineId, bundledLineIds);
+    const id = getLinePathSegment(lineId, bundledLineIds, lineIdentity);
     // Without a stop the shell supplies one.
     return stopId ? `${routePaths.stop(stopId, partId)}/line/${id}` : `/line/${id}`;
   },
@@ -293,8 +318,9 @@ export const routePaths = {
     stopId: string,
     bundledLineIds: readonly string[] = [],
     partId?: string,
+    lineIdentity?: string,
   ) =>
-    `${routePaths.stop(stopId, partId)}/line/${getLinePathSegment(lineId, bundledLineIds)}${formatJourneyPath(addressId)}`,
+    `${routePaths.stop(stopId, partId)}/line/${getLinePathSegment(lineId, bundledLineIds, lineIdentity)}${formatJourneyPath(addressId)}`,
   /** A journey from the plain stop board; its line is inferred from the departure. */
   journeyAtStop: (addressId: string, stopId: string, partId?: string) =>
     `${routePaths.stop(stopId, partId)}${formatJourneyPath(addressId)}`,
@@ -324,6 +350,8 @@ export type SelectionAddress = {
   /** The part of the stop the board is read at. */
   partId?: string;
   lineId?: string;
+  /** That line's identity; only another operator's line shows it in the address. */
+  lineIdentity?: string;
   /** Siblings read with that line. */
   bundledLineIds?: readonly string[];
   addressId?: string;
@@ -341,6 +369,7 @@ export function getSelectionPath({
   stopId,
   partId,
   lineId,
+  lineIdentity,
   bundledLineIds,
   addressId,
   journeyParent,
@@ -357,8 +386,8 @@ export function getSelectionPath({
     return routePaths.journeyAtStop(addressId, stopId, partId);
   }
   return addressId
-    ? routePaths.journey(addressId, lineId, stopId, bundledLineIds, partId)
-    : routePaths.line(lineId, stopId, bundledLineIds, partId);
+    ? routePaths.journey(addressId, lineId, stopId, bundledLineIds, partId, lineIdentity)
+    : routePaths.line(lineId, stopId, bundledLineIds, partId, lineIdentity);
 }
 
 /**
@@ -370,6 +399,7 @@ export function getParentSelectionPath({
   stopId,
   partId,
   lineId,
+  lineIdentity,
   bundledLineIds,
   addressId,
   journeyParent,
@@ -382,12 +412,14 @@ export function getParentSelectionPath({
   if (isRide) {
     if (!originStopId) return routePaths.home();
     return addressId && lineId
-      ? routePaths.journey(addressId, lineId, originStopId, bundledLineIds)
+      ? routePaths.journey(addressId, lineId, originStopId, bundledLineIds, undefined, lineIdentity)
       : routePaths.stop(originStopId);
   }
   // The bundle belongs to the line level and survives unpinning a journey.
   if (addressId && journeyParent === "stop") return routePaths.stop(stopId, partId);
-  if (addressId && lineId) return routePaths.line(lineId, stopId, bundledLineIds, partId);
+  if (addressId && lineId) {
+    return routePaths.line(lineId, stopId, bundledLineIds, partId, lineIdentity);
+  }
   if (lineId) return routePaths.stop(stopId, partId);
   return routePaths.home();
 }
@@ -416,12 +448,14 @@ export function getStopEventOpenPath(
     selection && isSelectedLine(selection, stopEvent)
       ? selection
       : { lineId: stopEvent.lineId, bundledLineIds: [] };
-  // Another operator's line has no line page.
-  if (isPinned && isNetworkRow(stopEvent))
-    return routePaths.line(lineId, stopId, bundledLineIds, partId);
+  const lineIdentity =
+    lineId === stopEvent.lineId
+      ? getLineIdentity(stopEvent.lineRef)
+      : selection && getSelectedLineIdentity(selection, lineId);
+  if (isPinned) return routePaths.line(lineId, stopId, bundledLineIds, partId, lineIdentity);
   const addressId = getStopEventAddressId(stopEvent);
   return selection
-    ? routePaths.journey(addressId, lineId, stopId, bundledLineIds, partId)
+    ? routePaths.journey(addressId, lineId, stopId, bundledLineIds, partId, lineIdentity)
     : routePaths.journeyAtStop(addressId, stopId, partId);
 }
 

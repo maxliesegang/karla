@@ -1,7 +1,6 @@
 import { useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import type { StopEvent, BayKind } from "../data/transit-types";
 import { classNames } from "../lib/class-names";
-import { isNetworkLineIdentity } from "../lib/network-lines";
 import {
   getVehicleAccessLabel,
   getStopEventAccessibilityLabel,
@@ -387,24 +386,19 @@ function LineGroup({
   return (
     <section className="departure-board-line-group" aria-label={`Linie ${group.line.id}`}>
       <h2>
-        {isNetworkLineIdentity(group.line.identity) ? (
-          <button
-            type="button"
-            className="stop-line-group-heading"
-            onClick={() => navigateTo(routePaths.line(group.line.id, stopId, [], partId))}
-            aria-label={`Linie ${group.line.id}, Linienverlauf öffnen`}
-            style={headingStyle}
-          >
-            <LineBadge line={group.line} size="sm" />
-            <span>Linienverlauf</span>
-            <b aria-hidden="true">›</b>
-          </button>
-        ) : (
-          // Another operator's line has no line page here.
-          <span className="stop-line-group-heading is-static" style={headingStyle}>
-            <LineBadge line={group.line} size="sm" />
-          </span>
-        )}
+        <button
+          type="button"
+          className="stop-line-group-heading"
+          onClick={() =>
+            navigateTo(routePaths.line(group.line.id, stopId, [], partId, group.line.identity))
+          }
+          aria-label={`Linie ${group.line.id}, Linienverlauf öffnen`}
+          style={headingStyle}
+        >
+          <LineBadge line={group.line} size="sm" />
+          <span>Linienverlauf</span>
+          <b aria-hidden="true">›</b>
+        </button>
       </h2>
       {group.corridors.map((corridor) => (
         <CorridorGroup

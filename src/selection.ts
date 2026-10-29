@@ -242,6 +242,7 @@ export function useSelectionChain(
     stopId,
     partId: stopPlacePart?.id,
     lineId: selectedLine?.id,
+    lineIdentity: selectedLine?.identity,
     bundledLineIds: lineSelection.bundledLineIds,
     addressId: selectedStopEvent && getStopEventAddressId(selectedStopEvent),
     journeyParent: route.journeyParent,

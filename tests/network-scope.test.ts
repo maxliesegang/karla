@@ -13,7 +13,7 @@ import { kvvNetwork } from "../src/networks/kvv/kvv-network.ts";
 import { StopRegistry } from "../src/data/stop-registry.ts";
 import { ObservedNetworkStore } from "../src/data/observed-network-store.ts";
 import { findSelectedLine } from "../src/selected-line.ts";
-import { getStopEventOpenPath, type AppRoute } from "../src/routing.ts";
+import { getStopEventOpenPath, parseRoute, type AppRoute } from "../src/routing.ts";
 import type { StopEvent } from "../src/data/transit-types.ts";
 import {
   createLineSelection,
@@ -285,8 +285,22 @@ test("an address names the network's line, not another operator's line of that n
     undefined,
   );
   assert.equal(line?.identity, "kvv:22304");
-  assert.equal(
-    getStopEventOpenPath(otherS4, "bruchsal", true),
-    getStopEventOpenPath(otherS4, "bruchsal", false),
+});
+
+test("another operator's line is addressed by its identity beside its name", () => {
+  const kvvS4 = createStopEvent({ id: "kvv", lineId: "S4", lineRef: "kvv:22304:E:H:s26" });
+  const otherS4 = createStopEvent({ id: "ddb", lineId: "S4", lineRef: "ddb:920S4:H:H" });
+  const path = getStopEventOpenPath(otherS4, "bruchsal", true);
+  assert.equal(path, "/stop/bruchsal/line/S4@ddb:920S4");
+  assert.equal(getStopEventOpenPath(kvvS4, "bruchsal", true), "/stop/bruchsal/line/S4");
+
+  const line = findSelectedLine(
+    parseRoute(`#${path}`),
+    { stops: [], lines: [] },
+    [kvvS4, otherS4],
+    null,
+    undefined,
+    undefined,
   );
+  assert.equal(line?.identity, "ddb:920S4");
 });

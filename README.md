@@ -38,6 +38,7 @@ refines the one above it:
 - `#/stop/europaplatz` — a stop with its departure board
 - `#/stop/hauptbahnhof/vorplatz` — the board of one part of a stop (below)
 - `#/stop/europaplatz/line/2` — a line calling there, beside the board
+- `#/stop/stuttgart-hauptbahnhof--8daite/line/S1@ddb:920S1` — another operator's line, named by its pool and number
 - `#/stop/hochstetten/line/S1+S11` — two lines read together over the stretch they share
 - `#/stop/europaplatz/line/2/journey/:journeyRef/:day` — one journey of that line, highlighted
 - `#/stop/europaplatz/journey/:journeyRef/:day` — one journey opened from the stop board

@@ -40,12 +40,13 @@ export function useLineRoutes(
   selection: LineSelection,
   boards: readonly LineObservationBoard[],
   isEnabled = true,
-): ReadonlyMap<string, readonly string[]> {
+): { routeStopIdsByLineId: ReadonlyMap<string, readonly string[]>; isPending: boolean } {
   const requests = useMemo(
     () => (isEnabled ? getLineRouteRequests(selection, boards) : []),
     [boards, isEnabled, selection],
   );
   const [routeStopIdsByLineId, setRouteStopIdsByLineId] = useState(NO_ROUTES);
+  const [answeredLineRefs, setAnsweredLineRefs] = useState<ReadonlySet<string>>(() => new Set());
   // Once per direction; the source keeps routes for the session.
   const askedLineRefs = useRef(new Set<string>());
 
@@ -54,6 +55,7 @@ export function useLineRoutes(
       if (askedLineRefs.current.has(lineRef)) continue;
       askedLineRefs.current.add(lineRef);
       transitSource.getLineRoute(rowId).then((routeStopIds) => {
+        setAnsweredLineRefs((current) => new Set(current).add(lineRef));
         // Asked again with the next boards.
         if (routeStopIds === undefined) askedLineRefs.current.delete(lineRef);
         if (!routeStopIds?.length) return;
@@ -70,7 +72,8 @@ export function useLineRoutes(
     }
   }, [requests]);
 
-  return routeStopIdsByLineId;
+  const isPending = requests.some(({ lineRef }) => !answeredLineRefs.has(lineRef));
+  return { routeStopIdsByLineId, isPending };
 }
 
 /**
@@ -135,7 +138,11 @@ export function useLineObservation({
       ? state.observations
       : seedLineObservations(selection, lines, recallLineObservation);
   // The published route, learned before any of the crawl's own boards.
-  const routeStopIdsByLineId = useLineRoutes(selection, evidenceBoards, isEnabled);
+  const { routeStopIdsByLineId, isPending: isRoutePending } = useLineRoutes(
+    selection,
+    evidenceBoards,
+    isEnabled,
+  );
   const known = useMemo(
     () =>
       extendLineObservationRoutes(
@@ -182,5 +189,6 @@ export function useLineObservation({
     }
   }, [selection, state.observations]);
 
-  return { boards, isReading: coverage.status === "loading" };
+  // A route still being read reveals stops the crawl has yet to read.
+  return { boards, isReading: coverage.status === "loading" || isRoutePending };
 }

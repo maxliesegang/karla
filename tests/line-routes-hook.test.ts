@@ -25,12 +25,31 @@ test("a line's published route is kept once the provider answers it", async () =
   );
   await flush();
 
-  assert.deepEqual(routes.current.get("3"), ["a", "b", "c", "d"]);
+  assert.deepEqual(routes.current.routeStopIdsByLineId.get("3"), ["a", "b", "c", "d"]);
+  assert.equal(routes.current.isPending, false);
   assert.deepEqual(asked.sort(), ["back", "out"]);
 
   // A re-render with new boards naming the same directions asks for nothing again.
   await routes.rerender({ boards: [{ stopEvents: [row("out2", "3:H")] }] });
   await flush();
   assert.deepEqual(asked.sort(), ["back", "out"]);
+  await routes.unmount();
+});
+
+test("a route is pending until the provider answers it", async () => {
+  let answer: (routeStopIds: string[]) => void = () => {};
+  transitSource.getLineRoute = () => new Promise((resolve) => (answer = resolve));
+  const boards: LineObservationBoard[] = [{ stopEvents: [row("out", "3:H")] }];
+
+  const routes = await renderHook(
+    (props: { boards: LineObservationBoard[] }) => useLineRoutes(selection, props.boards),
+    { boards },
+  );
+  await flush();
+  assert.equal(routes.current.isPending, true);
+
+  answer(["a", "b"]);
+  await flush();
+  assert.equal(routes.current.isPending, false);
   await routes.unmount();
 });

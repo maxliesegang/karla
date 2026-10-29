@@ -4,8 +4,8 @@
 import { getLineSign, getStopEventLineSign } from "./data/line-signs";
 import type { StopEvent, StopEventBoard, TransitLine, TransitNetwork } from "./data/transit-types";
 import { getResolvedBundledLineIds } from "./lib/line-bundles";
-import { isNetworkRow } from "./lib/network-lines";
-import { getLineIdentity } from "./lib/line-identity";
+import { isNetworkLineIdentity, isNetworkRow } from "./lib/network-lines";
+import { getLineIdentity, isRowOfLine } from "./lib/line-identity";
 import type { AppRoute } from "./routing";
 
 /**
@@ -20,22 +20,35 @@ export function findSelectedLine(
   observedLine: TransitLine | undefined,
   ownStopEvent: StopEvent | undefined,
 ): TransitLine | undefined {
-  if (observedLine) return observedLine;
+  // A line address names the network's line, or another operator's by identity (`S1@ddb:920S1`);
+  // one without it takes its journey's.
+  const journeyIdentity = getLineIdentity(route.addressId);
+  const askedIdentity =
+    route.lineIdentity ?? (isNetworkLineIdentity(journeyIdentity) ? undefined : journeyIdentity);
+  const isOtherOperatorsLine = !isNetworkLineIdentity(askedIdentity);
+  if (observedLine && !isOtherOperatorsLine) return observedLine;
 
-  // An address names the network's line; another operator's line of that name is not it.
   const lineStopEvent = route.lineId
-    ? stopEvents.find((stopEvent) => stopEvent.lineId === route.lineId && isNetworkRow(stopEvent))
+    ? stopEvents.find((stopEvent) =>
+        isOtherOperatorsLine
+          ? isRowOfLine(stopEvent, route.lineId, askedIdentity)
+          : stopEvent.lineId === route.lineId && isNetworkRow(stopEvent),
+      )
     : ownStopEvent;
   if (lineStopEvent) return getStopEventLineSign(network.lines, lineStopEvent);
 
   // A restored ride keeps its line with a neutral sign until its retained dated journey resolves.
   if (route.isRide && route.lineId) return getLineSign(network.lines, route.lineId, "other");
 
+  // Named by identity, another operator's line holds like the network's observed lines.
+  if (route.lineId && isOtherOperatorsLine) {
+    return getLineSign(network.lines, route.lineId, "other", askedIdentity);
+  }
+
   // A journey past this stop is on no board here, but its ref names its line's identity; the line
   // holds as long as the journey does, so the line's readings can still find it.
-  const journeyIdentity = route.lineId ? undefined : getLineIdentity(route.addressId);
   const journeyLine =
-    journeyIdentity && network.lines.find(({ identity }) => identity === journeyIdentity);
+    !route.lineId && network.lines.find(({ identity }) => identity === journeyIdentity);
   if (journeyLine) return journeyLine;
 
   // An asked-for line keeps a neutral sign while the board loads or fails; only a readable board
