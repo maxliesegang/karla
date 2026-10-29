@@ -45,12 +45,14 @@ function getLinePathSegment(
   bundledLineIds: readonly string[] = [],
   lineIdentity?: string,
 ): string {
-  return formatLineSelection(
-    createLineSelection(
-      lineId,
-      // A line does not appear twice in the address.
-      bundledLineIds.filter((id) => id !== lineId),
-      lineIdentity ? new Map([[lineId, lineIdentity]]) : undefined,
+  return encodeLinePathSegment(
+    formatLineSelection(
+      createLineSelection(
+        lineId,
+        // A line does not appear twice in the address.
+        bundledLineIds.filter((id) => id !== lineId),
+        lineIdentity ? new Map([[lineId, lineIdentity]]) : undefined,
+      ),
     ),
   );
 }
@@ -59,7 +61,7 @@ function getLinePathSegment(
 function parseLineRoute(
   segment: string,
 ): Pick<AppRoute, "lineId" | "bundledLineIds" | "lineIdentity"> {
-  const selection = parseLineSelection(segment);
+  const selection = parseLineSelection(decodePathSegment(segment));
   const lineIdentity = getSelectedLineIdentity(selection, selection.lineId);
   return {
     lineId: selection.lineId,
@@ -141,6 +143,10 @@ function decodePathSegment(segment: string | undefined): string {
 /** Colons are valid in a path segment and keep namespaced ids (`kvv:21005:E:R:s26:302`) readable. */
 const encodePathSegment = (segment: string): string =>
   encodeURIComponent(segment).replaceAll("%3A", ":");
+
+/** A line id may hold a space (`RE 90`); the bundle and identity separators stay readable. */
+const encodeLinePathSegment = (segment: string): string =>
+  encodePathSegment(segment).replaceAll("%2B", "+").replaceAll("%40", "@");
 
 /** `journey/:journeyRef/:operatingDayRef`; a row without a dated journey has its id alone. */
 function formatJourneyPath(addressId: string): string {

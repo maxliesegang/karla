@@ -3,12 +3,13 @@ import type { TransitLine } from "../data/transit-types";
 /** The line sign. Decorative by design: every caller names the line in its own accessible label. */
 export function LineBadge({ line, size = "lg" }: { line: TransitLine; size?: "lg" | "sm" | "xs" }) {
   const { kicker, route } = splitLineSign(line.id);
+  const isLong = route.length > 4;
   return (
     <span
       className={`line-badge ${size}`}
       style={{ background: line.color, color: line.textColor }}
       data-stacked={kicker ? "true" : undefined}
-      data-long={route.length > 4 ? "true" : undefined}
+      data-long={isLong ? "true" : undefined}
       aria-hidden="true"
     >
       {kicker ? (
@@ -16,6 +17,8 @@ export function LineBadge({ line, size = "lg" }: { line: TransitLine; size?: "lg
           <small>{kicker}</small>
           <span>{route}</span>
         </>
+      ) : isLong ? (
+        <span>{route}</span>
       ) : (
         route
       )}

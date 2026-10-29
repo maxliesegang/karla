@@ -893,6 +893,20 @@ button.brand:active .brand-mark,
 .line-badge.xs[data-stacked] > span {
   font-size: 1em;
 }
+/* A long route alone ("MEX13") narrows its type to stay inside the pill instead of spilling out. */
+.line-badge[data-long]:not([data-stacked]) > span {
+  font-size: 0.78em;
+  letter-spacing: -0.04em;
+}
+/* The smallest pill grows instead, as a stacked one does. */
+.line-badge.xs[data-long] {
+  width: auto;
+  min-width: 27px;
+  padding: 0 0.35em;
+}
+.line-badge.xs[data-long]:not([data-stacked]) > span {
+  font-size: 1em;
+}
 
 .line-diagram-legend {
   display: flex;
@@ -5492,6 +5506,11 @@ button.line-diagram-bundle-option:focus-visible {
   border-radius: calc(var(--row-unit) * 0.26);
   padding: 0 0.3em;
   font-size: min(calc(var(--row-unit) * 0.3), 5vw);
+}
+/* The station board's pill grows, so a long route keeps its full size. */
+.station-board-row .line-badge[data-long]:not([data-stacked]) > span {
+  font-size: 1em;
+  letter-spacing: inherit;
 }
 .station-board-destination {
   min-width: 0;

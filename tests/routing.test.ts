@@ -77,6 +77,23 @@ test("two lines read over the stretch they share are one address, and stay two l
   );
 });
 
+test("a line name with a space reads back unescaped, with its identity beside it", () => {
+  const path = routePaths.line(
+    "RE 90",
+    "stuttgart-hauptbahnhof--8daite",
+    [],
+    undefined,
+    "ddb:90T90",
+  );
+  assert.equal(path, "/stop/stuttgart-hauptbahnhof--8daite/line/RE%2090@ddb:90T90");
+  const route = parseRoute(
+    "#/stop/stuttgart-hauptbahnhof--8daite/line/RE%2090@ddb:90T90/journey/ddb:90T90::R:j26:118/2026-10-29",
+  );
+  assert.equal(route.lineId, "RE 90");
+  assert.equal(route.lineIdentity, "ddb:90T90");
+  assert.equal(parseRoute("#/line/SEV%2010+S1").bundledLineIds[0], "S1");
+});
+
 test("another operator's journey steps back to its own line, and the address keeps its identity", () => {
   const route = parseRoute(
     "#/stop/stuttgart/line/S1@ddb:920S1/journey/ddb:920S1:D:H:j26:522/2026-10-29",
