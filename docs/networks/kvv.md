@@ -9,8 +9,11 @@ the Zentrum plan and the region plan exist only for it.
 - Pool `kvv:` is KVV's own: observed, numbered, coloured from KVV's GTFS, given line pages. DB's
   S-Bahn Rhein-Neckar (`ddb:`), rail replacement (`rab:`) and other pools show on boards as other
   operators' lines.
-- Stop search keeps stops inside 48.55–49.28 N, 7.75–8.90 E: Renchen, Lingenfeld, Dahn and
-  Mühlacker in; the Ortenau, Speyer, Pirmasens and Stuttgart out.
+- The area is 48.55–49.28 N, 7.75–8.90 E: Renchen, Lingenfeld, Dahn and Mühlacker in; the
+  Ortenau, Speyer, Pirmasens and Stuttgart out. Stop search lists stops beyond it too, after
+  equally good matches inside.
+- TRIAS search wants the town for common names: `Stuttgart Hbf` finds it, `Hauptbahnhof` and
+  `Schlossplatz` alone find nothing beyond Karlsruhe's own (`LOCATION_NORESULTS`).
 - The feed prefixes Karlsruhe's stop names with `KA ` or `Karlsruhe `.
 - Times carry seconds; about 80 % of timetabled and estimated times have non-zero seconds. Of 40
   Europaplatz departures, 28 had a prediction.

@@ -514,3 +514,15 @@ test("a board's situations read on their own, in the operator's terms", () => {
   // The board itself carries none of it.
   assert.equal("notices" in parseTriasStopEvents(reply, "de:08212:1003"), false);
 });
+
+test("a name no stop matches is an empty search; any other error is a failure", () => {
+  const answer = (code: string, text: string) =>
+    triasReply(
+      RESPONDED_AT,
+      `<trias:LocationInformationResponse><trias:ErrorMessage><trias:Code>${code}</trias:Code><trias:Text><trias:Text>${text}</trias:Text></trias:Text></trias:ErrorMessage></trias:LocationInformationResponse>`,
+    );
+
+  // A bare `Hauptbahnhof` is answered so: too many towns have one.
+  assert.deepEqual(parseTriasLocations(answer("-8014", "LOCATION_NORESULTS")), []);
+  assert.throws(() => parseTriasLocations(answer("-1", "INVALID_REQUEST")), TriasError);
+});

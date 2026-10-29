@@ -28,7 +28,9 @@ _Avoid_: platform (in code; German copy says Gleis and Bstg.)
 
 **Network / dynamic stop**: a network stop place ships with the app, from the catalog; a dynamic
 stop is first met live (through a search hit or a call) and is registered for the rest of the
-session.
+session. Search finds dynamic stops across Baden-Württemberg and beyond; stop points one answer
+names alike and close together are one dynamic stop, joined as the catalog's are. Its id leads
+with its town outside home (`stuttgart-hauptbahnhof--…`), since resolving a link searches that slug.
 
 **Boarding place**: what a rider walks to at a stop, usually one stop point. It is derived from
 journeys calling at several bays in turn. The Zentrum plan reads its places from the corridors each
@@ -176,7 +178,7 @@ reads one, `network`.
 
 **Network scope** (`NetworkScope`): the network's own pools and area. Its pools' lines are the
 network's: observed, numbered, coloured from its GTFS and given line pages. Boards keep every pool's
-rows; a search lists stops in the area first. A pool is a ref's first segment (`kvv` in
+rows; among equally good provider matches, a search lists stops in the area first. A pool is a ref's first segment (`kvv` in
 `kvv:22304:E:H:s26`).
 
 **Other operator's line**: a row of a pool outside the scope (`ddb:920S3`). It shows on boards with

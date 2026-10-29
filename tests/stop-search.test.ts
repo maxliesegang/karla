@@ -5,7 +5,7 @@ import { isWithinScopeBounds } from "../src/data/network-scope.ts";
 import { kvvNetwork } from "../src/networks/kvv/kvv-network.ts";
 import type { Feed, FeedStopSearchResult } from "../src/data/feed.ts";
 import { TriasTransitSource } from "../src/data/transit-source.ts";
-import { hashStopPointId } from "../src/data/stop-registry.ts";
+import { hashStopPointId, StopRegistry } from "../src/data/stop-registry.ts";
 import type { TransitNetwork } from "../src/data/transit-types.ts";
 
 test("the KVV area box keeps the network's far corners and excludes the neighbours", () => {
@@ -231,4 +231,185 @@ test("a stop the session has never met is resolved from the id in a shared link"
     assert.equal(stop?.id, "oehringen-hbf--1lmhxmn");
     assert.equal(stop?.name, "Öhringen Hbf");
   });
+});
+
+test("local matches rank by how well they match, then by how busy the stop is", async () => {
+  const stops = [
+    { id: "am-heegwald", name: "Am Heegwald", placeName: "Durlach" },
+    { id: "durlach-bahnhof", name: "Bahnhof", placeName: "Durlach" },
+    { id: "durlacher-tor", name: "Durlacher Tor" },
+    { id: "durlach-turmberg", name: "Turmberg", placeName: "Durlach" },
+  ];
+  const source = new TriasTransitSource(clientWith([]), {
+    stops,
+    lines: [],
+    callCountByStopId: new Map([
+      ["am-heegwald", 10],
+      ["durlach-bahnhof", 900],
+      ["durlacher-tor", 2000],
+      ["durlach-turmberg", 300],
+    ]),
+  });
+
+  // The name's start before the district's, and among the district's the busiest first.
+  assert.deepEqual(
+    (await source.searchStops("durlach")).map(({ id }) => id),
+    ["durlacher-tor", "durlach-bahnhof", "durlach-turmberg", "am-heegwald"],
+  );
+  assert.deepEqual(
+    (await source.searchStops("durlach bahnhof")).map(({ id }) => id),
+    ["durlach-bahnhof"],
+  );
+  // The home municipality is a word of every home stop.
+  assert.deepEqual(
+    (await source.searchStops("karlsruhe durlacher")).map(({ id }) => id),
+    ["durlacher-tor"],
+  );
+});
+
+test("many local matches leave rows for stops beyond the catalog", async () => {
+  const stops = Array.from({ length: 12 }, (_, index) => ({
+    id: `schlossplatz-${index}`,
+    name: `Schlossplatz ${index}`,
+  }));
+  const source = new TriasTransitSource(
+    clientWith([
+      {
+        stopPointId: "de:08111:6022",
+        name: "Schlossplatz",
+        placeName: "Stuttgart",
+        latitude: 48.7784,
+        longitude: 9.1794,
+      },
+    ]),
+    { stops, lines: [] },
+  );
+
+  const results = await source.searchStops("schlossplatz");
+  assert.equal(results.length, 8);
+  assert.ok(results.some(({ placeName }) => placeName === "Stuttgart"));
+});
+
+const stuttgartHbf: FeedStopSearchResult[] = [
+  {
+    stopPointId: "de:08111:6115",
+    name: "Hauptbahnhof",
+    placeName: "Stuttgart",
+    latitude: 48.78413,
+    longitude: 9.18177,
+  },
+  // 262 m from the first, so joined only through the next, as the provider lists them.
+  {
+    stopPointId: "de:08111:6118",
+    name: "Hauptbahnhof (tief)",
+    placeName: "Stuttgart",
+    latitude: 48.78339,
+    longitude: 9.18023,
+  },
+  {
+    stopPointId: "de:08111:6112",
+    name: "Hauptbahnhof (A.-Klett-Platz)",
+    placeName: "Stuttgart",
+    latitude: 48.78316,
+    longitude: 9.18112,
+  },
+  // 420 m north, its own place, as the catalog would have it.
+  {
+    stopPointId: "de:08111:6110",
+    name: "Hauptbahnhof (Pariser Platz)",
+    placeName: "Stuttgart",
+    latitude: 48.78848,
+    longitude: 9.18248,
+  },
+];
+
+test("a place's stop points beyond the catalog are one search result, under the town's name", async () => {
+  const source = new TriasTransitSource(clientWith(stuttgartHbf), { stops: [], lines: [] });
+
+  const [stop, ...rest] = await source.searchStops("stuttgart hbf");
+  assert.deepEqual(
+    rest.map(({ name }) => name),
+    ["Hauptbahnhof (Pariser Platz)"],
+  );
+  assert.equal(stop.name, "Hauptbahnhof");
+  assert.equal(stop.placeName, "Stuttgart");
+  assert.equal(stop.id, `stuttgart-hauptbahnhof--${hashStopPointId("de:08111:6115")}`);
+});
+
+test("a link to a joined place beyond the catalog resolves to the whole place", async () => {
+  // A fresh session: the link's slug is the query, and its town is what finds the place.
+  const queries: string[] = [];
+  const client = {
+    searchStops: async (query: string) => {
+      queries.push(query);
+      return [...stuttgartHbf].reverse();
+    },
+  } as unknown as Feed;
+  const source = new TriasTransitSource(client, { stops: [], lines: [] });
+  const stopId = `stuttgart-hauptbahnhof--${hashStopPointId("de:08111:6115")}`;
+
+  const stop = await source.resolveStop(stopId);
+  assert.deepEqual(queries, ["stuttgart hauptbahnhof"]);
+  assert.equal(stop?.id, stopId);
+  assert.equal(stop?.name, "Hauptbahnhof");
+});
+
+test("a joined place beyond the catalog reads every stop point, and a call at any lands on it", () => {
+  const registry = new StopRegistry([]);
+  const [first, ...joined] = stuttgartHbf.slice(0, 3).map(({ stopPointId }) => stopPointId);
+  const stop = registry.register({
+    stopPointId: first,
+    joinedStopPointIds: joined,
+    name: "Hauptbahnhof",
+    placeName: "Stuttgart",
+  });
+
+  assert.deepEqual(registry.findStopPoints(stop.id), [first, ...joined]);
+  for (const stopPointId of [first, ...joined]) {
+    assert.equal(registry.findStopPlaceId(stopPointId), stop.id);
+  }
+  // Met again through one of its other stop points, it is the same place.
+  assert.equal(
+    registry.register({ stopPointId: joined[1], name: "Hauptbahnhof (A.-Klett-Platz)" }),
+    stop,
+  );
+});
+
+test("a stop first met through a call becomes the whole place once a search joins it", () => {
+  const registry = new StopRegistry([]);
+  const [called] = registry.toCalls([
+    {
+      stopPointId: "de:08111:6118",
+      stopName: "Hauptbahnhof (tief)",
+      placeName: "Stuttgart",
+      latitude: 48.78339,
+      longitude: 9.18023,
+    } as never,
+  ]);
+
+  // As search registers the place: its first stop point, and the others beside it.
+  const stop = registry.register({
+    stopPointId: "de:08111:6115",
+    joinedStopPointIds: ["de:08111:6118", "de:08111:6112"],
+    name: "Hauptbahnhof",
+    placeName: "Stuttgart",
+  });
+  assert.equal(stop.id, called.stopPlaceId);
+  assert.equal(stop.name, "Hauptbahnhof");
+  assert.deepEqual(registry.findStopPoints(stop.id), [
+    "de:08111:6118",
+    "de:08111:6115",
+    "de:08111:6112",
+  ]);
+  assert.equal(registry.findStopPlaceId("de:08111:6112"), stop.id);
+});
+
+test("a joined place ranks by the name it is shown under, not its first stop point's", async () => {
+  const source = new TriasTransitSource(clientWith([...stuttgartHbf].reverse()), {
+    stops: [],
+    lines: [],
+  });
+
+  const names = (await source.searchStops("stuttgart hauptbahnhof")).map(({ name }) => name);
+  assert.deepEqual(names, ["Hauptbahnhof", "Hauptbahnhof (Pariser Platz)"]);
 });

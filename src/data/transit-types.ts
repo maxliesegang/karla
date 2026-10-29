@@ -177,6 +177,8 @@ export type TransitLine = {
 export type TransitNetwork = {
   stops: readonly StopPlace[];
   lines: readonly TransitLine[];
+  /** Calls at each stop place in the timetable period, which ranks equal search matches. */
+  callCountByStopId?: ReadonlyMap<string, number>;
 };
 
 type StopEventBoardReading = {

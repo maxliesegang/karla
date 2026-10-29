@@ -24,4 +24,13 @@ export const transitNetwork: TransitNetwork = {
   }),
   // Lines come from the live feed (`lib/observed-network.ts`).
   lines: [],
+  callCountByStopId: new Map(
+    Object.entries(network.stopPlaces).map(([id, { stopPoints }]) => [
+      id,
+      stopPoints.reduce(
+        (total, stopPointId) => total + (network.findCatalogStop(stopPointId)?.callCount ?? 0),
+        0,
+      ),
+    ]),
+  ),
 };

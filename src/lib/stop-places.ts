@@ -93,6 +93,28 @@ export function deriveStopPlaces(
   return Object.fromEntries([...entries].sort(([a], [b]) => a.localeCompare(b)));
 }
 
+/**
+ * Stop points met outside the catalog, joined as the catalog's are (by name and distance), in the
+ * order each place was first met.
+ */
+export function groupSamePlaceStops<T extends PlacedStop>(stops: readonly T[]): T[][] {
+  let groups: T[][] = [];
+  for (const stop of stops) {
+    // A stop near two groups joins them: the tunnel between a station's two ends.
+    const first = groups.findIndex((group) => group.some((other) => isSamePlace(other, stop)));
+    if (first < 0) {
+      groups.push([stop]);
+      continue;
+    }
+    const isJoined = (group: readonly T[]) => group.some((other) => isSamePlace(other, stop));
+    const joined = groups.filter(isJoined).flat();
+    groups = groups.flatMap((group, index) =>
+      index === first ? [[...joined, stop]] : isJoined(group) ? [] : [group],
+    );
+  }
+  return groups;
+}
+
 /** The groups `isJoined` picks, and `added`, as one group after the rest. */
 function joinGroups<T>(
   groups: readonly T[][],
@@ -124,7 +146,10 @@ function getPartName(name: string): string {
   return aside.replace(/\s*\bU$/, "") || LOWER_PART_NAME;
 }
 
-const isSamePlace = (a: CatalogStop, b: CatalogStop): boolean =>
+/** A stop point as joining reads it. */
+type PlacedStop = { name: string; placeName?: string; latitude: number; longitude: number };
+
+const isSamePlace = (a: PlacedStop, b: PlacedStop): boolean =>
   a.placeName === b.placeName &&
   getBaseName(a.name) === getBaseName(b.name) &&
   getDistanceMeters(a.latitude, a.longitude, b) <= STOP_PLACE_JOIN_METERS;

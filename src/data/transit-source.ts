@@ -10,6 +10,7 @@ import {
   type FeedStopEventBoard,
   type FeedStopEventBoardOptions,
   type FeedStopEvent,
+  type FeedStopSearchResult,
   type Feed,
   type FeedTripInfo,
   type DatedJourneyRef,
@@ -41,6 +42,9 @@ import { sortStopEventsByExpectedInstant } from "../lib/stop-event-order";
 import { isBetterDatedJourneyReading } from "../lib/journeys";
 import { createSortedKey } from "../lib/collections";
 import { ObservedNetworkStore } from "./observed-network-store";
+import { createStopMatcher, mergeStopMatches } from "../lib/stop-search";
+import { groupSamePlaceStops } from "../lib/stop-places";
+import { getBaseName } from "../lib/stop-naming";
 import type { ObservedNetwork } from "../lib/observed-network";
 
 export type { StopEventBoardRequest };
@@ -152,6 +156,14 @@ const getDatedJourneyRef = ({
   operatingDayRef,
 }: StopEvent): DatedJourneyRef | undefined =>
   journeyRef && operatingDayRef ? { journeyRef, operatingDayRef } : undefined;
+
+type LocatedSearchResult = FeedStopSearchResult & { latitude: number; longitude: number };
+
+/** The search results that say where they stand; the rest cannot be told near from far. */
+const locate = (matches: readonly FeedStopSearchResult[]): LocatedSearchResult[] =>
+  matches.flatMap(({ latitude, longitude, ...match }) =>
+    latitude === undefined || longitude === undefined ? [] : [{ ...match, latitude, longitude }],
+  );
 
 /** What a board reads: the whole place, or one part of it, which is cached and completed apart. */
 const getReadingId = (stopId: string, stopPointId: string | undefined): string =>
@@ -311,52 +323,73 @@ export class TriasTransitSource implements TransitSource {
     const [, slug, digest] = DYNAMIC_STOP_ID_PATTERN.exec(stopId) ?? [];
     if (!slug || !digest) return undefined;
     const matches = await this.client.searchStops(slug.replace(/-/g, " "));
-    const match = matches.find((candidate) => hashStopPointId(candidate.stopPointId) === digest);
-    return match
-      ? this.stops.register({
-          stopPointId: match.stopPointId,
-          name: match.name,
-          placeName: match.placeName,
-          latitude: match.latitude,
-          longitude: match.longitude,
-          preferredId: stopId,
-        })
-      : undefined;
+    const isLinked = (candidate: FeedStopSearchResult) =>
+      hashStopPointId(candidate.stopPointId) === digest;
+    // Joined again as the search that made the link joined it, the linked stop point first.
+    const group = groupSamePlaceStops(locate(matches)).find((stops) => stops.some(isLinked));
+    if (group) {
+      return this.registerPlace(
+        [...group.filter(isLinked), ...group.filter((stop) => !isLinked(stop))],
+        stopId,
+      );
+    }
+    const match = matches.find(isLinked);
+    return match ? this.stops.register({ ...match, preferredId: stopId }) : undefined;
+  }
+
+  /** Stop points of one place, registered as one dynamic stop named by the first. */
+  private registerPlace(
+    [first, ...joined]: readonly LocatedSearchResult[],
+    preferredId?: string,
+  ): StopPlace {
+    return this.stops.register({
+      ...first,
+      ...(joined.length > 0
+        ? {
+            name: getBaseName(first.name),
+            joinedStopPointIds: joined.map(({ stopPointId }) => stopPointId),
+          }
+        : {}),
+      ...(preferredId ? { preferredId } : {}),
+    });
   }
 
   /**
-   * Stops matching a query: local first (no request), then provider matches, those inside the
-   * network's area before those beyond. Matches are registered so their ids resolve later.
+   * Stops matching a query, best match first: local ones at once, provider ones (all of Baden-
+   * Württemberg and beyond) with a few rows kept for them. Equal local matches rank by service,
+   * equal provider ones the network's area first. Matches are registered so their ids resolve
+   * later.
    */
   async searchStops(query: string): Promise<readonly StopPlace[]> {
     const trimmed = query.trim();
     if (trimmed.length < 2) return [];
 
-    const normalized = trimmed.toLowerCase();
-    const local = this.network.stops.filter((stop) =>
-      [stop.name, stop.formerName, stop.placeName].some((name) =>
-        name?.toLowerCase().includes(normalized),
-      ),
-    );
+    const rankStop = createStopMatcher(trimmed);
+    const homePlaceName = networkDefinition.home.placeName;
+    // By the name the rider is shown, so a joined place ranks as its own name.
+    const rankPlace = (stop: StopPlace) =>
+      rankStop({ ...stop, placeName: stop.placeName ?? homePlaceName });
+    const local = this.network.stops.flatMap((stop) => {
+      const rank = rankPlace(stop);
+      const callCount = this.network.callCountByStopId?.get(stop.id) ?? 0;
+      return rank === undefined ? [] : [{ stop, rank, callCount }];
+    });
 
     // A failed provider read is not "nothing": answer with local matches, or fail.
     const matches = await this.client.searchStops(trimmed).catch((error) => {
-      if (local.length > 0) return undefined;
+      if (local.length > 0) return [];
       throw error;
     });
-    if (!matches) return local.slice(0, STOP_SEARCH_LIMIT);
-    const located = matches.flatMap(({ latitude, longitude, ...match }) =>
-      latitude === undefined || longitude === undefined ? [] : [{ ...match, latitude, longitude }],
-    );
-    const isNear = ({ latitude, longitude }: { latitude: number; longitude: number }) =>
-      isWithinScopeBounds(networkDefinition.scope, latitude, longitude);
-    const remote = [...located.filter(isNear), ...located.filter((match) => !isNear(match))].map(
-      (match) => this.stops.register(match),
-    );
-
-    const byId = new Map(local.map((stop) => [stop.id, stop]));
-    for (const stop of remote) if (!byId.has(stop.id)) byId.set(stop.id, stop);
-    return [...byId.values()].slice(0, STOP_SEARCH_LIMIT);
+    const provider = groupSamePlaceStops(locate(matches)).map((group) => {
+      const stop = this.registerPlace(group);
+      const { latitude, longitude } = group[0];
+      return {
+        stop,
+        rank: rankPlace(stop),
+        isNear: isWithinScopeBounds(networkDefinition.scope, latitude, longitude),
+      };
+    });
+    return mergeStopMatches(local, provider, STOP_SEARCH_LIMIT);
   }
 
   getStopEventBoard(stopId: string, request: StopEventBoardRequest = {}): Promise<StopEventBoard> {
