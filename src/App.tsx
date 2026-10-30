@@ -8,6 +8,7 @@ import { AppLoadingScreen } from "./components/AppLoadingScreen";
 import { StopNotFoundView } from "./components/StopNotFoundView";
 import { LineDiagramPanel } from "./components/LineDiagramPanel";
 import { NetworkView } from "./components/NetworkView";
+import { useLocatedStop } from "./components/NearbyStopButton";
 import { NearbyStopsView } from "./components/NearbyStopsView";
 import { RideStatusPanel } from "./components/RideStatusPanel";
 import { HomeEntry } from "./components/HomeEntry";
@@ -154,6 +155,8 @@ export default function App() {
     nearbyReturnStopId,
   });
   const panelChange = usePanelChange(layout);
+  // Both location buttons share it: a home press opens the stop the bar then offers to change.
+  const locatedStop = useLocatedStop(layout.activeView === "stop" ? selection.stopId : undefined);
 
   // Stacked, a pull anywhere on the page refreshes everything it shows; maps keep their drag.
   const pageRefresh: PageRefresh | undefined =
@@ -208,6 +211,7 @@ export default function App() {
       <main className={classNames("app-shell", isStationBoardMode && "station-board-mode")}>
         <AppHeader
           nearbyStopsController={nearbyStopsController}
+          locatedStop={locatedStop}
           onShowNearbyStops={() => showNearbyStops()}
         />
         <StopNotFoundView isFailed={selection.isStopFailed} onRetry={selection.retryStop} />
@@ -263,6 +267,7 @@ export default function App() {
         isStationBoardMode={isStationBoardMode}
         backPath={layout.backPath}
         nearbyStopsController={nearbyStopsController}
+        locatedStop={locatedStop}
         currentPageStopId={activeView === "stop" ? selection.stopId : undefined}
         onShowNearbyStops={() => showNearbyStops(selection.stopId)}
         showsNearbyStopButton={activeView !== "home"}
@@ -294,6 +299,7 @@ export default function App() {
                     searchInputRef={searchInputRef}
                     recentStops={recentStops}
                     nearbyStopsController={nearbyStopsController}
+                    locatedStop={locatedStop}
                     onShowNearbyStops={() => showNearbyStops()}
                   />
                 )}

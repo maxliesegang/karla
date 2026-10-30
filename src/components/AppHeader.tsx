@@ -2,7 +2,7 @@ import { useCurrentTime } from "../hooks/clock";
 import type { NearbyStopsController } from "../hooks/nearby-stops";
 import { formatClockTime } from "../lib/stop-event-presentation";
 import { navigateTo, routePaths } from "../routing";
-import { NearbyStopButton } from "./NearbyStopButton";
+import { type LocatedStop, NearbyStopButton } from "./NearbyStopButton";
 
 /** Its own component, so the minute tick repaints only the time. */
 function Clock() {
@@ -16,6 +16,7 @@ function Clock() {
 export function AppHeader({
   backPath,
   nearbyStopsController,
+  locatedStop,
   currentPageStopId,
   onShowNearbyStops,
   isStationBoardMode = false,
@@ -24,6 +25,7 @@ export function AppHeader({
   /** One level up the selection chain. */
   backPath?: string;
   nearbyStopsController: NearbyStopsController;
+  locatedStop: LocatedStop;
   currentPageStopId?: string;
   onShowNearbyStops: () => void;
   isStationBoardMode?: boolean;
@@ -66,6 +68,7 @@ export function AppHeader({
         <nav className="app-header-quick-actions" aria-label="Schnellzugriff">
           <NearbyStopButton
             controller={nearbyStopsController}
+            locatedStop={locatedStop}
             currentPageStopId={currentPageStopId}
             onShowAlternatives={onShowNearbyStops}
           />

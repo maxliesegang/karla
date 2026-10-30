@@ -1,16 +1,50 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { IS_GEOLOCATION_SUPPORTED } from "../hooks/geolocation";
 import type { NearbyStopsController } from "../hooks/nearby-stops";
 import { navigateTo, routePaths } from "../routing";
 
+/** The stop a location press opened, shared by the home's action and the bar's chip. */
+export type LocatedStop = { stopId?: string; open: (stopId: string) => void };
+
+/**
+ * Remembers the stop a location press opened, whichever button pressed, so the bar offers another
+ * nearby stop there. Leaving that page forgets it.
+ */
+export function useLocatedStop(currentPageStopId: string | undefined): LocatedStop {
+  const hasReachedLocatedStopRef = useRef(false);
+  const [stopId, setStopId] = useState<string>();
+
+  useEffect(() => {
+    if (!stopId) return;
+    if (currentPageStopId === stopId) {
+      hasReachedLocatedStopRef.current = true;
+      return;
+    }
+    if (hasReachedLocatedStopRef.current) {
+      hasReachedLocatedStopRef.current = false;
+      setStopId(undefined);
+    }
+  }, [currentPageStopId, stopId]);
+
+  const open = useCallback((nextStopId: string) => {
+    hasReachedLocatedStopRef.current = false;
+    setStopId(nextStopId);
+    navigateTo(routePaths.stop(nextStopId));
+  }, []);
+
+  return { stopId, open };
+}
+
 /** Locates on request, then opens the closest useful stop. As a bar chip or a full home action. */
 export function NearbyStopButton({
   controller,
+  locatedStop,
   currentPageStopId,
   onShowAlternatives,
   variant = "bar",
 }: {
   controller: NearbyStopsController;
+  locatedStop: LocatedStop;
   /** Set only on a plain stop page, not on a line or ride nested beneath it. */
   currentPageStopId?: string;
   onShowAlternatives: () => void;
@@ -18,16 +52,16 @@ export function NearbyStopButton({
   variant?: "bar" | "page";
 }) {
   const isRequestedRef = useRef(false);
-  const hasReachedLocatedStopRef = useRef(false);
-  const [locatedStopId, setLocatedStopId] = useState<string>();
   const nearestStop = controller.stops[0]?.stop;
-  const canCorrectLocation = Boolean(locatedStopId && currentPageStopId === locatedStopId);
+  const canCorrectLocation = Boolean(
+    locatedStop.stopId && currentPageStopId === locatedStop.stopId,
+  );
+  const openLocatedStop = locatedStop.open;
 
   useEffect(() => {
     if (isRequestedRef.current && controller.status === "ready" && nearestStop) {
       isRequestedRef.current = false;
-      setLocatedStopId(nearestStop.id);
-      navigateTo(routePaths.stop(nearestStop.id));
+      openLocatedStop(nearestStop.id);
     } else if (
       isRequestedRef.current &&
       controller.status !== "idle" &&
@@ -37,20 +71,7 @@ export function NearbyStopButton({
       isRequestedRef.current = false;
       onShowAlternatives();
     }
-  }, [controller.status, nearestStop, onShowAlternatives]);
-
-  // The correction applies to the page the location action opened; leaving it resets the button.
-  useEffect(() => {
-    if (!locatedStopId) return;
-    if (currentPageStopId === locatedStopId) {
-      hasReachedLocatedStopRef.current = true;
-      return;
-    }
-    if (hasReachedLocatedStopRef.current) {
-      hasReachedLocatedStopRef.current = false;
-      setLocatedStopId(undefined);
-    }
-  }, [currentPageStopId, locatedStopId]);
+  }, [controller.status, nearestStop, onShowAlternatives, openLocatedStop]);
 
   const label = canCorrectLocation
     ? "Andere Haltestelle in der Nähe wählen"

@@ -4,7 +4,7 @@ import type { RecentStop } from "../lib/recent-stops";
 import { network } from "../networks/network";
 import { routePaths } from "../routing";
 import { HomeMenu } from "./HomeMenu";
-import { NearbyStopButton } from "./NearbyStopButton";
+import { type LocatedStop, NearbyStopButton } from "./NearbyStopButton";
 import { StopSearch } from "./StopSearch";
 
 /** Starting stops for a first visit, from the network's own places so they show on the first paint. */
@@ -22,11 +22,13 @@ export function HomeEntry({
   searchInputRef,
   recentStops,
   nearbyStopsController,
+  locatedStop,
   onShowNearbyStops,
 }: {
   searchInputRef?: React.Ref<HTMLInputElement>;
   recentStops: readonly RecentStop[];
   nearbyStopsController: NearbyStopsController;
+  locatedStop: LocatedStop;
   onShowNearbyStops: () => void;
 }) {
   return (
@@ -36,6 +38,7 @@ export function HomeEntry({
         <NearbyStopButton
           variant="page"
           controller={nearbyStopsController}
+          locatedStop={locatedStop}
           onShowAlternatives={onShowNearbyStops}
         />
       </div>
