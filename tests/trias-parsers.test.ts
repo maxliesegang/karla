@@ -524,5 +524,15 @@ test("a name no stop matches is an empty search; any other error is a failure", 
 
   // A bare `Hauptbahnhof` is answered so: too many towns have one.
   assert.deepEqual(parseTriasLocations(answer("-8014", "LOCATION_NORESULTS")), []);
+  // An area without stops states only its code.
+  assert.deepEqual(
+    parseTriasLocations(
+      triasReply(
+        RESPONDED_AT,
+        "<trias:LocationInformationResponse><trias:ErrorMessage><trias:Code>-20100</trias:Code></trias:ErrorMessage></trias:LocationInformationResponse>",
+      ),
+    ),
+    [],
+  );
   assert.throws(() => parseTriasLocations(answer("-1", "INVALID_REQUEST")), TriasError);
 });

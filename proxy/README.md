@@ -11,7 +11,7 @@ the XML reply gzipped from a 15 s shared cache. Parsing stays in the client
 | --- | --- |
 | `GET /api/stop-events.php` | `stop` (a `de:` ref), `rows` (1–60, default 20), `calls` (`0`/`1`), `kind` (`departure`/`arrival`), `lines` (up to 16 line refs, comma-separated) |
 | `GET /api/trip-info.php` | `journey` (`JourneyRef`), `day` (`OperatingDayRef`, `YYYY-MM-DD`) |
-| `GET /api/locations.php` | `q` (2–60 characters; cached for an hour), `rows` (1–20, default 10) |
+| `GET /api/locations.php` | `q` (2–60 characters; cached for an hour), `rows` (1–20, default 10); or `box` (`south,west,north,east`, at most three decimals and 0.05° a side; cached for a day), `rows` (1–200, default 200) |
 
 Replies are XML with `Cache-Control: no-store` and `Age`, the seconds the reply sat in the cache;
 the client advances the reply's `ResponseTimestamp` by it. Boards lose their situation block

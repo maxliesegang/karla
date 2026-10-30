@@ -1,5 +1,6 @@
 /** The provider boundary below `TransitSource`: what the TRIAS feed answers, decoded. */
 import { findExpectedDepartureInstant } from "../lib/feed-clock";
+import type { Bounds } from "./network-scope";
 import type { StopEventStatus, BayKind, PtMode, Call, VehicleAccess } from "./transit-types";
 
 export type FeedStopEventBoardOptions = {
@@ -22,6 +23,8 @@ export interface Feed {
   /** The dated journey's calls; `rowCall` names the one the asking row was read at. */
   fetchTripInfo(journey: DatedJourneyRef, rowCall?: RowCallRef): Promise<FeedTripInfo>;
   searchStops(query: string): Promise<FeedStopSearchResult[]>;
+  /** Every stop standing inside the area; none where it has no stop. */
+  locateStops(bounds: Bounds): Promise<FeedStopSearchResult[]>;
   /** A line-direction's stops, addressed through one of its dated journeys. */
   fetchLineRoute(journey: DatedJourneyRef): Promise<FeedCall[]>;
 }

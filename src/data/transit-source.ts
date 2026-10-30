@@ -2,7 +2,7 @@ import { transitNetwork } from "./transit-network";
 import { readTriasProxyUrl } from "./trias-proxy";
 import { TriasClient } from "./trias-client";
 import { network as networkDefinition } from "../networks/network";
-import { isWithinScopeBounds } from "./network-scope";
+import { isWithinScopeBounds, type Bounds } from "./network-scope";
 import { isNetworkRailRow } from "../lib/network-lines";
 import { isRailMode } from "../lib/pt-modes";
 import {
@@ -87,6 +87,8 @@ export interface TransitSource {
   getKnownStop(stopId: string): StopPlace | undefined;
   /** Stops matching a query. Rejects when the provider failed and nothing local matched. */
   searchStops(query: string): Promise<readonly StopPlace[]>;
+  /** Every located stop place inside the area, the network's and beyond. Rejects on failure. */
+  locateStops(bounds: Bounds): Promise<readonly StopPlace[]>;
   /** One stop's live board. Never rejects: failures resolve to an explicit unavailable state. */
   getStopEventBoard(stopId: string, request?: StopEventBoardRequest): Promise<StopEventBoard>;
   /**
@@ -386,6 +388,15 @@ export class TriasTransitSource implements TransitSource {
       };
     });
     return mergeStopMatches(local, provider, STOP_SEARCH_LIMIT);
+  }
+
+  async locateStops(bounds: Bounds): Promise<readonly StopPlace[]> {
+    const stopsById = new Map<string, StopPlace>();
+    for (const group of groupSamePlaceStops(locate(await this.client.locateStops(bounds)))) {
+      const stop = this.registerPlace(group);
+      if (stop.latitude !== undefined) stopsById.set(stop.id, stop);
+    }
+    return [...stopsById.values()];
   }
 
   getStopEventBoard(stopId: string, request: StopEventBoardRequest = {}): Promise<StopEventBoard> {

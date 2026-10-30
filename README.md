@@ -32,7 +32,8 @@ refines the one above it:
 - `#/experiment/center/stop/marktplatz` — the plan read from one stop
 - `#/experiment/center/full`, `#/experiment/center/full/line/2` — the plan at screen size
 - `#/network` — the line index
-- `#/nearby` — the six nearest observed stops after a location reading
+- `#/nearby` — the six nearest stops within 900 m after a location reading, wherever the feed
+  has stops
 - `#/settings` — where the app opens, whether it remembers stops, whether diagrams show other
   vehicles, and the data terms (not official, no KVV liability; NVBW timetable data)
 - `#/stop/europaplatz` — a stop with its departure board
@@ -65,7 +66,8 @@ place.
 With no address the app opens the stop last read, or the home for a reader with no history (the
 *Beim Öffnen* setting can always open the home). It never opens on a location prompt. The *Nähe*
 button locates on request and opens the closest stop; *Andere* opens `#/nearby` if that guess is
-wrong. Recently read stops are listed under the search on the home.
+wrong. The stops around come from the feed by area; only the reading's ~500 m grid cell is sent,
+and a fix coarser than 500 m is refused rather than guessed from. Recently read stops are listed under the search on the home.
 
 ## Station board mode
 

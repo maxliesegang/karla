@@ -15,6 +15,7 @@ import {
   parseTriasTripInfo,
 } from "./trias-parsers";
 import { SharedRequests } from "./request-sharing";
+import type { Bounds } from "./network-scope";
 
 const DEFAULT_TIMEOUT_MS = 20_000;
 const DEFAULT_STOP_EVENT_LIMIT = 20;
@@ -81,6 +82,13 @@ export class TriasClient implements Feed {
 
   async searchStops(query: string) {
     const { body } = await this.request("Haltestellensuche", "locations.php", { q: query });
+    return parseTriasLocations(body);
+  }
+
+  async locateStops({ south, west, north, east }: Bounds) {
+    const { body } = await this.request("Haltestellen in der Nähe", "locations.php", {
+      box: [south, west, north, east].join(","),
+    });
     return parseTriasLocations(body);
   }
 

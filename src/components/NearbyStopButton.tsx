@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { IS_GEOLOCATION_SUPPORTED } from "../hooks/geolocation";
 import type { NearbyStopsController } from "../hooks/nearby-stops";
 import { navigateTo, routePaths } from "../routing";
 
@@ -61,10 +62,11 @@ export function NearbyStopButton({
       className={isPageAction ? "home-nearby-action" : "header-action nearby-stop-button"}
       aria-label={label}
       title={label}
+      // A fix that failed or was too coarse may come next time; a refusal or no support will not.
       disabled={
         controller.status === "locating" ||
         controller.status === "denied" ||
-        controller.status === "unavailable"
+        !IS_GEOLOCATION_SUPPORTED
       }
       onClick={() => {
         if (canCorrectLocation) {

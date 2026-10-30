@@ -138,7 +138,9 @@ Measured against KARLA's access with the same requests:
 | `GeoRestriction/Circle` (`Center`, `Radius`) | the same, but reaches only about 0.65 of `Radius` |
 | `GeoPosition` alone | one `StopPlace` per bay, board-style names, ranked by `Probability`; ignores `NumberOfResults` |
 
-An area without stops answers an `ErrorMessage` with code `-20100` and no text. Depot and turning
+An area without stops answers an `ErrorMessage` with code `-20100` and no text. The rectangle
+reaches past the home municipality (Pforzheim, Landau, Baden-Baden answered) and took about
+100 ms for a 2.6 km box. Depot and turning
 points (`Tullastraße (44)`) are not listed.
 
 ## What TRIAS does not state

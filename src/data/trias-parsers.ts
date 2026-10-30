@@ -42,6 +42,8 @@ export class TriasError extends Error {
 const NO_STOP_EVENTS_ERRORS = new Set(["STOPEVENT_LOCATIONUNSERVED", "STOPEVENT_NOEVENTFOUND"]);
 /** The provider's answer for a name no stop matches. */
 const NO_LOCATIONS_ERROR = "LOCATION_NORESULTS";
+/** An area without stops, answered with no text (`docs/trias-api.md`). */
+const NO_STOPS_IN_AREA_CODE = "-20100";
 
 /** The stop's DHID for a TRIAS ref (`de:08212:37:6:6`: stop, area, quay). */
 export const toStopPointId = (ref: string): string => ref.split(":").slice(0, 3).join(":");
@@ -444,7 +446,9 @@ export function parseTriasTripInfo(
 export function parseTriasLocations(xml: string): FeedStopSearchResult[] {
   const { response } = readDelivery(xml, "Haltestellensuche", "LocationInformationResponse");
   const hasUnexpectedError = childrenNamed(response, "ErrorMessage").some(
-    (error) => textAt(error, "Text", "Text") !== NO_LOCATIONS_ERROR,
+    (error) =>
+      textAt(error, "Text", "Text") !== NO_LOCATIONS_ERROR &&
+      textAt(error, "Code") !== NO_STOPS_IN_AREA_CODE,
   );
   if (hasUnexpectedError) {
     throw new TriasError(`Haltestellensuche: ${readErrorCodes(response).join(", ")}`);

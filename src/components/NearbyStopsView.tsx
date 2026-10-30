@@ -1,4 +1,5 @@
 import { useRef } from "react";
+import { IS_GEOLOCATION_SUPPORTED } from "../hooks/geolocation";
 import type { NearbyStopsController } from "../hooks/nearby-stops";
 import { usePullToRefresh } from "../hooks/pull-to-refresh";
 import { navigateTo, routePaths } from "../routing";
@@ -40,16 +41,14 @@ export function NearbyStopsView({
       </div>
 
       {(controller.status === "idle" || controller.status === "locating") && !hasList ? (
-        <button
-          type="button"
-          className="nearby-locate-action"
-          disabled={controller.status === "locating"}
-          onClick={controller.locate}
-        >
-          {controller.status === "locating" ? "Standort wird bestimmt …" : "Standort bestimmen"}
-        </button>
+        <LocateAction isLocating={controller.status === "locating"} onLocate={controller.locate} />
       ) : message ? (
-        <p className="nearby-stops-message">{message}</p>
+        <>
+          <p className="nearby-stops-message">{message}</p>
+          {controller.status === "unavailable" && IS_GEOLOCATION_SUPPORTED && (
+            <LocateAction isLocating={false} onLocate={controller.locate} isRetry />
+          )}
+        </>
       ) : (
         <nav ref={listRef} className="nearby-stops" aria-label="Nächste Haltestellen">
           {/* Inside the list, so a closed strip adds no gap to the view. */}
@@ -70,5 +69,25 @@ export function NearbyStopsView({
         </nav>
       )}
     </section>
+  );
+}
+
+function LocateAction({
+  isLocating,
+  onLocate,
+  isRetry = false,
+}: {
+  isLocating: boolean;
+  onLocate: () => void;
+  isRetry?: boolean;
+}) {
+  return (
+    <button type="button" className="nearby-locate-action" disabled={isLocating} onClick={onLocate}>
+      {isLocating
+        ? "Standort wird bestimmt …"
+        : isRetry
+          ? "Erneut versuchen"
+          : "Standort bestimmen"}
+    </button>
   );
 }
