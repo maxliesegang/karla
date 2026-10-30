@@ -5823,6 +5823,20 @@ button.line-diagram-bundle-option:focus-visible {
       0 1px 0 #10201f14,
       0 10px 20px -18px #10201f80;
   }
+  /* Safari from iOS 26 tints the status bar from a *fixed* element touching the top edge and, when
+     it finds none, lays its frosted scroll-edge blur over whatever scrolls up there — the sticky bar
+     is not read as one. A fixed strip of the bar's own colour under the status bar is, so the accent
+     runs up to the screen's edge instead. At least 1px so Safari still finds it where the inset is 0. */
+  .app-shell:not(.station-board-mode)::before {
+    content: "";
+    position: fixed;
+    z-index: 31;
+    inset: 0 0 auto;
+    height: max(1px, env(safe-area-inset-top));
+    background: var(--shell-accent);
+    pointer-events: none;
+    transition: background-color 0.32s ease;
+  }
   /* The one surface of the ride that must never scroll away from the person reading it — pinned
      under the bar, not over it. */
   .app-shell.ride-mode .ride-status {
