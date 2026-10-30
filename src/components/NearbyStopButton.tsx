@@ -28,8 +28,16 @@ export function NearbyStopButton({
       isRequestedRef.current = false;
       setLocatedStopId(nearestStop.id);
       navigateTo(routePaths.stop(nearestStop.id));
+    } else if (
+      isRequestedRef.current &&
+      controller.status !== "idle" &&
+      controller.status !== "locating"
+    ) {
+      // A press that found no stop says why on the nearby page, which offers another try.
+      isRequestedRef.current = false;
+      onShowAlternatives();
     }
-  }, [controller.status, nearestStop]);
+  }, [controller.status, nearestStop, onShowAlternatives]);
 
   // The correction applies to the page the location action opened; leaving it resets the button.
   useEffect(() => {
@@ -63,18 +71,19 @@ export function NearbyStopButton({
       aria-label={label}
       title={label}
       // A fix that failed or was too coarse may come next time; a refusal or no support will not.
-      disabled={
-        controller.status === "locating" ||
-        controller.status === "denied" ||
-        !IS_GEOLOCATION_SUPPORTED
-      }
+      disabled={controller.status === "denied" || !IS_GEOLOCATION_SUPPORTED}
       onClick={() => {
         if (canCorrectLocation) {
           onShowAlternatives();
           return;
         }
+        // A press during a reading already under way is answered by that reading.
+        if (isRequestedRef.current || controller.status === "locating") {
+          isRequestedRef.current = true;
+          return;
+        }
         isRequestedRef.current = true;
-        controller.locate();
+        void controller.locate();
       }}
     >
       <svg viewBox="0 0 20 20" aria-hidden="true">
@@ -86,7 +95,9 @@ export function NearbyStopButton({
         {isPageAction
           ? canCorrectLocation
             ? "Andere Haltestelle"
-            : "Haltestelle in der Nähe"
+            : controller.status === "locating"
+              ? "Standort wird bestimmt …"
+              : "Haltestelle in der Nähe"
           : canCorrectLocation
             ? "Andere"
             : "Nähe"}
