@@ -54,7 +54,9 @@ municipality of Karlsruhe (`de:08212:`):
 - **Service, line days, bay runs and positions** from NVBW's statewide GTFS
   (`bwgesamt.zip`, Datenlizenz Deutschland – Namensnennung 2.0), kept to `kvv-` routes. 54 MB
   compressed, 777 MB unpacked. Its `platform_code` carries the kind word (`Gleis 1(U)`), and its
-  stations are `de:08212:1003_Parent`.
+  stations are `de:08212:1003_Parent`. It is the `fahrplandaten_ohne_liniennetz` variant, whose
+  `shapes.txt` is empty; `fahrplandaten_mit_liniennetz/bwgesamt.zip` holds the line geometry
+  (658 MB compressed, `shapes.txt` 3.5 GB unpacked; 4 October 2026).
 
 `lineCount` and `callCount` count the timetable period's journeys, not calls per day: they rank
 stops and must not be shown as a frequency. Journeys via a depot track (`E` and `TSNV` via

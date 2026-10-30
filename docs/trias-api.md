@@ -5,7 +5,8 @@ Network-specific facts are in [networks/](./networks/).
 
 > [!IMPORTANT]
 > An empirical reference, measured 15–26 October 2026 with `npm run probe:trias` and hand-written
-> requests. Re-verify before building on a behaviour.
+> requests, and NVBW's access side by side on 29 October 2026. Re-verify before building on a
+> behaviour.
 
 ## Access
 
@@ -24,6 +25,43 @@ Content-Type: text/xml
 Browsers cannot call it directly: the `OPTIONS` preflight is answered `501`, and a `text/plain`
 body `400`. The app reads it through [proxy/](../proxy/README.md); scripts run by hand read it
 directly (`scripts/trias-direct.ts`).
+
+### NVBW's access
+
+MobiData BW (NVBW) grants a second access to the statewide EFA. Nothing reads it yet.
+
+```text
+POST https://efa-bw.de/trias
+```
+
+- Its ref is `TRIAS_BW_REQUESTOR_REF` in `.env.local`. NVBW's terms forbid passing it on, so it
+  too stays out of the client.
+- NVBW's factsheet lists `TripRequest`, `RefineRequest` and `FaresRequest` beside the requests
+  below, and seven days of past timetables ([dataset](https://www.mobidata-bw.de/dataset/trias)).
+- The `OPTIONS` preflight is answered `200` with `Access-Control-Allow-Origin: *`.
+
+Measured against KARLA's access with the same requests:
+
+- **Journey codes differ.** One journey, with the same times and predictions, is
+  `kvv:21004:E:H:s26:1537` on KARLA's access and `kvv:21004:E:H:s26:1151` on NVBW's. A
+  `TripInfoRequest` with the other access's `JourneyRef` answers no calls. Line refs, stop points
+  and `OperatingDayRef` agree. **One dated journey cannot be read from both.**
+- **DB's copies of KVV's S-Bahn.** Boards add `ddb:920S1`, `ddb:92S11` and `ddb:920S2` rows
+  beside KVV's S1, S11 and S2, at the same timetabled times, at the stop rather than a bay
+  (`de:08212:37`), without a prediction: 7 of 40 rows at Europaplatz.
+- **No `Extension`**: neither `TransportTypeName` nor `PublishedJourneyNumber`. A long-distance
+  train's category and number are in `PublishedLineName` alone (`IC 1941 InterCity`).
+- **More notices.** Europaplatz's board carried 3 situations against 1, adding the network's
+  planned works (VBK construction phases, night track work); Stuttgart Hbf's 26 against 14.
+- **Predictions stay on past departures** for about an hour: a board an hour back stated 446
+  `EstimatedTime`s, KARLA's access none. Neither states any three hours back.
+- **`TripRequest` routes.** Hauptbahnhof → Marktplatz answered 4 trips with tram legs, fares
+  (`Einzelfahrschein (Erwachsene)` 3.70) and, with `IncludeLegProjection`, `LegTrack` geometry of
+  70–92 positions per tram leg. KARLA's access answered one walk.
+- Warm boards took 350–400 ms with spikes to 1.4 s (KARLA's access about 280 ms); one connection
+  failed once.
+- The same on both: `TripInfoRequest` calls, stop search, no `CurrentPosition`, an empty
+  `LineInformationRequest`, timetables 14 days back.
 
 ## Responses
 
@@ -78,6 +116,7 @@ directly (`scripts/trias-direct.ts`).
 | `StopEventRequest` | boards | with `IncludePreviousCalls` / `IncludeOnwardCalls` every event carries its journey's calls; without `DepArrTime` it starts at the provider's now |
 | `TripInfoRequest` | one dated journey, line routes | `JourneyRef` + `OperatingDayRef`; returns all calls |
 | `LocationInformationRequest` | stop search, the stop catalog | by name, or by position (below) |
+| `TripRequest` | none | KARLA's access answers walks only; NVBW's answers routes (above) |
 
 - **A board answers only the stop asked for.** Two stops at one place (a tunnel and the street
   above it) are two boards.
