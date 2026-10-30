@@ -36,20 +36,20 @@ const fix = (accuracy: number, latitude = 48.8932) =>
 const positionError = (code: number) =>
   ({ code, PERMISSION_DENIED: 1, TIMEOUT: 3 }) as GeolocationPositionError;
 
-test("a coarse first fix is refined, and a satellite-grade one settles at once", async () => {
+test("a coarse first fix is refined, and a precise one settles at once", async () => {
   const watchers = installGeolocation();
   const reading = readRefinedPosition();
   const [watcher] = watchers;
   assert.equal(watcher?.options?.enableHighAccuracy, true);
 
   watcher?.onFix(fix(1_800, 48.9));
-  watcher?.onFix(fix(12));
+  watcher?.onFix(fix(45));
 
-  assert.equal((await reading).accuracy, 12);
+  assert.equal((await reading).accuracy, 45);
   assert.equal(watcher?.isCleared, true);
 });
 
-test("without a satellite fix, the best one stands once the refinement window closes", async () => {
+test("without a precise fix, the best one stands two seconds after the first", async () => {
   mock.timers.enable({ apis: ["setTimeout"] });
   try {
     const watchers = installGeolocation();
@@ -57,7 +57,9 @@ test("without a satellite fix, the best one stands once the refinement window cl
     const [watcher] = watchers;
     watcher?.onFix(fix(90));
     watcher?.onFix(fix(140));
-    mock.timers.tick(5_000);
+    mock.timers.tick(1_999);
+    assert.equal(watcher?.isCleared, false);
+    mock.timers.tick(1);
 
     assert.equal((await reading).accuracy, 90);
     assert.equal(watcher?.isCleared, true);
