@@ -1,13 +1,12 @@
-import type { StopEvent, BayKind, Call } from "../data/transit-types";
+import type { StopEvent, BayKind, Call, StopPlacePart } from "../data/transit-types";
 import { getDistanceMeters } from "./geo";
-import { findStopPointPart } from "./stop-place-parts";
 import { compareGermanNames } from "./text";
 import { isTurnaroundPair } from "./calls";
 
 /**
  * Boarding places: where a rider stands, finer than a stop place's parts (Europaplatz's street bays,
  * two stops under one stop point). Derived from observed journeys rather than authored; a place is
- * named by its part (`stop-place-parts.ts`), else by its bays.
+ * named by its part (`StopPlace.parts`), else by its bays.
  */
 
 /** One place to stand at a stop, and the bays there. */
@@ -96,15 +95,21 @@ export function updateStopBoardingObservations(
   return learned ? { stopId, bays, separated, turnedAround } : base;
 }
 
-/** The stop's places from what the visit learned; one place unless bays were seen parted. */
-export function getStopBoardingPlaces(observations: StopBoardingObservations): StopBoardingPlaces {
+/**
+ * The stop's places from what the visit learned; one place unless bays were seen parted. A place on
+ * a part of the stop (`stop.parts`) is labelled by it.
+ */
+export function getStopBoardingPlaces(
+  observations: StopBoardingObservations,
+  parts: readonly StopPlacePart[] = [],
+): StopBoardingPlaces {
   if (observations.bays.size === 0) return [];
   const separated = new Set(
     [...observations.separated].filter((pair) => !observations.turnedAround.has(pair)),
   );
   const clusters = clusterBays([...observations.bays.values()], separated);
   const places = clusters
-    .map((cluster) => toBoardingPlace(observations.stopId, cluster))
+    .map((cluster) => toBoardingPlace(parts, cluster))
     .sort(compareBoardingPlaces);
   return disambiguateSharedLabels(places);
 }
@@ -281,13 +286,16 @@ function getClusterDistance(left: readonly BayReading[], right: readonly BayRead
   return nearest;
 }
 
-function toBoardingPlace(stopId: string, cluster: readonly BayReading[]): BoardingPlace {
+function toBoardingPlace(
+  parts: readonly StopPlacePart[],
+  cluster: readonly BayReading[],
+): BoardingPlace {
   const bays = [...cluster].sort((left, right) => compareGermanNames(left.bay, right.bay));
   const [first] = bays;
   const kinds = new Set(bays.map((bay) => bay.bayKind));
   return {
     id: `${first.stopPointId}-${bays.map(({ bay }) => bay).join("-")}`,
-    label: findStopPointPart(stopId, first.stopPointId)?.name,
+    label: parts.find((part) => part.stopPointId === first.stopPointId)?.name,
     bays: bays.map(({ bay }) => bay),
     bayKind: kinds.size === 1 ? [...kinds][0] : undefined,
     stopPointId: first.stopPointId,

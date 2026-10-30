@@ -110,7 +110,7 @@ export default function App() {
   );
   // Boarding places come from calling sequences too.
   const stopBoardingPlaces = useStopBoardingPlaces(
-    route.view === "stop" ? selectedStop?.id : undefined,
+    route.view === "stop" ? selectedStop : undefined,
     stopTopologyBoard,
     stopTopologyBoards,
     selection.stopEventBoard,
@@ -432,7 +432,7 @@ export default function App() {
                 selectedStopEvent={selection.selectedStopEvent}
                 corridorPatterns={stopCorridorPatterns}
                 boardingPlaces={stopBoardingPlaces}
-                parts={getStopPlaceParts(selection.stopId)}
+                parts={getStopPlaceParts(selectedStop)}
                 part={selection.stopPlacePart}
                 onChoosePart={(partId) => {
                   chooseStopPlacePart(selection.stopId, partId);

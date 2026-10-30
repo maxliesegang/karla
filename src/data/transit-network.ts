@@ -1,5 +1,6 @@
 import { network } from "../networks/network";
 import type { TransitNetwork, StopPlace } from "./transit-types";
+import { toStopPlaceParts } from "../lib/stop-places";
 
 /**
  * The stops the app resolves without asking: the network's stop places, placed at their busiest
@@ -19,6 +20,7 @@ export const transitNetwork: TransitNetwork = {
         ...(place.formerName ? { formerName: place.formerName } : {}),
         latitude: catalogStop.latitude,
         longitude: catalogStop.longitude,
+        ...(place.parts ? { parts: toStopPlaceParts(place.stopPoints, place.parts) } : {}),
       },
     ];
   }),

@@ -19,6 +19,16 @@ export type StopPlace = {
   /** Required for projected core-network stops. */
   latitude?: number;
   longitude?: number;
+  /** Its stop points as a rider tells them apart, `Oben` first; none for a place of one. */
+  parts?: readonly StopPlacePart[];
+};
+
+/** One stop point of a place, by which its board is filtered (`Unten`, `Vorplatz`). */
+export type StopPlacePart = {
+  /** Its address (`vorplatz`). */
+  id: string;
+  name: string;
+  stopPointId: string;
 };
 
 /** What the feed states about boarding. Absent is unstated, never a vehicle with steps. */

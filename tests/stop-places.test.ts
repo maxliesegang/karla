@@ -1,10 +1,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { findReadStopPlacePart, getStopPlaceParts } from "../src/lib/stop-place-parts.ts";
-import { deriveStopPlaces } from "../src/lib/stop-places.ts";
+import { deriveStopPlaces, getPartNames } from "../src/lib/stop-places.ts";
 import type { CatalogStop } from "../src/networks/network-definition.ts";
 import { kvvNetwork } from "../src/networks/kvv/kvv-network.ts";
 import { stopPlaces } from "../src/networks/kvv/generated/stop-places.ts";
+import { transitNetwork } from "../src/data/transit-network.ts";
+
+const findNetworkStop = (stopId: string) => transitNetwork.stops.find(({ id }) => id === stopId);
 
 const stop = (
   globalId: string,
@@ -99,12 +102,15 @@ test("two parts the name rule names alike fail the derivation until overridden",
     stop("de:1:2", "Bahnhof", 49.0001, 8.4001),
   ];
   const joins = [["de:1:1", "de:1:2"]];
-  assert.throws(() => deriveStopPlaces(catalog, "Karlsruhe", { joins }), /bahnhof \(Oben, Oben\)/);
+  assert.throws(
+    () => deriveStopPlaces(catalog, "Karlsruhe", { joins }),
+    /bahnhof \(Bahnhof, Bahnhof\)/,
+  );
   const places = deriveStopPlaces(catalog, "Karlsruhe", {
     joins,
     partNames: { "de:1:2": "Vorplatz" },
   });
-  assert.deepEqual(places.bahnhof.parts, ["Oben", "Vorplatz"]);
+  assert.deepEqual(places.bahnhof.parts, ["Bahnhof", "Vorplatz"]);
 });
 
 test("a part is named by the operator's aside, a bare `U` being `Unten`", () => {
@@ -137,7 +143,8 @@ test("the generated stop places are the catalog's, as derived now", () => {
 });
 
 test("a place's parts read `Oben` before `Unten`, whichever is busier", () => {
-  const names = (stopId: string) => getStopPlaceParts(stopId).map(({ name }) => name);
+  const names = (stopId: string) =>
+    getStopPlaceParts(findNetworkStop(stopId)).map(({ name }) => name);
 
   // Europaplatz's street is the busier, Kronenplatz's tunnel.
   assert.deepEqual(names("europaplatz"), ["Oben", "Unten"]);
@@ -148,11 +155,21 @@ test("a place's parts read `Oben` before `Unten`, whichever is busier", () => {
 test("a remembered part answers only a bare stop address", () => {
   const chosen = { europaplatz: "unten" };
   const read = (address: { partId?: string; lineId?: string; addressId?: string }) =>
-    findReadStopPlacePart("europaplatz", { partId: "", lineId: "", ...address }, chosen)?.name;
+    findReadStopPlacePart(
+      findNetworkStop("europaplatz"),
+      { partId: "", lineId: "", ...address },
+      chosen,
+    )?.name;
 
   assert.equal(read({}), "Unten");
   assert.equal(read({ partId: "oben" }), "Oben");
   assert.equal(read({ lineId: "2" }), undefined);
   assert.equal(read({ addressId: "kvv:21002:E:H:s26:12" }), undefined);
   assert.equal(read({ lineId: "2", partId: "oben" }), "Oben");
+});
+
+test("a part is named by its aside, and a bare name is `Oben` only beside a tunnel", () => {
+  assert.deepEqual(getPartNames(["Europaplatz", "Europaplatz (U)"]), ["Oben", "Unten"]);
+  assert.deepEqual(getPartNames(["Marktplatz (Pyramide U)", "Marktplatz"]), ["Pyramide", "Oben"]);
+  assert.deepEqual(getPartNames(["Hauptbahnhof", "Hauptbahnhof (tief)"]), ["Hauptbahnhof", "Tief"]);
 });

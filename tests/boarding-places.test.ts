@@ -8,6 +8,7 @@ import {
   updateStopBoardingObservations,
 } from "../src/lib/boarding-places.ts";
 import { groupStopEventsByBoardingPlace } from "../src/lib/stop-event-order.ts";
+import { transitNetwork } from "../src/data/transit-network.ts";
 import { createStopEvent } from "./support/fixtures.ts";
 
 /**
@@ -58,9 +59,14 @@ function stopEvent(code: string, calls?: readonly Call[]): StopEvent {
   };
 }
 
+const europaplatzParts = transitNetwork.stops.find(({ id }) => id === "europaplatz")?.parts;
+
 /** The places, read as the app reads them. */
 const placesOf = (stopEvents: readonly StopEvent[]) =>
-  getStopBoardingPlaces(updateStopBoardingObservations(null, "europaplatz", stopEvents));
+  getStopBoardingPlaces(
+    updateStopBoardingObservations(null, "europaplatz", stopEvents),
+    europaplatzParts,
+  );
 
 /** Onward calls of a tram stopping at both street platforms in turn, as journey 1374 does. */
 const streetDoubleCall = [call("3"), call("5"), { stopName: "Mühlburger Tor", stopPlaceId: "mt" }];

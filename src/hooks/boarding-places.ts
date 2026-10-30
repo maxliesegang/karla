@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import type { StopEventBoard } from "../data/transit-types";
+import type { StopEventBoard, StopPlace } from "../data/transit-types";
 import {
   getStopBoardingPlaces,
   updateStopBoardingObservations,
@@ -14,12 +14,14 @@ const NO_BOARDING_PLACES: StopBoardingPlaces = [];
  * turn appears only in calling sequences, which arrive on a slow cadence. One place answers none.
  */
 export function useStopBoardingPlaces(
-  stopId: string | undefined,
+  stop: StopPlace | undefined,
   topologyBoard: StopEventBoard | null,
   observationBoards: readonly StopEventBoard[],
   shownBoard: StopEventBoard | null,
 ): StopBoardingPlaces {
   const [observations, setObservations] = useState<StopBoardingObservations | null>(null);
+  const stopId = stop?.id;
+  const parts = stop?.parts;
 
   // The shown board first, as the one guaranteed current.
   const stopEvents = useMemo(
@@ -40,7 +42,7 @@ export function useStopBoardingPlaces(
   if (nextObservations && nextObservations !== observations) setObservations(nextObservations);
 
   return useMemo(
-    () => (nextObservations ? getStopBoardingPlaces(nextObservations) : NO_BOARDING_PLACES),
-    [nextObservations],
+    () => (nextObservations ? getStopBoardingPlaces(nextObservations, parts) : NO_BOARDING_PLACES),
+    [nextObservations, parts],
   );
 }

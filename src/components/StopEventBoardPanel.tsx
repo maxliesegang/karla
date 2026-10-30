@@ -6,6 +6,7 @@ import type {
   StopEventBoard,
   TransitLine,
   StopPlace,
+  StopPlacePart,
   TransitNetwork,
 } from "../data/transit-types";
 import {
@@ -56,7 +57,7 @@ import { getStopServiceCorridorLineGroups } from "../lib/stop-corridors";
 import { StopEventBoardLineOrder } from "./StopEventBoardLineOrder";
 import { isSameDatedJourney } from "../lib/journeys";
 import { FEED_UNREADABLE_TEXT } from "./feed-copy";
-import { findStopPointPart, type StopPlacePart } from "../lib/stop-place-parts";
+import { findStopPointPart } from "../lib/stop-place-parts";
 import { getStopPlaceSubtitle } from "../lib/stop-naming";
 
 type StopEventBoardPanelProps = {
@@ -452,7 +453,7 @@ export function StopEventBoardPanel({
       line={getStopEventLineSign(network.lines, stopEvent)}
       stopId={stop.id}
       partId={part?.id}
-      partName={part ? undefined : findStopPointPart(stop.id, stopEvent.boardingStopPointId)?.name}
+      partName={part ? undefined : findStopPointPart(stop, stopEvent.boardingStopPointId)?.name}
       lineSelection={lineSelection}
       isSelected={isStopEventSelected(stopEvent, selectedStopEvent, lineSelection)}
       isPinned={isStopEventPinned(stopEvent, selectedStopEvent)}

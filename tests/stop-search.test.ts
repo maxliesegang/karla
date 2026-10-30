@@ -356,10 +356,11 @@ test("a link to a joined place beyond the catalog resolves to the whole place", 
 
 test("a joined place beyond the catalog reads every stop point, and a call at any lands on it", () => {
   const registry = new StopRegistry([]);
-  const [first, ...joined] = stuttgartHbf.slice(0, 3).map(({ stopPointId }) => stopPointId);
+  const stopPoints = stuttgartHbf.slice(0, 3);
+  const [first, ...joined] = stopPoints.map(({ stopPointId }) => stopPointId);
   const stop = registry.register({
     stopPointId: first,
-    joinedStopPointIds: joined,
+    stopPoints,
     name: "Hauptbahnhof",
     placeName: "Stuttgart",
   });
@@ -390,7 +391,7 @@ test("a stop first met through a call becomes the whole place once a search join
   // As search registers the place: its first stop point, and the others beside it.
   const stop = registry.register({
     stopPointId: "de:08111:6115",
-    joinedStopPointIds: ["de:08111:6118", "de:08111:6112"],
+    stopPoints: stuttgartHbf.slice(0, 3),
     name: "Hauptbahnhof",
     placeName: "Stuttgart",
   });
@@ -412,4 +413,41 @@ test("a joined place ranks by the name it is shown under, not its first stop poi
 
   const names = (await source.searchStops("stuttgart hauptbahnhof")).map(({ name }) => name);
   assert.deepEqual(names, ["Hauptbahnhof", "Hauptbahnhof (Pariser Platz)"]);
+});
+
+test("a joined place beyond the catalog has parts, named by its stop points' asides", async () => {
+  const source = new TriasTransitSource(clientWith(stuttgartHbf), { stops: [], lines: [] });
+
+  const [stop] = await source.searchStops("stuttgart hbf");
+  assert.deepEqual(
+    stop.parts?.map(({ id, name, stopPointId }) => [id, name, stopPointId]),
+    [
+      ["hauptbahnhof", "Hauptbahnhof", "de:08111:6115"],
+      ["tief", "Tief", "de:08111:6118"],
+      ["a-klett-platz", "A.-Klett-Platz", "de:08111:6112"],
+    ],
+  );
+});
+
+test("a place met through a call gains parts only once a search names every stop point", () => {
+  const registry = new StopRegistry([]);
+  const [called] = registry.toCalls([
+    {
+      stopPointId: "de:08111:6118",
+      stopName: "Stuttgart, Hauptbahnhof (tief)",
+      placeName: "Stuttgart",
+    } as never,
+  ]);
+  assert.equal(registry.findStop(called.stopPlaceId!)?.parts, undefined);
+
+  const stop = registry.register({
+    stopPointId: "de:08111:6115",
+    stopPoints: stuttgartHbf.slice(0, 3),
+    name: "Hauptbahnhof",
+    placeName: "Stuttgart",
+  });
+  assert.deepEqual(
+    stop.parts?.map(({ name }) => name),
+    ["Tief", "Hauptbahnhof", "A.-Klett-Platz"],
+  );
 });

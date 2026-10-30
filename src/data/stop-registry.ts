@@ -2,6 +2,7 @@ import type { FeedCall } from "./feed";
 import { network } from "../networks/network";
 import type { StopPlace, Call } from "./transit-types";
 import { getQualifiedStopName } from "../lib/stop-naming";
+import { getPartNames, toStopPlaceParts } from "../lib/stop-places";
 import { createStopSlug } from "../lib/stop-slug";
 
 /**
@@ -29,8 +30,11 @@ export function hashStopPointId(stopPointId: string): string {
 
 export type StopRegistration = {
   stopPointId: string;
-  /** The place's other stop points, met in the same answer; its board joins them all. */
-  joinedStopPointIds?: readonly string[];
+  /**
+   * Every stop point of the place met in one search answer, `stopPointId` first, by its own name;
+   * its board joins them all, and their names are its parts. A call's name carries its town.
+   */
+  stopPoints?: readonly { stopPointId: string; name: string }[];
   name: string;
   placeName?: string;
   latitude?: number;
@@ -49,6 +53,8 @@ export class StopRegistry {
   /** Both directions of the dynamic-id pairing. */
   private readonly stopPointIdsByDynamicStopId = new Map<string, readonly string[]>();
   private readonly dynamicStopIdByStopPointId = new Map<string, string>();
+  /** A dynamic stop point's own name, as search answered it, for its place's parts. */
+  private readonly nameByStopPointId = new Map<string, string>();
 
   constructor(authoredStops: readonly StopPlace[]) {
     this.authoredStopsById = new Map(authoredStops.map((stop) => [stop.id, stop]));
@@ -76,14 +82,14 @@ export class StopRegistry {
   /** Registers a stop the authored network lacks, once per session. */
   register({
     stopPointId,
-    joinedStopPointIds = [],
+    stopPoints: namedStopPoints,
     name,
     placeName,
     latitude,
     longitude,
     preferredId,
   }: StopRegistration): StopPlace {
-    const stopPointIds = [stopPointId, ...joinedStopPointIds];
+    const stopPointIds = namedStopPoints?.map((stop) => stop.stopPointId) ?? [stopPointId];
     // The authored stop wins over a search hit or an old dynamic id, so page and journey calls use
     // one id.
     const authoredId = stopPointIds.map((id) => stopPlaceIdByStopPointId.get(id)).find(Boolean);
@@ -96,7 +102,11 @@ export class StopRegistry {
       .map((id) => this.dynamicStopIdByStopPointId.get(id))
       .find(Boolean);
     const registered = registeredId ? this.dynamicStops.get(registeredId) : undefined;
-    if (registered) return this.enrich(registered, { stopPointIds, name, latitude, longitude });
+    for (const stop of namedStopPoints ?? [])
+      this.nameByStopPointId.set(stop.stopPointId, stop.name);
+    if (registered) {
+      return this.withParts(this.enrich(registered, { stopPointIds, name, latitude, longitude }));
+    }
 
     const slug = createStopSlug(
       getQualifiedStopName({ stopName: name, placeName }, network.home.placeName),
@@ -106,7 +116,20 @@ export class StopRegistry {
     this.dynamicStops.set(id, stop);
     this.stopPointIdsByDynamicStopId.set(id, stopPointIds);
     for (const joinedId of stopPointIds) this.dynamicStopIdByStopPointId.set(joinedId, id);
-    return stop;
+    return this.withParts(stop);
+  }
+
+  /** A dynamic place with parts for all its stop points, once search has named each of them. */
+  private withParts(stop: StopPlace): StopPlace {
+    const stopPointIds = this.stopPointIdsByDynamicStopId.get(stop.id) ?? [];
+    if (stop.parts?.length === stopPointIds.length) return stop;
+    const names = stopPointIds.map((stopPointId) => this.nameByStopPointId.get(stopPointId));
+    if (!names.every((name) => name !== undefined)) return stop;
+    const parts = toStopPlaceParts(stopPointIds, getPartNames(names));
+    if (!parts) return stop;
+    const parted = { ...stop, parts };
+    this.dynamicStops.set(stop.id, parted);
+    return parted;
   }
 
   /**

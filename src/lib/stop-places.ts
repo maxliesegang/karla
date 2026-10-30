@@ -8,6 +8,7 @@ import type {
   StopPlaceDefinition,
   StopPlaceOverrides,
 } from "../networks/network-definition";
+import type { StopPlacePart } from "../data/transit-types";
 import { getDistanceMeters } from "./geo";
 import { getBaseName } from "./stop-naming";
 import { createStopSlug } from "./stop-slug";
@@ -71,19 +72,20 @@ export function deriveStopPlaces(
       stopPoints: stops.map(({ globalId }) => globalId) as [string, ...string[]],
       ...(stops.length > 1
         ? {
-            parts: stops.map(
-              ({ globalId, name }) => overrides.partNames?.[globalId] ?? getPartName(name),
+            parts: getPartNames(stops.map(({ name }) => name)).map(
+              (partName, index) => overrides.partNames?.[stops[index].globalId] ?? partName,
             ),
           }
         : {}),
     };
     return [id, definition] as const;
   });
+  // As `toStopPlaceParts` would drop them at runtime.
   assertNone(
     entries.flatMap(([id, { parts = [] }]) =>
-      new Set(parts).size < parts.length ? [`${id} (${parts.join(", ")})`] : [],
+      new Set(parts.map(createStopSlug)).size < parts.length ? [`${id} (${parts.join(", ")})`] : [],
     ),
-    "Parts share a name; give them partNames",
+    "Parts share an address; give them partNames",
   );
   const ids = new Set(entries.map(([id]) => id));
   assertNone(
@@ -136,14 +138,46 @@ function assertNone(stale: readonly string[], message: string): void {
 }
 
 /** The parts a name says only by its `(U)`, or by having none. */
-export const UPPER_PART_NAME = "Oben";
-export const LOWER_PART_NAME = "Unten";
+const UPPER_PART_NAME = "Oben";
+const LOWER_PART_NAME = "Unten";
+/** The tunnel's mark ending an aside (`(U)`, `(Pyramide U)`). */
+const TUNNEL_MARK = /(?:^|\s+)U$/;
 
-/** The operator's bracketed aside (`Marktplatz (Pyramide U)` → `Pyramide`). */
-function getPartName(name: string): string {
-  const aside = /\(([^)]*)\)/.exec(name)?.[1].trim();
-  if (aside === undefined) return UPPER_PART_NAME;
-  return aside.replace(/\s*\bU$/, "") || LOWER_PART_NAME;
+/** `Oben` before `Unten` at every place; other parts keep the busiest first. */
+const getPartRank = ({ name }: StopPlacePart): number =>
+  name === UPPER_PART_NAME ? 0 : name === LOWER_PART_NAME ? 2 : 1;
+
+/**
+ * A place's parts, its stop points paired with their part names; none where two would share an
+ * address, so the board stays whole.
+ */
+export function toStopPlaceParts(
+  stopPoints: readonly string[],
+  names: readonly string[],
+): StopPlacePart[] | undefined {
+  const parts = stopPoints.map((stopPointId, index) => ({
+    id: createStopSlug(names[index]),
+    name: names[index],
+    stopPointId,
+  }));
+  if (parts.length < 2 || new Set(parts.map(({ id }) => id)).size < parts.length) return undefined;
+  return parts.sort((a, b) => getPartRank(a) - getPartRank(b));
+}
+
+/**
+ * One place's stop points as a rider tells them apart, by the operator's bracketed aside
+ * (`Marktplatz (Pyramide U)` → `Pyramide`, `Hauptbahnhof (tief)` → `Tief`). A name without one is
+ * `Oben` beside a tunnel, else its own: Stuttgart's `Hauptbahnhof` beside its Stadtbahn stops.
+ */
+export function getPartNames(names: readonly string[]): string[] {
+  const asides = names.map((name) => /\(([^)]*)\)/.exec(name)?.[1].trim());
+  const isBesideTunnel = asides.some((aside) => aside !== undefined && TUNNEL_MARK.test(aside));
+  return names.map((name, index) => {
+    const aside = asides[index];
+    if (aside === undefined) return isBesideTunnel ? UPPER_PART_NAME : getBaseName(name);
+    const part = aside.replace(TUNNEL_MARK, "");
+    return part ? part[0].toUpperCase() + part.slice(1) : LOWER_PART_NAME;
+  });
 }
 
 /** A stop point as joining reads it. */

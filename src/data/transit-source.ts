@@ -344,12 +344,8 @@ export class TriasTransitSource implements TransitSource {
   ): StopPlace {
     return this.stops.register({
       ...first,
-      ...(joined.length > 0
-        ? {
-            name: getBaseName(first.name),
-            joinedStopPointIds: joined.map(({ stopPointId }) => stopPointId),
-          }
-        : {}),
+      stopPoints: [first, ...joined].map(({ stopPointId, name }) => ({ stopPointId, name })),
+      ...(joined.length > 0 ? { name: getBaseName(first.name) } : {}),
       ...(preferredId ? { preferredId } : {}),
     });
   }

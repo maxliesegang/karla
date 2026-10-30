@@ -19,6 +19,7 @@ import type {
   TransitLine,
   TransitNetwork,
   StopPlace,
+  StopPlacePart,
 } from "./data/transit-types";
 import {
   DEFAULT_STOP_ID,
@@ -30,11 +31,7 @@ import {
   type AppRoute,
 } from "./routing";
 import { findBundledLines, findSelectedLine } from "./selected-line";
-import {
-  chosenStopPlaceParts,
-  findReadStopPlacePart,
-  type StopPlacePart,
-} from "./lib/stop-place-parts";
+import { chosenStopPlaceParts, findReadStopPlacePart } from "./lib/stop-place-parts";
 import { stationBoardConfig } from "./station-board";
 
 const EMPTY_STOP_EVENTS: readonly StopEvent[] = [];
@@ -123,7 +120,7 @@ export function useSelectionChain(
   // missing line.
   const boardOrder = useStoredPreference(stopEventBoardOrder);
   const chosenParts = useStoredPreference(chosenStopPlaceParts);
-  const stopPlacePart = findReadStopPlacePart(stopId, route, chosenParts);
+  const stopPlacePart = findReadStopPlacePart(selectedStop, route, chosenParts);
   const stopEventBoardReading = useStopEventBoard(
     selectedStop ? stopId : undefined,
     NEEDS_BOARD_CALLS ? "calls" : boardOrder === "line" ? "covered" : "plain",

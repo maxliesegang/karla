@@ -6,7 +6,7 @@ export const kvvStopPlaceOverrides: StopPlaceOverrides = {
   joins: [["de:08212:802", "de:08212:801"]],
   // Renamed in 2021.
   formerNames: { "rueppurrer-tor": "Mendelssohnplatz" },
-  // The stations' tracks, where the name rule would say `Oben`.
+  // The stations' tracks, which the name rule would call by the place's own name.
   partNames: {
     "de:08212:90": "Bahnhof",
     "de:08212:802": "Bahnhof",

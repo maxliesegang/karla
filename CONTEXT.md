@@ -14,7 +14,8 @@ board reads each one. A stop beyond the catalog is a stop place of one stop poin
 _Avoid_: complex, local stop, transit stop, alias
 
 **Part** (`StopPlacePart`): one stop point of a joined stop place as the page names it (`Unten`,
-`Oben`, `Vorplatz`, `Pyramide`), from the operator's bracketed aside. A board can be read at one
+`Oben`, `Vorplatz`, `Pyramide`), from the operator's bracketed aside. A name without one is `Oben`
+beside a tunnel (`(U)`), else its own (Stuttgart's `Hauptbahnhof`). A board can be read at one
 part (`#/stop/hauptbahnhof/vorplatz`).
 _Avoid_: level (not every part is one)
 
@@ -29,7 +30,8 @@ _Avoid_: platform (in code; German copy says Gleis and Bstg.)
 **Network / dynamic stop**: a network stop place ships with the app, from the catalog; a dynamic
 stop is first met live (through a search hit or a call) and is registered for the rest of the
 session. Search finds dynamic stops across Baden-Württemberg and beyond; stop points one answer
-names alike and close together are one dynamic stop, joined as the catalog's are. Its id leads
+names alike and close together are one dynamic stop, joined as the catalog's are. It has parts
+as the catalog's do, named by search, since a call's name carries its town. Its id leads
 with its town outside home (`stuttgart-hauptbahnhof--…`), since resolving a link searches that slug.
 
 **Boarding place**: what a rider walks to at a stop, usually one stop point. It is derived from
