@@ -44,6 +44,7 @@ import { useStoredPreference } from "../hooks/stored-preference";
 import { appSettings } from "../lib/app-settings";
 import { useScrollSections } from "../hooks/scroll-sections";
 import { stopEventBoardOrder, type StopEventBoardOrder } from "../lib/stop-event-board-order";
+import { savedStops, withSavedStop, withoutSavedStop } from "../lib/saved-stops";
 import { usePullToRefresh } from "../hooks/pull-to-refresh";
 import { BOARD_REFRESH_LABEL, PullToRefreshStrip } from "./PullToRefreshStrip";
 import { useTransientScrollbar } from "../hooks/scrollbar";
@@ -240,6 +241,28 @@ function StopEventOrderControl({
       ariaLabel="Abfahrten ordnen"
       onValueChange={onOrderChange}
     />
+  );
+}
+
+/** Keeps the stop on the home and in the search, or lets it go; a toggle, so it says which. */
+function SaveStopButton({ stop }: { stop: StopPlace }) {
+  const saved = useStoredPreference(savedStops);
+  const isSaved = saved.some((entry) => entry.stopId === stop.id);
+  return (
+    <button
+      type="button"
+      className="departure-board-save"
+      aria-pressed={isSaved}
+      aria-label="Haltestelle merken"
+      title={isSaved ? "Gemerkt" : "Haltestelle merken"}
+      onClick={() =>
+        savedStops.write(
+          isSaved ? withoutSavedStop(saved, stop.id) : withSavedStop(saved, stop.id, stop.name),
+        )
+      }
+    >
+      <span aria-hidden="true">{isSaved ? "★" : "☆"}</span>
+    </button>
   );
 }
 
@@ -482,6 +505,7 @@ export function StopEventBoardPanel({
           )}
         </div>
         <div className="departure-board-heading-actions">
+          <SaveStopButton stop={stop} />
           <StopEventOrderControl order={stopEventOrder} onOrderChange={stopEventBoardOrder.write} />
           <StopEventBoardStatusChip
             stopEventBoard={stopEventBoard}

@@ -1,6 +1,8 @@
 import { useLayoutEffect, useRef } from "react";
 import type { NearbyStopsController } from "../hooks/nearby-stops";
+import { useStoredPreference } from "../hooks/stored-preference";
 import type { RecentStop } from "../lib/recent-stops";
+import { savedStops as savedStopsPreference, type SavedStop } from "../lib/saved-stops";
 import { network } from "../networks/network";
 import { routePaths } from "../routing";
 import { HomeMenu } from "./HomeMenu";
@@ -14,7 +16,7 @@ const SUGGESTED_STOPS = network.suggestedStopIds.map((stopId) => ({
 }));
 
 /**
- * The home: ways to reach a stop (search, recent or suggested stops, locate), then links to the
+ * The home: ways to reach a stop (search, saved, recent or suggested stops, locate), then links to the
  * pages, each with a line saying what it is. Links rather than buttons, since every view is a hash
  * address.
  */
@@ -31,10 +33,11 @@ export function HomeEntry({
   locatedStop: LocatedStop;
   onShowNearbyStops: () => void;
 }) {
+  const savedStops = useStoredPreference(savedStopsPreference);
   return (
     <div className="home-entry">
       <div className="home-entry-find">
-        <StopSearch inputRef={searchInputRef} recentStops={recentStops} />
+        <StopSearch inputRef={searchInputRef} recentStops={recentStops} savedStops={savedStops} />
         <NearbyStopButton
           variant="page"
           controller={nearbyStopsController}
@@ -42,25 +45,46 @@ export function HomeEntry({
           onShowAlternatives={onShowNearbyStops}
         />
       </div>
-      <HomeStops stops={recentStops} />
+      <SavedHomeStops stops={savedStops} />
+      <HomeStops stops={recentStops} savedStops={savedStops} />
       <HomeMenu />
     </div>
   );
 }
 
+/** The stops the rider saved, all of them: a list they chose wraps rather than drops any. */
+function SavedHomeStops({ stops }: { stops: readonly SavedStop[] }) {
+  if (stops.length === 0) return null;
+  return (
+    <nav className="recent-stops saved-stops" aria-labelledby="saved-stops-heading">
+      <h2 id="saved-stops-heading" className="eyebrow">
+        Gemerkt
+      </h2>
+      <StopChips stops={stops.map((stop) => ({ stopId: stop.stopId, name: stop.stopName }))} />
+    </nav>
+  );
+}
+
 /**
  * The rider's recent stops, or on a first visit the suggestions, under a visible label saying
- * which.
+ * which. Saved stops are not repeated, and with any saved there are no suggestions.
  */
-function HomeStops({ stops }: { stops: readonly RecentStop[] }) {
+function HomeStops({
+  stops,
+  savedStops,
+}: {
+  stops: readonly RecentStop[];
+  savedStops: readonly SavedStop[];
+}) {
   const remembered = stops
-    .filter((visit) => visit.stopName)
+    .filter((visit) => visit.stopName && !savedStops.some((s) => s.stopId === visit.stopId))
     .map((visit) => ({ stopId: visit.stopId, name: visit.stopName as string }));
   const isRemembered = remembered.length > 0;
   const shown = isRemembered ? remembered : SUGGESTED_STOPS;
   const listRef = useFirstLineOnly<HTMLUListElement>(
     shown.map((stop) => `${stop.stopId}:${stop.name}`).join("|"),
   );
+  if (!isRemembered && savedStops.length > 0) return null;
 
   return (
     <nav className="recent-stops" aria-labelledby="recent-stops-heading">
@@ -68,17 +92,29 @@ function HomeStops({ stops }: { stops: readonly RecentStop[] }) {
         {isRemembered ? "Zuletzt besucht" : "Zum Beispiel"}
       </h2>
       {/* One row: the stops that fit whole, newest first. */}
-      <ul ref={listRef}>
-        {shown.map((stop) => (
-          <li key={stop.stopId}>
-            <a href={`#${routePaths.stop(stop.stopId)}`} title={stop.name}>
-              <span>{stop.name}</span>
-              <b aria-hidden="true">›</b>
-            </a>
-          </li>
-        ))}
-      </ul>
+      <StopChips stops={shown} listRef={listRef} />
     </nav>
+  );
+}
+
+function StopChips({
+  stops,
+  listRef,
+}: {
+  stops: readonly { stopId: string; name: string }[];
+  listRef?: React.Ref<HTMLUListElement>;
+}) {
+  return (
+    <ul ref={listRef}>
+      {stops.map((stop) => (
+        <li key={stop.stopId}>
+          <a href={`#${routePaths.stop(stop.stopId)}`} title={stop.name}>
+            <span>{stop.name}</span>
+            <b aria-hidden="true">›</b>
+          </a>
+        </li>
+      ))}
+    </ul>
   );
 }
 

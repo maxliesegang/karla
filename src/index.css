@@ -2552,6 +2552,26 @@ button.brand:active .brand-mark,
   color: var(--accent-ink);
 }
 
+/* Saving the stop, beside the order but drawn as its track: a toggle of the stop, not a reading
+   of the board. Filled when saved, so the state shows without the label. */
+.departure-board-save {
+  flex: 0 0 auto;
+  min-width: 30px;
+  min-height: 30px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--surface-3);
+  color: var(--ink-soft);
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+}
+.departure-board-save:hover,
+.departure-board-save:focus-visible,
+.departure-board-save[aria-pressed="true"] {
+  color: var(--accent-ink);
+}
+
 /* The places of a stop, as a way to move through the board rather than a way to shrink it. A tap
    walks the board to that place's own section, and the place whose heading is stuck at the top is
    marked on the buttons as it goes. Only ever rendered in the platform order, where the board has
@@ -5981,6 +6001,10 @@ button.line-diagram-bundle-option:focus-visible {
     min-height: 34px;
     font-size: 13px;
   }
+  .app-shell:not(.station-board-mode) .departure-board-save {
+    min-width: 34px;
+    min-height: 34px;
+  }
   /* Stacked, a stop is one column: its board, read in whichever of the three orders the rider chose. */
   .dashboard {
     flex: 1 0 auto;
@@ -6136,7 +6160,8 @@ button.line-diagram-bundle-option:focus-visible {
   .departure-board-heading-actions {
     gap: 6px;
   }
-  .departure-board-order-control button {
+  .departure-board-order-control button,
+  .departure-board-save {
     min-height: 44px;
     padding-inline: 14px;
   }

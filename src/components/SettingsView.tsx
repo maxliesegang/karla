@@ -87,7 +87,7 @@ export function SettingsView() {
         />
         <SettingsRow
           title="Haltestellen merken"
-          description="Besuchte Haltestellen auf diesem Gerät aufbewahren. Ausschalten löscht die Liste."
+          description="Besuchte Haltestellen auf diesem Gerät aufbewahren. Ausschalten löscht sie; gemerkte Haltestellen bleiben."
           control={
             <SettingsSwitch
               isOn={settings.isRememberingStops}

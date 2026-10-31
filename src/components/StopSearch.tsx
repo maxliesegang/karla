@@ -1,19 +1,23 @@
-import { useEffect, useId, useImperativeHandle, useRef, useState } from "react";
+import { Fragment, useEffect, useId, useImperativeHandle, useRef, useState } from "react";
 import { transitSource } from "../data/transit-source";
 import type { StopPlace } from "../data/transit-types";
 import type { RecentStop } from "../lib/recent-stops";
+import type { SavedStop } from "../lib/saved-stops";
 import { navigateTo, routePaths } from "../routing";
 import { FEED_UNREADABLE_TEXT } from "./feed-copy";
 import { getStopPlaceSubtitle } from "../lib/stop-naming";
 
 /**
  * Stop search by name (`/` focuses it). Authored stops match locally at once; the provider is asked
- * after typing settles. An empty field lists the rider's recent stops.
+ * after typing settles. An empty field lists the rider's saved, then recent stops.
  */
 const SEARCH_DEBOUNCE_MS = 220;
 
+/** Which remembered list a row belongs to, named as its group label. */
+type SearchOptionGroup = "Gemerkt" | "Zuletzt besucht";
+
 /** A list row, found or remembered. */
-type SearchOption = { stopId: string; name: string; detail?: string; isRecent?: boolean };
+type SearchOption = { stopId: string; name: string; detail?: string; group?: SearchOptionGroup };
 
 /**
  * The last settled search with its query, as one state so a stale answer never shows as current.
@@ -30,12 +34,15 @@ const NO_RESULTS: readonly StopPlace[] = [];
 export function StopSearch({
   inputRef,
   recentStops = [],
+  savedStops = [],
   focusOnMount = false,
   onRequestClose,
 }: {
   inputRef?: React.Ref<HTMLInputElement>;
   /** Recent stops, offered while nothing is typed. */
   recentStops?: readonly RecentStop[];
+  /** Saved stops, offered before the recent ones. */
+  savedStops?: readonly SavedStop[];
   focusOnMount?: boolean;
   onRequestClose?: () => void;
 }) {
@@ -87,7 +94,7 @@ export function StopSearch({
     return () => document.removeEventListener("pointerdown", closeOnOutsideClick);
   }, []);
 
-  // One list, so the keyboard reaches recent and found stops alike.
+  // One list, so the keyboard reaches saved, recent and found stops alike.
   const settledResults = settledSearch?.results ?? NO_RESULTS;
   const visibleResults: readonly SearchOption[] = isQueryLongEnough
     ? settledResults.map((stop) => ({
@@ -95,11 +102,24 @@ export function StopSearch({
         name: stop.name,
         detail: getStopPlaceSubtitle(stop),
       }))
-    : recentStops.map((visit) => ({
-        stopId: visit.stopId,
-        name: visit.stopName ?? visit.stopId,
-        isRecent: true,
-      }));
+    : [
+        ...savedStops.map(
+          (stop): SearchOption => ({
+            stopId: stop.stopId,
+            name: stop.stopName,
+            group: "Gemerkt",
+          }),
+        ),
+        ...recentStops
+          .filter((visit) => !savedStops.some((stop) => stop.stopId === visit.stopId))
+          .map(
+            (visit): SearchOption => ({
+              stopId: visit.stopId,
+              name: visit.stopName ?? visit.stopId,
+              group: "Zuletzt besucht",
+            }),
+          ),
+      ];
   // When there are no rows: still searching, no results, or the provider failed.
   const hasSettledForQuery = settledSearch?.query === query;
   const isSearching = isQueryLongEnough && !hasSettledForQuery;
@@ -109,7 +129,7 @@ export function StopSearch({
     visibleResults.length === 0 &&
     (isSearching || (hasSettledForQuery && settledResults.length === 0));
   const isListVisible = isOpen && (visibleResults.length > 0 || isSearchFeedbackVisible);
-  const hasRecentStops = !isQueryLongEnough && visibleResults.length > 0;
+  const hasRememberedStops = !isQueryLongEnough && visibleResults.length > 0;
   const activeOptionIndex = Math.min(activeIndex, Math.max(visibleResults.length - 1, 0));
 
   const open = (option: SearchOption) => {
@@ -165,29 +185,30 @@ export function StopSearch({
           className="stop-search-results"
           id={listId}
           role="listbox"
-          aria-label={hasRecentStops ? "Zuletzt besucht" : "Suchergebnisse"}
+          aria-label={hasRememberedStops ? "Gemerkt und zuletzt besucht" : "Suchergebnisse"}
         >
-          {hasRecentStops && (
-            <li className="stop-search-group" role="presentation">
-              Zuletzt besucht
-            </li>
-          )}
           {visibleResults.map((option, index) => (
-            <li
-              key={option.stopId}
-              id={`${listId}-option-${index}`}
-              role="option"
-              aria-selected={index === activeOptionIndex}
-              className={index === activeOptionIndex ? "active" : ""}
-              onMouseEnter={() => setActiveIndex(index)}
-              onPointerDown={(event) => {
-                event.preventDefault();
-                open(option);
-              }}
-            >
-              <strong>{option.name}</strong>
-              {option.detail && <small>{option.detail}</small>}
-            </li>
+            <Fragment key={option.stopId}>
+              {option.group && option.group !== visibleResults[index - 1]?.group && (
+                <li className="stop-search-group" role="presentation">
+                  {option.group}
+                </li>
+              )}
+              <li
+                id={`${listId}-option-${index}`}
+                role="option"
+                aria-selected={index === activeOptionIndex}
+                className={index === activeOptionIndex ? "active" : ""}
+                onMouseEnter={() => setActiveIndex(index)}
+                onPointerDown={(event) => {
+                  event.preventDefault();
+                  open(option);
+                }}
+              >
+                <strong>{option.name}</strong>
+                {option.detail && <small>{option.detail}</small>}
+              </li>
+            </Fragment>
           ))}
           {visibleResults.length === 0 && isSearchFeedbackVisible && (
             <li className="stop-search-note" role="presentation">
