@@ -86,6 +86,11 @@ Measured against KARLA's access with the same requests:
   `EstimatedBay` a changed bay; `Extension` the train category and number.
 - Elements are namespaced `trias:` and `siri:`; text values sit in `<Text>` + `<Language>` pairs.
 - Stop names may carry the municipality as a prefix (`KA Marktplatz (Kaiserstraße U)`).
+- Board and trip calls state no municipality: a call is `StopPointRef` and `StopPointName` only, and
+  the name carries the town as each pool spells it: `Stuttgart Hauptbahnhof`, `Weinheim,
+  Hauptbahnhof`, `Frankfurt (Main) Südbahnhof`, `Halle(Saale)Hbf`, `Baden-Baden` for its station,
+  bare `Bern`. A name search states it: `LocalityRef` `8231000:14` (municipality key, then
+  district) and the town as `LocationName` (`Pforzheim`). Checked 2026-11-01.
 - A journey's layover is timed through, not ended and restarted.
 - Response times were 50–250 ms for boards and trip info, 0.3–5 s for location searches.
 

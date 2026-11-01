@@ -14,6 +14,8 @@ export type StopPlace = {
   name: string;
   /** The municipality or district, where the name alone could be anywhere (`Durlach`). */
   placeName?: string;
+  /** The municipality the network's own stops are in, its district aside (`Karlsruhe`). */
+  municipality?: string;
   /** A name riders still use (`Mendelssohnplatz`). */
   formerName?: string;
   /** Required for projected core-network stops. */

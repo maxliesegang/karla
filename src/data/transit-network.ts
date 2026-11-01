@@ -17,6 +17,7 @@ export const transitNetwork: TransitNetwork = {
         id,
         name: place.name,
         ...(place.placeName ? { placeName: place.placeName } : {}),
+        municipality: network.home.placeName,
         ...(place.formerName ? { formerName: place.formerName } : {}),
         latitude: catalogStop.latitude,
         longitude: catalogStop.longitude,

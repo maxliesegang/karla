@@ -60,6 +60,18 @@ export function getQualifiedStopName(
   return qualifier ? `${qualifier} ${call.stopName}` : call.stopName;
 }
 
-/** What is printed under a stop's name: its district, its former name. */
-export const getStopPlaceSubtitle = ({ placeName, formerName }: StopPlace): string | undefined =>
-  [placeName, formerName].filter(Boolean).join(" · ") || undefined;
+/**
+ * Where a stop is, as said beside its name (`Karlsruhe`, `Karlsruhe-Durlach`, `Pforzheim`); nothing
+ * where the name already says the town (`Karlsruhe Westbahnhof`).
+ */
+function getStopPlaceTown({ name, placeName, municipality }: StopPlace): string | undefined {
+  const town = municipality ?? placeName;
+  if (!town) return undefined;
+  const district = municipality && placeName;
+  if (name.toLowerCase().includes(town.toLowerCase())) return district || undefined;
+  return district ? `${municipality}-${placeName}` : town;
+}
+
+/** What is printed under a stop's name: its town and district, its former name. */
+export const getStopPlaceSubtitle = (stop: StopPlace): string | undefined =>
+  [getStopPlaceTown(stop), stop.formerName].filter(Boolean).join(" · ") || undefined;
