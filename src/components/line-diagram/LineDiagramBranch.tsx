@@ -13,6 +13,7 @@ import { classNames } from "../../lib/class-names";
 import { needsLineOutline } from "../../lib/line-sign-colors";
 import { LineDiagramStopRow } from "./LineDiagramStopRow";
 import { LineDiagramVehicleLayer } from "./LineDiagramVehicleLayer";
+import type { MarkPresence } from "../../lib/mark-presence";
 import { useVehicleLayerGeometry } from "./layout";
 import { useDeviceNow } from "../../hooks/clock";
 
@@ -32,6 +33,7 @@ export function LineDiagramBranch({
   connectorOffset,
   branchTransferKeys,
   rowFeedNow,
+  presence,
   onOpenStop,
 }: {
   branch: LineBundleBranch;
@@ -54,6 +56,8 @@ export function LineDiagramBranch({
   branchTransferKeys?: ReadonlySet<string>;
   /** The rows' coarse clock. */
   rowFeedNow: number;
+  /** The diagram's record of drawn journeys, so a mark crossing onto the leg does not re-enter. */
+  presence: MarkPresence;
   onOpenStop: (stopId: string) => void;
 }) {
   const stopListRef = useRef<HTMLDivElement>(null);
@@ -147,6 +151,7 @@ export function LineDiagramBranch({
           stopNames={stopNames}
           branchTransferKeys={branchTransferKeys}
           geometry={geometry}
+          presence={presence}
         />
       </div>
     </div>

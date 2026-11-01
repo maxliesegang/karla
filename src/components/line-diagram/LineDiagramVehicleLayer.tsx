@@ -6,6 +6,8 @@ import { classNames } from "../../lib/class-names";
 import { assignStableVehicleLanes } from "../../lib/vehicle-lanes";
 import { useVehicleTrajectoryAnimations } from "../../hooks/vehicle-trajectory-animation";
 import { useDeviceNow } from "../../hooks/clock";
+import { useMarkPresenceAnimations } from "../../hooks/mark-presence";
+import type { MarkPresence } from "../../lib/mark-presence";
 import { getVehiclePositionSourceLabel } from "../../lib/vehicle-position-presentation";
 import { getVehicleLeftOffset, type VehicleLayerGeometry } from "./layout";
 
@@ -48,10 +50,13 @@ function LineDiagramVehicleLayerView({
   lineById,
   stopNames,
   branchTransferKeys,
+  presence,
 }: {
   vehicles: readonly LineDiagramVehicle[];
   geometry: VehicleLayerGeometry;
   lineById: ReadonlyMap<string, TransitLine>;
+  /** The view's record of drawn journeys, shared with its other layers. */
+  presence: MarkPresence;
   /** Every row's stop name, for the debug reading. */
   stopNames?: readonly string[];
   /** Marks that were on the shared trunk just before entering this branch. */
@@ -135,6 +140,18 @@ function LineDiagramVehicleLayerView({
         ? []
         : geometry.stopCenterOffsets.map((_, rowIndex) => (rowIndex - mark.fromIndex) / rowSpan);
     },
+  });
+
+  useMarkPresenceAnimations({
+    container: layerRef,
+    presence,
+    marks: drawnMarks.map(({ vehicle: { markerKey, stopEvent, toStopId } }) => ({
+      key: markerKey,
+      stopEvent,
+      toStopId,
+    })),
+    now: readingNow,
+    colorProperty: "--line-color",
   });
 
   return (

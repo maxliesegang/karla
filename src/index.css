@@ -1504,12 +1504,6 @@ button.brand:active .brand-mark,
     #10201f33;
   pointer-events: auto;
   cursor: pointer;
-  animation: zentrum-vehicle-appear 0.24s ease-out;
-}
-@keyframes zentrum-vehicle-appear {
-  from {
-    opacity: 0;
-  }
 }
 .zentrum-schematic-vehicle::before,
 .zentrum-schematic-stop::before {
@@ -4495,12 +4489,6 @@ button.line-diagram-bundle-option:focus-visible {
      marker's non-positional feedback. */
   will-change: transform;
   transition: box-shadow 0.2s ease;
-  /* Arriving into a diagram is an event of its own: a mark that was not there a moment ago fades up
-     in place instead of appearing mid-track fully formed. The fade is opacity alone. The whole
-     position rides on `transform`, and the individual `scale` is applied after that transform —
-     scaling it scales the translation too, so a mark would slide in from a fraction of its
-     position, which is precisely the journey an entry must not be seen to make. */
-  animation: line-diagram-vehicle-enter 0.24s ease-out both;
 }
 /* A mark is a small thing to hit and a moving one to follow, so the pointer is met a little before
    it arrives. It is part of the mark, so hovering it is hovering the mark; it stays wider than the
@@ -4513,14 +4501,6 @@ button.line-diagram-bundle-option:focus-visible {
   inset: calc(-1 * var(--line-diagram-vehicle-reach-y))
     calc(-1 * var(--line-diagram-vehicle-reach-x));
   border-radius: 12px;
-}
-@keyframes line-diagram-vehicle-enter {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
 }
 /* A vehicle that just left the shared stretch enters its branch from the trunk rail. The percentage
    in `left` is measured against the branch layer, so the offset spans exactly the leg columns and

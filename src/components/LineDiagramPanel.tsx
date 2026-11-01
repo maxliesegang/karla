@@ -10,6 +10,8 @@ import type {
 import { getStopEventAddressId, getSelectionPath, navigateTo, routePaths } from "../routing";
 import { useTransientScrollbar } from "../hooks/scrollbar";
 import { usePullToRefresh } from "../hooks/pull-to-refresh";
+import { useMarkPresence } from "../hooks/mark-presence";
+import { LINE_OBSERVATION_REFRESH_MS } from "../hooks/stop-event-board-collection";
 import { getLineRefreshLabel, PullToRefreshStrip } from "./PullToRefreshStrip";
 import { classNames } from "../lib/class-names";
 import {
@@ -151,6 +153,8 @@ export function LineDiagramPanel({
     rideNextCall,
   });
   const { branchesAhead, branchesBehind, junctionAhead, junctionBehind, hasFork } = fork;
+  // Two observation rounds, so a journey one refresh misses does not enter again.
+  const markPresence = useMarkPresence(line.id, 2 * LINE_OBSERVATION_REFRESH_MS);
   const displayedLines = [line, ...(bundledLines ?? [])];
   const aheadTermini = getLineBundleTermini(branches, "ahead", termini.firstTerminus);
   const behindTermini = getLineBundleTermini(branches, "behind", termini.lastTerminus);
@@ -218,6 +222,7 @@ export function LineDiagramPanel({
           index > 0 ? transferKeysByBranchKey.get(getLineBundleBranchKey(branch)) : undefined
         }
         rowFeedNow={rowFeedNow}
+        presence={markPresence}
         /* Past the junction, the leg's stops open on its own line; the pinned journey only if it is
            that line's. */
         onOpenStop={(stopId) =>
@@ -402,6 +407,7 @@ export function LineDiagramPanel({
             lineById={lineById}
             stopNames={diagramStopNames}
             geometry={vehicleLayerGeometry}
+            presence={markPresence}
           />
         </div>
         {/* The other end, for a stop the lines part at both ways. */}

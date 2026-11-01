@@ -3,6 +3,8 @@ import {
   useVehicleTrajectoryAnimations,
   type TrajectoryAnimationFields,
 } from "../../hooks/vehicle-trajectory-animation";
+import { useMarkPresence, useMarkPresenceAnimations } from "../../hooks/mark-presence";
+import { ZENTRUM_OBSERVATION_REFRESH_MS } from "../../hooks/stop-event-board-collection";
 import {
   getZentrumRevealScroll,
   getZentrumVehicleLinkKey,
@@ -177,6 +179,19 @@ export function ZentrumSchematicCanvas({
     geometrySignature,
     getValue: (mark, progress) => getZentrumVehicleTransform(mark.path, progress),
     getBoundaryProgresses: getBendProgresses,
+  });
+  // Two discovery scans, so a journey one scan misses does not enter again.
+  const markPresence = useMarkPresence("zentrum", 2 * ZENTRUM_OBSERVATION_REFRESH_MS);
+  useMarkPresenceAnimations({
+    container: canvasRef,
+    presence: markPresence,
+    marks: vehicleMarks.map(({ key, stopEvent, to }) => ({
+      key,
+      stopEvent,
+      toStopId: getZentrumSchematicStopId(to.id),
+    })),
+    now: readingNow,
+    colorProperty: "--zentrum-line-color",
   });
   // A lit stretch uses its mark's keyframes, so the colour ends at the mark.
   const foregroundPaths = schematic.drawnPaths.filter((path) => path.foregroundRegions.length > 0);
