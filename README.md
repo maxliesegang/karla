@@ -21,6 +21,8 @@ npm test        # tests and build must pass
 uses it). It and the scripts run by hand (`refresh:stops`, `probe:trias`) need the requestor ref
 in `.env.local` as `TRIAS_REQUESTOR_REF`.
 
+Tests also need PHP 8.3+ with cURL on the command line for local, network-free proxy checks.
+
 ## Addresses
 
 Routing is hash-based, so every view is a shareable deep link. Each level of the selection chain
@@ -175,6 +177,22 @@ only in production builds and fetches the shell network-first, so a deploy arriv
 launch. Vite emits `vite-manifest.json` so the worker can precache the hashed bundle.
 
 ## Deployment
+
+### Usage counts
+
+Production builds send one empty request per visible app start to the PHP proxy. Only daily
+app-open totals are stored, without visitor identifiers or travel data. Navigation does not count
+again; reloads do. Development builds, station boards, and browsers sending Do Not Track or Global
+Privacy Control are excluded. Offline or blocked requests are lost, without retries.
+
+These are app opens, not unique users. See [proxy/README.md](proxy/README.md#usage-counts) for
+reading the private totals and checking hosting logs.
+
+The proxy also keeps private daily totals of requests, cache reuse, TRIAS attempts, failures and
+response statuses, split by operation. See [proxy metrics](proxy/README.md#proxy-metrics) for
+the fields and limits. No request parameters or client information are stored in these totals.
+
+### Publishing
 
 Every push to `main` is tested and built, then published to GitHub Pages and, with the proxy, to
 All-Inkl (`karla.app.liesegang.info`) by `.github/workflows/deploy.yml`. **Settings → Pages →

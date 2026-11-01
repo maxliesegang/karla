@@ -4,6 +4,8 @@
 
 declare(strict_types=1);
 
+require_once __DIR__ . '/proxy-metrics.php';
+
 ini_set('display_errors', '0');
 error_reporting(E_ALL);
 
@@ -118,6 +120,8 @@ function envelope(string $ref, string $payload): string
 /** Posts the payload, or `null` on any failure; upstream details are logged, never returned. */
 function fetch_trias(string $ref, string $payload): ?string
 {
+    global $proxyMetrics;
+
     $curl = curl_init(TRIAS_ENDPOINT);
     curl_setopt_array($curl, [
         CURLOPT_POST => true,
@@ -127,13 +131,16 @@ function fetch_trias(string $ref, string $payload): ?string
         CURLOPT_ENCODING => '',
         CURLOPT_TIMEOUT => UPSTREAM_TIMEOUT_SECONDS,
     ]);
+    $proxyMetrics->upstreamRequest();
     $body = curl_exec($curl);
     $status = curl_getinfo($curl, CURLINFO_RESPONSE_CODE);
     if (!is_string($body) || $status !== 200 || !str_starts_with(ltrim($body), '<?xml')) {
+        $proxyMetrics->upstreamFailure(curl_errno($curl) === CURLE_OPERATION_TIMEDOUT);
         error_log("trias proxy: upstream HTTP $status");
         return null;
     }
     if (str_contains($body, $ref)) {
+        $proxyMetrics->upstreamFailure();
         error_log('trias proxy: upstream echoed the requestor ref');
         return null;
     }
@@ -149,7 +156,10 @@ function fetch_trias(string $ref, string $payload): ?string
  */
 function serve(string $payload, int $ttlSeconds = CACHE_TTL_SECONDS): never
 {
+    global $proxyMetrics;
+
     $ref = requestor_ref();
+    $fetched = false;
 
     $path = cache_dir() . '/reply-' . hash('sha256', $payload) . '.xml.gz';
     $fresh = static fn (): bool => is_file($path) && filemtime($path) > time() - $ttlSeconds;
@@ -161,12 +171,14 @@ function serve(string $payload, int $ttlSeconds = CACHE_TTL_SECONDS): never
             enforce_rate_limit($ref);
             $body = fetch_trias($ref, $payload);
             if ($body === null) fail(502, 'upstream unavailable');
+            $fetched = true;
             $temporary = "$path." . getmypid();
             file_put_contents($temporary, gzencode($body, 9));
             rename($temporary, $path);
         }
         fclose($lock);
     }
+    if (!$fetched) $proxyMetrics->cacheHit();
 
     // The reply's clock is the upstream's when it was cached; `Age` lets the client advance it, and
     // no other cache may hold it longer.

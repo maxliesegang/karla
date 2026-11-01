@@ -120,11 +120,30 @@ export function SettingsView() {
         />
       </ul>
       <p className="settings-footnote">
-        Alles bleibt auf diesem Gerät: Einstellungen und besuchte Haltestellen werden nur lokal
-        gespeichert und nirgendwohin gesendet. Auch dein Standort verlässt das Gerät nicht — er wird
-        allein im Browser benutzt, um Haltestellen in der Nähe zu finden und deine Position auf der
-        Linie zu zeigen.
+        Deine Einstellungen und dein Haltestellenverlauf werden nur auf diesem Gerät gespeichert.
+        Für Abfahrten und Haltestellensuche werden die nötigen Anfragen an unseren Server und die
+        Fahrplanauskunft gesendet. Bei der Suche in deiner Nähe wird nur ein gerasterter Suchbereich
+        von etwa 500 Metern übertragen. Dein genauer Standort bleibt auf dem Gerät.
       </p>
+      <section className="settings-about" aria-labelledby="settings-privacy-title">
+        <h2 id="settings-privacy-title">Nutzungszählung</h2>
+        <p>
+          Beim Öffnen sendet KARLA eine leere Zählnachricht an unseren Server. Gespeichert wird nur
+          die Anzahl der App-Aufrufe pro Tag, keine einzelnen Besuche. Es gibt dafür keine Cookies
+          oder Nutzerkennungen. Haltestellen, Fahrten, Suchbegriffe und Standort werden nicht
+          mitgesendet. Die Zahl sagt, wie oft KARLA geöffnet wurde, nicht wie viele Menschen sie
+          nutzen.
+        </p>
+        <p>
+          Mit aktiviertem „Do Not Track“ oder „Global Privacy Control“ im Browser entfällt die
+          Zählnachricht. Unbeaufsichtigte Stationsanzeigen werden ebenfalls nicht gezählt.
+        </p>
+        <p>
+          Für den Betrieb werden außerdem tägliche Summen von Datenanfragen und technischen Fehlern
+          gespeichert. Auch diese Statistik enthält keine Nutzerkennungen oder Inhalte deiner
+          Anfragen.
+        </p>
+      </section>
       <section className="settings-about" aria-labelledby="settings-about-title">
         <h2 id="settings-about-title">Daten & Haftung</h2>
         <p>

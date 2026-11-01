@@ -37,3 +37,4 @@ yarn-error.log*
 # TRIAS proxy
 /proxy/trias-config.php
 /proxy/cache/
+/proxy/analytics/

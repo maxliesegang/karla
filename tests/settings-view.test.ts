@@ -13,7 +13,8 @@ test("settings state the operator's terms and credit the timetable data", async 
   const root = createRoot(container);
   await act(async () => root.render(createElement(SettingsView)));
 
-  const about = container.querySelector(".settings-about")?.textContent ?? "";
+  const about =
+    container.querySelector('[aria-labelledby="settings-about-title"]')?.textContent ?? "";
   assert.match(about, /kein offizielles Angebot des Karlsruher Verkehrsverbunds \(KVV\)/);
   assert.match(about, /Der KVV haftet\s+nicht für die Inhalte/);
   assert.match(
@@ -25,6 +26,19 @@ test("settings state the operator's terms and credit the timetable data", async 
   const datasetLink = container.querySelector(`a[href="${network.catalogSource.gtfs.url}"]`);
   assert.equal(datasetLink?.textContent, "NVBW");
   assert.equal(container.querySelector("img"), null);
+
+  const privacy =
+    container.querySelector('[aria-labelledby="settings-privacy-title"]')?.textContent ?? "";
+  assert.match(privacy, /nur die Anzahl der App-Aufrufe pro Tag, keine einzelnen Besuche/);
+  assert.match(privacy, /keine Cookies oder Nutzerkennungen/);
+  assert.match(
+    privacy,
+    /Haltestellen, Fahrten, Suchbegriffe und Standort werden nicht mitgesendet/,
+  );
+  assert.match(privacy, /Do Not Track/);
+  assert.match(privacy, /Global Privacy Control/);
+  assert.match(privacy, /tägliche Summen von Datenanfragen und technischen Fehlern/);
+  assert.match(privacy, /keine Nutzerkennungen oder Inhalte deiner Anfragen/);
 
   await act(async () => root.unmount());
 });

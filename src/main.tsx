@@ -1,8 +1,11 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import { countAppOpen } from "./data/app-opens";
+import { readTriasProxyUrl } from "./data/trias-proxy";
 import { getLineColors } from "./lib/line-sign-colors";
 import { network } from "./networks/network";
+import { isStationBoardMode } from "./station-board";
 import "./index.css";
 
 const networkColors = getLineColors(network.accentColor, "#ffffff");
@@ -15,6 +18,10 @@ createRoot(document.getElementById("root")!).render(
     <App />
   </StrictMode>,
 );
+
+if (import.meta.env.PROD && !isStationBoardMode) {
+  countAppOpen(readTriasProxyUrl(import.meta.env));
+}
 
 /**
  * The shell is installable and starts offline; departures never come from cache (public/sw.js).

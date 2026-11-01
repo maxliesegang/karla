@@ -4,6 +4,7 @@
 declare(strict_types=1);
 
 require __DIR__ . '/../lib/trias.php';
+$proxyMetrics = start_proxy_metrics('trip_info');
 
 if ($_SERVER['REQUEST_METHOD'] !== 'GET') fail(405, 'GET only');
 

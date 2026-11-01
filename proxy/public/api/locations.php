@@ -4,6 +4,7 @@
 declare(strict_types=1);
 
 require __DIR__ . '/../lib/trias.php';
+$proxyMetrics = start_proxy_metrics(isset($_GET['box']) ? 'location_area' : 'location_search');
 
 const SEARCH_TTL_SECONDS = 3600;
 const AREA_TTL_SECONDS = 86400;
