@@ -34,10 +34,7 @@ export function NearbyStopsView({
   return (
     <section className="nearby-stops-view" aria-labelledby="nearby-stops-heading">
       <div className="panel-heading">
-        <div>
-          <p className="eyebrow">Standort</p>
-          <h1 id="nearby-stops-heading">Haltestellen in der Nähe</h1>
-        </div>
+        <h1 id="nearby-stops-heading">Haltestellen in der Nähe</h1>
       </div>
 
       {(controller.status === "idle" || controller.status === "locating") && !hasList ? (

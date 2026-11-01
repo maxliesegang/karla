@@ -78,7 +78,7 @@ export function SavedStopsView() {
         <h1 id="saved-stops-title">Gemerkte Haltestellen</h1>
       </div>
       {saved.length === 0 ? (
-        <p className="settings-footnote">
+        <p className="saved-stops-empty">
           Noch keine Haltestelle gemerkt. Mit ☆ an einer Haltestelle kommt sie auf die Startseite.
         </p>
       ) : (

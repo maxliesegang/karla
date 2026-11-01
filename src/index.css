@@ -84,7 +84,8 @@ button {
      tint, so it says the wrong thing about what was just chosen. */
   -webkit-tap-highlight-color: transparent;
 }
-button:focus-visible {
+button:focus-visible,
+a:focus-visible {
   outline: 3px solid var(--focus);
   outline-offset: 2px;
 }
@@ -166,7 +167,7 @@ h2 {
   height: 58px;
   display: flex;
   align-items: center;
-  gap: 16px;
+  gap: 8px;
   padding: 0 12px;
   border-radius: var(--radius-l) var(--radius-l) 0 0;
   background: var(--shell-accent);
@@ -222,7 +223,6 @@ h2 {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-left: clamp(8px, 2vw, 28px);
 }
 .header-action {
   padding: 0;
@@ -374,6 +374,12 @@ button.brand:active .brand-mark,
   gap: clamp(16px, 2.2vw, 26px);
   margin: 0 auto clamp(10px, 1.2vw, 16px);
 }
+/* A tall screen sets the column a little below the bar rather than against it. */
+@media (min-width: 861px) {
+  .home-entry {
+    margin-top: clamp(0px, 12vh - 64px, 96px);
+  }
+}
 /* The two ways to name a stop, side by side while both fit: the field takes the room, the locate
    action takes what it needs. */
 .home-entry-find {
@@ -412,6 +418,14 @@ button.brand:active .brand-mark,
   opacity: 0.6;
   cursor: default;
 }
+.home-nearby-action:not(:disabled):hover,
+.nearby-locate-action:not(:disabled):hover,
+.stop-not-found-view button:not(.stop-not-found-view-secondary):hover {
+  background: color-mix(in srgb, var(--shell-accent) 86%, var(--ink));
+}
+.stop-not-found-view button.stop-not-found-view-secondary:hover {
+  border-color: var(--ink-soft);
+}
 .home-nearby-action svg {
   width: 18px;
   height: 18px;
@@ -421,7 +435,7 @@ button.brand:active .brand-mark,
   stroke-linecap: round;
 }
 .nearby-stops-view {
-  width: min(760px, 100%);
+  width: min(720px, 100%);
   min-height: 0;
   display: flex;
   flex-direction: column;
@@ -447,7 +461,8 @@ button.brand:active .brand-mark,
   opacity: 0.65;
   cursor: wait;
 }
-.nearby-stops-message {
+.nearby-stops-message,
+.saved-stops-empty {
   margin: 0;
   padding: 14px 16px;
   border-radius: var(--radius-m);
@@ -1017,7 +1032,7 @@ button.brand:active .brand-mark,
    carries in the line under it, and the control at the end where a row puts what it answers with.
    The rows keep to a reading measure — a page of prose, not a page of plan. */
 .settings-view {
-  width: min(920px, 100%);
+  width: min(720px, 100%);
   min-height: 0;
   display: flex;
   flex: 1;
@@ -1052,6 +1067,22 @@ button.brand:active .brand-mark,
   color: var(--ink-soft);
   font-size: 13px;
   line-height: 1.35;
+}
+/* Drawn as the board's order control is: the same choice between named readings. */
+.settings-row .segmented-control {
+  --segment-pad: 2px;
+  --segment-gap: 1px;
+  --segment-radius: 7px;
+  border-radius: 8px;
+  font-size: 13px;
+}
+.settings-row .segmented-control button {
+  min-height: 32px;
+  padding: 0 14px;
+  font: inherit;
+}
+.saved-stops-empty {
+  margin-top: 14px;
 }
 .settings-switch {
   position: relative;
@@ -5122,11 +5153,11 @@ button.line-diagram-bundle-option:focus-visible {
   color: var(--accent-ink);
 }
 .stop-not-found-view button {
-  min-height: 42px;
+  min-height: 44px;
   margin-top: 8px;
   padding: 0 18px;
   border: 0;
-  border-radius: 21px;
+  border-radius: 22px;
   background: var(--shell-accent);
   color: var(--shell-ink);
   font-weight: 750;
