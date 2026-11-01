@@ -2511,7 +2511,11 @@ button.brand:active .brand-mark,
   flex: 1 1 13rem;
   min-width: 0;
 }
+/* The clip box reaches below the tight line height, so descenders are not cut; the margin gives
+   the room back. */
 .departure-board-heading h1 {
+  margin-bottom: -0.15em;
+  padding-bottom: 0.15em;
   overflow: hidden;
   font-size: clamp(24px, 2.2vw, 34px);
   text-overflow: ellipsis;
@@ -3593,6 +3597,8 @@ button.line-diagram-signs {
   display: flex;
   align-items: baseline;
   gap: 14px;
+  margin-bottom: -0.15em;
+  padding-bottom: 0.15em;
   overflow: hidden;
   font-size: clamp(15px, 1.4vw, 20px);
   font-weight: 650;
