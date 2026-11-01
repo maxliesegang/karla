@@ -9,7 +9,6 @@ import {
   withStopVisit,
   type RecentStop,
 } from "../lib/recent-stops";
-import { forgetChosenStopPlaceParts } from "../lib/stop-place-parts";
 import { getLandingPath, hasRouteAddress, replaceCurrentRoute } from "../routing";
 
 /**
@@ -40,15 +39,13 @@ export function useStopRecall(visitedStop: StopPlace | undefined): {
     setRecentStops(withStopVisit(recentStops, visitedStopId, visitedStopName));
   }
 
-  // Not remembering means keeping nothing, so turning it off clears the list.
+  // Turning off history clears the list.
   if (!settings.isRememberingStops && recentStops.length > 0) setRecentStops([]);
 
   // The effect only writes storage.
   useEffect(() => {
-    if (!settings.isRememberingStops) {
-      forgetRecentStops();
-      forgetChosenStopPlaceParts();
-    } else if (visitedStopId) rememberStopVisit(visitedStopId, visitedStopName);
+    if (!settings.isRememberingStops) forgetRecentStops();
+    else if (visitedStopId) rememberStopVisit(visitedStopId, visitedStopName);
   }, [visitedStopId, visitedStopName, settings.isRememberingStops]);
 
   return {

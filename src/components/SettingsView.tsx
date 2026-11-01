@@ -86,12 +86,12 @@ export function SettingsView() {
           }
         />
         <SettingsRow
-          title="Haltestellen merken"
-          description="Besuchte Haltestellen auf diesem Gerät aufbewahren. Ausschalten löscht sie; gemerkte Haltestellen bleiben."
+          title="Zuletzt besuchte Haltestellen merken"
+          description="Besuchte Haltestellen auf diesem Gerät aufbewahren. Ausschalten löscht den Verlauf; Favoriten und Bereichsauswahl bleiben."
           control={
             <SettingsSwitch
               isOn={settings.isRememberingStops}
-              label="Haltestellen merken"
+              label="Zuletzt besuchte Haltestellen merken"
               onChange={(isRememberingStops) => write({ isRememberingStops })}
             />
           }

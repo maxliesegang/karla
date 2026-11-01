@@ -10,7 +10,7 @@ export type AppLanding = "recent-stop" | "home";
 export type AppSettings = {
   /** Where the app opens when it was given no address. */
   landing: AppLanding;
-  /** Whether read stops are kept on this device. */
+  /** Whether stop visits are kept in this device's history. */
   isRememberingStops: boolean;
   /** Whether the line diagram draws other vehicles besides the followed one. */
   isShowingOtherLineRuns: boolean;

@@ -3,7 +3,6 @@
  * `Vorplatz`), and by which a board is filtered. A place of one stop point has none.
  */
 import type { StopPlace, StopPlacePart } from "../data/transit-types";
-import { appSettings } from "./app-settings";
 import { createStoredPreference } from "./stored-preference";
 
 const NO_PARTS: readonly StopPlacePart[] = [];
@@ -34,7 +33,7 @@ export function findReadStopPlacePart(
 export const findStopPointPart = (stop: StopPlace | undefined, stopPointId: string) =>
   getStopPlaceParts(stop).find((part) => part.stopPointId === stopPointId);
 
-/** The part last chosen at each place, by stop id; kept while the rider lets stops be remembered. */
+/** The part last chosen at each place, stored locally by stop id. */
 export const chosenStopPlaceParts = createStoredPreference<Readonly<Record<string, string>>>({
   key: "karla:stop-place-parts",
   parse: (stored) => {
@@ -44,13 +43,8 @@ export const chosenStopPlaceParts = createStoredPreference<Readonly<Record<strin
   serialize: JSON.stringify,
 });
 
-/** Keeps a place's chosen part, or forgets it for the whole place; only while stops are remembered. */
+/** Keeps a place's chosen part, or forgets it for the whole place. */
 export function chooseStopPlacePart(stopId: string, partId: string | undefined): void {
-  if (!appSettings.read().isRememberingStops) return;
   const { [stopId]: _previous, ...others } = chosenStopPlaceParts.read();
   chosenStopPlaceParts.write(partId ? { ...others, [stopId]: partId } : others);
-}
-
-export function forgetChosenStopPlaceParts(): void {
-  if (Object.keys(chosenStopPlaceParts.read()).length > 0) chosenStopPlaceParts.write({});
 }
