@@ -10,6 +10,7 @@ import {
   getVehicleLabelsByRowIndex,
 } from "../../lib/line-diagram";
 import { classNames } from "../../lib/class-names";
+import { needsLineOutline } from "../../lib/line-sign-colors";
 import { LineDiagramStopRow } from "./LineDiagramStopRow";
 import { LineDiagramVehicleLayer } from "./LineDiagramVehicleLayer";
 import { useVehicleLayerGeometry } from "./layout";
@@ -94,8 +95,10 @@ export function LineDiagramBranch({
       }
       style={
         {
-          "--line-color": line.color,
-          "--line-text": line.textColor,
+          "--line-color": line.signColor,
+          "--line-text": line.signInk,
+          "--line-tone": line.textTone,
+          "--line-edge": needsLineOutline(line.signColor) ? "var(--ink-soft)" : undefined,
           "--line-diagram-branch-offset": connectorOffset,
         } as CSSProperties
       }

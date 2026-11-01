@@ -1,6 +1,6 @@
 import { type CSSProperties, type SVGProps, memo, useId, useMemo } from "react";
 import type { TransitLine } from "../../data/transit-types";
-import { getPlanLineTone, needsLineOutline } from "../../data/line-signs";
+import { getPlanLineTone, needsLineOutline } from "../../lib/line-sign-colors";
 import {
   getZentrumSchematicStopId,
   ZENTRUM_SCHEMATIC_VIEWBOX,

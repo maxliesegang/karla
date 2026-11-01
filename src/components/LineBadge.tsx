@@ -7,7 +7,7 @@ export function LineBadge({ line, size = "lg" }: { line: TransitLine; size?: "lg
   return (
     <span
       className={`line-badge ${size}`}
-      style={{ background: line.color, color: line.textColor }}
+      style={{ background: line.signColor, color: line.signInk }}
       data-stacked={kicker ? "true" : undefined}
       data-long={isLong ? "true" : undefined}
       aria-hidden="true"

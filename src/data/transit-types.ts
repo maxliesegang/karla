@@ -171,8 +171,13 @@ export type TransitLine = {
   name: string;
   /** The mode the line was seen running under. */
   ptMode?: PtMode;
+  /** The operator's colour, for strokes. */
   color: string;
-  textColor: string;
+  /** The fill and ink wherever text or an icon sits on the line's colour (`lib/line-sign-colors.ts`). */
+  signColor: string;
+  signInk: string;
+  /** The line's colour as text or a thin mark on a light surface. */
+  textTone: string;
   /** The ends the line was seen running between, most frequent first. */
   destinations: readonly string[];
   /**

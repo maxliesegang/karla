@@ -27,16 +27,12 @@
   --radius-s: 6px;
   --pad: clamp(16px, 1.6vw, 24px);
   --focus: #1076c9;
-  /* Shell accent: the network's by default, the current line's sign colour while a line is in view.
-     App sets --shell-accent/--shell-ink on .app-shell; everything in the bar derives from them,
-     so a light sign colour (Linie 4) flips the bar to dark ink without a second rule. */
+  /* Shell accent: the network's by default, the current line's while a line is in view (set in
+     main.tsx and App from `lib/line-sign-colors.ts`). Fills take --shell-accent with --shell-ink;
+     words and thin marks on light surfaces take --accent-ink, which holds 4.5:1 on paper. */
   --shell-accent: var(--network-accent);
-  --shell-ink: #ffffff;
-  /* The accent as *text* on a light surface. A sign colour may be pale — Linie 4 is a yellow — so
-     it is mixed toward the ink before it is ever used for a word or a rule, and the same token
-     therefore stays legible whichever line is in view. Solid fills use --shell-accent with
-     --shell-ink on top, which is the pairing the sign itself was designed as. */
-  --accent-ink: color-mix(in srgb, var(--shell-accent) 62%, var(--ink));
+  --shell-ink: var(--network-ink);
+  --accent-ink: var(--network-accent-ink);
 }
 
 * {
@@ -132,7 +128,7 @@ h2 {
   padding: 8px 14px;
   border-radius: 10px;
   background: var(--network-accent);
-  color: #fff;
+  color: var(--network-ink);
   font-size: 14px;
   font-weight: 900;
 }
@@ -147,7 +143,6 @@ h2 {
    rows, and everything longer than its row scrolls inside that row. `dvh` so a phone's collapsing
    address bar does not leave the last departure under it. */
 .app-shell {
-  --accent-ink: color-mix(in srgb, var(--shell-accent) 62%, var(--ink));
   /* One duration and one easing for everything the dashboard does when a view changes: the width
      step between one panel and two, and the entrance of whichever half is new. A navigation that
      does both reads as one movement only as long as these are the same number in both places. */
@@ -553,7 +548,7 @@ button.brand:active .brand-mark,
   text-decoration: none;
 }
 .recent-stops li a:hover {
-  border-color: var(--shell-accent);
+  border-color: var(--accent-ink);
 }
 .recent-stops li a span {
   min-width: 0;
@@ -1097,7 +1092,7 @@ button.brand:active .brand-mark,
   transition: background-color 0.18s ease;
 }
 .settings-switch[aria-checked="true"] {
-  background: var(--shell-accent);
+  background: var(--accent-ink);
 }
 .settings-switch i {
   position: absolute;
@@ -2020,10 +2015,15 @@ button.brand:active .brand-mark,
 .experiment-map-canvas[data-has-selection="true"] .experiment-map-links path {
   stroke: color-mix(in srgb, var(--ink) 16%, var(--surface));
 }
-.experiment-map-lit path {
+.experiment-map-lit path,
+.experiment-map-lit-edges path {
   stroke-width: 3px;
   stroke-linecap: round;
   vector-effect: non-scaling-stroke;
+}
+.experiment-map-lit-edges path {
+  stroke: var(--ink-soft);
+  stroke-width: 4.5px;
 }
 /* Places are the background's words: large, pale, under everything a finger reaches. */
 .experiment-map-place {
@@ -3268,7 +3268,7 @@ button.brand:active .brand-mark,
 }
 .corridor-departure.pinned {
   background: color-mix(in srgb, var(--shell-accent) 17%, var(--surface));
-  box-shadow: inset 0 -3px var(--shell-accent);
+  box-shadow: inset 0 -3px var(--accent-ink);
 }
 
 /* The board's rows are a table filling this panel, not a list floating inside it: the list steps
@@ -3419,7 +3419,7 @@ button.brand:active .brand-mark,
   left: 0;
   width: var(--row-inset);
   background: color-mix(in srgb, var(--shell-accent) 17%, var(--surface));
-  box-shadow: inset 4px 0 var(--shell-accent);
+  box-shadow: inset 4px 0 var(--accent-ink);
   opacity: 0;
   transform: scaleX(0.2);
   transform-origin: right center;
@@ -3704,7 +3704,7 @@ button.line-diagram-signs {
   outline: 0;
 }
 .line-diagram-signs.interactive:focus-visible .line-diagram-sign:first-child {
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--line-color) 35%, transparent);
+  box-shadow: 0 0 0 3px var(--line-tone);
 }
 .line-diagram-header h1 {
   display: flex;
@@ -4285,6 +4285,8 @@ button.line-diagram-bundle-option:focus-visible {
     (100% + var(--line-diagram-fork-gap)) *
     var(--line-diagram-branch-offset)
   );
+  box-sizing: border-box;
+  border-block: 1px solid var(--line-edge, transparent);
   border-radius: 8px;
   background: var(--line-color);
 }
@@ -4395,7 +4397,9 @@ button.line-diagram-bundle-option:focus-visible {
   top: -6px;
   bottom: -6px;
   left: var(--line-diagram-track-x);
+  box-sizing: border-box;
   width: 6px;
+  border-inline: 1px solid var(--line-edge, transparent);
   transform: translateX(-50%);
   background: var(--line-color);
 }
@@ -4956,10 +4960,8 @@ button.line-diagram-bundle-option:focus-visible {
   background: transparent;
   text-align: left;
   cursor: pointer;
-  /* The group's own sign colour, mixed toward the ink before it is ever painted — exactly as
-     --accent-ink is. A pale sign (Linie 4 is a yellow) would otherwise wash out to nothing at the
-     strength a hover is set at, so this is what lands every line at the same weight. */
-  --heading-tint: color-mix(in srgb, var(--line-color, var(--ink)) 62%, var(--ink));
+  /* The group's line as text tone, so a pale sign (Linie 4) tints at the weight of the others. */
+  --heading-tint: var(--line-tone, var(--ink));
   /* The lift arrives over a few frames rather than snapping on, so the band reads as answering the
      pointer that is already on it — the timing every row of the board under it uses. */
   transition: background-color 0.2s ease;
@@ -5555,7 +5557,7 @@ button.line-diagram-bundle-option:focus-visible {
 /* The stop a rider marked to get off at: a mark on the row, never the tint alone. */
 .line-diagram-stop.line-diagram-alighting {
   background: color-mix(in srgb, var(--line-color) 14%, var(--surface-2));
-  box-shadow: inset 0 0 0 2px var(--line-color);
+  box-shadow: inset 0 0 0 2px var(--line-tone);
 }
 .line-diagram-stop-name small.line-diagram-alighting-note {
   color: var(--accent-ink);
@@ -5719,7 +5721,7 @@ button.line-diagram-bundle-option:focus-visible {
   font-weight: 700;
 }
 .station-board-countdown-due strong {
-  color: var(--shell-accent);
+  color: var(--accent-ink);
 }
 /* Read at ten metres, a struck-through dash reads as a broken screen. The column says the word. */
 .station-board-countdown-cancelled strong {
@@ -5833,7 +5835,7 @@ button.line-diagram-bundle-option:focus-visible {
     display: none;
   }
   .app-shell:not(.station-board-mode) .departure.selected {
-    box-shadow: inset 4px 0 var(--shell-accent);
+    box-shadow: inset 4px 0 var(--accent-ink);
   }
   .app-shell:not(.station-board-mode) .line-diagram {
     height: auto;

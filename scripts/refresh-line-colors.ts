@@ -49,37 +49,46 @@ async function main(): Promise<void> {
   }
 }
 
+/** `#rrggbb` from a GTFS or community colour, which may lack the `#`. */
+const toHex = (color: string | undefined): string | undefined =>
+  color ? `#${color.replace(/^#/, "").toLowerCase()}` : undefined;
+
+type HomeColor = [color: string, textColor?: string];
+
 /** By name, or by `name|mode` where one name has a colour per mode (`E`: tram red, rail green). */
-async function readHomeColors(archivePath: string): Promise<Record<string, string>> {
+async function readHomeColors(archivePath: string): Promise<Record<string, HomeColor>> {
   const countsByName = new Map<string, Map<PtMode, Map<string, number>>>();
-  for await (const [name, routeType, color] of readTable(archivePath, "routes.txt", [
+  for await (const [name, routeType, color, textColor] of readTable(archivePath, "routes.txt", [
     "route_short_name",
     "route_type",
     "route_color",
+    "route_text_color",
   ])) {
     if (!name || !routeType || !color) continue;
     const byMode = countsByName.get(name) ?? new Map<PtMode, Map<string, number>>();
     const counts = byMode.get(toPtMode(routeType)) ?? new Map<string, number>();
-    const hex = `#${color.toLowerCase()}`;
-    counts.set(hex, (counts.get(hex) ?? 0) + 1);
+    const pair = JSON.stringify([toHex(color), toHex(textColor)].filter(Boolean));
+    counts.set(pair, (counts.get(pair) ?? 0) + 1);
     byMode.set(toPtMode(routeType), counts);
     countsByName.set(name, byMode);
   }
 
-  const colors: Record<string, string> = {};
+  const colors: Record<string, HomeColor> = {};
   for (const [name, byMode] of [...countsByName].sort(([a], [b]) => a.localeCompare(b))) {
     // A mode's colour is its most common; a name with one colour across modes needs no mode.
     const colorByMode = new Map(
       [...byMode].map(([mode, counts]) => [mode, [...counts].sort(([, a], [, b]) => b - a)[0][0]]),
     );
     const distinct = new Set(colorByMode.values());
-    if (distinct.size === 1) colors[name] = [...distinct][0];
-    else for (const [mode, color] of colorByMode) colors[`${name}|${mode}`] = color;
+    if (distinct.size === 1) colors[name] = JSON.parse([...distinct][0]);
+    else for (const [mode, pair] of colorByMode) colors[`${name}|${mode}`] = JSON.parse(pair);
   }
   return colors;
 }
 
-async function readOtherColors(): Promise<Record<string, [string, number][]>> {
+type OtherColor = [color: string, areaIndex: number, textColor?: string];
+
+async function readOtherColors(): Promise<Record<string, OtherColor[]>> {
   const response = await fetch(community.url);
   if (!response.ok) throw new Error(`Community colours: HTTP ${response.status}`);
   const lines = (await response.text())
@@ -88,13 +97,14 @@ async function readOtherColors(): Promise<Record<string, [string, number][]>> {
     .map((line) => readFields(line));
   const rows = selectColumns(
     lines,
-    ["shortOperatorName", "lineName", "backgroundColor"],
+    ["shortOperatorName", "lineName", "backgroundColor", "textColor"],
     "Community colours",
   );
 
-  const colors: Record<string, [string, number][]> = {};
-  for await (const [operator = "", name, backgroundColor] of rows) {
-    const color = backgroundColor?.toLowerCase();
+  const colors: Record<string, OtherColor[]> = {};
+  for await (const [operator = "", name, backgroundColor, textColor] of rows) {
+    const color = toHex(backgroundColor);
+    const ink = toHex(textColor);
     const areaIndex = network.operatorAreas.findIndex(({ operators }) =>
       operators.some((prefix) => operator.startsWith(prefix)),
     );
@@ -104,19 +114,19 @@ async function readOtherColors(): Promise<Record<string, [string, number][]>> {
     const key = squashLineName(name);
     const entries = colors[key] ?? [];
     if (!entries.some(([known, area]) => known === color && area === areaIndex))
-      entries.push([color, areaIndex]);
+      entries.push(ink ? [color, areaIndex, ink] : [color, areaIndex]);
     colors[key] = entries;
   }
   return Object.fromEntries(Object.entries(colors).sort(([a], [b]) => a.localeCompare(b)));
 }
 
 function renderModule(
-  homeColors: Record<string, string>,
-  otherColors: Record<string, [string, number][]>,
+  homeColors: Record<string, HomeColor>,
+  otherColors: Record<string, OtherColor[]>,
   sources: string,
 ): string {
   const home = Object.entries(homeColors)
-    .map(([name, color]) => `  ${JSON.stringify(name)}: "${color}",`)
+    .map(([name, color]) => `  ${JSON.stringify(name)}: ${JSON.stringify(color)},`)
     .join("\n");
   const other = Object.entries(otherColors)
     .map(([name, entries]) => `  ${JSON.stringify(name)}: ${JSON.stringify(entries)},`)
@@ -127,14 +137,14 @@ ${sources}
 //
 // Refresh with: npm run refresh:line-colors
 
-import type { OtherLineColors } from "../../network-definition";
+import type { HomeLineColors, OtherLineColors } from "../../network-definition";
 
-/** The network's lines' colours by name, or by \`name|mode\` where a name has one per mode. */
-export const homeLineColors: Readonly<Record<string, string>> = {
+/** The network's lines' colours and text colours by name, or by \`name|mode\` where a name has one per mode. */
+export const homeLineColors: HomeLineColors = {
 ${home}
 };
 
-/** Other operators' colours by name without spaces, each with its operator area's index. */
+/** Other operators' colours by name without spaces, each with its operator area's index and text colour. */
 export const otherLineColors: OtherLineColors = {
 ${other}
 };

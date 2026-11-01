@@ -43,6 +43,7 @@
     "src/lib/network-lines.ts",
     "src/lib/pt-modes.ts",
     "src/lib/line-colors.ts",
+    "src/lib/line-sign-colors.ts",
     "src/lib/line-identity.ts",
     "src/lib/stop-slug.ts",
     "src/lib/stop-places.ts",

@@ -12,6 +12,7 @@ import {
   createExperimentMapLayout,
   EXPERIMENT_MAP_LANE_PITCH,
 } from "../../lib/experiment-map-layout";
+import { needsLineOutline } from "../../lib/line-sign-colors";
 import type { ZentrumLineSignReader } from "../zentrum/line-sign";
 
 /** Pixels a bend is rounded by. */
@@ -83,8 +84,8 @@ export const ExperimentMapCanvas = memo(function ExperimentMapCanvas({
   const height = scale === undefined ? undefined : Math.ceil(bounds.height * scale);
   const unitsPerPixel = scale === undefined ? 0 : 1 / scale;
 
-  /** Each link's lines as lanes side by side, in one order on every link. */
-  const renderLanes = (lineIdsByLinkId: ReadonlyMap<string, readonly string[]>) =>
+  /** Each link's lines as lanes side by side, in one order on every link; `edges` outlines pale ones. */
+  const renderLanes = (lineIdsByLinkId: ReadonlyMap<string, readonly string[]>, edges = false) =>
     [...lineIdsByLinkId].flatMap(([linkId, lineIds]) => {
       const link = linkById.get(linkId);
       const from = link && points.get(link.fromId);
@@ -99,6 +100,8 @@ export const ExperimentMapCanvas = memo(function ExperimentMapCanvas({
       // A bent link shifts whole along its chord's normal, so its legs stay joined.
       const path = [from, ...(link?.bends ?? []), to];
       return lineIds.map((lineId, index) => {
+        const { color } = getSign(lineId);
+        if (edges && !needsLineOutline(color)) return null;
         const offset =
           (index - (lineIds.length - 1) / 2) * EXPERIMENT_MAP_LANE_PITCH * unitsPerPixel;
         return (
@@ -108,7 +111,7 @@ export const ExperimentMapCanvas = memo(function ExperimentMapCanvas({
               path.map(({ x, y }) => ({ x: x + normal.x * offset, y: y + normal.y * offset })),
               BEND_RADIUS * unitsPerPixel,
             )}
-            stroke={getSign(lineId).color}
+            stroke={edges ? undefined : color}
           />
         );
       });
@@ -161,7 +164,10 @@ export const ExperimentMapCanvas = memo(function ExperimentMapCanvas({
               })}
             </g>
             {litLineIdsByLinkId && (
-              <g className="experiment-map-lit">{renderLanes(litLineIdsByLinkId)}</g>
+              <>
+                <g className="experiment-map-lit-edges">{renderLanes(litLineIdsByLinkId, true)}</g>
+                <g className="experiment-map-lit">{renderLanes(litLineIdsByLinkId)}</g>
+              </>
             )}
           </svg>
           {placeLabels.map(({ id, x, y }) => (
@@ -194,7 +200,7 @@ export const ExperimentMapCanvas = memo(function ExperimentMapCanvas({
                     left: point.x,
                     top: point.y,
                     "--experiment-line-color": reachedLineId
-                      ? getSign(reachedLineId).color
+                      ? getSign(reachedLineId).textTone
                       : undefined,
                     "--experiment-label-gap": label ? `${label.gap}px` : undefined,
                     "--experiment-tick-angle":

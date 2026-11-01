@@ -382,7 +382,7 @@ function LineGroup({
   renderChip: (stopEvent: StopEvent, note: CorridorStopEventNote, isLead: boolean) => ReactNode;
 }) {
   // The band's line colour, mixed toward the ink in CSS.
-  const headingStyle = { "--line-color": group.line.color } as CSSProperties;
+  const headingStyle = { "--line-tone": group.line.textTone } as CSSProperties;
   return (
     <section className="departure-board-line-group" aria-label={`Linie ${group.line.id}`}>
       <h2>

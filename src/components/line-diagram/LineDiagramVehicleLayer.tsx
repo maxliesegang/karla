@@ -196,8 +196,8 @@ function LineDiagramVehicleLayerView({
                 transform,
                 ...(markerLine
                   ? {
-                      "--line-color": markerLine.color,
-                      "--line-text": markerLine.textColor,
+                      "--line-color": markerLine.signColor,
+                      "--line-text": markerLine.signInk,
                     }
                   : {}),
               } as CSSProperties

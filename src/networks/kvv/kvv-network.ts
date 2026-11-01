@@ -60,8 +60,10 @@ export const kvvNetwork: NetworkDefinition = {
   bayPositionByKey,
   bayRunByKey,
   nonDailyLineIds,
-  getLineColor: (lineId, mode) =>
-    (mode && homeLineColors[`${lineId}|${mode}`]) || homeLineColors[lineId],
+  getLineColor: (lineId, mode) => {
+    const published = (mode && homeLineColors[`${lineId}|${mode}`]) || homeLineColors[lineId];
+    return published && { color: published[0], textColor: published[1] };
+  },
   operatorAreas: kvvOperatorAreas,
   otherLineColors,
   getLineTrunkId,

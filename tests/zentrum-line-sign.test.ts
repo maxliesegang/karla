@@ -8,7 +8,8 @@ test("the center map signs E in dark gray regardless of its observed mode", () =
     const getSign = createZentrumLineSignReader([{ id: "E", ptMode }]);
     const sign = getSign("E");
     assert.equal(sign.color, "#59635f");
-    assert.equal(sign.textColor, "#fff");
+    assert.equal(sign.signColor, "#59635f");
+    assert.equal(sign.signInk, "#ffffff");
     assert.equal(sign.ptMode, ptMode);
   }
   assert.equal(createZentrumLineSignReader([])("E").color, "#59635f");

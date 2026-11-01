@@ -343,7 +343,7 @@ export type ZentrumSchematicLinePath = {
  */
 const getLineTrackKey = (lineId: string): string => {
   const trunkId = getLineTrunkId(lineId);
-  const color = kvvNetwork.getLineColor(lineId);
+  const color = kvvNetwork.getLineColor(lineId)?.color;
   return trunkId && color ? `${trunkId}\u0000${color}` : `\u0000${lineId}`;
 };
 

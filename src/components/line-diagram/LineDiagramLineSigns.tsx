@@ -18,8 +18,8 @@ export function LineDiagramLineSigns({
       className={classNames("line-diagram-sign", index > 0 && "additional")}
       style={
         {
-          "--line-sign-color": line.color,
-          "--line-sign-text": line.textColor,
+          "--line-sign-color": line.signColor,
+          "--line-sign-text": line.signInk,
         } as CSSProperties
       }
       aria-hidden="true"

@@ -227,8 +227,9 @@ export default function App() {
   const shellThemeStyle =
     isLineInView && selection.selectedLine
       ? ({
-          "--shell-accent": selection.selectedLine.color,
-          "--shell-ink": selection.selectedLine.textColor,
+          "--shell-accent": selection.selectedLine.signColor,
+          "--shell-ink": selection.selectedLine.signInk,
+          "--accent-ink": selection.selectedLine.textTone,
         } as React.CSSProperties)
       : undefined;
 

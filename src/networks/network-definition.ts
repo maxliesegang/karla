@@ -61,9 +61,15 @@ export type OperatorArea = {
   isHome?: boolean;
 };
 
+/** A line's colour as its operator publishes it, with the text colour where one is given. */
+export type PublishedLineColor = { color: string; textColor?: string };
+
+/** The network's own colours by name, or by `name|mode` where a name has one per mode. */
+export type HomeLineColors = Readonly<Record<string, readonly [color: string, textColor?: string]>>;
+
 /** Other operators' colours by line name without spaces (`RE1`): each with its `OperatorArea` index. */
 export type OtherLineColors = Readonly<
-  Record<string, readonly (readonly [color: string, areaIndex: number])[]>
+  Record<string, readonly (readonly [color: string, areaIndex: number, textColor?: string])[]>
 >;
 
 export type NetworkDefinition = {
@@ -96,7 +102,7 @@ export type NetworkDefinition = {
   /** Rail and tram lines that miss a weekday in the timetable period. */
   nonDailyLineIds: ReadonlySet<string>;
   /** The operator's colour for a line; some names need the mode. */
-  getLineColor(lineId: string, mode?: PtMode): string | undefined;
+  getLineColor(lineId: string, mode?: PtMode): PublishedLineColor | undefined;
   /** Operator families around the network, for telling other operators' lines of one name apart. */
   operatorAreas: readonly OperatorArea[];
   otherLineColors: OtherLineColors;

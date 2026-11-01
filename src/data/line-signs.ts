@@ -1,7 +1,9 @@
 import { findOtherLineColor } from "../lib/line-colors";
+import { getLineColors } from "../lib/line-sign-colors";
 import { isNetworkLineIdentity } from "../lib/network-lines";
 import { getLineIdentity, isSameLineIdentity } from "../lib/line-identity";
 import { network } from "../networks/network";
+import type { PublishedLineColor } from "../networks/network-definition";
 import type { TransitLine, PtMode, StopEvent } from "./transit-types";
 
 /** A mode's name in text; nothing is conveyed by colour alone. */
@@ -24,47 +26,6 @@ const neutralColorByPtMode: Record<PtMode, string> = {
   other: "#59635f",
 };
 
-const hexChannel = (hex: string, offset: number): number =>
-  Number.parseInt(hex.slice(offset, offset + 2), 16) / 255;
-const linearChannel = (channel: number): number =>
-  channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4;
-const relativeLuminance = (hex: string): number =>
-  0.2126 * linearChannel(hexChannel(hex, 1)) +
-  0.7152 * linearChannel(hexChannel(hex, 3)) +
-  0.0722 * linearChannel(hexChannel(hex, 5));
-const contrastRatio = (first: string, second: string): number => {
-  const lighter = Math.max(relativeLuminance(first), relativeLuminance(second));
-  const darker = Math.min(relativeLuminance(first), relativeLuminance(second));
-  return (lighter + 0.05) / (darker + 0.05);
-};
-
-/** Pale line graphics need help against the plan's white separators. */
-export const needsLineOutline = (color: string): boolean => contrastRatio(color, "#ffffff") < 2;
-
-const darken = (hex: string, factor: number): string =>
-  `#${[1, 3, 5]
-    .map((offset) =>
-      Math.round(Number.parseInt(hex.slice(offset, offset + 2), 16) * factor)
-        .toString(16)
-        .padStart(2, "0"),
-    )
-    .join("")}`;
-
-/** A pale colour darkened to about 2:1 on white for the plan; badges keep the official colour. */
-export function getPlanLineTone(color: string): string | undefined {
-  if (!needsLineOutline(color)) return undefined;
-  let factor = 1;
-  while (factor > 0.5 && contrastRatio(darken(color, factor), "#ffffff") < 2) factor -= 0.02;
-  return darken(color, factor);
-}
-
-/** Text by contrast: operators publish white text even on light colours. */
-function getAccessibleTextColor(color: string): string {
-  if (contrastRatio(color, "#ffffff") >= 4.5) return "#fff";
-  if (contrastRatio(color, "#102c2c") >= 4.5) return "#102c2c";
-  return "#000";
-}
-
 /** What a row says of its line: name, mode, ref, and where its journey starts and ends. */
 type LineSignRow = Pick<
   StopEvent,
@@ -80,7 +41,7 @@ const findLineColor = (
   mode: PtMode,
   lineRef: string | undefined,
   journeyEnds: readonly string[],
-): string | undefined =>
+): PublishedLineColor | undefined =>
   isNetworkLineIdentity(lineRef)
     ? network.getLineColor(lineId, mode)
     : findOtherLineColor(lineId, journeyEnds, {
@@ -100,15 +61,14 @@ export function createLineSign(
   lineRef?: string,
   journeyEnds: readonly string[] = [],
 ): TransitLine {
-  const color = findLineColor(lineId, mode, lineRef, journeyEnds) ?? neutralColorByPtMode[mode];
+  const published = findLineColor(lineId, mode, lineRef, journeyEnds);
   const identity = getLineIdentity(lineRef);
   return {
     id: lineId,
     ...(identity ? { identity } : {}),
     name: `${labelByPtMode[mode]} ${lineId}`,
     ptMode: mode,
-    color,
-    textColor: getAccessibleTextColor(color),
+    ...getLineColors(published?.color ?? neutralColorByPtMode[mode], published?.textColor),
     destinations: [],
     zentrumCalls: [],
   };

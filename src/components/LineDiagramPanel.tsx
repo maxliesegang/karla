@@ -19,6 +19,7 @@ import {
   type LineBundleOffer,
 } from "../lib/line-bundles";
 import { isCurrentLineDiagramStop } from "../lib/line-diagram";
+import { needsLineOutline } from "../lib/line-sign-colors";
 import { LineDiagramStopRow } from "./line-diagram/LineDiagramStopRow";
 import { LineDiagramVehicleLayer } from "./line-diagram/LineDiagramVehicleLayer";
 import { LineDiagramBranch } from "./line-diagram/LineDiagramBranch";
@@ -262,8 +263,10 @@ export function LineDiagramPanel({
       )}
       style={
         {
-          "--line-color": line.color,
-          "--line-text": line.textColor,
+          "--line-color": line.signColor,
+          "--line-text": line.signInk,
+          "--line-tone": line.textTone,
+          "--line-edge": needsLineOutline(line.signColor) ? "var(--ink-soft)" : undefined,
         } as React.CSSProperties
       }
     >

@@ -322,8 +322,8 @@ function ZentrumSchematicVehicleMark({
   // One transform in container units for paint and keyframes, so handovers are seamless.
   const style = {
     transform: getZentrumVehicleTransform(vehicle.path, vehicle.progress),
-    "--zentrum-line-color": sign.color,
-    "--zentrum-vehicle-ink": sign.textColor,
+    "--zentrum-line-color": sign.signColor,
+    "--zentrum-vehicle-ink": sign.signInk,
     "--zentrum-vehicle-angle": `${vehicle.angle}deg`,
   } as CSSProperties;
   return (

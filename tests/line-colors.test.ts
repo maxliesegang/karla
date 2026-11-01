@@ -14,7 +14,7 @@ const sources = {
   areas,
   colors: {
     S3: [
-      ["#fddd04", 1],
+      ["#fddd04", 1, "#000000"],
       ["#f36e31", 2],
     ],
     RE2: [
@@ -22,7 +22,8 @@ const sources = {
       ["#1575c5", 1],
     ],
   } as const,
-  getHomeColor: (lineId: string) => (lineId === "S52" ? "#f39b9a" : undefined),
+  getHomeColor: (lineId: string) =>
+    lineId === "S52" ? { color: "#f39b9a", textColor: "#000000" } : undefined,
   homeDistrict: "de:08212",
 };
 
@@ -31,23 +32,46 @@ test("a line name is one name with or without its space", () => {
 });
 
 test("lines of one name take the colour of the operator whose area holds the journey's ends", () => {
-  assert.equal(findOtherLineColor("S3", ["de:07334:1714", "de:08221:1160"], sources), "#fddd04");
-  assert.equal(findOtherLineColor("S3", ["de:08111:6118", "de:08119:7000"], sources), "#f36e31");
+  assert.equal(
+    findOtherLineColor("S3", ["de:07334:1714", "de:08221:1160"], sources)?.color,
+    "#fddd04",
+  );
+  assert.equal(
+    findOtherLineColor("S3", ["de:08111:6118", "de:08119:7000"], sources)?.color,
+    "#f36e31",
+  );
   // The home municipality says nothing about which operator runs the line.
-  assert.equal(findOtherLineColor("S3", ["de:08212:90", "de:08221:1160"], sources), "#fddd04");
+  assert.equal(
+    findOtherLineColor("S3", ["de:08212:90", "de:08221:1160"], sources)?.color,
+    "#fddd04",
+  );
   // A named district outweighs a state-wide operator.
-  assert.equal(findOtherLineColor("RE2", ["de:08212:90", "de:08222:2417"], sources), "#1575c5");
-  assert.equal(findOtherLineColor("RE2", ["de:08212:90", "de:08311:6508"], sources), "#0069b4");
+  assert.equal(
+    findOtherLineColor("RE2", ["de:08212:90", "de:08222:2417"], sources)?.color,
+    "#1575c5",
+  );
+  assert.equal(
+    findOtherLineColor("RE2", ["de:08212:90", "de:08311:6508"], sources)?.color,
+    "#0069b4",
+  );
 });
 
 test("ends in no known area, or no source for the name, leave the line uncoloured", () => {
-  assert.equal(findOtherLineColor("S3", ["de:09162:1", "de:09162:2"], sources), undefined);
-  assert.equal(findOtherLineColor("S3", [], sources), undefined);
-  assert.equal(findOtherLineColor("RB99", ["de:08221:1160"], sources), undefined);
+  assert.equal(findOtherLineColor("S3", ["de:09162:1", "de:09162:2"], sources)?.color, undefined);
+  assert.equal(findOtherLineColor("S3", [], sources)?.color, undefined);
+  assert.equal(findOtherLineColor("RB99", ["de:08221:1160"], sources)?.color, undefined);
+});
+
+test("the chosen operator's published text colour comes with its colour", () => {
+  assert.deepEqual(findOtherLineColor("S3", ["de:07334:1714"], sources), {
+    color: "#fddd04",
+    textColor: "#000000",
+  });
+  assert.deepEqual(findOtherLineColor("S3", ["de:08111:6118"], sources), { color: "#f36e31" });
 });
 
 test("the network's own operator's line under another pool keeps the network's colour", () => {
-  assert.equal(findOtherLineColor("S52", ["de:08212:89", "de:08215:1"], sources), "#f39b9a");
+  assert.equal(findOtherLineColor("S52", ["de:08212:89", "de:08215:1"], sources)?.color, "#f39b9a");
 });
 
 test("other operators' lines are coloured from the generated table by their journey's ends", () => {

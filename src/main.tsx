@@ -1,10 +1,14 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import { getLineColors } from "./lib/line-sign-colors";
 import { network } from "./networks/network";
 import "./index.css";
 
-document.documentElement.style.setProperty("--network-accent", network.accentColor);
+const networkColors = getLineColors(network.accentColor, "#ffffff");
+document.documentElement.style.setProperty("--network-accent", networkColors.signColor);
+document.documentElement.style.setProperty("--network-ink", networkColors.signInk);
+document.documentElement.style.setProperty("--network-accent-ink", networkColors.textTone);
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

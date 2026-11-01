@@ -60,8 +60,8 @@ export function LineDiagramBundleControls({
   const lineStyle = (lineId: string) => {
     const controlLine = lineById.get(lineId) ?? fallbackLine;
     return {
-      "--line-color": controlLine.color,
-      "--line-text": controlLine.textColor,
+      "--line-color": controlLine.signColor,
+      "--line-text": controlLine.signInk,
     } as CSSProperties;
   };
   const renderToggle = ({
