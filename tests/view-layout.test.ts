@@ -138,6 +138,10 @@ test("the settings stand on their own, read no network, and step back up to the 
   assert.equal(settings.hasStopEventBoard, false);
   assert.equal(settings.backPath, "/");
   assert.equal(readsObservedNetwork("settings"), false);
+  const saved = layoutFor("#/saved");
+  assert.equal(saved.isStandaloneView, true);
+  assert.equal(saved.backPath, "/");
+  assert.equal(needsObservedNetwork(parseRoute("#/saved")), false);
 });
 
 test("step up drops one level, and the nearby list returns to the page it corrected", () => {

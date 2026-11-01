@@ -52,14 +52,26 @@ export function HomeEntry({
   );
 }
 
-/** The stops the rider saved, all of them: a list they chose wraps rather than drops any. */
+/**
+ * The stops the rider saved, all of them: a list they chose wraps rather than drops any. A quiet
+ * link beside the label opens them for reordering and removal.
+ */
 function SavedHomeStops({ stops }: { stops: readonly SavedStop[] }) {
   if (stops.length === 0) return null;
   return (
     <nav className="recent-stops saved-stops" aria-labelledby="saved-stops-heading">
-      <h2 id="saved-stops-heading" className="eyebrow">
-        Gemerkt
-      </h2>
+      <div className="saved-stops-heading">
+        <h2 id="saved-stops-heading" className="eyebrow">
+          Gemerkt
+        </h2>
+        <a
+          href={`#${routePaths.saved()}`}
+          className="saved-stops-edit"
+          aria-label="Gemerkte Haltestellen bearbeiten"
+        >
+          Bearbeiten
+        </a>
+      </div>
       <StopChips stops={stops.map((stop) => ({ stopId: stop.stopId, name: stop.stopName }))} />
     </nav>
   );

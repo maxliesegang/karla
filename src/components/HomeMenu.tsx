@@ -18,7 +18,7 @@ const homeMenuItems: readonly {
   },
   {
     label: "Einstellungen",
-    description: "Startseite und gemerkte Haltestellen",
+    description: "Startseite und besuchte Haltestellen",
     path: routePaths.settings(),
   },
 ];

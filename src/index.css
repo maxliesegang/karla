@@ -523,7 +523,7 @@ button.brand:active .brand-mark,
 }
 /* The stops are the loud row of the home: a rider who has been here before is answered by one of
    these, and everything else on the page is for the visit where none of them is the answer. */
-.recent-stops a {
+.recent-stops li a {
   min-height: 46px;
   display: flex;
   align-items: center;
@@ -537,18 +537,43 @@ button.brand:active .brand-mark,
   font-weight: 700;
   text-decoration: none;
 }
-.recent-stops a:hover {
+.recent-stops li a:hover {
   border-color: var(--shell-accent);
 }
-.recent-stops a span {
+.recent-stops li a span {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.recent-stops a b {
+.recent-stops li a b {
   color: var(--accent-ink);
   font-size: 17px;
+}
+
+/* The saved stops' label with its edit link at the row's end, quiet as the label itself. */
+.saved-stops-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.saved-stops-heading h2 {
+  margin: 0;
+}
+/* A wide tap target around small text, without growing the label's row. */
+.saved-stops-edit {
+  margin: -10px -6px;
+  padding: 10px 6px;
+  color: var(--ink-soft);
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.saved-stops-edit:hover,
+.saved-stops-edit:focus-visible {
+  color: var(--accent-ink);
 }
 
 /* ---------- Home menu ---------- */
@@ -1078,6 +1103,63 @@ button.brand:active .brand-mark,
 }
 .settings-about a {
   color: inherit;
+}
+
+/* A saved stop: a grip to drag it by, its name, and removing it, drawn as the board's star is. */
+.saved-stop-row {
+  justify-content: flex-start;
+}
+.saved-stop-row strong {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 750;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.saved-stop-row button {
+  flex: 0 0 auto;
+  min-width: 36px;
+  min-height: 36px;
+  border: 0;
+  border-radius: 8px;
+  color: var(--ink-soft);
+  cursor: pointer;
+}
+.saved-stop-row button:hover,
+.saved-stop-row button:focus-visible {
+  color: var(--accent-ink);
+}
+/* The grip takes the pointer from the page's scroll, so a drag on a phone moves the row. */
+.saved-stop-handle {
+  display: grid;
+  place-items: center;
+  background: transparent;
+  cursor: grab;
+  touch-action: none;
+}
+.saved-stop-handle svg {
+  width: 10px;
+  height: 16px;
+  fill: currentColor;
+}
+.saved-stop-remove {
+  background: var(--surface-3);
+  font-size: 16px;
+  line-height: 1;
+}
+.saved-stop-row.is-dragged {
+  position: relative;
+  z-index: 1;
+  border-radius: 10px;
+  border-color: transparent;
+  background: var(--surface);
+  box-shadow: 0 6px 18px #10201f30;
+}
+.saved-stop-row.is-dragged .saved-stop-handle {
+  color: var(--accent-ink);
+  cursor: grabbing;
 }
 
 /* The Zentrum is a stable drawing surface under an observed reading. Its geometry names places;
@@ -6133,10 +6215,15 @@ button.line-diagram-bundle-option:focus-visible {
   .settings-row .segmented-control button {
     min-height: 44px;
   }
-  /* A switch is small enough to stay beside its text. */
-  .settings-row:has(> .settings-switch) {
+  /* A switch, or a saved stop's buttons, are small enough to stay beside the text. */
+  .settings-row:has(> .settings-switch),
+  .saved-stop-row {
     flex-direction: row;
     align-items: center;
+  }
+  .saved-stop-row button {
+    min-width: 44px;
+    min-height: 44px;
   }
   /* A line's two ends stand one above the other, so neither is cut to a few letters. */
   .network-termini {

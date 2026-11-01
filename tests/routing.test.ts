@@ -32,6 +32,12 @@ test("the settings page has its own address, and steps back up to the home", () 
   assert.equal(getParentSelectionPath({ view: "settings", stopId: "europaplatz" }), "/");
 });
 
+test("the saved stops have their own address, and step back up to the home", () => {
+  assert.equal(routePaths.saved(), "/saved");
+  assert.equal(parseRoute("#/saved").view, "saved");
+  assert.equal(getParentSelectionPath({ view: "saved", stopId: "europaplatz" }), "/");
+});
+
 test("the app opens on the stop last read, and on the home for a rider with no history", () => {
   assert.equal(getLandingPath("marktplatz"), "/stop/marktplatz");
   assert.equal(getLandingPath(undefined), "/");

@@ -18,7 +18,14 @@ import {
 } from "./lib/line-bundles";
 import type { StopEvent } from "./data/transit-types";
 
-export type RouteView = "home" | "experiment" | "stop" | "network" | "nearby" | "settings";
+export type RouteView =
+  | "home"
+  | "experiment"
+  | "stop"
+  | "network"
+  | "nearby"
+  | "settings"
+  | "saved";
 
 /**
  * The panel shown. A stop with a line selected shows the line diagram, which has no address of its
@@ -271,6 +278,8 @@ export function parseRoute(hash: string): AppRoute {
       return { ...defaultRoute, view: "nearby" };
     case "settings":
       return { ...defaultRoute, view: "settings" };
+    case "saved":
+      return { ...defaultRoute, view: "saved" };
     case "experiment":
       // Any other map name, or any map while the others are hidden, opens the Zentrum plan.
       return ARE_OTHER_EXPERIMENT_MAPS_SHOWN && (rest[0] === "geo" || rest[0] === "region")
@@ -305,6 +314,8 @@ export const routePaths = {
   network: () => "/network",
   nearby: () => "/nearby",
   settings: () => "/settings",
+  /** The saved stops, to remove or reorder. */
+  saved: () => "/saved",
   /** A stop, at one of its parts where chosen. */
   stop: (stopId: string, partId?: string) => `/stop/${stopId}${partId ? `/${partId}` : ""}`,
   line: (

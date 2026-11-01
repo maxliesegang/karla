@@ -13,6 +13,7 @@ import { NearbyStopsView } from "./components/NearbyStopsView";
 import { RideStatusPanel } from "./components/RideStatusPanel";
 import { HomeEntry } from "./components/HomeEntry";
 import { SettingsView } from "./components/SettingsView";
+import { SavedStopsView } from "./components/SavedStopsView";
 import {
   BOARD_REFRESH_LABEL,
   getLineRefreshLabel,
@@ -349,6 +350,7 @@ export default function App() {
                   />
                 )}
                 {activeView === "settings" && <SettingsView />}
+                {activeView === "saved" && <SavedStopsView />}
                 {isLineInView && selection.selectedLine && (
                   <>
                     {/* The ride's status card, outside the scrollport so it stays. */}
@@ -464,8 +466,8 @@ export default function App() {
         )}
       </div>
       <DataProvenanceFooter
-        /* Home and settings read nothing, so the footer names the source without a status. */
-        {...(activeView === "home" || activeView === "settings"
+        /* Home, settings and saved stops read nothing, so the footer names the source alone. */
+        {...(activeView === "home" || activeView === "settings" || activeView === "saved"
           ? {}
           : isObservedNetworkInView
             ? { stopEventBoards: observationBoards, coverage: zentrumCoverage }

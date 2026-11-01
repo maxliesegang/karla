@@ -33,6 +33,20 @@ export function withoutSavedStop(saved: readonly SavedStop[], stopId: string): S
   return saved.filter((stop) => stop.stopId !== stopId);
 }
 
+/** The list with this stop moved one place earlier (`-1`) or later (`1`); at an end it stays. */
+export function withSavedStopMoved(
+  saved: readonly SavedStop[],
+  stopId: string,
+  step: -1 | 1,
+): SavedStop[] {
+  const from = saved.findIndex((stop) => stop.stopId === stopId);
+  const to = from + step;
+  if (from < 0 || to < 0 || to >= saved.length) return [...saved];
+  const moved = [...saved];
+  [moved[from], moved[to]] = [moved[to], moved[from]];
+  return moved;
+}
+
 /** The saved stops; unreadable storage gives none. */
 export const savedStops = createStoredPreference<SavedStop[]>({
   key: "karla:saved-stops",
