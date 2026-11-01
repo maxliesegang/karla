@@ -18,6 +18,7 @@ import {
   createSoonestPassageComparator,
   getDatedJourneyPlacement,
   type DatedJourneyMotions,
+  type DatedJourneyPlacement,
   type DatedJourneyPlacementMotion,
   type DatedJourneyPlacementPhase,
   type DatedJourneySegmentTrajectory,
@@ -269,6 +270,53 @@ function findDiagramLink(
   return link;
 }
 
+/**
+ * The rows a placement is drawn between. A link to or from a stop the diagram does not draw (one
+ * only the other direction calls at, a diversion) is drawn across the nearest drawn calls either
+ * side, its progress spread evenly over the links between them.
+ */
+function findPlacementRows(
+  rowsByStopId: ReadonlyMap<string, readonly number[]>,
+  calls: readonly Call[],
+  placement: DatedJourneyPlacement,
+):
+  | {
+      fromIndex: number;
+      toIndex: number;
+      progress: number;
+      trajectory?: DatedJourneySegmentTrajectory;
+    }
+  | undefined {
+  const { fromStopId, toStopId, progress, trajectory } = placement;
+  const link = findDiagramLink(rowsByStopId, fromStopId, toStopId);
+  if (link) return { ...link, progress, trajectory };
+
+  const stopIds = calls.flatMap(({ stopPlaceId }) => (stopPlaceId ? [stopPlaceId] : []));
+  const linkIndex = stopIds.findIndex(
+    (stopId, index) => stopId === fromStopId && stopIds[index + 1] === toStopId,
+  );
+  if (linkIndex < 0) return undefined;
+  let behind = linkIndex;
+  while (behind >= 0 && !rowsByStopId.has(stopIds[behind])) behind -= 1;
+  let ahead = linkIndex + 1;
+  while (ahead < stopIds.length && !rowsByStopId.has(stopIds[ahead])) ahead += 1;
+  if (behind < 0 || ahead >= stopIds.length) return undefined;
+  const stretch = findDiagramLink(rowsByStopId, stopIds[behind], stopIds[ahead]);
+  if (!stretch) return undefined;
+
+  const toStretch = (linkProgress: number) =>
+    (linkIndex - behind + linkProgress) / (ahead - behind);
+  return {
+    ...stretch,
+    progress: toStretch(progress),
+    trajectory: trajectory && {
+      ...trajectory,
+      startProgress: toStretch(trajectory.startProgress),
+      progresses: trajectory.progresses.map(toStretch),
+    },
+  };
+}
+
 /** A mark's link as one continuous row coordinate, derived where needed rather than stored. */
 export const getVehicleRowCoordinate = ({
   fromIndex,
@@ -329,7 +377,7 @@ function placeVehicles(
       turnarounds.standFromByDepartureKey.get(getDatedJourneyMarkKey(candidate)),
     );
     if (!placement) continue;
-    const link = findDiagramLink(rowsByStopId, placement.fromStopId, placement.toStopId);
+    const link = findPlacementRows(rowsByStopId, candidate.calls ?? [], placement);
     if (!link) continue;
 
     const { fromIndex, toIndex } = link;
@@ -338,7 +386,7 @@ function placeVehicles(
       markerKey: getTurnaroundMarkerKey(turnarounds, candidate),
       fromIndex,
       toIndex,
-      progress: placement.progress,
+      progress: link.progress,
       // A finished dated journey is drawn at the end of its last link; running marks belong to the
       // row behind.
       rowIndex: placement.phase === "afterEnd" ? toIndex : fromIndex,
@@ -349,7 +397,7 @@ function placeVehicles(
       phase: placement.phase,
       motion: placement.motion,
       placedAfterLinks: placement.placedAfterLinks,
-      trajectory: placement.trajectory,
+      trajectory: link.trajectory,
       realtimeQuality: getRealtimeQuality(candidate),
     });
   }

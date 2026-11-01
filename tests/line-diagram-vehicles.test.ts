@@ -545,3 +545,39 @@ test("places a mark on the nearer of two rows a chain names the same stop at", (
   );
   assert.ok(Math.abs(getVehicleRowCoordinate(returning) - 2) < 1);
 });
+
+test("places a vehicle between stops the drawn journey does not call at", () => {
+  // Bus 62: back towards Hauptbahnhof it also calls at Vogesenbrücke and Bulach West, which the
+  // drawn journey out of Hauptbahnhof passes without stopping.
+  const diagramStops = buildLineDiagramStops(network, [call("a", 0), call("b", 2), call("c", 4)]);
+  const stopEvent: StopEvent = createFixture({
+    id: "diagram-unserved-calls",
+    journeyRef: "diagram-unserved-calls",
+    lineId: "62",
+    ptMode: "bus",
+    destinationText: "A",
+    minutesUntilDeparture: 0,
+    bay: "1",
+    boardingStopPlaceId: "c",
+    status: "realtime",
+    timetabledDepartureTime: new Date(start).toISOString(),
+    calls: datedJourney([call("c", 0), call("b", 2), call("x", 3), call("a", 4)]),
+  });
+  const placeAt = (minute: number) =>
+    getLineDiagramVehicles(diagramStops, [stopEvent], [], undefined, start + minute * 60_000, {
+      motions: createDatedJourneyMotions(),
+    });
+
+  // Into X and out of it, the mark runs on from B towards A.
+  const [intoX] = placeAt(2.5);
+  const [outOfX] = placeAt(3.5);
+  for (const vehicle of [intoX, outOfX]) {
+    assert.equal(vehicle?.fromIndex, 1);
+    assert.equal(vehicle?.toIndex, 0);
+  }
+  assert.ok(getVehicleRowCoordinate(intoX) > 0.5 && getVehicleRowCoordinate(intoX) < 1);
+  assert.ok(getVehicleRowCoordinate(outOfX) > 0 && getVehicleRowCoordinate(outOfX) < 0.5);
+  // Names the stops it is really between.
+  assert.equal(outOfX.toStopId, "a");
+  assert.equal(outOfX.fromStopId, "x");
+});
