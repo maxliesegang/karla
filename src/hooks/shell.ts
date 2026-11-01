@@ -76,3 +76,17 @@ export function usePanelChange(keys: PanelKeys): PanelChange {
   setPrevious({ ...keys, change });
   return change;
 }
+
+/**
+ * The browser's and the installed app's status bar wear the shell's accent: the line's colour while
+ * a line is in view, the network's otherwise (`--network-accent`, set in main.tsx).
+ */
+export function useStatusBarColor(lineColor: string | undefined) {
+  useEffect(() => {
+    const color =
+      lineColor ??
+      getComputedStyle(document.documentElement).getPropertyValue("--network-accent").trim();
+    const meta = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]');
+    if (color && meta) meta.content = color;
+  }, [lineColor]);
+}

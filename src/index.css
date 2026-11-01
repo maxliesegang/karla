@@ -5947,7 +5947,8 @@ button.line-diagram-bundle-option:focus-visible {
   /* Safari from iOS 26 tints the status bar from a *fixed* element touching the top edge and, when
      it finds none, lays its frosted scroll-edge blur over whatever scrolls up there — the sticky bar
      is not read as one. A fixed strip of the bar's own colour under the status bar is, so the accent
-     runs up to the screen's edge instead. At least 1px so Safari still finds it where the inset is 0. */
+     runs up to the screen's edge instead. At least 1px so Safari still finds it where the inset is 0.
+     Installed, the status bar is opaque and theme-coloured (index.html), so the inset is 0 there. */
   .app-shell:not(.station-board-mode)::before {
     content: "";
     position: fixed;

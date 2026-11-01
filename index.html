@@ -49,10 +49,14 @@
       name="twitter:image:alt"
       content="KARLA-Logo mit stilisiertem Liniennetz"
     />
-    <!-- Installed, the app is the bar's own colour up to the status bar, and its name is the mark. -->
+    <!-- Installed, the app is the bar's own colour up to the status bar, and its name is the mark.
+         `default`, not `black-translucent`: from iOS 26.1 a home-screen app with a translucent status
+         bar gets a system scrim over it that no CSS lifts (WebKit 317153). The opaque bar takes
+         theme-color instead, which the shell keeps in step with its accent (hooks/shell.ts). iOS
+         reads this tag at install, so a change only shows once the app is added again. -->
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
     <meta name="apple-mobile-web-app-title" content="KARLA" />
     <link rel="manifest" href="./manifest.webmanifest" />
     <link rel="icon" href="./favicon.png" sizes="64x64" type="image/png" />

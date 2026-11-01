@@ -26,7 +26,12 @@ import { useLatch } from "./hooks/latch";
 import { useFeedNow } from "./hooks/clock";
 import { useInitialLanding, useStopRecall } from "./hooks/stop-recall";
 import { useIsNarrowViewport } from "./hooks/viewport";
-import { useStationBoardReload, usePanelChange, useViewShortcuts } from "./hooks/shell";
+import {
+  useStationBoardReload,
+  usePanelChange,
+  useStatusBarColor,
+  useViewShortcuts,
+} from "./hooks/shell";
 import { usePullToRefresh } from "./hooks/pull-to-refresh";
 import { useLocatableStops, useTransitNetwork } from "./hooks/transit-network";
 import { useNearbyStops } from "./hooks/nearby-stops";
@@ -156,6 +161,7 @@ export default function App() {
     nearbyReturnStopId,
   });
   const panelChange = usePanelChange(layout);
+  useStatusBarColor(layout.isLineInView ? selection.selectedLine?.signColor : undefined);
   // Both location buttons share it: a home press opens the stop the bar then offers to change.
   const locatedStop = useLocatedStop(layout.activeView === "stop" ? selection.stopId : undefined);
 
